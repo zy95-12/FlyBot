@@ -35,12 +35,29 @@ untrusted code or a production launcher.
 
 ## Reuse the control plane
 
-Clone `zy95-12/flybot-control-plane` beside this checkout and follow that repo's
-`dev/README.md`. Its `local_demo.py` starts the existing panel and FastAPI API with
-a fresh private SQLite database. `--check` exercises real HTTP login, invitation,
-registration, two independent users, CSRF and admin gates. No privileged host
-manager runs. Both checks are independent until M2 links platform identities to
-FlyBot members; two successful checks are not a working shared project.
+Clone the unchanged `main` of `zy95-12/flybot-control-plane` beside this checkout.
+The validation code lives here in FlyBot; no control-plane patch is required:
+
+```sh
+uv venv /tmp/flybot-m0-python
+uv pip install --python /tmp/flybot-m0-python/bin/python \
+  -r ../flybot-control-plane/control_plane/requirements.txt -r dev/demo/requirements.txt
+/tmp/flybot-m0-python/bin/python dev/demo/control_plane.py \
+  --control-plane ../flybot-control-plane --check --port 0
+```
+
+Without `--check`, the script asks for a temporary admin password and serves the
+existing panel on loopback (default port 18088). Data is private, disposable and
+deleted on exit. The script does not load production environment files, overrides
+database/cookie/domain settings in its own process and disables runtime management.
+It suppresses bytecode writes in the external checkout. No manager, upgrade script,
+platform deployment configuration or control-plane source file is changed.
+
+`--check` exercises real HTTP login, invitation, registration, two independent
+users, CSRF and admin gates. Both checks remain independent until platform
+identities are linked to FlyBot members; this is not a working shared project.
+Prefer FlyBot-side adapters for future integration. A truly missing platform API
+must be documented separately before proposing a minimal control-plane change.
 
 ## Image provenance
 
@@ -68,7 +85,7 @@ Do not use the existing production Compose project for a demo.
 | Two FlyBot member sessions | Distinct identities and session tokens work | Link authenticated platform users in M2 |
 | Shared Workflow write | Correctly refused as `bot/blocked-shared` | Project-scoped authorization in M2 |
 | Project ownership | Existing instance-local Project bindings | Stable Project/Task/Run contracts in M1 |
-| Control-plane host manager | Existing API/panel reusable; manager not started | Existing privileged deployment remains site-bound; see control-plane dev notes |
+| Control-plane host manager | Existing API/panel reused unchanged; manager not started | Original manager remains site-bound and depends on historical overlay templates; integration must not assume it is portable |
 
 The current sidebar and Project UI impose no constraints on future APIs. M5
 rebuilds the task navigation and Project board around the new domain contracts.
