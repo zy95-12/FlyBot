@@ -137,3 +137,8 @@ M7.3 resources read model includes sanitized Harness worker status/pending quest
 ### M7.4 — 2026-10-31
 
 M7.4 Owner forms preserve existing persona/Skill/memory/defaults and offer multiple resource checkboxes. Each target shows independent Harness status and probes. Explicit resource admins can open a private line-input PTY; input is never a persisted form draft. HTTP uses existing Origin/Host guards and all WebSocket upgrades are refused.
+
+
+### M7.5 — 2026-10-31
+
+M7.5 real browser integration exercises Owner role Harness/resource edits and private PTY, refuses Member terminal access and preserves accurate unconfigured SDK status. Runtime/terminal/input channel wiring is corrected and directly tested. Attempt UI reads only scoped sealed execution logs. Full positive paid mixed-resource acceptance remains pending profiles.

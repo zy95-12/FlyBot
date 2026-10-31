@@ -303,14 +303,6 @@ export function install(rt) {
       switch (endpoint) {
         case 'auth-mode':
         case 'workbench-state':
-        case 'project-runtime-check':
-        case 'project-terminal-open':
-        case 'project-terminal-poll':
-        case 'project-terminal-input':
-        case 'project-terminal-resize':
-        case 'project-terminal-close':
-        case 'project-execution-input':
-        case 'project-resource-environment-check':
         case 'project-resources':
           return ok(await rt.workbenchEndpoint(endpoint, body, actor))
         case 'state':
@@ -682,6 +674,14 @@ export function install(rt) {
         case 'workflow-save':
           return ok(await rt.workflowEndpoint(endpoint, body))
         // Projects (#1691): a durable Project record and the binding a group, Bot or run names.
+        case 'project-runtime-check':
+        case 'project-terminal-open':
+        case 'project-terminal-poll':
+        case 'project-terminal-input':
+        case 'project-terminal-resize':
+        case 'project-terminal-close':
+        case 'project-execution-input':
+        case 'project-resource-environment-check':
         case 'projects':
         case 'project-queue-cancel':
         case 'project-attempt-stop':

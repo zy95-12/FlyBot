@@ -292,3 +292,17 @@ test('SDK Chief actions retain current human scope and never acquire generic too
   assert.equal(rt.state.projectAgents[sent.agent.id].lastRequest.phase, 'failed')
   assert.equal(Object.keys(rt.state.tasks).length, count)
 })
+
+test('native Chief pool leases end with the turn while its logical Bot remains resident', async t => {
+  const { rt } = await setup(t)
+  rt.config.projectResources = { local: { type: 'local', root: '/tmp', capacity: 1, allowedProjectOwnerIds: ['owner-1'], harnesses: ['flybot'] } }
+  rt.state.projectResourceHealth = { local: { status: 'ready', at: Date.now() } }
+  await rt.projectEndpoint('project-agent-definition', { projectId: 'p1', role: 'chief', execution: { harness: 'flybot', resourceIds: ['local'] } }, alice)
+  const sent = await message(rt, alice, 'public')
+  assert.equal(rt.projectResources.occupied('local'), 1)
+  rt.projectAgents.onEvent({ id: sent.agent.botId }, { type: 'turn/end', data: { turn: 1 } })
+  await new Promise(resolve => setTimeout(resolve, 10))
+  assert.equal(rt.projectResources.occupied('local'), 0)
+  assert.ok(rt.botOf(sent.agent.botId))
+  assert.equal((await get(rt, alice)).public.id, sent.agent.id)
+})

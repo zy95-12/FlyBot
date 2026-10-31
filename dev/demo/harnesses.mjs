@@ -16,9 +16,10 @@ try {
       OPENAI_BASE_URL: 'http://127.0.0.1:1', ANTHROPIC_BASE_URL: 'http://127.0.0.1:1', API_TIMEOUT_MS: '2000', CLAUDE_CODE_MAX_RETRIES: '0' }
     let events = 0, error = null
     try {
-      await runHarnessTurn({ harness, env, cwd: root, model: harness === 'codex' ? 'gpt-5-codex' : 'claude-sonnet-4-5', prompt: 'Reply ready without tool calls.', readOnly: true,
+      await runHarnessTurn({ harness, env, cwd: root, model: harness === 'codex' ? 'gpt-5-codex' : 'claude-sonnet-4-5', prompt: 'Reply ready without tool calls.', readOnly: true, noTools: true,
         baseUrl: 'http://127.0.0.1:1' }, { signal: AbortSignal.timeout(15_000), emit: () => { events++ }, permission: async () => ({ allow: false }) })
     } catch (failure) { error = failure }
+    assert.ok(events > 0, 'Installed SDK/runtime must accept the configured no-tools protocol before its provider failure')
     assert.ok(error, 'Missing credentials/unreachable provider must never produce successful execution')
     results.push({ harness, sdkInvoked: true, events, result: 'refused completion without configured authorization/provider' })
   }

@@ -1,9 +1,10 @@
 // Harness worker lifecycle plugs into the existing Workflow. It never accepts a Task.
 import { randomUUID } from 'node:crypto'
 import { createHash } from 'node:crypto'
-import { mkdir, appendFile, readFile } from 'node:fs/promises'
+import { mkdir, appendFile, readFile, copyFile } from 'node:fs/promises'
 import { isAbsolute, join, resolve, relative, dirname } from 'node:path'
 import { createInterface } from 'node:readline'
+import { fileDigest } from './project-resource-workspaces.js'
 import { ownEntry, setEntry } from './store.js'
 const refuse = message => Object.assign(new Error(message), { code: 'bot/harness' })
 const sha = text => createHash('sha256').update(text).digest('hex')
@@ -18,7 +19,7 @@ export function createProjectHarness(rt) {
     const generated = isAbsolute(resource.profileRoot ?? '') ? { home: join(resource.profileRoot, sha(`${projectId}\n${principalId}`).slice(0, 24), harness), configDir: join(resource.profileRoot, sha(`${projectId}\n${principalId}`).slice(0, 24), harness, 'config') } : null
     const selected = configured ?? (harness === 'flybot' ? null : generated)
     if (!selected || !isAbsolute(selected.home ?? '') || !isAbsolute(selected.configDir ?? '')) throw refuse('Resource Harness needs an explicitly authorized principal/profile and model')
-    const env = { PATH: `${resource.type === 'local' ? dirname(resource.nodePath ?? process.execPath) + ':' : ''}/usr/local/bin:/usr/bin:/bin`, LANG: 'C.UTF-8', HOME: selected.home,
+    const env = { PATH: `${resource.nodePath || resource.type === 'local' ? dirname(resource.nodePath ?? process.execPath) + ':' : ''}/usr/local/bin:/usr/bin:/bin`, LANG: 'C.UTF-8', HOME: selected.home,
       ...(harness === 'flybot' ? { DSH_HOME: selected.configDir } : harness === 'codex' ? { CODEX_HOME: selected.configDir } : { CLAUDE_CONFIG_DIR: selected.configDir, API_TIMEOUT_MS: '30000', CLAUDE_CODE_MAX_RETRIES: '1', CLAUDE_AGENT_SDK_CLIENT_APP: 'flybot' }) }
     if (resource.type === 'local' && !forSetup) {
       try {
@@ -54,15 +55,15 @@ export function createProjectHarness(rt) {
     const session = chief?.session ?? rt.projectDelivery.sessionFor(workspace)
     if (!session || session.execution.harness === 'flybot') return null
     if (!VERSIONS[session.execution.harness] || !session.resourceLease) throw refuse('SDK Harness requires an admitted resource lease')
+    rt.projectResources.requireBinding(session.projectId, session.resourceLease)
     const selected = await profile(session.projectId, session.resourceLease.resourceId, session.execution.harness)
     if (!selected.selected.model && !session.execution.model) throw refuse('SDK role requires an explicit model identifier')
     const workerPath = selected.resource.runtimeDir ? join(selected.resource.runtimeDir, 'src/host/project-harness-worker.mjs') : resolve(import.meta.dirname, 'project-harness-worker.mjs')
-    if (selected.resource.type !== 'local') throw refuse('Remote SDK Workspaces require cross-resource transfer support')
     if (relative(selected.resource.root, workspace.path).startsWith('..')) throw refuse('SDK Workspace is outside the selected resource')
     const id = `sdk-worker-${randomUUID()}`
     const row = { id, projectId: session.projectId, taskId: session.taskId, attemptId: session.attemptId, role: session.role, sessionKey: session.id,
       resourceId: session.resourceLease.resourceId, leaseId: session.resourceLease.id, generation: session.resourceLease.generation,
-      harness: session.execution.harness, sdkVersion: VERSIONS[session.execution.harness], principalId: selected.principalId,
+      harness: session.execution.harness, sdkVersion: null, expectedSdkVersion: VERSIONS[session.execution.harness], principalId: selected.principalId,
       cwd: workspace.path, status: 'prepared', createdAt: Date.now(), eventCount: 0 }
     setEntry(workers(), id, row)
     if (chief) await rt.projectResources.markStarted(row.leaseId, row.generation, { kind: 'sdk', handle: id })
@@ -73,19 +74,36 @@ export function createProjectHarness(rt) {
     const process = rt.projectResources.startProcess(row.projectId, row.resourceId, { argv: ['node', workerPath], cwd: workspace.path })
     const control = { process, chief, resumeSessionId: chief?.resumeSessionId, env: selected.env, profile: { ...selected.selected, ...(session.execution.model ? { model: session.execution.model } : {}) }, session, prompt: spec.prompt, outputs: [], closed: false, ready: false }
     active.set(id, control)
-    control.exit = new Promise(resolve => process.once('close', (code, signal) => { control.closed = true; row.exit = { code, signal }; resolve(row.exit) }))
-    process.once('error', () => { control.spawnFailed = true; row.status = 'failed'; void report(row, false, 'SDK worker could not start') })
+    let readyResolve, readyReject
+    control.handshake = new Promise((resolve, reject) => { readyResolve = resolve; readyReject = reject })
+    control.exit = new Promise(resolve => process.once('close', (code, signal) => { control.closed = true; row.exit = { code, signal }; if (!control.readyObserved) { control.spawnFailed = true; readyReject(refuse('SDK resource runtime exited before its handshake')) } resolve(row.exit) }))
+    process.stdin.on('error', () => { if (active.get(id) === control && !['released', 'stopping'].includes(row.status)) { row.status = 'failed'; failAsync(row, 'SDK worker input channel closed') } })
+    process.once('error', () => { control.spawnFailed = true; readyReject(refuse('SDK resource runtime could not start')); row.status = 'failed'; failAsync(row, 'SDK worker could not start') })
     // stderr can contain login material. Keep only a byte count, never persist raw text.
     process.stderr.on('data', data => { row.stderrBytes = (row.stderrBytes ?? 0) + data.length })
     let eventTail = Promise.resolve()
     const lines = createInterface({ input: process.stdout })
     lines.on('line', line => {
+      // Release may be awaited by the result callback inside eventTail. Observe only the
+      // fenced stop acknowledgement immediately, so shutdown cannot wait on itself.
+      try {
+        const signal = JSON.parse(line), lease = ownEntry(rt.state.projectResourceLeases ?? {}, row.leaseId)
+        if (signal.type === 'ready' && active.get(id) === control) {
+          control.readyObserved = true
+          control.observedSdkVersion = /^\d+\.\d+\.\d+(?:-[A-Za-z0-9.]+)?$/.test(signal.sdk?.[row.harness] ?? '') ? signal.sdk[row.harness] : null
+          if (signal.sdk?.[row.harness] !== VERSIONS[row.harness]) readyReject(refuse('SDK version on selected resource is missing or incompatible'))
+          else { row.sdkVersion = signal.sdk[row.harness]; readyResolve() }
+        }
+        if (signal.type === 'stopped' && signal.released === true && active.get(id) === control && lease?.generation === row.generation) control.stoppedConfirmed = true
+      } catch { /* The serialized protocol handler below owns malformed-frame errors. */ }
       eventTail = eventTail.then(async () => {
         const currentLease = ownEntry(rt.state.projectResourceLeases ?? {}, row.leaseId)
         if (active.get(id) !== control || row.status === 'released' || currentLease?.generation !== row.generation || currentLease.status === 'released') return
         if (line.length > 1024 * 1024) throw refuse('SDK event exceeds maximum size')
         const event = redact(JSON.parse(line), control.env)
         row.eventCount++
+        row.eventBytes = (row.eventBytes ?? 0) + Buffer.byteLength(JSON.stringify(event))
+        if (row.eventCount > 1000 || row.eventBytes > 16 * 1024 * 1024) throw refuse('SDK evidence exceeds its bounded event budget')
         await appendFile(row.eventLog, JSON.stringify(event) + '\n', { mode: 0o600 })
         row.lastEventHash = sha(JSON.stringify(event))
         if (event.type === 'stopped') control.stoppedConfirmed = event.released === true
@@ -99,23 +117,42 @@ export function createProjectHarness(rt) {
           rt.projectResources.setting(row.projectId, row.resourceId)
           if (row.backendSessionId && row.backendSessionId !== event.sessionId) throw refuse('SDK result names another Session')
           row.backendSessionId = event.sessionId; session.backendSessionId = event.sessionId; row.usage = event.usage; row.resultHash = sha(event.text)
-          if (control.outputs.every(name => new RegExp(`(?:^|\\n)OUTPUT ${name}:`).test(event.text))) { row.status = 'completed'; await report(row, true, event.text) }
+          if (control.outputs.every(name => new RegExp(`(?:^|\\n)OUTPUT ${name}:`).test(event.text))) {
+            row.status = 'completed'
+            if (!control.chief) {
+              const sealedLog = join(directory, `${row.role}-sdk.completed.jsonl`)
+              await copyFile(row.eventLog, sealedLog)
+              await rt.projectDelivery.recordExecution?.({ ...row, sealedLog, eventSha256: await fileDigest(sealedLog) })
+            }
+            await report(row, true, event.text)
+          }
           else { row.status = 'waiting-input'; row.pending = { kind: 'message', text: event.text.slice(0, 16000) } }
         }
         if (event.type === 'failure') { row.status = 'failed'; await report(row, false, event.reason) }
         await rt.save()
-      }).catch(error => { row.status = 'failed'; void report(row, false, error.code === 'bot/harness' ? error.message : 'SDK event protocol failed') })
+      }).catch(error => { row.status = 'failed'; failAsync(row, error.code === 'bot/harness' ? error.message : 'SDK event protocol failed') })
     })
     void control.exit.then(async () => {
       if (!['completed', 'released', 'stopping', 'failed'].includes(row.status)) { row.status = 'failed'; await report(row, false, 'SDK stream terminated before a validated completion') }
     }).catch(error => rt.warn('SDK exit handling failed: %s', error.message))
+    let handshakeTimer
+    try { await Promise.race([control.handshake, new Promise((_resolve, reject) => { handshakeTimer = setTimeout(() => reject(refuse('SDK runtime handshake timed out')), 5000) })]) }
+    catch (error) {
+      row.failure = { reason: error.message, at: Date.now() }
+      rt.state.projectHarnessHealth ??= {}
+      setEntry(rt.state.projectHarnessHealth, `${row.projectId}:${row.resourceId}:${row.harness}`, { status: 'environmentError', reason: error.message, sdkVersion: control.observedSdkVersion ?? null, expectedSdkVersion: VERSIONS[row.harness], principalId: row.principalId, at: Date.now(), resourceId: row.resourceId, harness: row.harness })
+      await release(id); throw error
+    }
+    finally { clearTimeout(handshakeTimer) }
     await rt.save()
     return id
   }
+  function failAsync(row, text) { void report(row, false, text).catch(error => rt.warn('SDK result routing failed: %s', error.code ?? 'unknown')) }
   async function report(row, ok, text) {
     const control = active.get(row.id)
     if (!control || control.reported) return
     control.reported = true
+    if (!ok) row.failure = { reason: String(text).slice(0, 500), at: Date.now() }
     if (control.chief) {
       try { await control.chief.onResult({ ok, text, backendSessionId: row.backendSessionId }) }
       finally { await release(row.id) }
@@ -134,7 +171,7 @@ export function createProjectHarness(rt) {
     row.status = 'running'
     control.process.stdin.write(JSON.stringify({ type: 'start', settings: { harness: row.harness, cwd: row.cwd, sessionId: control.resumeSessionId, noTools: row.role === 'chief', model: control.profile.model, env: control.env,
       ...(control.profile.baseUrl ? { baseUrl: control.profile.baseUrl } : {}), readOnly: row.role !== 'developer', maxBudgetUsd: control.profile.maxBudgetUsd ?? 1 }, prompt }) + '\n')
-    control.timer = setTimeout(() => { row.status = 'failed'; void report(row, false, 'SDK execution timeout') }, 120_000)
+    control.timer = setTimeout(() => { row.status = 'failed'; failAsync(row, 'SDK execution timeout') }, 120_000)
     control.timer.unref?.()
     await rt.save()
     return { ok: true }
@@ -164,9 +201,8 @@ export function createProjectHarness(rt) {
     let workerId
     try {
       const selected = await profile(agent.projectId, lease.resourceId, definition.execution.harness)
-      if (selected.resource.type !== 'local') throw refuse('Remote Chief runtime requires resource transfer support')
       const cwd = join(selected.resource.root, 'chief-contexts', sha(agent.id).slice(0, 24))
-      await mkdir(cwd, { recursive: true, mode: 0o700 })
+      await rt.projectResources.command(agent.projectId, lease.resourceId, { argv: ['mkdir', '-p', cwd], cwd: selected.resource.root })
       await rt.projectResources.command(agent.projectId, lease.resourceId, { argv: ['git', 'init', '-q'], cwd })
       const bindingKey = `${definition.execution.harness}:${lease.resourceId}:${selected.principalId}:${delegation.definitionRevision}`
       const session = { id: `chief-session-${delegation.id}`, projectId: agent.projectId, taskId: null, attemptId: `chief-turn-${delegation.id}`, role: 'chief',

@@ -1,4 +1,8 @@
 import assert from 'node:assert/strict'
+import { mkdtemp, writeFile, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { once } from 'node:events'
 import { test } from 'node:test'
 import { createProjectResources } from '../src/host/project-resources.js'
 
@@ -65,4 +69,42 @@ test('missing environment/authentication evidence blocks a resource rather than 
   delete rt.state.projectResourceHealth.local
   await assert.rejects(resources.reserve({ projectId: 'p1', attemptId: 'a', role: 'developer', sessionKey: 's', harness: 'flybot', resourceIds: ['local'] }), /readiness/)
   await assert.rejects(resources.reserve({ projectId: 'p1', attemptId: 'a', role: 'developer', sessionKey: 's', harness: 'codex', resourceIds: ['isolated'] }), /readiness/)
+})
+
+test('changing a registered physical target cannot silently migrate an admitted lease', async () => {
+  const { rt, resources } = fixture()
+  const lease = await resources.reserve({ projectId: 'p1', attemptId: 'a', role: 'developer', sessionKey: 'bound-target', harness: 'flybot', resourceIds: ['local'] })
+  assert.equal(resources.requireBinding('p1', lease).root, '/tmp/flybot-resource-local')
+  rt.config.projectResources.local.root = '/tmp/another-host-directory'
+  assert.throws(() => resources.requireBinding('p1', lease), /binding changed/)
+  assert.equal(resources.occupied('local'), 1)
+})
+
+
+test('resource commands and worker processes use the same explicit Node executable', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'flybot-resource-node-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const executable = join(root, 'configured node runtime')
+  await writeFile(executable, '#!/bin/sh\nprintf "configured-runtime"\n', { mode: 0o700 })
+  const { rt } = fixture()
+  rt.config.projectResources.local.root = root
+  rt.config.projectResources.local.nodePath = executable
+  const resources = createProjectResources(rt)
+  assert.equal((await resources.command('p1', 'local', { cwd: root, argv: ['node', '-v'] })).stdout, 'configured-runtime')
+  const child = resources.startProcess('p1', 'local', { cwd: root, argv: ['node', '-v'] })
+  let output = ''; child.stdout.on('data', part => { output += part }); child.stderr.resume(); child.stdin.end()
+  await once(child, 'close')
+  assert.equal(output, 'configured-runtime')
+})
+
+test('native Harness candidate pools exclude Docker even when its operator capability list is wrong', async () => {
+  const { rt, resources } = fixture()
+  rt.config.projectResources.isolated.harnesses.push('flybot')
+  const lease = await resources.reserve({ projectId: 'p1', attemptId: 'a', role: 'tester', sessionKey: 'native-compatible', harness: 'flybot', resourceIds: ['isolated', 'local'] })
+  assert.equal(lease.resourceId, 'local')
+})
+
+test('unconfigured SDK roles block admission before workspace or worker allocation', () => {
+  const { resources } = fixture()
+  assert.throws(() => resources.plan('p1', { roles: [{ role: 'developer', execution: { harness: 'codex', resourceIds: [] } }] }), /no authorized execution resource pool/)
 })

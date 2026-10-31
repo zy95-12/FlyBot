@@ -139,3 +139,8 @@ produce a new commit/PR and preserve both histories. The negative Project delibe
 forces its host test nonzero, then exercises retry, queue and membership removal. The
 report includes actual Attempt ids, commit/PR/evidence hashes and elapsed time. It excludes
 API keys, member credentials, raw private conversation, trace/HAR and owner cookies.
+
+
+### M7.5 — 2026-10-31
+
+M7 extends the isolated browser fixture with an operator-granted demo-local resource and unreachable-loopback SDK profile. Owner can configure a role and use an actual private PTY; Member is refused. This remains key-free/deterministic; see docs/m7-acceptance.md before claiming positive real SDK readiness or mixed-resource delivery.

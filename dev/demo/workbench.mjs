@@ -91,6 +91,30 @@ export async function checkWorkbench({ credentials, port, cookie, saved, waitFor
       await click(alice, 'Task board'); await alice.reload(); await visible(alice, task.title)
       await alice.screenshot({ path: join(artifacts, 'project-desktop.png'), fullPage: true })
     }
+    await click(alice, 'Resources'); await visible(alice, 'demo-local')
+    await click(bob, 'Resources')
+    assert.equal(await bob.getByRole('button', { name: 'Open codex configuration terminal', exact: true }).count(), 0)
+    assert.equal((await api(bob, 'project-terminal-open', { projectId, resourceId: 'demo-local', harness: 'codex' })).ok, false)
+    await click(alice, 'Open codex configuration terminal'); await visible(alice, 'demo-local · codex private configuration')
+    await alice.getByLabel('Private terminal input (not saved)', { exact: true }).fill("printf 'BROWSER_%s\\n' PTY_READY")
+    await click(alice, 'Send to terminal')
+    await alice.locator('.terminal-screen').filter({ hasText: 'BROWSER_PTY_READY' }).waitFor({ timeout: 15000 })
+    await click(alice, 'Close and recheck configuration')
+    await alice.getByLabel('Private terminal input (not saved)', { exact: true }).waitFor({ state: 'hidden' })
+    await waitFor(() => Object.values(saved().projectTerminalAudit ?? {}).some(row => row.projectId === projectId && row.released === true), 'browser PTY release acknowledgement')
+    assert.equal(JSON.stringify(saved().projectTerminalAudit).includes('BROWSER_PTY_READY'), false)
+    await click(alice, 'Public Bots')
+    const roleForm = alice.locator('#role-developer-instructions').locator('xpath=ancestor::form')
+    await roleForm.getByLabel('Execution Harness', { exact: true }).selectOption('codex')
+    await roleForm.getByLabel('SDK model identifier', { exact: true }).fill('fixture-sdk-probe')
+    await roleForm.locator('input[type="checkbox"][value="demo-local"]').check()
+    await roleForm.getByRole('button', { name: 'Save', exact: true }).click()
+    await waitFor(() => { const row = saved().projectHarnessHealth?.[`${projectId}:demo-local:codex`]; return row && ['authRequired', 'environmentError'].includes(row.status) }, 'accurate unavailable SDK status')
+    await roleForm.getByRole('button', { name: 'Save', exact: true }).waitFor({ state: 'visible' })
+    await roleForm.getByLabel('Execution Harness', { exact: true }).selectOption('flybot')
+    await roleForm.locator('input[type="checkbox"][value="demo-local"]').uncheck()
+    await roleForm.getByRole('button', { name: 'Save', exact: true }).click()
+    await waitFor(() => saved().projectAgentDefinitions[projectId].roles.find(row => row.role === 'developer').execution.harness === 'flybot', 'restore native demo role')
     assert.deepEqual(await aliceContext.cookies(), [])
     assert.deepEqual(await bobContext.cookies(), [])
     assert.equal((await bob.request.get(`${base}/api/sessions`)).status(), 404)
@@ -104,7 +128,7 @@ export async function checkWorkbench({ credentials, port, cookie, saved, waitFor
     assert.equal(await alice.evaluate(() => sessionStorage.getItem('flybot.member')), null)
     assert.deepEqual(errors, [])
     return { milestone: 'M6', platform: 'unchanged control-plane', runtime: 'actual DSH + Chromium + restricted gateway', model: 'deterministic mock',
-      checks: ['two platform logins through browser', 'Project creation and one-use join through UI', 'private Project notes isolated', 'public Chief tool creates shared Task', 'real Developer/Tester/Reviewer worktrees', 'independent test evidence at matching commit', 'missing credential refuses publication/acceptance', 'refresh preserves one Attempt', 'browser retry preserves history', '390px layout', 'owner cookie absent in both browsers', 'raw Harness API denied', 'revocation clears stale page', 'logout clears member credential'],
+      checks: ['Owner role Harness and checked resource configuration through UI', 'actual private resource PTY through browser', 'Member terminal access refused', 'closed browser terminal confirms release without raw audit', 'unconfigured SDK remains unavailable after bounded probe', 'two platform logins through browser', 'Project creation and one-use join through UI', 'private Project notes isolated', 'public Chief tool creates shared Task', 'real Developer/Tester/Reviewer worktrees', 'independent test evidence at matching commit', 'missing credential refuses publication/acceptance', 'refresh preserves one Attempt', 'browser retry preserves history', '390px layout', 'owner cookie absent in both browsers', 'raw Harness API denied', 'revocation clears stale page', 'logout clears member credential'],
       notRun: ['real model', 'real GitHub publication in this browser run', 'production deployment'] }
   } catch (failure) {
     let message = String(failure.message ?? 'Browser acceptance failed')

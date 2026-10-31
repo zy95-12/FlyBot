@@ -102,3 +102,17 @@ missing credentials must remain Not run, not replaced with mocks.
 ### M7.4 — 2026-10-31
 
 M7.4 profiles may be explicitly provisioned or generated under profileRoot per Project/principal/Harness, with private credential files or envRefs. SDK roles can set their own model. Controlled shutdown must settle SDK work and emit stopped before exit/lease release. Native setup needs its actual explicit DSH profile.
+
+
+### M7.5 — 2026-10-31
+
+M7.5 enables SDK workers on prepared Docker resource clones and remote Chief public-context directories. Resource physical binding hashes prevent silent configuration migration. Sealed completion-event prefixes bind role Session/resource/generation/context/result hashes; Workflow and acceptance verify them. A fenced stop acknowledgement is observed immediately to avoid callback-awaits-release deadlock; actual process exit remains required.
+All Codex roles clear ambient MCP/plugin/app registries and disable automatic plugin/MCP
+installation, not only Chief. An authorized model profile supplies inference identity;
+it does not implicitly delegate extra connector tools or personal GitHub credentials.
+Claude workers retain explicit tools, empty MCP servers and disabled settings inheritance.
+Resource workers now report installed SDK package versions before receiving Task input or
+credentials; parent dispatch waits for the selected pinned version. Missing/incompatible
+bridges fail closed, invalidate that resource's readiness and release only a demonstrably
+unstarted or acknowledged-stopped worker. Broken stdin channels are contained as execution
+errors. Tests cover missing bridges, mismatched versions and the complete callback path.

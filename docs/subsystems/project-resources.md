@@ -99,3 +99,17 @@ M7.3 adds startProcess for host-selected Node workers in explicit local/Docker t
 ### M7.4 — 2026-10-31
 
 M7.4 separates adminMemberIds from Project-owner use grants; safe list canManage is derived per current human. Probe-only leases may check authentication without assuming it first; capacity still applies. Profile roots/runtime paths remain operator settings, never browser-selected paths.
+
+
+### M7.5 — 2026-10-31
+
+M7.5 captures resource physical binding hashes per lease and adds host-only bounded upload/download through local/Docker transports. Candidate bundle hash/commit/scope checks happen before import; credentials and raw chats are never file-transfer inputs. Native workers remain local, SDK workers may execute on prepared Docker targets.
+
+Version probes, command adapters, worker startup and private setup profiles now select the
+same explicit nodePath (or the running host Node for local resources). Runtime paths are
+absolute operator settings; tests cover executable paths containing spaces without a shell.
+Native Harness compatibility also requires a local transport, even if an operator mistakenly
+advertises native capability on Docker. Local and remote Git gates both validate their
+captured resource binding before acting; a physical target change cannot retarget evidence.
+An SDK role without any selected authorized resource pool remains queued before allocation;
+it cannot consume an Attempt/workspace merely because the default Project quota is free.

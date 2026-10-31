@@ -115,3 +115,20 @@ M7.3 adds an opt-in node dev/demo/harnesses.mjs negative probe using actual inst
 ### M7.4 — 2026-10-31
 
 M7.4 adds dev/demo/runtime-setup.mjs: opt-in actual UID1000 Docker PTY/profile/cleanup probe with no paid provider. Unit integration uses real local Python PTYs and a hidden dummy credential, verifies no screen/audit leak and kills interactive background jobs. Browser/authenticated SDK acceptance remains separate.
+
+
+### M7.5 — 2026-10-31
+
+M7.5 adds dev/demo/handoffs.mjs for actual Docker→host Git candidate import, same-SHA review checkout, independent host tests and corrupted-bundle rejection/cleanup. Official SDK negative probes also validate no-tools configuration reaches SDK events. Existing browser demo adds Owner configuration/actual PTY/Member denial; still deterministic model, never a real SDK acceptance claim.
+
+### M7 local Codex acceptance — 2026-11-01
+
+The owner explicitly authorized this machine's existing Codex authentication and
+zy95-12 GitHub account. `--codex-check` runs an opt-in real SDK path without a DeepSeek
+key: an explicit private profile/model, local resource and verified GitHub login are
+required. Public Chief proposes a scoped Task; three distinct SDK role threads use the
+existing Workflow; immutable host tests and exact-SHA review/publication gate acceptance.
+The owner-authorized scripted return/retry/accept sequence keeps both Attempts and cleans
+only registered workspaces. It asserts zero calls to the deterministic native transport.
+This API acceptance is separate from browser, Claude and multi-resource acceptance; none
+is inferred from a Codex-only run. Routine verify remains key-free.

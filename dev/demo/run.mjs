@@ -15,6 +15,7 @@ import { agentReply, checkAgents } from './agents.mjs'
 import { checkDelivery, deliveryReply, provisionDeliveryFixture } from './delivery.mjs'
 import { checkShared } from './shared.mjs'
 import { verifyArtifact } from './artifact.mjs'
+import { codexSettings, checkCodexDelivery } from './codex-check.mjs'
 
 const root = resolve(import.meta.dirname, '../..')
 const shutdown = new AbortController()
@@ -45,13 +46,14 @@ async function main() {
   const agents = process.argv.includes('--agents')
   const serve = process.argv.includes('--workbench-serve')
   const live = process.argv.includes('--live-check')
+  const codex = process.argv.includes('--codex-check') ? codexSettings(process.argv) : null
   const realModel = process.argv.includes('--real-model') || live
   const workbench = process.argv.includes('--workbench') || serve || live
   if (realModel && (!serve && !live || !process.env.DEEPSEEK_API_KEY || !process.env.DEEPSEEK_BASE_URL)) throw new Error('Real-model demo requires --workbench-serve or --live-check and explicit DEEPSEEK_API_KEY/DEEPSEEK_BASE_URL environment configuration')
   const requestStop = () => shutdown.abort()
   if (serve) { process.on('SIGINT', requestStop); process.on('SIGTERM', requestStop) }
   const queue = process.argv.includes('--queue')
-  const delivery = process.argv.includes('--delivery') || queue || workbench
+  const delivery = process.argv.includes('--delivery') || queue || workbench || Boolean(codex)
   const githubRepository = process.argv.includes('--github-repo') ? process.argv[process.argv.indexOf('--github-repo') + 1] : undefined
   const githubConfigDir = process.argv.includes('--github-config-dir') ? process.argv[process.argv.indexOf('--github-config-dir') + 1] : undefined
   if (githubRepository && (!delivery || !githubConfigDir)) throw new Error('GitHub demo requires --delivery and explicit --github-config-dir')
@@ -70,7 +72,7 @@ async function main() {
   mkdirSync(scratch)
   if (delivery) provisionDeliveryFixture(workspace, githubRepository)
   const golden = join(directory, 'golden-test.mjs')
-  if (live) writeFileSync(golden, `import assert from 'node:assert/strict'; import {pathToFileURL} from 'node:url'; import {resolve} from 'node:path'; const {add}=await import(pathToFileURL(resolve('code.mjs'))); for(const [a,b] of [[2,3],[-7,2],[11,13],[0,0],[0,-4],[1.5,2.5]]) assert.equal(add(a,b),a+b); console.log('Immutable host addition tests passed'); if(process.argv.includes('--force-failure')) {console.error('Intentional host-test failure for negative acceptance');process.exit(9)}`)
+  if (live || codex) writeFileSync(golden, `import assert from 'node:assert/strict'; import {pathToFileURL} from 'node:url'; import {resolve} from 'node:path'; const {add}=await import(pathToFileURL(resolve('code.mjs'))); for(const [a,b] of [[2,3],[-7,2],[11,13],[0,0],[0,-4],[1.5,2.5]]) assert.equal(add(a,b),a+b); console.log('Immutable host addition tests passed'); if(process.argv.includes('--force-failure')) {console.error('Intentional host-test failure for negative acceptance');process.exit(9)}`)
   for (const entry of readdirSync(harness)) {
     if (entry.startsWith('.')) continue
     symlinkSync(join(harness, entry), join(modules, entry))
@@ -98,9 +100,12 @@ async function main() {
   let patch = join(root, 'docker/web.patch.yml')
   if (shared || delivery || agents) {
     patch = join(directory, 'shared.patch.yml')
-    const botConfig = { projectWorkbench: true, ...(workbench ? { projectDemoMode: realModel ? 'real-provider' : 'deterministic-fixture' } : {}),
+    const botConfig = { projectWorkbench: true,
+      ...(codex ? { projectResources: { 'codex-local': { type: 'local', root: directory, capacity: 3, nodePath: process.execPath, allowedProjectOwnerIds: ['owner-1'], adminMemberIds: ['owner-1'], harnesses: ['codex'], profiles: { 'owner-1': { codex: { home: codex.home, configDir: codex.configDir, model: codex.model } } } } } } : {}),
+      ...(workbench && !live ? { projectResources: { 'demo-local': { type: 'local', root: directory, profileRoot: join(directory, 'private-sdk-profiles'), capacity: 2,
+        allowedProjectOwnerIds: ['owner-1'], adminMemberIds: ['owner-1'], harnesses: ['codex'], profiles: { 'owner-1': { codex: { home: join(directory, 'sdk-home'), configDir: join(directory, 'sdk-config'), model: 'fixture-sdk-probe', baseUrl: 'http://127.0.0.1:1' } } } } } } : {}), ...(workbench ? { projectDemoMode: realModel ? 'real-provider' : 'deterministic-fixture' } : {}),
       ...(shared ? { controlPlane: { origin: shared.origin, ownerSubject: shared.ownerSubject } } : {}),
-      ...(delivery ? { projectRepositories: { [githubRepository ?? 'example/delivery-fixture']: { ...(githubRepository ? { github: { credential: 'gh-cli', configDir: githubConfigDir } } : {}), path: workspace, testCommand: live ? [process.execPath, golden] : [process.execPath, '--test', 'code.test.mjs'], allowedPaths: ['code.mjs', 'code.test.mjs'] }, ...(live ? { 'example/intentional-failure': { path: workspace, testCommand: [process.execPath, golden, '--force-failure'], allowedPaths: ['code.mjs', 'code.test.mjs'] } } : {}) } } : {}) }
+      ...(delivery ? { projectRepositories: { [githubRepository ?? 'example/delivery-fixture']: { ...(githubRepository ? { github: { credential: 'gh-cli', configDir: githubConfigDir, ...(codex ? { login: codex.login } : {}) } } : {}), path: workspace, testCommand: live || codex ? [process.execPath, golden] : [process.execPath, '--test', 'code.test.mjs'], allowedPaths: ['code.mjs', 'code.test.mjs'] }, ...(live ? { 'example/intentional-failure': { path: workspace, testCommand: [process.execPath, golden, '--force-failure'], allowedPaths: ['code.mjs', 'code.test.mjs'] } } : {}) } } : {}) }
     writeFileSync(patch, readFileSync(join(root, 'docker/web.patch.yml'), 'utf8') + (live ? '\n- id: llm-deepseek\n  config: { thinking: disabled, reasoningEffort: off, maxTokens: 8192 }\n' : '') + `\n- id: bot\n  config: ${JSON.stringify(botConfig)}\n`, { mode: 0o600 })
   }
   const child = spawn(process.execPath, [cli, '--profile', 'web', '--patch', patch,
@@ -136,6 +141,12 @@ async function main() {
       const result = await call(...args)
       assert.equal(result.ok, true, `API ${args[0]}: ${result.error?.code ?? 'failed'}`)
       return result.value
+    }
+    if (codex) {
+      const report = await checkCodexDelivery({ api, saved, waitFor: (read, label) => waitFor(read, label, 600_000), settings: codex, artifacts: process.env.FLYBOT_DEMO_ARTIFACTS })
+      assert.equal(observations.length, 0, 'Codex acceptance must never call the deterministic native model')
+      console.log(JSON.stringify({ ...report, source: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(), dirty: execFileSync('git', ['status', '--porcelain'], { cwd: root, encoding: 'utf8' }).trim() !== '' }))
+      return
     }
     if (live) {
       if (!shared || !githubRepository || !githubConfigDir) throw new Error('Live acceptance requires platform accounts and explicit GitHub repository/config directory')

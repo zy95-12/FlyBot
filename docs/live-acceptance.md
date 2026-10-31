@@ -64,3 +64,8 @@ UI path, not an independent human code review or repository Reviewer PASS. No me
 production deployment, hostile-code sandbox or multi-host readiness is claimed. M3/M6's
 previous real-provider acceptance blocker is resolved for this fixed shared-project demo;
 implementation review, CI and merging remain separate gates.
+
+
+### M7.5 — 2026-10-31
+
+M7 implementation has changed execution/workspace/auth-setup boundaries. The M6 real-provider report above applies only to its named executable commit and is not evidence for M7. Current M7 resource/browser/SDK-negative results and missing dedicated positive authorization are tracked separately in [m7-acceptance.md](m7-acceptance.md).

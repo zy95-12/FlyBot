@@ -67,5 +67,6 @@ test('real DSH delivery queue enforces quota before allocation and rechecks memb
   assert.equal(report.milestone, 'M5')
   assert.ok(report.checks.includes('Workflow release drains queue'))
   assert.ok(report.checks.includes('revoked member queued request cancelled'))
+  assert.ok(report.checks.includes('confirmed worker release before workspace cleanup'))
   assert.deepEqual(readdirSync(directory), [])
 })

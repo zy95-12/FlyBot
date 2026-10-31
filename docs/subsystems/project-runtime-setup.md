@@ -101,3 +101,12 @@ It starts a new owned UID1000 container, binds test data/runtime, verifies the P
 there in the selected profile and confirms cleanup, then removes all owned artifacts.
 This is real target PTY/API transport, not browser UI or authenticated inference acceptance.
 Those remaining positive SDK paths require explicit dedicated credentials and M7.5.
+
+
+### M7.5 — 2026-10-31
+
+M7.5 two real platform accounts/Chromium/actual DSH now exercise the Owner terminal and Harness/resource forms through the actual HTTP channel. Unconfigured SDKs stay unavailable after bounded checks. This validates browser/PTY/privacy/cleanup, not authenticated ready or real SDK task completion; those remain explicit Not run.
+Connection probes use the same installed-version handshake as task workers and report
+observed and expected SDK versions separately. A missing bridge cannot consume probe
+capacity or become authenticated-ready. A PTY bridge that exits is shown as a closed
+configuration terminal; input on a broken process pipe cannot crash the host.

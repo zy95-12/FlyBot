@@ -6,9 +6,10 @@ export async function runHarnessTurn(request, { emit, permission, signal, loadCo
     const { Codex } = await loadCodex()
     const denyScript = fileURLToPath(new URL('./project-harness-deny-tool.mjs', import.meta.url))
     const quote = value => `"${value.replaceAll('\\', '\\\\').replaceAll('"', '\\"').replaceAll('$', '\\$').replaceAll('`', '\\`')}"`
-    const chiefConfig = request.noTools ? { features: { shell_tool: false, remote_plugin: false }, tools: { view_image: false }, apps: { _default: { enabled: false } },
-      hooks: { PreToolUse: [{ matcher: '.*', hooks: [{ type: 'command', command: `node ${quote(denyScript)}` }] }] } } : {}
-    const client = new Codex({ env: request.env, ...(request.noTools ? { configOverrides: ['mcp_servers={}'] } : {}), ...(request.baseUrl ? { baseUrl: request.baseUrl } : {}), config: { ...(request.config ?? {}), ...chiefConfig } })
+    const connectorPolicy = { remote_plugin: false, skill_mcp_dependency_install: false }
+    const chiefConfig = request.noTools ? { features: { ...connectorPolicy, shell_tool: false }, tools: { view_image: false }, apps: { _default: { enabled: false } },
+      hooks: { PreToolUse: [{ matcher: '.*', hooks: [{ type: 'command', command: `node ${quote(denyScript)}` }] }] } } : { features: connectorPolicy }
+    const client = new Codex({ env: request.env, configOverrides: ['mcp_servers={}', 'plugins={}', 'apps={_default={enabled=false}}'], ...(request.baseUrl ? { baseUrl: request.baseUrl } : {}), config: { ...(request.config ?? {}), ...chiefConfig } })
     const options = { workingDirectory: request.cwd, model: request.model, approvalPolicy: 'never',
       sandboxMode: request.readOnly ? 'read-only' : 'workspace-write', networkAccessEnabled: false, webSearchMode: 'disabled' }
     const thread = sessionId ? client.resumeThread(sessionId, options) : client.startThread(options)

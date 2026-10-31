@@ -184,3 +184,17 @@ Seen 1× (2026-10-31, M7.3): SDK turn-completed does not mean required outputs, 
 ### M7.4 — 2026-10-31
 
 Seen 1× (2026-10-31, M7.4): printing a hidden-input prompt before disabling OS echo lets immediate input leak to the PTY screen; suppress echo before the prompt, and test the actual screen. The same test found the clean setup PATH selected old system Node: use the execution runtime Node path in both SDK and setup terminal.
+
+
+### M7.5 — 2026-10-31
+
+Seen 1× (2026-10-31, M7.5): service-only tests missed terminal/runtime/input HTTP cases falling through to the resource read model. Test the actual channel and browser, not only direct service methods. SDK result callbacks also await release: process the fenced stop acknowledgement outside their serialized event queue or cleanup waits on itself. Red/green regressions cover both integration failures.
+
+Seen 1× (2026-11-01, M7.5): a real DSH queue regression reached terminal Attempt status before asynchronous worker release finished. Wait for confirmed Bot and lease release before requesting workspace cleanup; retain the product guard that refuses cleanup of live workers. Local full verify passed while CI exposed this ordering race.
+
+### M7 real SDK acceptance — 2026-11-01
+
+A real SDK readiness reply proves inference only. Validate the full scoped Chief Task,
+actual worktree changes, immutable host tests, exact-SHA Review/PR, requested-test rework
+and confirmed worker release. The Codex-only run passed without native mock requests;
+record its exact source and distinguish scripted owner acceptance from human review.

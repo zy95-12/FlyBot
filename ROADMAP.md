@@ -28,11 +28,11 @@ The 30–43 person-day estimate is provisional pending interfaces/frontend desig
 
 | Phase | Deliverable | State |
 | --- | --- | --- |
-| [M7.1 #21](https://github.com/zy95-12/FlyBot/issues/21) | Durable Chief/role memory and temporary Session snapshots | Implemented on feat/m7-role-sessions; verification recorded in PR |
-| [M7.2 #22](https://github.com/zy95-12/FlyBot/issues/22) | Execution resource registry, candidate pools and leases | Next |
-| [M7.3 #23](https://github.com/zy95-12/FlyBot/issues/23) | Native/Codex/Claude Agent SDK adapters | Pending resource contract |
-| [M7.4 #24](https://github.com/zy95-12/FlyBot/issues/24) | Owner configuration, probes and authorized resource terminal | Pending adapters |
-| [M7.5 #25](https://github.com/zy95-12/FlyBot/issues/25) | Cross-resource code/evidence transfer and real browser acceptance | Pending integration |
+| [M7.1 #21](https://github.com/zy95-12/FlyBot/issues/21) | Durable Chief/role memory and temporary Session snapshots | PR #26; full verify and actual DSH context checks passed |
+| [M7.2 #22](https://github.com/zy95-12/FlyBot/issues/22) | Execution resource registry, candidate pools and leases | PR #27; full verify + actual local/Docker probe; integration #30 |
+| [M7.3 #23](https://github.com/zy95-12/FlyBot/issues/23) | Native/Codex/Claude Agent SDK adapters | Draft PR #28; full verify passed; real authorization acceptance pending |
+| [M7.4 #24](https://github.com/zy95-12/FlyBot/issues/24) | Owner configuration, probes and authorized resource terminal | Draft PR #29; full verify + actual PTY checks; browser integration #30 |
+| [M7.5 #25](https://github.com/zy95-12/FlyBot/issues/25) | Cross-resource code/evidence transfer and real browser acceptance | Draft PR #30; code/resource/browser checks implemented, authenticated mixed-Harness acceptance pending |
 
 User explicitly authorized sequential implementation and a separate PR for every issue,
 including long-term memory, architecture and tests. Merge/deployment is separate.
@@ -122,3 +122,19 @@ M7.2 PR #27 passed full verify and the opt-in actual local/Docker resource probe
 ### M7.4 — 2026-10-31
 
 M7.3 PR #28 passed full verify at 034d86c, remains draft pending authenticated acceptance. M7.4 implementation supplies Owner runtime configuration/probes/private PTY and strengthens positive worker-stop confirmation; M7.5 cross-resource delivery and final acceptance remain next.
+
+
+### M7.5 — 2026-10-31
+
+M7 implementation PRs: #26 role Sessions, #27 resource pools, #28 official SDK Harnesses, #29 Owner setup, #30 handoff/integration. Full verify passed #26–#29 tips; final #30 validation/report is recorded in its PR. Real authenticated SDK/browser mixed-resource acceptance remains pending dedicated authorized profiles; M8 continuous CI/review and M9 persistent dogfood operations remain later work.
+
+### M7 validation update — 2026-11-01
+
+Owner requested Codex-only real acceptance on the current machine using zy95-12 GitHub.
+Run the opt-in dedicated-profile SDK/Workflow/PR/return/retry/acceptance path and record
+its exact source SHA. Do not block this scoped demonstration on Claude configuration;
+keep the broader mixed-Harness/two-resource criteria explicitly outstanding.
+
+Codex-only local demonstration: passed at `73161f3`; real artifact PR #31 returned,
+#32 re-tested/re-reviewed and script-accepted at its exact SHA. No merge/deployment.
+Broader Claude/mixed-resource/browser-auth/restart checks remain separate future work.

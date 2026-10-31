@@ -36,3 +36,8 @@ M7.3 connects temporary SDK workers through the existing Workflow lifecycle; exp
 ### M7.4 — 2026-10-31
 
 M7.4 chooses authenticated HTTP polling for the first resource terminal; every WebSocket upgrade is refused. Resource admin authority is explicit and separate from Project ownership. Profile secrets are saved with hidden input only on the granted target; native DSH requires its actual operator-registered profile. Real paid probes remain explicit/bounded.
+
+
+### M7.5 — 2026-10-31
+
+M7.5 preserves the existing acceptance gates while transferring only SHA-scoped repository Git objects. Host publication credentials stay local, independent tests use a registered host verifier and SDK logs are immutable gate inputs. Positive three-Harness acceptance remains pending explicit dedicated profiles; no completion is inferred from fixture tests.

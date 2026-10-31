@@ -60,8 +60,9 @@ See [baseline ownership and tests](docs/subsystems/demo-baseline.md).
   Codex SDK and Claude Agent SDK Harness choices; the inherited upstream removal of
   Codex does not govern this fork. Control-plane remains unchanged. M7.1 introduces
   explicit public role memory and bounded hashed execution contexts, durable Chief
-  identity/history and per-Attempt temporary Session bindings. Resource dispatch, SDK
-  execution, setup terminal and real mixed-resource acceptance remain subsequent phases.
+  identity/history and per-Attempt temporary Session bindings. M7.2–M7.5 code is on PRs #27–#30: resource leases, SDK Harnesses, Owner setup and
+  verified Git handoffs. Authenticated mixed-resource acceptance remains outstanding;
+  the later owner-authorized local Codex-only run passed, as recorded below.
 
 ## Historical upstream Project State
 
@@ -201,3 +202,23 @@ M7.3 work in progress adds pinned official Codex/Claude Agent SDK temporary work
 ### M7.4 — 2026-10-31
 
 M7.4 adds Owner role/persona/Skills/memory/Harness/model/multiple-resource configuration, bounded connection checks and explicitly granted private target-resource PTYs. Credentials stay in private profiles; generated profiles separate Project/principal/Harness. Actual local and new Docker PTYs, hidden setup, current-session revocation and background cleanup are tested. Real authenticated three-Harness acceptance remains pending dedicated credential/profile selection.
+
+
+### M7.5 — 2026-10-31
+
+M7.5 implements local/Docker Git workspace handoffs, SHA256 manifests, one final sealed candidate without intermediate worker history, independent host-verifier tests, same-SHA review and sealed SDK event evidence. Browser integration fixes runtime/terminal/input channel routing; callback-aware stop acknowledgement prevents release deadlock. See docs/m7-acceptance.md: positive authenticated three-Harness/two-resource PR acceptance still needs dedicated profiles, so M7 is not declared fully accepted.
+
+### M7 Codex-only acceptance authorization — 2026-11-01
+
+The owner authorized existing zy95-12 GitHub and Codex authentication on this machine
+for real Codex validation. A private selected profile outside the repository is used;
+no auth values, unrelated Codex history or connector configuration are copied into the
+repository. The opt-in `--codex-check` exercises the native host/Workflow with real SDK
+Chief/Dev/Tester/Reviewer and draft PR evidence. Claude and mixed-resource acceptance
+remain separate. No merge or production deployment is authorized by this validation.
+
+The scoped local Codex demonstration passed at clean source `73161f3`: actual Chief,
+Dev/Tester/Reviewer, immutable tests, matching-SHA draft PRs #31/#32, requested-test
+return/retry/re-review and scripted owner acceptance. Workers/workspaces were released.
+[Evidence](dev/demo/evidence/codex-2026-11-01.json) distinguishes this from the outstanding
+Claude/mixed-resource/browser/restart criteria and independent repository review.

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -7,12 +8,13 @@ import { test } from 'node:test'
 import { createRuntime } from '../index.js'
 import { createProjectDelivery } from '../src/host/project-delivery.js'
 import { fakeContext } from './fake-ctx.js'
+import { apply as applyWorkflow } from '../../plugins/workflow/index.js'
 import { createWorkflowService } from '../../plugins/workflow/src/service.js'
 
 const alice = { memberId: 'owner-1' }
 const bob = { memberId: 'bob' }
 const git = (path, args) => execFileSync('git', args, { cwd: path, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()
-async function setup(t, testCommand = [process.execPath, '--test', 'code.test.mjs']) {
+async function setup(t, testCommand = [process.execPath, '--test', 'code.test.mjs'], { sdkContract = false } = {}) {
   const directory = mkdtempSync(join(tmpdir(), 'flybot-delivery-'))
   const home = join(directory, 'home')
   const repository = join(directory, 'repo')
@@ -37,17 +39,21 @@ async function setup(t, testCommand = [process.execPath, '--test', 'code.test.mj
     published.push(pr); return pr
   }, read: async pr => ({ sha: pr.sha, state: 'open' }) }
   rt.projectDelivery = createProjectDelivery(rt, { publisher })
-  const workflow = createWorkflowService({ persist: false, readProject: id => rt.readProject(id),
+  let workflow
+  if (sdkContract) { ctx.flybot = rt.flybot; workflow = applyWorkflow(ctx, { persist: false }).service }
+  else {
+    workflow = createWorkflowService({ persist: false, readProject: id => rt.readProject(id),
     projectContext: (taskId, projectId) => rt.flybot.projects.context(taskId, projectId),
     bindRun: (id, projectId, details) => rt.flybot.projects.bindRun(id, projectId, details) })
   for (const [name, fn] of [['state', () => workflow.state()], ['create', body => workflow.create(body)], ['graph', body => workflow.saveGraph(body)], ['assign', body => workflow.assign(body)]]) rt.flybot.api.handle(`workflow/${name}`, fn, { read: name === 'state' })
   ctx.effect(() => () => workflow.dispose(), 'test workflow')
+  }
   t.after(async () => { await ctx.dispose(); rmSync(directory, { recursive: true, force: true, maxRetries: 5 }) })
   const task = await rt.taskEndpoint('task-create', { botId: 'a', projectId: 'p1', title: 'Fix addition', criteria: 'add(2,3) must equal 5' }, bob)
   const start = requestId => rt.projectEndpoint('project-task-run', { taskId: task.id, requestId }, bob)
   const attempt = () => Object.values(rt.state.projectAttempts).at(-1)
   const gate = (role, outputs = {}) => rt.projectDelivery.gate({ taskId: task.id, workflowId: attempt().workflowId, runId: attempt().runId, nodeId: role, outputs })
-  return { rt, home, task, start, attempt, gate, repository, published, publisher, workflow }
+  return { rt, home, task, start, attempt, gate, repository, published, publisher, workflow, directory }
 }
 
 async function implement(fixture) {
@@ -203,7 +209,7 @@ test('managed delivery definitions and role/model snapshots cannot be edited or 
   const attempt = fixture.attempt()
   assert.equal(attempt.workflowDefinition.nodes[0].model, 'fixture/model')
   for (const operation of ['graph', 'set-model', 'concurrency', 'reset', 'delete']) await assert.rejects(fixture.rt.projectEndpoint('project-workflow', { projectId: 'p1', workflowId: attempt.workflowId, operation, nodes: [] }, alice), /immutable/)
-  assert.equal(attempt.workflowVersion, 'project-delivery/v2')
+  assert.equal(attempt.workflowVersion, 'project-delivery/v3')
 })
 
 
@@ -286,4 +292,91 @@ test('temporary role context freezes memory, repository instructions and session
   assert.notEqual(fixture.attempt().roleSessions.developer.id, descriptor.id)
   assert.match(fixture.attempt().roleSessions.developer.context.text, /New persona/)
   assert.match(fixture.attempt().roleSessions.developer.context.text, /previousAttemptId/)
+})
+
+
+test('host sealing collapses worker intermediate history before candidate handoff', async t => {
+  const fixture = await setup(t)
+  await fixture.start('collapse-worker-history')
+  const attempt = fixture.attempt(), cwd = attempt.workspaces.developer.path
+  writeFileSync(join(cwd, 'intermediate-only.txt'), 'Do not transfer transient worker content')
+  git(cwd, ['add', '.']); git(cwd, ['-c', 'user.name=Worker', '-c', 'user.email=worker@localhost', 'commit', '-m', 'Transient worker checkpoint'])
+  rmSync(join(cwd, 'intermediate-only.txt'))
+  writeFileSync(join(cwd, 'code.mjs'), 'export const add=(a,b)=>a+b;\n')
+  git(cwd, ['add', '-A']); git(cwd, ['-c', 'user.name=Worker', '-c', 'user.email=worker@localhost', 'commit', '-m', 'Final worker code'])
+  await fixture.gate('developer')
+  assert.equal(git(cwd, ['rev-list', '--count', `${attempt.baseSha}..${attempt.candidateSha}`]), '1')
+  assert.equal(git(cwd, ['rev-parse', `${attempt.candidateSha}^`]), attempt.baseSha)
+  assert.deepEqual(attempt.evidence.implementation.paths, ['code.mjs'])
+})
+
+test('SDK role completion requires matching sealed event evidence, and tampering blocks later gates', async t => {
+  const fixture = await setup(t)
+  await fixture.start('sdk-evidence')
+  const attempt = fixture.attempt(), session = attempt.roleSessions.developer
+  session.execution.harness = 'codex'; session.botId = 'sdk-worker'; session.backendSessionId = 'thread'; session.resourceLease = { generation: 1 }
+  writeFileSync(join(attempt.workspaces.developer.path, 'code.mjs'), 'export const add=(a,b)=>a+b;\n')
+  await assert.rejects(fixture.gate('developer'), /SDK execution evidence/)
+  const log = join(fixture.home, 'sealed-sdk.jsonl'), text = '{"type":"completed","sessionId":"thread"}\n'
+  writeFileSync(log, text)
+  const row = { id: 'sdk-worker', projectId: 'p1', taskId: fixture.task.id, attemptId: attempt.id, role: 'developer', sessionKey: session.id, generation: 1, backendSessionId: 'thread', harness: 'codex', sdkVersion: '0.166.0', resourceId: 'local', sealedLog: log, eventSha256: createHash('sha256').update(text).digest('hex'), resultHash: 'result-hash' }
+  await assert.rejects(fixture.rt.projectDelivery.recordExecution({ ...row, projectId: 'foreign' }), /does not belong/)
+  await fixture.rt.projectDelivery.recordExecution(row)
+  await fixture.gate('developer')
+  writeFileSync(log, 'tampered events')
+  await assert.rejects(fixture.gate('tester'), /SDK execution evidence/)
+  assert.equal(fixture.published.length, 0)
+})
+
+test('workspace cleanup refuses orphan native workers and unknown SDK leases after a terminal Run', async t => {
+  const fixture = await setup(t)
+  await fixture.start('cleanup-worker-proof')
+  const attempt = fixture.attempt()
+  fixture.rt.bindProject({ kind: 'run', id: attempt.runId, projectId: 'p1', status: 'failed', taskId: fixture.task.id, attemptId: attempt.id })
+  fixture.rt.state.bots.orphan = { id: 'orphan', ephemeral: { plugin: 'workflow' }, attemptId: attempt.id }
+  await assert.rejects(fixture.rt.projectEndpoint('project-attempt-cleanup', { attemptId: attempt.id }, alice), /Native worker release/)
+  delete fixture.rt.state.bots.orphan
+  fixture.rt.state.projectResourceLeases = { unknown: { attemptId: attempt.id, status: 'unreachable' } }
+  await assert.rejects(fixture.rt.projectEndpoint('project-attempt-cleanup', { attemptId: attempt.id }, alice), /resource release/)
+  fixture.rt.state.projectResourceLeases.unknown.status = 'released'
+  await fixture.rt.projectEndpoint('project-attempt-cleanup', { attemptId: attempt.id }, alice)
+})
+
+
+test('existing Workflow executes three SDK contract workers through seal/test/review/accept and releases every lease', async t => {
+  const fixture = await setup(t, undefined, { sdkContract: true })
+  const { rt, directory } = fixture, runtimeDir = join(directory, 'contract-runtime')
+  mkdirSync(join(runtimeDir, 'src/host'), { recursive: true })
+  writeFileSync(join(runtimeDir, 'src/host/project-harness-worker.mjs'), `
+import {createInterface} from 'node:readline';import{writeFileSync}from'node:fs';import{execFileSync}from'node:child_process';
+const write=v=>process.stdout.write(JSON.stringify(v)+'\\n');write({type:'ready',sdk:{codex:'0.166.0','claude-agent':'0.3.316'}});
+createInterface({input:process.stdin}).on('line',line=>{const m=JSON.parse(line);
+if(m.type==='stop'){write({type:'stopped',released:true});setTimeout(()=>process.exit(0),20);return;}
+if(m.type!=='start')return;
+if(!m.prompt.includes('project-role-context/v1')){write({type:'failure',reason:'Missing model-visible role context'});return;}
+let text;if(!m.settings.readOnly){writeFileSync('code.mjs','export const add=(a,b)=>a+b;\\n');text='OUTPUT implementation: fixed addition';}
+else if(m.prompt.includes('Independently review the candidate diff')){const commit=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();text='OUTPUT review: '+JSON.stringify({commit,verdict:'approve',summary:'Contract reviewer inspected the exact candidate'});}
+else text='OUTPUT tests: inspected the committed tests';
+write({type:'sdk-event',event:{type:'thread.started',thread_id:'contract-'+process.pid}});
+write({type:'completed',sessionId:'contract-'+process.pid,text,usage:{input_tokens:1}});
+});`)
+  rt.config.projectResources = { execution: { type: 'local', root: directory, runtimeDir, capacity: 3, allowedProjectOwnerIds: ['owner-1'], harnesses: ['codex', 'claude-agent'],
+    profiles: { 'owner-1': { codex: { home: join(directory, 'codex-home'), configDir: join(directory, 'codex-config'), model: 'contract-model' }, 'claude-agent': { home: join(directory, 'claude-home'), configDir: join(directory, 'claude-config'), model: 'contract-model' } } } } }
+  rt.state.projectResourceHealth = { execution: { status: 'ready', at: Date.now() } }
+  rt.state.projectHarnessHealth = { 'p1:execution:codex': { status: 'ready' }, 'p1:execution:claude-agent': { status: 'ready' } }
+  for (const role of ['developer', 'tester', 'reviewer']) await rt.projectEndpoint('project-agent-definition', { projectId: 'p1', role, execution: { harness: role === 'developer' ? 'codex' : 'claude-agent', resourceIds: ['execution'] } }, alice)
+  const started = await fixture.start('full-sdk-contract')
+  assert.equal(started.attempt.status, 'running', started.attempt.failure?.message)
+  for (let n = 0; n < 400; n++) { if (['waiting-acceptance', 'failed'].includes(fixture.attempt().status) && Object.values(rt.state.projectHarnessWorkers ?? {}).every(row => row.status === 'released')) break; await new Promise(resolve => setTimeout(resolve, 15)) }
+  const attempt = fixture.attempt()
+  assert.equal(attempt.status, 'waiting-acceptance', attempt.failure?.message)
+  assert.equal(rt.state.projectExecutions[attempt.runId].status, 'done')
+  assert.equal(Object.keys(attempt.evidence.execution).length, 3)
+  assert.equal(attempt.evidence.tests.passed, true)
+  assert.equal(attempt.evidence.tests.sha, attempt.evidence.review.sha)
+  assert.equal(rt.projectResources.occupied('execution'), 0)
+  assert.ok(Object.values(rt.state.projectHarnessWorkers).every(row => row.status === 'released'))
+  await rt.projectEndpoint('project-task-accept', { attemptId: attempt.id }, alice)
+  assert.equal(attempt.status, 'accepted')
+  await rt.projectEndpoint('project-attempt-cleanup', { attemptId: attempt.id }, alice)
 })

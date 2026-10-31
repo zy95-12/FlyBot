@@ -42,3 +42,8 @@ Fork M7 resource authorization, runtime transports, leases and verification are 
 ### M7.4 — 2026-10-31
 
 Fork M7 Owner runtime configuration, credential probes and private PTY protocol: [project-runtime-setup](project-runtime-setup.md).
+
+
+### M7.5 — 2026-10-31
+
+Fork M7 local/Docker Git handoff, candidate and sealed SDK evidence: [project-resource-workspaces](project-resource-workspaces.md).

@@ -28,10 +28,18 @@ export async function checkQueue({ api, call, saved, waitFor }) {
   assert.equal(saved().projectQueue[third.queue.id].status, 'cancelled')
   assert.equal((await call('project-resources', { projectId: project.id }, bob.sessionToken)).ok, false)
   await waitFor(() => Object.values(saved().projectAttempts).every(row => row.status === 'failed'), 'credential gate finishes both actual delivery Attempts')
+  // Workflow status is saved before its asynchronous worker release finishes.
+  // Cleanup deliberately refuses workspaces while a worker can still use them.
+  await waitFor(() => {
+    const state = saved()
+    const attempts = new Set(Object.keys(state.projectAttempts))
+    return !Object.values(state.bots).some(bot => bot.ephemeral && attempts.has(bot.attemptId)) &&
+      !Object.values(state.projectResourceLeases ?? {}).some(lease => attempts.has(lease.attemptId) && lease.status !== 'released')
+  }, 'confirmed worker release before workspace cleanup')
   for (const attempt of Object.values(saved().projectAttempts)) await owner('project-attempt-cleanup', { attemptId: attempt.id })
   const resources = await owner('project-resources', { projectId: project.id })
   assert.equal(resources.activeSlots, 0)
   assert.equal(resources.metrics.acceptedTasks, 0)
   assert.equal(resources.metrics.duration.medianMs, null)
-  return { milestone: 'M5', runtime: 'actual DSH', model: 'deterministic mock', checks: ['quota queues before worktree allocation', 'duplicate queue request idempotent', 'Workflow release drains queue', 'revoked member queued request cancelled', 'no invented acceptance metrics'], notRun: ['real model', 'real GitHub publication'] }
+  return { milestone: 'M5', runtime: 'actual DSH', model: 'deterministic mock', checks: ['quota queues before worktree allocation', 'duplicate queue request idempotent', 'Workflow release drains queue', 'revoked member queued request cancelled', 'confirmed worker release before workspace cleanup', 'no invented acceptance metrics'], notRun: ['real model', 'real GitHub publication'] }
 }

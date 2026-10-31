@@ -424,3 +424,8 @@ responsive behavior are specified in [Project workbench](project-workbench.md).
 ### M7.4 — 2026-10-31
 
 M7.4 extends the separate Project workbench with Owner role Harness/model/resource-pool/Skill/memory forms, status probes and private line-input resource terminal. Generated workbench assets are rebuilt from source; legacy client.js is unchanged.
+
+
+### M7.5 — 2026-10-31
+
+M7.5 Attempt details expose scoped sealed SDK execution evidence, including Harness/version/resource/backend Session. Log selection uses the current Project/Attempt/role; no arbitrary filesystem path is accepted. Existing workbench bundle is regenerated.
