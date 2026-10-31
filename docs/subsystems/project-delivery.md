@@ -256,3 +256,7 @@ Chief decision; unknown occupancy creates isolated work rather than reusing it.
 Interrupted preparation resume creates a new Run, retains the failed Run and
 archives the prior Attempt failure on its resumption record; active failure state
 clears only after the host validates safe workspace reuse.
+
+Tester handoff/complete with outputs.tests requests actual host verification.
+Local sandbox checks may be Not run; downstream admission still requires the real
+registered command to pass. Arbitrate/transfer does not claim completed tests.
