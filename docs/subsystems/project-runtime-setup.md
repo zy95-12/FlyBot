@@ -89,7 +89,9 @@ merely seeing an EOF is insufficient. Closing setup automatically rechecks curre
 
 Focused tests use actual Python/bash PTYs: explicit admin/session isolation, real TTY
 output, resize, revoked access, nonpersistent audit, hidden key input, profile/file modes,
-actual credential selection and background job cleanup. UI tests cover persona preservation,
+actual credential selection and background job cleanup. Linux /proc may return either
+ENOENT or ESRCH when a process disappears during inspection; both prove it is gone,
+while unrelated read errors still fail the cleanup assertion. UI tests cover persona preservation,
 multiple checked resources, SDK model and per-resource probes. Gateway tests refuse wrong
 origins and WebSocket upgrades. These tests include a reproduced hidden-input echo race
 and old-system-Node regression; no live secret was used.

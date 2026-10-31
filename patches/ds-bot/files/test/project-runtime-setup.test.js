@@ -98,7 +98,7 @@ test('closing a resource terminal also stops its interactive background jobs', a
   await setup.endpoint('project-terminal-close', { terminalId: opened.terminalId }, owner)
   let running = true
   for (let n = 0; n < 40; n++) {
-    try { const status = await readFile(`/proc/${pid}/stat`, 'utf8'); running = !/^\S+ \(.+\) Z /.test(status) } catch (error) { if (error.code !== 'ENOENT') throw error; running = false }
+    try { const status = await readFile(`/proc/${pid}/stat`, 'utf8'); running = !/^\S+ \(.+\) Z /.test(status) } catch (error) { if (!['ENOENT', 'ESRCH'].includes(error.code)) throw error; running = false }
     if (!running) break
     await wait(25)
   }
