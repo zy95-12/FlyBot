@@ -152,3 +152,12 @@ Operators may run `node scripts/check-project-provisioning.mjs CONFIG.json OWNER
 
 
 Repair R3 (#36): Admission plans only the first receiving role in pool mode. The existing admission wake also asks each logical Bot pool for executable candidates; a busy resource leaves its destination Task queued. Per-Bot visibility is exposed through membership-guarded `project-task-pools`. See [pool contract](project-pools.md).
+
+
+Repair R4 (#37): Private chat provides an explicit Ask Chief
+without a Task action. Proposal cards distinguish unpublished from published and
+state that publication does not start execution. Server-derived Task execution
+status distinguishes published, queued, starting, running, awaiting input/Chief/
+acceptance and blocked/failed. An active Attempt does not imply a running worker.
+Private inquiry worker metadata and sealed log paths are omitted for other users.
+See [conversation routing](project-agents.md).

@@ -1490,6 +1490,11 @@ export function install(rt) {
         defaultContract(task)
         rt.projects?.stampTask(task, body)
         rt.projects?.validateTask(task, body)
+        if (task.projectId) {
+          const kind = body.projectTaskKind ?? 'code'
+          if (!['code', 'decision', 'release'].includes(kind)) throw invalid('Unknown Project Task kind')
+          task.projectTaskKind = kind
+        }
         writeContract(task, body)
         const { progress } = applyFields(task, body)
         const column = readColumn(body.column)

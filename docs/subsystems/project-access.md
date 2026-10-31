@@ -182,3 +182,9 @@ M7.5 adds actual HTTP-channel routing regression for environment/runtime/termina
 
 
 Repair R3 (#36): `project-task-pools {projectId}` returns current Project-member-visible queues per logical Bot. Claim and execution results revalidate the initiating human against current Task/Project authority; role names are not authorization. Task completion in pool mode requires Chief arbitration. See [pool contract](project-pools.md).
+
+
+Repair R4 (#37): `project-chief-question` and `project-github-read`
+are membership-guarded workbench endpoints. The host derives inquiry return
+identity and repository scope. Model-supplied Project/member/URL fields cannot
+select another conversation, credential or repository. See [GitHub reads](project-github-read.md).

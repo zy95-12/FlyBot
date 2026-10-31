@@ -122,3 +122,10 @@ Repair R2 (#35): SDK delivery dispatch assembles complete pinned role convention
 
 
 Repair R3 (#36): A pool claim binds one actual receiving role Session/lease and routes its explicit handoff decision through the trusted host adapter. Resources are released only after confirmed worker exit. SDK timeout is configurable via `projectExecutionTimeoutMs`, separately from Chief scheduled inspection. See [pool contract](project-pools.md).
+
+
+Repair R4 (#37): SDK Chief conversation turns use a read-only
+action contract, with no filesystem/network/connector tools and no Task/run
+actions. Each private inquiry has a separate carrier and SDK binding, and returns
+to the originating private transcript. Private worker metadata is scoped to its
+requester in workbench responses. See [conversation routing](project-agents.md).

@@ -240,3 +240,12 @@ and create a new Attempt; overall completion waits for Chief judgement. Unit and
 SDK contract-process tests cover non-DAG return/rework with one resource. Full
 verification, conversation bridging, Chief arbitration/schedules and real shared
 service dogfood remain separately tracked acceptance, not implied by these tests.
+
+
+R4 (#37) adds conversation-only private → Chief → original-chat handoff, isolated
+from private memory and other members. Query turns cannot publish or execute a
+Task; scoped GitHub reads provide actual repository facts. Impactful Task kinds
+persist across proposal publication; workbench status separates publication from
+queue/start/execution and Chief wait. Targeted privacy, native/SDK-query, no-Task
+and credential/revocation tests pass. Full verification and real shared-service
+acceptance remain separate; control-plane and public hosting are unchanged.

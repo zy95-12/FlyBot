@@ -259,3 +259,21 @@ observed SDK command evidence. It explicitly reports repository review as INC:
 JSON `approve` cannot establish the separately authorized signed forge Reviewer
 PASS, identity/signature verification, merge authorization or human acceptance.
 Existing host test and candidate-evidence checks still apply.
+
+
+Repair R4 (#37): Ordinary private questions use `project_agent_chief` or
+`project-chief-question {projectId,text,requestId}`. A versioned conversation
+handoff creates an isolated temporary Chief carrier and a separate delegation,
+with only the explicit question and shared Project context. It never creates a
+Task or forwards the parent private notes/history. Replies return to the original
+private transcript with Chief attribution; no other member/public transcript gets
+them. Duplicate question keys reuse the receipt; changed text with the same key
+is refused. Native and SDK query turns cannot propose, publish or run Tasks, even
+if a model asks. Native scoped tools and SDK host-read actions can inspect actual
+GitHub facts. Carriers retire after completion and keep a private receipt.
+
+Private-agent prompt v2 introduces this route for existing carriers. Impactful
+Task proposals explicitly carry code/decision/release kinds, persisted on
+publication and fixed at execution admission. Questions have no Task kind. Safe
+proposal publication still does not imply assignment or execution; watch-mode
+authority is completed by R5. See [GitHub reads](project-github-read.md).

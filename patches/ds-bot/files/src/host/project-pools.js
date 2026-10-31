@@ -54,8 +54,10 @@ export function createProjectPools(rt) {
     await rt.save()
     return clone(row)
   }
-  async function admit(attempt, actor, { targetRole = 'developer', kind = 'code' } = {}) {
+  async function admit(attempt, actor, { targetRole = 'developer', kind } = {}) {
     const task = taskOf(attempt.taskId)
+    if (kind && task.projectTaskKind && kind !== task.projectTaskKind) throw refuse('Task kind cannot change at execution admission')
+    kind ??= task.projectTaskKind ?? 'code'
     rt.requireProjectAccess(actor, task.projectId, 'task-write', task)
     const target = definitions(task.projectId).roles.find(row => row.role === targetRole)
     if (!target || !['code', 'decision', 'release'].includes(kind)) throw refuse('Unsupported Task target or kind')
