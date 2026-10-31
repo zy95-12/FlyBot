@@ -14,6 +14,7 @@ async function turn(message) {
   busy = true; controller = new AbortController()
   try {
     settings ??= message.settings
+    sessionId ??= settings.sessionId
     const result = await runHarnessTurn({ ...settings, sessionId, prompt: message.prompt }, { emit: write, permission, signal: controller.signal })
     sessionId = result.sessionId
     write({ type: 'completed', ...result })

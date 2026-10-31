@@ -30,4 +30,4 @@ M7.2 implementation uses operator-configured local/Docker capabilities and the e
 
 ### M7.3 checkpoint — 2026-10-31
 
-M7.3 connects temporary SDK workers through the existing Workflow lifecycle; explicit resource/principal profiles replace ambient login inheritance. This checkpoint keeps public Chief native until its safe scoped SDK action boundary is implemented. Real authorized SDK acceptance remains separate from negative/contract tests.
+M7.3 connects temporary SDK workers through the existing Workflow lifecycle; explicit resource/principal profiles replace ambient login inheritance. Public Chief SDK turns use a host-validated typed action boundary with generic tools disabled; definition changes rotate backend bindings. Real authorized SDK acceptance remains separate from negative/contract tests.

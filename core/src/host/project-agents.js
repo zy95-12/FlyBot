@@ -187,9 +187,12 @@ export function createProjectAgents(rt) {
     if (delegations.has(agent.id) || rt.activityView?.()[agent.botId]) throw Object.assign(refuse('Agent is answering; wait for its current turn'), { code: 'bot/busy' })
     if (visibility === 'public') {
       const definition = definitionSet(agent.projectId).roles.find(row => row.role === 'chief')
-      if ((definition.execution?.harness ?? 'flybot') !== 'flybot' || definition.execution?.resourceIds?.length) throw refuse('Selected execution Harness/resource is not provisioned')
+      if ((definition.execution?.harness ?? 'flybot') !== 'flybot' && !definition.execution?.resourceIds?.length) throw refuse('SDK Chief requires an explicit resource pool')
       const bot = rt.botOf(agent.botId)
-      const snapshot = roleContext({ projectId: agent.projectId, role: 'chief', revision: definitionSet(agent.projectId).revision,
+      const detail = await rt.projectEndpoint('project-detail', { id: agent.projectId }, actor)
+      const projectFacts = { tasks: detail.tasks.slice(-20).map(({ id, title, status, criteria }) => ({ id, title, status, criteria: clean(criteria, 1000) })),
+        runs: detail.runs.slice(-10).map(({ id, taskId, status }) => ({ id, taskId, status })), publicMessages: logOf(agent.id).slice(-8).map(row => ({ kind: row.kind, text: row.text.slice(0, 1500) })) }
+      const snapshot = roleContext({ projectId: agent.projectId, role: 'chief', revision: definitionSet(agent.projectId).revision, projectFacts,
         definition: { ...definition, resolvedSkills: resolveAgentSkills(rt, definition.skills) }, memory: memoryFor(agent.projectId, 'chief', definition.memoryRefs),
         knowledge: ownEntry(state.projectKnowledge ?? {}, agent.projectId) ?? [], repository: await rt.projectDelivery?.repositoryContext(agent.projectId) ?? [] })
       agent.nextContext = snapshot
@@ -203,10 +206,38 @@ export function createProjectAgents(rt) {
     logOf(agent.id).push({ ...agent.lastRequest, kind: 'human', memberId: actor.memberId, text })
     await rt.save()
     try {
-      await rt.deliver({ toId: agent.botId, sessionId: agent.sessionId, role: 'request', audience: 'user', text,
+      const definition = definitionSet(agent.projectId).roles.find(row => row.role === 'chief')
+      if (visibility === 'public' && (definition.execution?.harness ?? 'flybot') !== 'flybot') {
+        delegation.started = true
+        await rt.projectHarness.chiefTurn({ agent, delegation, definition: structuredClone(definition), context: agent.lastRequest.context, text,
+          onResult: result => chiefReply(agent, delegation, result) })
+      } else await rt.deliver({ toId: agent.botId, sessionId: agent.sessionId, role: 'request', audience: 'user', text,
         fromName: actor.displayName ?? actor.memberId, untrusted: true, exchangeId: delegation.exchangeId, projectDelegation: { agentId: agent.id, delegationId: delegation.id } })
     } catch (error) { if (delegations.get(agent.id)?.id === delegation.id) delegations.delete(agent.id); throw error }
     return { agent: structuredClone(agent), queued: true }
+  }
+  async function chiefReply(agent, delegation, result) {
+    if (delegations.get(agent.id)?.id !== delegation.id || delegation.revoked) return
+    try {
+      if (!result.ok) throw refuse('Chief SDK could not complete this request')
+      await authorize(rt.botOf(agent.botId))
+      const parsed = JSON.parse(result.text.replace(/^```(?:json)?\s*|\s*```$/g, ''))
+      if (typeof parsed.reply !== 'string' || !Array.isArray(parsed.actions) || parsed.actions.length > 4) throw refuse('Chief SDK returned an invalid scoped action response')
+      if (parsed.actions.some(action => !action?.args || !['task', 'run'].includes(action.tool))) throw refuse('Chief SDK requested an unavailable action')
+      const results = []
+      for (const action of parsed.actions) {
+        if (!action?.args || !['task', 'run'].includes(action.tool)) throw refuse('Chief SDK requested an unavailable action')
+        results.push(action.tool === 'task' ? await task(rt.botOf(agent.botId), action.args) : await run(rt.botOf(agent.botId), action.args))
+      }
+      logOf(agent.id).push({ id: randomUUID(), kind: 'agent', text: clean(parsed.reply, 16000) + (results.length ? '\nHost-confirmed scoped action results: ' + JSON.stringify(results) : ''), at: Date.now(), initiatedBy: delegation.actor.memberId, definitionRevision: delegation.definitionRevision })
+      agent.lastRequest.phase = 'completed'
+    } catch {
+      logOf(agent.id).push({ id: randomUUID(), kind: 'agent', text: 'Chief could not complete this SDK request. Check the selected resource and retry; no delivery acceptance is implied.', at: Date.now() })
+      agent.lastRequest.phase = 'failed'
+    } finally {
+      if (delegations.get(agent.id)?.id === delegation.id) delegations.delete(agent.id)
+      await rt.save()
+    }
   }
   async function endpoint(endpoint, body, actor) {
     if (endpoint === 'project-agent-message') return serial(() => send(body, actor))
@@ -307,6 +338,7 @@ export function createProjectAgents(rt) {
     const agent = recordForBot(botId)
     if (!agent || agent.status === 'retired' || agent.sessionId !== session?.id) return
     const delegation = delegations.get(agent.id)
+    if (agent.lastRequest?.workerId) return // SDK Chief results use the fenced host callback, never dormant DSH events.
     if (event.type === 'user/message' && delegation && !delegation.revoked && event.data?.source?.exchangeId === delegation.exchangeId) { delegation.messageObserved = true; delegation.started = delegation.turnStarted === true }
     if (event.type === 'turn/start' && delegation && !delegation.revoked) { delegation.turnStarted = true; delegation.started = delegation.messageObserved === true; delegation.turn = event.data?.turn }
     if (event.type === 'assistant/message' && delegation?.started && !delegation.revoked && (!event.data?.turn || !delegation.turn || event.data.turn === delegation.turn)) {
@@ -327,6 +359,7 @@ export function createProjectAgents(rt) {
       const agent = ownEntry(agents(), id)
       if (agent?.projectId !== projectId || delegation.actor.memberId !== memberId) continue
       delegation.revoked = true
+      if (agent.lastRequest?.workerId) void rt.projectHarness?.release(agent.lastRequest.workerId).catch(error => rt.warn('Chief SDK stop needs reconciliation: %s', error.message))
       void rt.resolveAgent?.(agent.sessionId).then(async active => {
         for (const message of [...(active?.inbox?.nextStep ?? []), ...(active?.inbox?.nextTurn ?? [])]) {
           if (message.source?.exchangeId === delegation.exchangeId) active.inbox.remove?.(message.id)

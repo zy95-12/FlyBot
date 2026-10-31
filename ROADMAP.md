@@ -116,4 +116,4 @@ M7.1 PR #26 passed full verify and actual DSH context/lifecycle checks. M7.2 imp
 
 ### M7.3 checkpoint — 2026-10-31
 
-M7.2 PR #27 passed full verify and the opt-in actual local/Docker resource probe. M7.3 adapters are in progress; the implementation PR remains draft until the safe SDK Chief path, remaining integration and real authorized SDK acceptance are complete.
+M7.2 PR #27 passed full verify and the opt-in actual local/Docker resource probe. M7.3 adapters are in progress; the implementation PR remains draft until remaining integration and real authorized SDK acceptance are complete; Chief now uses a host-validated scoped action bridge.

@@ -4,6 +4,7 @@ owned_paths:
   - core/src/host/project-harness.js
   - core/src/host/project-harness-turn.js
   - core/src/host/project-harness-worker.mjs
+  - core/src/host/project-harness-deny-tool.mjs
   - core/test/project-harness.test.js
   - core/test/project-harness-turn.test.js
 ---
@@ -75,11 +76,19 @@ Native release remains unchanged. Late callbacks require the same active lease g
 
 ## Acceptance still pending
 
-Chief remains native at this implementation checkpoint: selecting a non-native Chief
-fails closed rather than exposing generic filesystem/connector tools to a public Chief.
-The role stores unified execution refs, but a safe SDK Chief tool bridge is not yet shipped.
-Remote SDK dispatch and the Owner setup UI/probes follow in M7.4/M7.5. These gaps keep
-#23 open and its PR draft until implemented and accepted; do not present all M7.3 as done.
+Chief may also choose either SDK. Its stable public identity/history remain in FlyBot;
+a turn allocates a temporary resource worker, with backend binding keyed by Harness,
+resource, principal and definition revision. Idle Chief performs no inference. The SDK
+receives public bounded context and proposes at most four typed task/run actions as JSON;
+the host revalidates live delegation, human authority and Project scope before applying
+each action, then appends host-confirmed results. Private content is never injected.
+Runtime shell/image/app/MCP tools are disabled for Codex Chief and a PreToolUse deny hook
+blocks generic calls; Claude Chief has no built-in tools and a deny hook. New configuration
+rotates its backend binding; same binding resumes the public thread. Resource release still
+requires worker exit. Real SDK Chief policy conformance remains part of live acceptance.
+
+Remote SDK dispatch and the Owner setup UI/probes follow M7.4/M7.5. Authenticated real
+SDK acceptance remains pending explicit credentials; this keeps #23 open/PR draft.
 
 Unit tests inject SDK event iterators and a separate real Node JSONL contract worker to
 check environment binding, continuation, failure/truncation, permission callbacks, evidence

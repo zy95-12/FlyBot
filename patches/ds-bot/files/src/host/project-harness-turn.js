@@ -1,9 +1,14 @@
+import { fileURLToPath } from 'node:url'
 // One real SDK turn. The host owns Workflow completion and acceptance, never this driver.
 export async function runHarnessTurn(request, { emit, permission, signal, loadCodex = () => import('@openai/codex-sdk'), loadClaude = () => import('@anthropic-ai/claude-agent-sdk') }) {
   let text = '', completed = false, sessionId = request.sessionId ?? null, usage = null
   if (request.harness === 'codex') {
     const { Codex } = await loadCodex()
-    const client = new Codex({ env: request.env, ...(request.baseUrl ? { baseUrl: request.baseUrl } : {}), ...(request.config ? { config: request.config } : {}) })
+    const denyScript = fileURLToPath(new URL('./project-harness-deny-tool.mjs', import.meta.url))
+    const quote = value => `"${value.replaceAll('\\', '\\\\').replaceAll('"', '\\"').replaceAll('$', '\\$').replaceAll('`', '\\`')}"`
+    const chiefConfig = request.noTools ? { features: { shell_tool: false, remote_plugin: false }, tools: { view_image: false }, apps: { _default: { enabled: false } },
+      hooks: { PreToolUse: [{ matcher: '.*', hooks: [{ type: 'command', command: `node ${quote(denyScript)}` }] }] } } : {}
+    const client = new Codex({ env: request.env, ...(request.noTools ? { configOverrides: ['mcp_servers={}'] } : {}), ...(request.baseUrl ? { baseUrl: request.baseUrl } : {}), config: { ...(request.config ?? {}), ...chiefConfig } })
     const options = { workingDirectory: request.cwd, model: request.model, approvalPolicy: 'never',
       sandboxMode: request.readOnly ? 'read-only' : 'workspace-write', networkAccessEnabled: false, webSearchMode: 'disabled' }
     const thread = sessionId ? client.resumeThread(sessionId, options) : client.startThread(options)
@@ -25,8 +30,10 @@ export async function runHarnessTurn(request, { emit, permission, signal, loadCo
       settingSources: [], mcpServers: {}, persistSession: true,
       ...(sessionId ? { resume: sessionId } : {}), maxTurns: 30, maxBudgetUsd: request.maxBudgetUsd ?? 1,
       permissionMode: 'default',
-      tools: request.readOnly ? ['Read', 'Glob', 'Grep', 'Bash'] : ['Read', 'Glob', 'Grep', 'Bash', 'Edit', 'Write'],
+      tools: request.noTools ? [] : request.readOnly ? ['Read', 'Glob', 'Grep', 'Bash'] : ['Read', 'Glob', 'Grep', 'Bash', 'Edit', 'Write'],
+      hooks: request.noTools ? { PreToolUse: [{ hooks: [async () => ({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: 'Use FlyBot scoped action proposals only' } })] }] } : {},
       canUseTool: async (name, input, options) => {
+        if (request.noTools) return { behavior: 'deny', message: 'Generic Chief tools are disabled' }
         const answer = await permission({ name, input, requestId: options.requestId ?? options.toolUseID })
         return answer.allow ? { behavior: 'allow', updatedInput: input } : { behavior: 'deny', message: 'FlyBot operator refused this action' }
       },

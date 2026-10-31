@@ -55,3 +55,14 @@ test('Claude Agent SDK uses explicit environment and forwards permission request
   assert.deepEqual(options.settingSources, [])
   assert.equal(result.sessionId, 'claude-session')
 })
+
+test('SDK Chief disables runtime tools and connectors before proposing host-scoped actions', async () => {
+  const observed = []
+  await runHarnessTurn({ ...request, noTools: true, readOnly: true }, { emit() {}, loadCodex: codex([{ type: 'thread.started', thread_id: 'chief' }, { type: 'turn.completed' }], value => observed.push(value)) })
+  assert.equal(observed[0].config.features.shell_tool, false)
+  assert.equal(observed[0].config.tools.view_image, false)
+  assert.equal(observed[0].config.apps._default.enabled, false)
+  assert.deepEqual(observed[0].configOverrides, ['mcp_servers={}'])
+  assert.equal(observed[0].config.hooks.PreToolUse[0].hooks[0].type, 'command')
+  assert.equal(observed[1].sandboxMode, 'read-only')
+})

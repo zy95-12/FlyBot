@@ -195,4 +195,4 @@ M7.2 adds operator-granted local/Docker execution resources, safe environment ob
 
 ### M7.3 checkpoint — 2026-10-31
 
-M7.3 work in progress adds pinned official Codex/Claude Agent SDK temporary worker adapters through the existing Workflow seam, explicit per-resource/principal profiles, streamed evidence and exit-confirmed resource release. Chief SDK tool isolation and cross-resource dispatch remain explicit gaps; no full real-SDK acceptance is claimed.
+M7.3 work in progress adds pinned official Codex/Claude Agent SDK temporary worker adapters through the existing Workflow seam, explicit per-resource/principal profiles, streamed evidence and exit-confirmed resource release. Chief SDK actions now use a host-validated scoped JSON bridge; cross-resource dispatch remains pending; no full real-SDK acceptance is claimed.
