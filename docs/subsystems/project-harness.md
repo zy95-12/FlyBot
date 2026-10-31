@@ -107,3 +107,7 @@ M7.4 profiles may be explicitly provisioned or generated under profileRoot per P
 ### M7.5 — 2026-10-31
 
 M7.5 enables SDK workers on prepared Docker resource clones and remote Chief public-context directories. Resource physical binding hashes prevent silent configuration migration. Sealed completion-event prefixes bind role Session/resource/generation/context/result hashes; Workflow and acceptance verify them. A fenced stop acknowledgement is observed immediately to avoid callback-awaits-release deadlock; actual process exit remains required.
+All Codex roles clear ambient MCP/plugin/app registries and disable automatic plugin/MCP
+installation, not only Chief. An authorized model profile supplies inference identity;
+it does not implicitly delegate extra connector tools or personal GitHub credentials.
+Claude workers retain explicit tools, empty MCP servers and disabled settings inheritance.
