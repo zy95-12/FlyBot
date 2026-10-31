@@ -61,8 +61,8 @@ See [baseline ownership and tests](docs/subsystems/demo-baseline.md).
   Codex does not govern this fork. Control-plane remains unchanged. M7.1 introduces
   explicit public role memory and bounded hashed execution contexts, durable Chief
   identity/history and per-Attempt temporary Session bindings. M7.2–M7.5 code is on PRs #27–#30: resource leases, SDK Harnesses, Owner setup and
-  verified Git handoffs. Authenticated real mixed-resource acceptance remains pending
-  dedicated authorized profiles; implementation and acceptance are separate.
+  verified Git handoffs. Authenticated mixed-resource acceptance remains outstanding;
+  the later owner-authorized local Codex-only run passed, as recorded below.
 
 ## Historical upstream Project State
 
@@ -216,3 +216,9 @@ no auth values, unrelated Codex history or connector configuration are copied in
 repository. The opt-in `--codex-check` exercises the native host/Workflow with real SDK
 Chief/Dev/Tester/Reviewer and draft PR evidence. Claude and mixed-resource acceptance
 remain separate. No merge or production deployment is authorized by this validation.
+
+The scoped local Codex demonstration passed at clean source `73161f3`: actual Chief,
+Dev/Tester/Reviewer, immutable tests, matching-SHA draft PRs #31/#32, requested-test
+return/retry/re-review and scripted owner acceptance. Workers/workspaces were released.
+[Evidence](dev/demo/evidence/codex-2026-11-01.json) distinguishes this from the outstanding
+Claude/mixed-resource/browser/restart criteria and independent repository review.

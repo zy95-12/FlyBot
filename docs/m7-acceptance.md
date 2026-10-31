@@ -37,7 +37,7 @@ terminal refusal, nonpersistent audit, release and accurate unavailable SDK stat
 No SDK credential or paid model call is required; the fixture cannot prove authenticated
 SDK inference, mixed-Harness delivery or real GitHub publication at M7.
 
-## Dedicated authorization still required
+## Remaining broader acceptance
 
 Provide resources with the explicit runtime/SDK installation, private profile roots,
 Project-owner use grants and separate resource-admin grants for setup. Native uses the
@@ -47,10 +47,11 @@ supported by Claude Agent SDK; do not assume Claude.ai subscription login is per
 Codex provider/login must support the actual SDK protocol. Never inherit the current
 external Codex conversation or another person's credential profile automatically.
 
-The owner was asked for the dedicated resource/profile source without secret values.
-Until that authorization/configuration exists, the following are **Not run**:
+The initial checkpoint requested dedicated resource/profile authorization. The owner
+subsequently authorized local Codex and its positive run passed (see below). The
+following broader checks remain **Not run**:
 
-- Positive authenticated Codex and Claude Agent SDK code/Chief turns at M7 code.
+- Positive authenticated Claude Agent SDK code/Chief turns. Local Codex passed below.
 - Browser terminal→authenticated ready→same-resource real task, with A/B profiles isolated.
 - Real mixed three-Harness/two-resource PR delivery, browser return requesting extra tests,
   new commit and exact-SHA re-review/acceptance, forced-failure retry and restart evidence.
@@ -73,3 +74,43 @@ PR CI exposed a queue fixture race: terminal Attempt status preceded worker rele
 The fixture now waits for confirmed Bot/lease release, and its actual DSH regression
 passed locally; CI for that follow-up is pending at report creation. Product cleanup
 guards remain unchanged. Do not treat this checkpoint as authenticated SDK acceptance.
+
+## Codex-only real acceptance — 2026-11-01
+
+The owner subsequently authorized the existing Codex login and zy95-12 GitHub account on
+this machine and selected Codex-only validation. A dedicated private profile copied only
+the authorized Codex auth state and minimal model configuration, not existing sessions,
+memories or connector configuration. No credential value enters the repository.
+
+At clean source `73161f3bdda6554eb2ac73c7da41a3bc07e9d993`, official Codex SDK 0.166.0
+with `gpt-6.1-sol` completed the actual FlyBot HTTP/Workflow path: ready probe, public
+Chief scoped Task, separate Dev/Tester/Reviewer threads, immutable independent host tests,
+exact-SHA review and GitHub draft publication. The owner-authorized script returned the
+first candidate ([artifact PR #31](https://github.com/zy95-12/FlyBot/pull/31)), requested
+`add(-4.5, 0)` regression coverage, ran a fresh Attempt and accepted the re-reviewed
+candidate ([artifact PR #32](https://github.com/zy95-12/FlyBot/pull/32)). All six delivery
+workers released and both workspaces cleaned. Zero native deterministic-model requests
+were made. Scripted owner-role acceptance is not an independent human or repository
+Reviewer PASS. No PR was merged.
+
+See [sanitized evidence](../dev/demo/evidence/codex-2026-11-01.json) for candidate SHA,
+test/result/context/event hashes, SDK versions, Session ids and explicit Not run. This
+closes the requested local Codex demonstration; it does not claim Claude, browser setup
+to authenticated task, mixed resources or restart acceptance.
+
+Reproduce only with explicit owner authorization for real model calls and artifact PRs:
+
+```sh
+node dev/demo/run.mjs --codex-check \
+  --codex-profile /absolute/private/codex-config \
+  --codex-model gpt-6.1-sol --github-login zy95-12 \
+  --github-repo zy95-12/FlyBot --github-config-dir /absolute/private/gh
+```
+
+The selected Codex config directory must contain an authorized auth.json. GitHub login
+is verified against the explicit selected gh profile and repository owner; credentials
+remain outside worker environments. The paid mode is never enabled by ordinary CI.
+
+Validation at this exact executable source also passed full normal-user Node 24
+`TZ=UTC ARCH_DOCS_BASE=origin/main npm run verify`, ten key-free demo tests, demo lint
+and canonical core/patch checks. The evidence follow-up changes documentation only.

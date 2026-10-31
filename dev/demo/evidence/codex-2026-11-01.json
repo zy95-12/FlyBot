@@ -1,0 +1,266 @@
+{
+  "milestone": "M7 Codex-only live acceptance",
+  "model": "gpt-6.1-sol",
+  "executorLogin": "zy95-12",
+  "runtime": "actual DSH HTTP + official Codex SDK + local machine + GitHub",
+  "health": {
+    "status": "ready",
+    "reason": "Minimal SDK inference completed; this is not task execution",
+    "model": "gpt-6.1-sol",
+    "sdkVersion": "0.166.0",
+    "at": 1793464859026,
+    "principalId": "owner-1",
+    "expectedSdkVersion": "0.166.0",
+    "resourceId": "codex-local",
+    "harness": "codex"
+  },
+  "checks": [
+    "explicit authorized profile and GitHub identity",
+    "real SDK authentication probe",
+    "real Codex Chief creates scoped shared Task",
+    "public role memory in each execution context",
+    "distinct real Developer/Tester/Reviewer SDK threads",
+    "independent host tests at sealed candidate SHA",
+    "real GitHub draft PR head verified",
+    "owner-authorized scripted return/retry/new candidate/re-review/acceptance",
+    "confirmed role release and workspace cleanup"
+  ],
+  "attempts": [
+    {
+      "id": "attempt-d6dfd75d-f61d-455a-8247-6fb8d574ee31",
+      "candidateSha": "696c2369382bce5eac9b378290bf49d5722a2ee9",
+      "pr": {
+        "number": 31,
+        "url": "https://github.com/zy95-12/FlyBot/pull/31",
+        "sha": "696c2369382bce5eac9b378290bf49d5722a2ee9",
+        "repository": "zy95-12/FlyBot",
+        "executorLogin": "zy95-12",
+        "credentialScope": "project-automation"
+      },
+      "tests": {
+        "executor": "independent-host-controller",
+        "workspaceId": "workspace-89ff4178-0d79-43ae-ad86-07e59236bec7",
+        "resourceId": "codex-local",
+        "sha": "696c2369382bce5eac9b378290bf49d5722a2ee9",
+        "passed": true,
+        "command": [
+          "/root/.nvm/versions/node/v22.22.3/bin/node",
+          "/tmp/flybot-m0-yFFU5S/golden-test.mjs"
+        ],
+        "sha256": "03c8fb6cf48a13c226d0848277e15a7063cb99a43fad2a9ad8088ac6839cb104",
+        "at": 1793464911395
+      },
+      "review": {
+        "sha": "696c2369382bce5eac9b378290bf49d5722a2ee9",
+        "verdict": "approve",
+        "summary": "Inspected this exact commit against base 01cad3f14debe7a853eb6f287407c3fdeac54bf8. No defects found. Only code.mjs and code.test.mjs changed. Exported add(a,b) correctly uses a + b; ten explicit Node tests cover positive, negative, zero and fractional inputs. Worktree is clean. Tests were not run; execution verification remains with the host.",
+        "at": 1793464926261
+      },
+      "sessions": [
+        {
+          "role": "developer",
+          "backendSessionId": "01a192d6-2a29-7b03-b7cc-501ad93e55fd",
+          "status": "released"
+        },
+        {
+          "role": "tester",
+          "backendSessionId": "01a192d6-9378-7b40-b15d-771f4b750f2a",
+          "status": "released"
+        },
+        {
+          "role": "reviewer",
+          "backendSessionId": "01a192d6-c7b7-71c1-a902-e900c7cca5e3",
+          "status": "released"
+        }
+      ],
+      "execution": {
+        "developer": {
+          "workerId": "sdk-worker-b4f8d004-972c-473b-96d0-8d826d909a97",
+          "role": "developer",
+          "sessionId": "01a192d6-2a29-7b03-b7cc-501ad93e55fd",
+          "resourceId": "codex-local",
+          "harness": "codex",
+          "sdkVersion": "0.166.0",
+          "generation": 1,
+          "contextSha256": "2066b4746497e69d1b7f24b841faf0a54d7c46385a85fae40f84a86cc8abe59c",
+          "sha256": "091111822b1f27f972341bb812dd4b183eeec69927bba1ae61b9627a6fec94bd",
+          "resultHash": "f8783a70ac4e324cb9c276f06fed14ea75c1ece45cf9c0c470150182dda430e5",
+          "at": 1793464895947
+        },
+        "tester": {
+          "workerId": "sdk-worker-e79c0577-4faa-4065-bdb2-94d918a63c5d",
+          "role": "tester",
+          "sessionId": "01a192d6-9378-7b40-b15d-771f4b750f2a",
+          "resourceId": "codex-local",
+          "harness": "codex",
+          "sdkVersion": "0.166.0",
+          "generation": 1,
+          "contextSha256": "57dec3b37eec7185e6f8027d86ea15fe64d3a1d79cf3fe17c1b6bcc08c6690ec",
+          "sha256": "316afa5c7d8117309f4d805b46ea5b2ede1e54f8c9ad0e6f4cd7e595922d2489",
+          "resultHash": "21f3dee484111657184c1f0303465f5983b836e935b10e9f753d79b2ffd3620c",
+          "at": 1793464911302
+        },
+        "reviewer": {
+          "workerId": "sdk-worker-9c07d707-33a6-4800-a33b-9d6450bc8ce2",
+          "role": "reviewer",
+          "sessionId": "01a192d6-c7b7-71c1-a902-e900c7cca5e3",
+          "resourceId": "codex-local",
+          "harness": "codex",
+          "sdkVersion": "0.166.0",
+          "generation": 1,
+          "contextSha256": "2e35b2558f0f32badafb1f4d2974d0298cee1325d7df5795f2e19c515ad89fce",
+          "sha256": "2092d83c7ab76de4ef9f89d1d6d7a12e3109f18a286ca4609d46b1a27a756a55",
+          "resultHash": "641406923d853e7123b361130a4967eb7198ea2c8878b39c7957712902cf278b",
+          "at": 1793464926216
+        }
+      }
+    },
+    {
+      "id": "attempt-fe4aee48-9596-408c-b9ee-49ee272a59ba",
+      "candidateSha": "1ba7f16fd2c9ad9cb5a67f03e064f032e6e49a5c",
+      "pr": {
+        "number": 32,
+        "url": "https://github.com/zy95-12/FlyBot/pull/32",
+        "sha": "1ba7f16fd2c9ad9cb5a67f03e064f032e6e49a5c",
+        "repository": "zy95-12/FlyBot",
+        "executorLogin": "zy95-12",
+        "credentialScope": "project-automation"
+      },
+      "tests": {
+        "executor": "independent-host-controller",
+        "workspaceId": "workspace-2d5b5379-430b-47cf-be1e-c7e56712b2aa",
+        "resourceId": "codex-local",
+        "sha": "1ba7f16fd2c9ad9cb5a67f03e064f032e6e49a5c",
+        "passed": true,
+        "command": [
+          "/root/.nvm/versions/node/v22.22.3/bin/node",
+          "/tmp/flybot-m0-yFFU5S/golden-test.mjs"
+        ],
+        "sha256": "03c8fb6cf48a13c226d0848277e15a7063cb99a43fad2a9ad8088ac6839cb104",
+        "at": 1793464981501
+      },
+      "review": {
+        "sha": "1ba7f16fd2c9ad9cb5a67f03e064f032e6e49a5c",
+        "verdict": "approve",
+        "summary": "Inspected the exact candidate diff; no defects found. Only code.mjs and code.test.mjs changed. Exported add uses a + b. Five Node tests provide 11 explicit assertions covering positive, negative, mixed-sign, zero and fractional inputs, including the requested add(-4.5, 0) === -4.5 regression. No files edited or tests run; execution validation remains with the host.",
+        "at": 1793464995632
+      },
+      "sessions": [
+        {
+          "role": "developer",
+          "backendSessionId": "01a192d7-14bf-77c2-b215-e87eae163d43",
+          "status": "released"
+        },
+        {
+          "role": "tester",
+          "backendSessionId": "01a192d7-901b-7740-9c57-53eca7800402",
+          "status": "released"
+        },
+        {
+          "role": "reviewer",
+          "backendSessionId": "01a192d7-da0b-7f32-9e30-b6cc0aa4c0ab",
+          "status": "released"
+        }
+      ],
+      "execution": {
+        "developer": {
+          "workerId": "sdk-worker-ade0f582-1ac4-4212-bcb5-83adc00987dc",
+          "role": "developer",
+          "sessionId": "01a192d7-14bf-77c2-b215-e87eae163d43",
+          "resourceId": "codex-local",
+          "harness": "codex",
+          "sdkVersion": "0.166.0",
+          "generation": 1,
+          "contextSha256": "b1a1ba1783f7b5bd8bf774e80e9ed9fce81cd1b1ee501f295e719aa04a8f627e",
+          "sha256": "9bad50155d89c7942623af8f89f178ab8f664274518bec1a9d8498551373cf2d",
+          "resultHash": "2c5217b7624b3e58e9c18e5c5b00a081834bb761b479bebdf230ad7112609452",
+          "at": 1793464961477
+        },
+        "tester": {
+          "workerId": "sdk-worker-38b2b59e-0ae7-4e3e-a9a6-64090bd4f902",
+          "role": "tester",
+          "sessionId": "01a192d7-901b-7740-9c57-53eca7800402",
+          "resourceId": "codex-local",
+          "harness": "codex",
+          "sdkVersion": "0.166.0",
+          "generation": 1,
+          "contextSha256": "e474ca57d02b9b478e523157e2b247dbd8878c510823da9231ef8954e50bc02a",
+          "sha256": "2d2c65617a2ec36df4f72283492515d39f9b04c1ad3d9a798399ff05a7490957",
+          "resultHash": "48d7fa2448b1c5f64e5a617ffbde7286072433e6c1bc839f72472db36766a331",
+          "at": 1793464981407
+        },
+        "reviewer": {
+          "workerId": "sdk-worker-c20a15c1-accf-40f8-9d9b-578700d1eb80",
+          "role": "reviewer",
+          "sessionId": "01a192d7-da0b-7f32-9e30-b6cc0aa4c0ab",
+          "resourceId": "codex-local",
+          "harness": "codex",
+          "sdkVersion": "0.166.0",
+          "generation": 1,
+          "contextSha256": "70b271bf88e07c32a1adad3c1d808e06297bbafb147dee2976c020531b9e02e3",
+          "sha256": "f2d52873d5805ff7cab6d45b198d33e2eefb7bf5d42abdbdf6be02460b4d08aa",
+          "resultHash": "2b34db62bb4371367584b1d7d013434e92824084fac40a3d7e64f8be9285c525",
+          "at": 1793464995592
+        }
+      }
+    }
+  ],
+  "notRun": [
+    "browser UI in this run",
+    "Claude SDK",
+    "mixed Harness/two-resource acceptance",
+    "production deployment",
+    "PR merge",
+    "independent repository review PASS"
+  ],
+  "source": "73161f3bdda6554eb2ac73c7da41a3bc07e9d993",
+  "dirty": false,
+  "recordedAt": "2026-11-01T00:44:52+08:00",
+  "authorization": "Owner explicitly authorized current-machine Codex authentication and zy95-12 GitHub on 2026-11-01; dedicated private profile selected. Credential values and existing conversation history excluded.",
+  "independentObservation": [
+    {
+      "attemptId": "attempt-d6dfd75d-f61d-455a-8247-6fb8d574ee31",
+      "status": "failed",
+      "candidateSha": "696c2369382bce5eac9b378290bf49d5722a2ee9",
+      "feedback": null,
+      "regressionHasNegativeFraction": false,
+      "testFileSha256": "9d9e115b281dc230771b951aecb17b58f9d17db2b63f8dc94a59dcdf3c959724"
+    },
+    {
+      "attemptId": "attempt-fe4aee48-9596-408c-b9ee-49ee272a59ba",
+      "status": "accepted",
+      "candidateSha": "1ba7f16fd2c9ad9cb5a67f03e064f032e6e49a5c",
+      "feedback": {
+        "previousAttemptId": "attempt-d6dfd75d-f61d-455a-8247-6fb8d574ee31",
+        "kind": "human-return",
+        "reason": "Add a dedicated regression assertion for add(-4.5, 0) === -4.5 in code.test.mjs. Keep correct numeric addition and produce a fresh candidate.",
+        "candidateSha": "696c2369382bce5eac9b378290bf49d5722a2ee9"
+      },
+      "regressionHasNegativeFraction": true,
+      "testFileSha256": "91436df768508cac968b6f2ba64d720c9839a0815a4d7b8265c34d1eb686e5ea"
+    }
+  ],
+  "validation": {
+    "offlineDemoTests": {
+      "result": "passed",
+      "tests": 10
+    },
+    "demoLint": "passed",
+    "canonicalCorePatches": "passed",
+    "fullVerify": {
+      "source": "73161f3bdda6554eb2ac73c7da41a3bc07e9d993",
+      "status": "passed",
+      "command": "TZ=UTC ARCH_DOCS_BASE=origin/main npm run verify",
+      "environment": "new disposable Node 24 flybot:m0-test-tools container, normal node UID"
+    }
+  },
+  "boundaries": {
+    "controlPlaneModified": false,
+    "productionModified": false,
+    "prsMerged": false,
+    "credentialValuesIncluded": false,
+    "scriptedAcceptance": true,
+    "nativeMockRequests": 0,
+    "positiveClaudeOrMixedResourceClaim": false
+  }
+}
