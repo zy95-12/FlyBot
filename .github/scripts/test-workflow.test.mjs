@@ -55,6 +55,7 @@ test('M0 platform check pins unchanged source and rejects platform working-tree 
   assert.match(required, /repository: zy95-12\/flybot-control-plane/)
   assert.match(required, /ref: [a-f0-9]{40}/)
   assert.ok(required.includes('dev/demo/control_plane.py --control-plane .demo-control-plane --check --port 0'))
+  assert.ok(required.includes('dev/demo/control_plane.py --control-plane .demo-control-plane --shared-check --port 0'))
   assert.ok(required.includes('test -z "$(git -C .demo-control-plane status --porcelain)"'))
 })
 

@@ -19,6 +19,13 @@ mode, bypass shared-write authorization, deploy the platform or add a scheduler.
 Known identity, authorization and per-run cwd gaps remain in [Project State](../PROJECT.md).
 
 
+M2 adds the [shared access boundary](subsystems/project-access.md): an explicitly
+configured FlyBot BFF over unchanged control-plane authentication plus Project-owned
+roles/invites, runtime context and a scoped gateway to the existing Workflow service.
+It validates sessions on every request and denies legacy unscoped plugin surfaces in
+workbench mode. The inherited general team-mode proposal below remains historical;
+this fork's Project collaboration contract is narrower and separately tested.
+
 ## Layout
 
 | Path | What it is |

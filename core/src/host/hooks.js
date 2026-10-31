@@ -185,14 +185,16 @@ export function install(rt) {
     return ids
   }
 
-  async function create({ name, systemPrompt, fields, role, instructions, createdBy, cappedBy, plugin = SHARED, hidden, ephemeral, model, tools, permission } = {}) {
+  async function create({ name, systemPrompt, fields, role, instructions, createdBy, cappedBy, plugin = SHARED, hidden, ephemeral, model, tools, permission, executionProjectId } = {}) {
     checkName('plugin', plugin)
     await rt.load()
     const stepTools = ephemeral === true ? cleanStepTools(tools) : []
     const caps = ephemeral === true ? cleanCappedBy(cappedBy) : []
     const preset = ephemeral === true ? String(permission ?? '').trim() : ''
+    const executionProject = ephemeral === true && executionProjectId ? rt.projects?.requireActive(executionProjectId) : null
     const bot = await rt.createBot({
       name, role, instructions, createdBy,
+      ...(executionProject ? { ownerId: executionProject.ownerUserId } : {}),
       ...(systemPrompt ? { systemPrompt } : {}),
       ...(fields && Object.keys(fields).length > 0 ? { fields: { [plugin]: fields } } : {}),
       ...(typeof model === 'string' && model.trim() ? { model: model.trim() } : {}),
@@ -201,6 +203,7 @@ export function install(rt) {
       ...(ephemeral === true ? { ephemeral: { plugin } } : {}),
     })
     const record = rt.botOf(bot.id)
+    if (record && executionProject) record.projectId = executionProject.id
     if (record && stepTools.length > 0) record.stepTools = stepTools
     if (record && caps.length > 0) record.cappedBy = caps
     if (record && preset) {
@@ -211,7 +214,7 @@ export function install(rt) {
         throw error
       }
     }
-    if (record && (stepTools.length > 0 || caps.length > 0 || preset)) await rt.save()
+    if (record && (stepTools.length > 0 || caps.length > 0 || preset || executionProject)) await rt.save()
     for (const [key, value] of Object.entries(fields ?? {})) fire('change', { botId: bot.id, plugin, key, value: clone(value), prev: undefined })
     return bot.id
   }
@@ -1100,11 +1103,11 @@ export function install(rt) {
     await rt.load()
     const body = payload ?? {}
     switch (name) {
-      case 'bots': return team().map(view)
+      case 'bots': return team().filter(bot => !rt.sharedProjectMode?.() || bot.ownerId === actor?.memberId && (!bot.projectId || rt.projectCan(actor, bot.projectId))).map(view)
       case 'remote-members': return remoteMembers.list()
       case 'changes': {
         const since = body.epoch === changeEpoch ? Number(body.since ?? 0) : 0
-        return { epoch: changeEpoch, seq: changeSeq, changes: changes.filter(change => change.seq > since).map(change => structuredClone(change)) }
+        return { epoch: changeEpoch, seq: changeSeq, changes: changes.filter(change => change.seq > since && (!rt.sharedProjectMode?.() || ownEntry(state.bots, change.botId)?.ownerId === actor?.memberId && (!ownEntry(state.bots, change.botId)?.projectId || rt.projectCan(actor, ownEntry(state.bots, change.botId).projectId)))).map(change => structuredClone(change)) }
       }
       case 'approvals': return approvals.list({ ...body, actor })
       case 'decide': return approvals.decide(String(body.id ?? ''), body.decision, { note: body.note, actor })
@@ -1356,6 +1359,7 @@ export function install(rt) {
     // behavior. The write goes through the same `bindProject` the endpoint uses, so a run bound
     // from an assign and a run bound from Settings cannot disagree.
     projects: {
+      shared() { return rt.sharedProjectMode?.() === true },
       read(id) {
         return typeof rt.readProject === "function" ? rt.readProject(String(id ?? '')) ?? undefined : undefined
       },

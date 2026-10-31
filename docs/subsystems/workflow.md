@@ -135,3 +135,10 @@ bindings, imports known legacy host ownership, checks host execution context bef
 spawn, and reports canonical terminal status. Missing context on older hosts preserves
 legacy behavior. project-domain.test.js covers graph rebind/restart and refused spawn;
 [Project contract](project-domain.md) records crash/reporting limitations.
+
+## Fork M2 — 2026-10-31
+
+M2 passes checked executionProjectId through node spawn to host-owned ephemeral creation,
+so a shared runtime does not invoke the ambiguous initial-owner fallback. Shared Task
+writes and legacy run/define tools cannot bypass the Project gateway. Gateway admission,
+role/quota/scope checks and read filtering live in [Project access](project-access.md).

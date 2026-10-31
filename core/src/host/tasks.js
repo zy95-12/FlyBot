@@ -218,6 +218,7 @@ export function install(rt) {
   // owner of a host nobody has signed in on. Derived, never a body claim.
   const requesterOf = actor => actor?.memberId ?? Object.keys(state.members ?? {})[0] ?? null
   const mayAct = (task, actor) => {
+    if (rt.sharedProjectMode?.() && task.projectId) return rt.projectCan(actor, task.projectId, 'task-write', task)
     if (!rt.authzEnforced?.()) return true
     return actor !== null && actor !== undefined && task.requesterId === actor.memberId
   }
@@ -327,6 +328,7 @@ export function install(rt) {
     return owns(actor, room.admin)
   }
   const mayUpdate = (task, actor) => {
+    if (rt.sharedProjectMode?.() && task.projectId) return rt.projectCan(actor, task.projectId, 'task-write', task)
     if (!rt.authzEnforced?.()) return true
     return mayAct(task, actor) || owns(actor, task.ownerBotId)
   }
@@ -334,6 +336,7 @@ export function install(rt) {
   // ancestor), or a group admin of the card's room. It is the rule `tasks` answers with, and it
   // is exported so the Project board cannot paint a card the same actor would be refused there.
   const taskVisible = (task, actor) => {
+    if (rt.sharedProjectMode?.() && task.projectId) return rt.projectCan(actor, task.projectId, 'read')
     if (mayAct(task, actor) || ancestorOwned(actor, task.ownerBotId)) return true
     const roomId = typeof task?.origin?.roomId === 'string' ? task.origin.roomId : ''
     return roomId !== '' && roomAdmin(actor, state.rooms?.[roomId])
@@ -1373,6 +1376,12 @@ export function install(rt) {
     // The same gate the endpoint had, plus retirement (#1709): a retired Bot takes no new card,
     // whether it arrives from task-create or a pre-flight.
     if (bot === undefined || bot.remote !== undefined || retiredBot(bot)) throw forbidden('No such Bot')
+    if (rt.sharedProjectMode?.() && (body.projectId || bot.projectId)) {
+      const projectId = body.projectId ?? bot.projectId
+      rt.requireProjectAccess(actor, projectId, 'create')
+      if (bot.projectId !== projectId || Object.hasOwn(body, 'projectId') && body.projectId !== bot.projectId) throw forbidden('Bot belongs to another Project')
+      return bot
+    }
     const roomId = body?.roomId ? String(body.roomId) : undefined
     if (!mayCreateOn(bot, actor, roomId)) throw forbidden('You cannot assign a task to that Bot')
     return bot
@@ -1381,13 +1390,25 @@ export function install(rt) {
 
   // ---------------------------------------------------------------- channel API
   rt.taskEndpoint = async function taskEndpoint(endpoint, body, actor) {
+    if (rt.sharedProjectMode?.()) {
+      const task = find(body.id)
+      if (task?.projectId) {
+        const action = endpoint === 'task-accept-result' || endpoint === 'task-send-back' || body.column === 'done' ? 'accept' : 'task-write'
+        rt.requireProjectAccess(actor, task.projectId, action, task)
+      }
+      if (endpoint === 'task-create' && body.column === 'done') rt.requireProjectAccess(actor, body.projectId ?? botRecord(body.botId)?.projectId, 'accept')
+    }
+
     switch (endpoint) {
       case 'tasks': {
         const botId = body.botId ? String(body.botId) : ''
         const roomId = body.roomId ? String(body.roomId) : ''
         const all = Object.values(store())
         let rows
-        if (roomId) {
+        if (rt.sharedProjectMode?.() && body.projectId) {
+          rt.requireProjectAccess(actor, body.projectId)
+          rows = all.filter(task => task.projectId === body.projectId && taskVisible(task, actor))
+        } else if (roomId) {
           const room = state.rooms?.[roomId]
           if (room === undefined) throw forbidden('No such group')
           if (rt.authzEnforced?.() && !roomAdmin(actor, room)) throw forbidden('Only a group admin can see that group\'s tasks')
@@ -1397,17 +1418,18 @@ export function install(rt) {
           const bot = botRecord(botId)
           if (bot === undefined || bot.remote !== undefined) throw forbidden('No such Bot')
           const seesBot = ancestorOwned(actor, botId)
-          rows = all.filter(task => task.ownerBotId === botId && (seesBot || mayAct(task, actor)))
+          rows = all.filter(task => task.ownerBotId === botId && (rt.sharedProjectMode?.() ? taskVisible(task, actor) : seesBot || mayAct(task, actor)))
           if (rt.authzEnforced?.() && !seesBot && rows.length === 0) throw forbidden('You cannot see that Bot\'s tasks')
         } else {
           // Ownership and the tree. Group tasks of someone else's Bot stay behind
           // the room query, so a plain list never becomes a group-admin view.
-          rows = all.filter(task => mayAct(task, actor) || ancestorOwned(actor, task.ownerBotId))
+          rows = all.filter(task => rt.sharedProjectMode?.() ? taskVisible(task, actor) : mayAct(task, actor) || ancestorOwned(actor, task.ownerBotId))
         }
         // #1252: the board lists active work; the archive is the same read with a flag, so a
         // group that has finished hundreds of cards does not ship them on every poll. A caller
         // that asks for a bounded archive gets the newest rows; without `limit` every row stays
         // readable, because a lookup by id must still find a card outside the newest page.
+        if (rt.sharedProjectMode?.()) rows = rows.filter(task => taskVisible(task, actor))
         const archived = body.archive === true
         const limit = archived ? readArchiveLimit(body.limit) : undefined
         if (limit !== undefined) {

@@ -240,6 +240,8 @@ export interface CreateBotSpec {
    * A team Bot ignores this.
    */
   tools?: string[]
+  /** Trusted plugin-only Project execution ownership, checked by the host. */
+  executionProjectId?: string
   /**
    * DSH permission preset for a run Bot (`workspace-write` or `danger-full-access`).
    * Only applied when `ephemeral` is true. A team Bot ignores this.
@@ -377,6 +379,7 @@ export type ModelAnswer = { ok: true; text: string } | { ok: false; code: string
 export interface FlyBot {
   /** Project context is derived from the durable host Task. Not a user authorization token. */
   projects: {
+    shared(): boolean
     read(id: string): { id: string; status: 'active' | 'archived'; [key: string]: unknown } | undefined
     readRun(id: string): { id: string; projectId: string; status: string } | undefined
     context(taskId: string, projectId?: string | null): { projectId: string | null; taskId?: string } | undefined

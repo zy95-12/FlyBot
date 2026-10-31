@@ -14,6 +14,10 @@ new work; moving a Bot or editing a workflow cannot move an existing Task or Run
 The implementation stays in the FlyBot process and its locked state.json store.
 Control-plane source, tables and deployment configuration are unchanged.
 
+M2 extends the human access/API contract through [Project access](project-access.md).
+Its explicitly configured path supersedes M1's primary-owner-only read limitation;
+M1 ownership, migration and lifecycle invariants still apply.
+
 ## Boundaries
 
 `store.js` owns locking, durable snapshots, identity migration and load/refresh.

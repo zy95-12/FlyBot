@@ -94,7 +94,7 @@ export function install(rt) {
 
   // Enforced only on a deployment where someone has signed in; before that the
   // single-human product behaves exactly as it always has.
-  rt.authzEnforced = () => Object.keys(state.authSessions || {}).length > 0
+  rt.authzEnforced = () => rt.sharedProjectMode?.() === true || Object.keys(state.authSessions || {}).length > 0
 
   const botOwnedBy = (actor, botId) => typeof botId === 'string' && (state.bots || {})[botId]?.ownerId === actor.memberId
 
@@ -233,10 +233,21 @@ export function install(rt) {
     if (!rt.authzEnforced()) return ALLOW
     const ep = String(endpoint ?? '')
 
+    if (ep === 'platform-login') return rt.platformIdentityEnabled ? ALLOW : deny('bot/forbidden', 'Platform identity is not configured')
+    if (['project-members', 'project-invite', 'project-join', 'project-leave', 'project-member-remove', 'project-quota', 'project-workflow'].includes(ep) && !rt.sharedProjectMode?.()) return deny('bot/forbidden', 'Project workbench is not enabled')
+    if (rt.platformIdentityEnabled && ['auth-invite', 'auth-redeem', 'auth-remove-member'].includes(ep)) return deny('bot/platform-auth', 'Use control-plane account authentication')
     if (!actor) {
       if (NO_ACTOR_ALLOWED.has(ep)) return ALLOW
       return deny('bot/unauthorized', 'Sign in first')
     }
+
+    if (rt.sharedProjectMode?.()) {
+      if (['project-members', 'project-invite', 'project-join', 'project-leave', 'project-member-remove', 'project-quota', 'project-workflow'].includes(ep)) return ALLOW
+      if (ep.startsWith('flybot/') && !['flybot/bots', 'flybot/changes', 'flybot/decide'].includes(ep)) return deny('bot/project-required', 'Use a Project-scoped endpoint')
+      if (['workflows', 'workflow-save', 'usage'].includes(ep)) return deny('bot/project-required', 'Use a Project-scoped endpoint')
+    }
+
+    if (rt.sharedProjectMode?.() && ep === 'auth-remove-member' && actor.memberId !== 'owner-1') return deny('bot/forbidden', 'Only the instance owner manages host members')
 
     // Shared deployment-wide resources: one member may still use them, more than
     // one may not until they can be scoped per owner.

@@ -812,3 +812,10 @@ with human policy in shared/project-policy.js. Store invokes explicit migration 
 load/refresh; tasks stamp immutable ownership and board reads use it. Member removal
 preserves attribution and refuses owned Projects/unfinished requests. See
 [Project contract](project-domain.md) and project-domain.test.js.
+
+## Fork M2 — 2026-10-31
+
+M2 installs platform-identity/project-access between member-auth and authz. Shared Tasks
+retain current membership on every read/write/accept path, including null detachment.
+Project service dispatches membership policy before native handlers. The opt-in path
+uses the [Project access contract](project-access.md); legacy mode remains covered.

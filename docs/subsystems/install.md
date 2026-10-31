@@ -79,3 +79,9 @@ Revision defaults to `unknown`, so release builds must pass a clean checkout's S
 
 - Changing an owned path without updating the subsystem page.
 - Committing without regenerating patches when `core/` changes.
+
+## Fork M2 — 2026-10-31
+
+M2 extends the required test job with the actual unchanged-platform + DSH --shared-check
+probe, using the existing disposable Python venv and immutable platform checkout. It
+asserts a clean platform tree. Existing verification and generated-patch rules remain.

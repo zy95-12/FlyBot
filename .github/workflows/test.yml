@@ -55,6 +55,7 @@ jobs:
           python3 -m venv "$RUNNER_TEMP/flybot-demo-python"
           "$RUNNER_TEMP/flybot-demo-python/bin/python" -m pip install -r .demo-control-plane/control_plane/requirements.txt -r dev/demo/requirements.txt
           "$RUNNER_TEMP/flybot-demo-python/bin/python" dev/demo/control_plane.py --control-plane .demo-control-plane --check --port 0
+          "$RUNNER_TEMP/flybot-demo-python/bin/python" dev/demo/control_plane.py --control-plane .demo-control-plane --shared-check --port 0
           test -z "$(git -C .demo-control-plane status --porcelain)"
 
   # Each peer plugin (plugins/<name>) on its own: lint and its suite against core/ and the DSH

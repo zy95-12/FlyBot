@@ -13,6 +13,13 @@ Dated, short lessons from real FlyBot work. Agents read this **before coding**. 
 
 ## Open lessons
 
+### 2026-10-31 — Scope alternate reads and Task detachment as well as writes
+
+Seen 1×. M2 tests reproduced unscoped plugin reads and explicit-null Task detachment
+bypassing intended Project boundaries. Scope/deny alternate entry points, derive actor
+and Project at the host, and test stale sessions/pages after removal. A permissive old
+plugin read cannot become the shared-workbench fallback.
+
 ### 2026-10-31 — Routing bindings cannot own historical work
 
 Seen 1×. A regression test reproduced Task attribution changing with Bot rebinding.
