@@ -116,3 +116,11 @@ Rebind/restart and ambiguous-run tests guard the M1 fix.
 - **Wrong:** Imply full validation when only part of the suite ran; omit tip SHA; treat author narrative as evidence.
 - **Right:** Name the tip SHA. List commands run and their results. List **not run** explicitly. PASS only from the reviewer (the owner's reviewer Bot, self-PASS counts) at that tip. No “faster/safer” without a new Verifier PASS.
 - **Promote path:** After ≥3 days → [docs/code-standards.md](docs/code-standards.md#verifier-honesty).
+
+## 2026-10-31 — a member UI must not carry the Harness owner cookie (Seen 1×)
+
+Project-scoped endpoints cannot protect raw Harness Session APIs if the shared browser
+also receives the private runtime owner login. M5 uses a fixed-upstream endpoint-allowlist
+gateway with the cookie held server-side. Test blocked raw/plugin routes and cookie
+stripping alongside runtime membership. Repository name equality also does not grant
+operator filesystem/GitHub capabilities: verify the provisioned Project owner.

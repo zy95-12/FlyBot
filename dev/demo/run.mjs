@@ -7,6 +7,7 @@ import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { mockModel } from './mock.mjs'
+import { checkQueue } from './queue.mjs'
 import { agentReply, checkAgents } from './agents.mjs'
 import { checkDelivery, deliveryReply, provisionDeliveryFixture } from './delivery.mjs'
 import { checkShared } from './shared.mjs'
@@ -37,7 +38,8 @@ async function waitFor(read, label, milliseconds = 90_000) {
 
 async function main() {
   const agents = process.argv.includes('--agents')
-  const delivery = process.argv.includes('--delivery')
+  const queue = process.argv.includes('--queue')
+  const delivery = process.argv.includes('--delivery') || queue
   const githubRepository = process.argv.includes('--github-repo') ? process.argv[process.argv.indexOf('--github-repo') + 1] : undefined
   const githubConfigDir = process.argv.includes('--github-config-dir') ? process.argv[process.argv.indexOf('--github-config-dir') + 1] : undefined
   if (githubRepository && (!delivery || !githubConfigDir)) throw new Error('GitHub demo requires --delivery and explicit --github-config-dir')
@@ -123,6 +125,10 @@ async function main() {
     }
     if (agents) {
       console.log(JSON.stringify(await checkAgents({ api, call, saved, waitFor })))
+      return
+    }
+    if (queue) {
+      console.log(JSON.stringify(await checkQueue({ api, call, saved, waitFor })))
       return
     }
     if (delivery) {

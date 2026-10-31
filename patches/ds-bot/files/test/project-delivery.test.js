@@ -205,3 +205,27 @@ test('managed delivery definitions and role/model snapshots cannot be edited or 
   for (const operation of ['graph', 'set-model', 'concurrency', 'reset', 'delete']) await assert.rejects(fixture.rt.projectEndpoint('project-workflow', { projectId: 'p1', workflowId: attempt.workflowId, operation, nodes: [] }, alice), /immutable/)
   assert.equal(attempt.workflowVersion, 'project-delivery/v1')
 })
+
+
+test('only managers stop one delivery Run and failed Worker release retains its capacity', async t => {
+  const fixture = await setup(t)
+  await fixture.start('stop-one')
+  const { rt } = fixture, attempt = fixture.attempt()
+  let resets = 0
+  rt.flybot.api.handle('workflow/reset', body => {
+    assert.equal(body.runId, attempt.runId)
+    assert.equal(body.workflowId, attempt.workflowId)
+    resets++
+    return { ok: true }
+  })
+  rt.state.bots.worker = { id: 'worker', projectId: 'p1', ephemeral: { plugin: 'workflow' }, attemptId: attempt.id }
+  await assert.rejects(rt.projectEndpoint('project-attempt-stop', { attemptId: attempt.id }, bob), /denied/)
+  const stopping = await rt.projectEndpoint('project-attempt-stop', { attemptId: attempt.id }, alice)
+  assert.equal(stopping.stopping, true)
+  assert.equal(rt.projectScheduler.slots('p1'), 1)
+  await assert.rejects(fixture.gate('developer'), /stopped/)
+  delete rt.state.bots.worker
+  const stopped = await rt.projectEndpoint('project-attempt-stop', { attemptId: attempt.id }, alice)
+  assert.equal(stopped.attempt.status, 'cancelled')
+  assert.equal(resets, 2)
+})

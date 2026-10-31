@@ -146,6 +146,7 @@ export function createProjectDomain(rt) {
       status: details.status ?? existing?.status ?? 'recorded', updatedAt: Date.now() }
     setEntry(state.projectExecutions, id, run)
     rt.projectDelivery?.runReported(run)
+    rt.projectScheduler?.wake()
     return run
   }
   function createWorkspace(body) {
@@ -157,6 +158,7 @@ export function createProjectDomain(rt) {
     return workspace
   }
   function assertDeletable(id) {
+    if (Object.values(state.projectQueue ?? {}).some(entry => entry.projectId === id && ['waiting', 'starting'].includes(entry.status))) throw refuse('Project has queued delivery work')
     if (Object.values(state.projectAttempts ?? {}).some(attempt => attempt.projectId === id && ['preparing', 'running', 'waiting-acceptance'].includes(attempt.status))) throw refuse('Project has unfinished delivery Attempts')
     if (Object.values(state.tasks).some(task => task?.projectId === id && !terminal.has(task.status))) throw refuse('Project has unfinished Tasks')
     if (Object.values(state.projectExecutions).some(run => run.projectId === id && activeRun.has(run.status))) throw refuse('Project has active Runs')

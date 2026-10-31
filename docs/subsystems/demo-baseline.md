@@ -62,3 +62,8 @@ M4 adds --agents to actual DSH runtime verification: two private agent Sessions 
 scoped tools; private proposal publication and public Chief Task creation retain the
 requester; private memory and revoked old Session routes are checked. The required
 runtime suite runs this fixture alongside M0/M3; no true-model/personal-GitHub claim.
+
+M5 adds `node dev/demo/run.mjs --queue`: real DSH + deterministic model, three shared
+Tasks with quota one, no allocation while waiting, automatic drain after Worker release,
+duplicate request identity and cancellation after member removal. It is part of runtime
+verify. This is not a real model or GitHub publication test.

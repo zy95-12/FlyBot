@@ -6,6 +6,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { promisify } from 'node:util'
 import { ownEntry, setEntry } from './store.js'
 import { DELIVERY_ROLES, DELIVERY_VERSION, deliveryGraph } from './project-delivery-template.js'
+import { repositorySettings } from './project-repository-policy.js'
 import { skillInstructions } from './project-agent-skills.js'
 import { githubPublisher } from './project-github.js'
 
@@ -42,11 +43,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
   }
   const taskOf = id => ownEntry(state.tasks, String(id ?? ''))
   const projectOf = id => rt.projects.repository.get(id, { includeDeleted: true })
-  const settingsOf = project => {
-    const settings = ownEntry(config.projectRepositories ?? {}, project.repository)
-    if (!settings || !isAbsolute(settings.path ?? '') || !Array.isArray(settings.testCommand) || !settings.testCommand.length || settings.testCommand.some(arg => typeof arg !== 'string')) throw reject('Project repository/test command is not provisioned')
-    return settings
-  }
+  const settingsOf = project => repositorySettings(rt, project)
   const publisherOf = project => publisher ?? githubPublisher(settingsOf(project).github)
   const current = taskId => Object.values(attempts()).reverse().find(attempt => attempt.taskId === taskId)
   const view = attempt => structuredClone(attempt)
@@ -64,6 +61,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     await mkdir(root, { recursive: true, mode: 0o700 })
     if (await realpath(root) !== root) throw reject('Delivery root must not be a symlink')
     for (const role of DELIVERY_ROLES) {
+      if (attempt.cancelRequested) throw reject('Delivery was stopped')
       const path = join(root, attempt.id, role)
       await mkdir(join(root, attempt.id), { recursive: true, mode: 0o700 })
       const workspace = { id: `workspace-${randomUUID()}`, projectId: project.id, attemptId: attempt.id, role, path, repository,
@@ -99,6 +97,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     await rt.save() // Reserve idempotency and ownership before any filesystem effects.
     try {
       await allocate(attempt, project, settings)
+      if (attempt.cancelRequested) throw reject('Delivery was stopped')
       const model = settings.model ?? config.projectModel ?? await rt.defaultModel?.()
       if (typeof model !== 'string' || !model) throw reject('A served delivery model must be provisioned')
       const graph = deliveryGraph(model)
@@ -116,6 +115,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
       const workflow = made.workflows.find(row => row.name.endsWith(attempt.id))
       if (!workflow) throw reject('Versioned delivery Workflow was not created')
       attempt.workflowId = workflow.id
+      if (attempt.cancelRequested) throw reject('Delivery was stopped')
       attempt.status = 'running'
       if (rt.taskDeliveryState?.(task.id, attempt.id, 'working', 'Delivery started') === false) throw reject('Task ended before delivery started')
       await rt.save()
@@ -125,7 +125,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
       attempt.runId = run?.id ?? null
       await rt.save()
       return { attempt: view(attempt) }
-    } catch (error) { await fail(attempt, error); return { attempt: view(attempt) } }
+    } catch (error) { await fail(attempt, error, attempt.cancelRequested ? 'cancelled' : 'failed'); return { attempt: view(attempt) } }
   }
   function context(taskId) {
     const attempt = current(taskId)
@@ -185,13 +185,16 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     attempt.evidence.review = { sha: result.commit, verdict: result.verdict, summary: result.summary.slice(0, 8000), at: Date.now() }
     if (result.verdict !== 'approve') throw reject('Reviewer requested changes')
     if (attempt.evidence.tests?.sha !== attempt.candidateSha || !attempt.evidence.tests.passed) throw reject('Matching passing tests are missing')
+    if (attempt.cancelRequested) throw reject('Delivery was stopped')
     attempt.pr = await publisherOf(projectOf(attempt.projectId)).publish(attempt, projectOf(attempt.projectId))
     if (attempt.pr.sha !== attempt.candidateSha) throw reject('Published PR does not match candidate')
+    if (attempt.cancelRequested) throw reject('Delivery was stopped')
     attempt.status = 'waiting-acceptance'
     if (rt.taskDeliveryState?.(attempt.taskId, attempt.id, 'result-ready', 'Delivery evidence ready for human acceptance') === false) throw reject('Task ended before delivery evidence was ready')
   }
   async function gate({ taskId, workflowId, runId, nodeId, outputs, ok = true }) {
     const attempt = current(taskId)
+    if (attempt?.cancelRequested) throw reject('Delivery was stopped')
     if (!attempt || attempt.workflowId !== workflowId) throw reject('Delivery Attempt/Workflow mismatch')
     if (['accepted', 'cancelled'].includes(taskOf(taskId)?.status)) throw reject('Task has already ended')
     const completed = nodeId === 'developer' ? attempt.evidence.implementation : nodeId === 'tester' ? attempt.evidence.tests?.passed && attempt.evidence.tests : nodeId === 'reviewer' ? attempt.evidence.review?.verdict === 'approve' && attempt.pr : null
@@ -255,9 +258,29 @@ export function createProjectDelivery(rt, { publisher } = {}) {
       if (ownEntry(state.projectWorkspaces, workspace.id)) Object.assign(state.projectWorkspaces[workspace.id], { status: workspace.status, releasedAt: workspace.releasedAt })
     }
     await rt.save()
+    rt.projectScheduler?.wake()
     return { attempt: view(attempt) }
   }
   async function endpoint(endpoint, body, actor) {
+    if (endpoint === 'project-attempt-stop') {
+      const attempt = ownEntry(attempts(), body.attemptId)
+      if (!attempt) throw reject('Unknown Attempt')
+      rt.requireProjectAccess(actor, attempt.projectId, 'run-control')
+      if (!ongoing.has(attempt.status)) return { attempt: view(attempt), already: true }
+      attempt.cancelRequested = true
+      await rt.save()
+      return serial(() => serialAttempt(attempt.id, async () => {
+      if (attempt.runId) {
+        const result = await rt.flybotEndpoint('workflow/reset', { workflowId: attempt.workflowId, runId: attempt.runId }, { actor })
+        if (result?.ok === false) throw reject(result.error)
+      }
+      const remaining = Object.values(state.bots).filter(bot => bot.ephemeral && bot.attemptId === attempt.id)
+      if (remaining.length) return { attempt: view(attempt), stopping: true, remainingWorkers: remaining.length }
+      await fail(attempt, new Error('Stopped by an authorized Project member'), 'cancelled')
+      rt.projectScheduler?.wake()
+      return { attempt: view(attempt) }
+      }))
+    }
     if (endpoint === 'project-attempt-log') {
       const attempt = ownEntry(attempts(), body.attemptId)
       if (!attempt) throw reject('Unknown Attempt')

@@ -307,7 +307,7 @@ export function install(rt) {
 
   const prune = () => {
     const all = Object.values(store())
-    const droppable = all.filter(task => !task.deliveryAttemptId && !PROTECTED.has(task.status)).sort((a, b) => a.updatedAt - b.updatedAt)
+    const droppable = all.filter(task => !task.projectId && !task.deliveryAttemptId && !PROTECTED.has(task.status)).sort((a, b) => a.updatedAt - b.updatedAt)
     for (const task of droppable.slice(0, Math.max(0, all.length - KEPT))) delete store()[task.id]
   }
   // A board write is what makes unfinished work visible. The driver wakes an idle

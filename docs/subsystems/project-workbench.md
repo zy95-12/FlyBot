@@ -1,0 +1,97 @@
+---
+subsystem: project-workbench
+owned_paths:
+  - core/src/host/project-scheduler.js
+  - core/src/host/project-repository-policy.js
+  - core/src/host/workbench-gateway.js
+  - core/src/host/workbench-state.js
+  - core/src/client/workbench
+  - core/workbench.js
+  - core/workbench.css
+  - core/scripts/build-workbench.mjs
+  - core/test/workbench-client.test.js
+  - core/test/workbench-gateway.test.js
+  - core/test/project-scheduler.test.js
+---
+
+# Project workbench (fork M5)
+
+The shared entry is a separate browser application, built with esbuild into committed
+`core/workbench.js` and `.css`. The legacy operator UI remains available at the private
+Harness entry. Members receive only the restricted gateway URL. Never share the Harness
+owner login URL/cookie: doing so would expose raw Session APIs outside Project policy.
+
+## Entry and identity
+
+`workbench-gateway.js` listens on loopback, proxies only an explicit `/api/bot` endpoint
+allowlist to one fixed loopback runtime, and holds its owner cookie server-side. There
+is no arbitrary URL proxy. Host, Origin and fetch-site checks, request limits, CSP,
+no-store and cookie/redirect stripping protect this boundary. Deploying it externally
+requires an operator-configured reverse proxy and fixed `--public-origin`; it does not
+provision TLS or alter control-plane. The gateway is a trusted server component, not a
+substitute for the runtime's membership checks. Only the member session header crosses
+from browser to FlyBot; owner credentials never appear in HTML, JS or local storage.
+
+The app calls `auth-mode`, then the existing platform-login BFF or redeems a local member
+invitation for isolated tests. Member credentials live in origin-scoped sessionStorage.
+Platform account management links to the existing control-plane. There is no duplicate
+account database or new control-plane source. Local initial invitations are operator
+issued; the shared entry cannot mint unauthenticated owner sessions.
+
+## UI and data
+
+Project switching, deep-linked Tasks, Task board/create/run/retry, Attempt evidence,
+verified test logs, PR links, commit-specific human acceptance/return, stop/cleanup,
+member invitations/roles/removal, public Chief/role configuration and private Project
+agent conversation/notes/proposals use actual backend endpoints. No simulated delivery
+or PR actions. Permissions hide controls for convenience; the server remains authoritative.
+
+Every refresh captures an epoch and Project id and aborts prior requests. Late responses
+cannot replace another Project's content; membership failures clear the displayed scope.
+A deep-linked Task must belong to the selected Project even if the human can read both.
+Untrusted content is rendered using textContent; no HTML interpolation. Form drafts are
+Project/view scoped; polling preserves active input focus/cursor. Logout clears drafts
+and selected data. The responsive layout collapses below 900px. There are no remote assets.
+
+## Admission and lifecycle
+
+`project-scheduler.js` adds a durable *admission queue* around the existing delivery
+service, not a second Workflow executor or Task store. At quota, a request stores
+Project/Task/request hash/requester before allocating any Attempt or worktree. Duplicate
+requests reuse the same queue/Attempt. A serial drain checks current membership, Task
+state and Project status before starting the existing versioned delivery Workflow.
+Removal cancels waiting work; admitted running work continues under Project authority.
+Archived Projects block pending entries; the requester or manager can cancel them.
+Startup reconciles interrupted `starting` entries against existing Attempts.
+
+Slots deduplicate canonical active Runs, preparing/running Attempts and orphan Workers
+by Attempt id. Failed Worker release continues to consume capacity. Owner/Maintainer
+stop uses the existing single-Run Workflow reset/release path. No slot is fabricated free
+while Workers remain. Cleanup and terminal Run reports wake the queue. A one-second
+unref timer operates only in workbench mode and only after Workflow handlers are ready.
+Project deletion refuses live queue requests. Project Tasks are not implicitly pruned
+from history by legacy task retention.
+
+Operator repository config grants filesystem/tests/automation capabilities. Its
+`allowedProjectOwnerIds` defaults to `["owner-1"]`; shared members can execute Tasks
+inside that owner's Project, but cannot create another Project with the same repository
+name to inherit the capability. Shared callers cannot provide arbitrary workDir values.
+Scoped agent/worker Project identities cannot be rebound.
+
+## Resources and evidence
+
+Resource cards show real concurrency, queue, Worker and Workspace records. CPU/RSS are
+measurements of the *shared host process*, never per-Project guarantees. No GPU or
+unreported limits are invented. The unchanged platform `/api/instance` response belongs
+to the current caller's account instance and is explicitly separate from the execution
+host. Missing data is unavailable.
+
+Metrics use a rolling seven-day window and actual human-accepted Attempts: unique Tasks,
+sample count, mean and median Task-created→accepted durations (queue/execution/human wait
+included). No samples yields null, not zero or a simulated throughput.
+
+Tests cover delayed cross-Project responses, revocation, deep-link ownership, XSS, member
+controls, scoped Task creation, gateway escape routes/cookie isolation, quota/recovery,
+repository capability ownership and real DSH queue/drain/revocation. `npm run verify`
+checks generated assets. M6 owns full two-account browser acceptance; deterministic model
+transport is not real-model delivery or an independent repository review PASS.

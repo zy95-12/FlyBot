@@ -30,7 +30,8 @@
     "./package.json": "./package.json",
     "./types": {
       "types": "./types/flybot.d.ts"
-    }
+    },
+    "./workbench-gateway": "./src/host/workbench-gateway.js"
   },
   "files": [
     "index.js",
@@ -41,17 +42,20 @@
     "cordis.patch.yml",
     "README.md",
     "LICENSE",
-    "types/"
+    "types/",
+    "workbench.js",
+    "workbench.css"
   ],
   "scripts": {
-    "build": "node scripts/build-client.mjs",
+    "build": "node scripts/build-client.mjs && node scripts/build-workbench.mjs",
     "test": "node --import ./test/harness-resolve.mjs --test \"test/*.test.js\"",
     "lint": "node scripts/lint.mjs",
     "arch-docs": "node scripts/check-arch-docs.mjs",
     "harness": "npm install --prefix dev/harness --legacy-peer-deps=false --no-package-lock --no-fund --no-audit",
     "check": "sh dev/check.sh",
     "ci:local": "bash scripts/local-ci.sh",
-    "install:doctor": "node scripts/install-doctor.mjs"
+    "install:doctor": "node scripts/install-doctor.mjs",
+    "build:workbench": "node scripts/build-workbench.mjs"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "*",

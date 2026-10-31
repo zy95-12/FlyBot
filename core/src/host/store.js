@@ -360,6 +360,7 @@ export function install(rt) {
     }
     if (rt.projects.migrateLegacy()) migrated = true
     if (rt.projectDelivery?.recover()) migrated = true
+    if (rt.projectScheduler?.recover()) migrated = true
     if (syncDesignatedChief()) migrated = true
     indexSessions()
     return { migrated: migrated || stale.length > 0, stale }

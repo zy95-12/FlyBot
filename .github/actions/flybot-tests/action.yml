@@ -75,7 +75,7 @@ runs:
     - name: Build (client bundle is up to date)
       shell: bash
       working-directory: core
-      run: node scripts/build-client.mjs --check
+      run: node scripts/build-client.mjs --check && node scripts/build-workbench.mjs --check
     - name: Offline harness lint
       shell: bash
       run: npm run lint:interop
