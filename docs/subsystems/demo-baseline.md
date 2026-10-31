@@ -47,3 +47,11 @@ M2 adds --shared-check to the external platform adapter and shared.mjs to the ex
 actual DSH harness. Credentials travel over stdin. It checks two platform logins, invite/
 shared Task/Workflow, member removal, platform suspension and logout; the required test
 job executes it against unchanged pinned platform source. [Contract](project-access.md).
+
+## Fork M3 — 2026-10-31
+
+M3 adds the --delivery actual DSH probe and delivery.mjs fixture. The required runtime
+test verifies role cwd, code edit, independent tests, commit-specific reviewer output,
+missing-credential refusal and cleanup. --github-repo/--github-config-dir explicitly
+enable remote draft publication outside routine CI; artifact #12 is deterministic-model
+integration evidence, not independent Review or true-model acceptance. [Contract](project-delivery.md).

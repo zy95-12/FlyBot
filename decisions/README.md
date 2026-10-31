@@ -70,3 +70,5 @@ keep it to what a reader must act on.
 - [2026-10-31 M1 ownership and lifecycle](2026-10-31-m1-project-ownership.md) — accepted fork implementation scope; review/merge separate.
 
 - [M2 shared Project access](2026-10-31-m2-shared-access.md) — owner-authorized implementation, separate review/merge.
+
+- [M3 sealed-commit delivery](2026-10-31-m3-code-delivery.md) — implementation authorized, true-model acceptance pending.

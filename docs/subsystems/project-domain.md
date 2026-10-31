@@ -116,3 +116,10 @@ core/workflow globs in `npm run verify` and the test workflow.
 shell tools: it creates a Project Task, rebinds its Bot, verifies the original board,
 executes its Workflow, and checks direct ownership plus the canonical terminal report.
 It creates disposable data and does not deploy or change control-plane.
+
+## Fork M3 — 2026-10-31
+
+M3 extends reference Workspaces to registered per-role worktrees; canonical Runs retain
+Attempt/Workflow/Workspace IDs, each immutable once bound. Project deletion refuses
+unfinished delivery Attempts. [Delivery contract](project-delivery.md) adds sealed-commit
+evidence and human acceptance without changing Project identity/migration invariants.

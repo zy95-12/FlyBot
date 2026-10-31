@@ -242,6 +242,8 @@ export interface CreateBotSpec {
   tools?: string[]
   /** Trusted plugin-only Project execution ownership, checked by the host. */
   executionProjectId?: string
+  /** Must name an allocated Workspace registered to this Project Attempt. */
+  executionWorkDir?: string
   /**
    * DSH permission preset for a run Bot (`workspace-write` or `danger-full-access`).
    * Only applied when `ephemeral` is true. A team Bot ignores this.
@@ -380,10 +382,11 @@ export interface FlyBot {
   /** Project context is derived from the durable host Task. Not a user authorization token. */
   projects: {
     shared(): boolean
+    deliveryGate(input: { taskId: string; workflowId: string; runId: string; nodeId: string; outputs?: Record<string, unknown>; ok?: boolean }): Promise<unknown> | undefined
     read(id: string): { id: string; status: 'active' | 'archived'; [key: string]: unknown } | undefined
     readRun(id: string): { id: string; projectId: string; status: string } | undefined
-    context(taskId: string, projectId?: string | null): { projectId: string | null; taskId?: string } | undefined
-    bindRun(runId: string, projectId: string, details?: { taskId?: string; workspaceId?: string; status?: string }): Promise<unknown>
+    context(taskId: string, projectId?: string | null): { projectId: string | null; taskId?: string; execution?: { attemptId: string; workflowId: string; workspaceId?: string; brief: string; workDirs: Record<string, string> } } | undefined
+    bindRun(runId: string, projectId: string, details?: { taskId?: string; workspaceId?: string; status?: string; workflowId?: string; attemptId?: string }): Promise<unknown>
   }
 
   version: 1

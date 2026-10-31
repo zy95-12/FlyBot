@@ -23,3 +23,18 @@ test('real DSH exercises code/test/cwd/member boundaries and removes disposable 
   assert.ok(report.notRun.includes('real model'))
   assert.deepEqual(readdirSync(directory), [], 'No private runtime data may remain after success')
 })
+
+test('real DSH delivery uses isolated role cwd and refuses completion without a GitHub credential', { timeout: 150_000 }, t => {
+  const directory = mkdtempSync(join(tmpdir(), 'flybot-delivery-runtime-'))
+  t.after(() => rmSync(directory, { recursive: true, force: true }))
+  const result = spawnSync(process.execPath, [resolve(import.meta.dirname, '../run.mjs'), '--delivery'], {
+    encoding: 'utf8', timeout: 140_000, env: { ...process.env, TMPDIR: directory, M0_REPORT: '' },
+  })
+  assert.equal(result.status, 0, result.stderr)
+  const report = JSON.parse(result.stdout)
+  assert.equal(report.milestone, 'M3')
+  assert.ok(report.checks.includes('independent configured tests'))
+  assert.ok(report.checks.includes('missing GitHub credential blocks publication/acceptance'))
+  assert.ok(report.notRun.includes('real model'))
+  assert.deepEqual(readdirSync(directory), [])
+})

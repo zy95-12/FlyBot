@@ -139,3 +139,10 @@ M2 exposes projects.shared() and trusted executionProjectId for plugin-created e
 Bots, resolving their owner from the checked Project. In workbench mode, built-in Bot/
 change reads narrow to permitted owner records; unscoped plugin APIs remain denied at
 the channel. [Project access](project-access.md) describes gateway and credential limits.
+
+## Fork M3 — 2026-10-31
+
+M3 types projects.deliveryGate and execution context (Attempt, immutable graph, registered
+role cwd). executionWorkDir must name an allocated Project Workspace before Bot creation;
+Bot metadata retains Workspace/Attempt IDs. The host receives commit-gated node results
+and canonical Run reports. [Delivery contract](project-delivery.md).

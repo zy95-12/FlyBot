@@ -3,7 +3,7 @@ import { createServer } from 'node:http'
 
 export const probeCommand = `node --input-type=module -e 'import {writeFileSync} from "node:fs"; import assert from "node:assert/strict"; writeFileSync("probe.mjs","export const add = (a,b) => a+b;\\n"); const {add}=await import("./probe.mjs"); assert.equal(add(2,3),5); writeFileSync("proof.json",JSON.stringify({cwd:process.cwd(),test:"passed",sum:add(2,3)})); console.log("M0_TEST_PASSED")'`
 
-export function mockModel(observations) {
+export function mockModel(observations, { reply } = {}) {
   return createServer(async (request, response) => {
     if (request.method !== 'POST' || !request.url.endsWith('/messages')) {
       response.writeHead(404).end()
@@ -19,9 +19,9 @@ export function mockModel(observations) {
       const last = body.messages?.at(-1)?.content
       const result = Array.isArray(last) && last.some(block => block.type === 'tool_result')
       const tools = body.tools?.some(tool => tool.name === 'bash')
-      const blocks = tools && !result
+      const blocks = reply?.({ body, result, tools }) ?? (tools && !result
         ? [{ type: 'tool_use', id: 'm0-shell', name: 'bash', input: { description: 'Verify isolated cwd, write code and run a test', command: probeCommand } }]
-        : [{ type: 'text', text: 'OUTPUT proof: M0 execution finished; verify proof.json independently.' }]
+        : [{ type: 'text', text: 'OUTPUT proof: M0 execution finished; verify proof.json independently.' }])
       observations.push({ toolRequested: tools && !result, toolResult: Boolean(result),
         sessionHeader: Boolean(request.headers['x-deepseek-harness-session-id']) })
       const stop = blocks[0].type === 'tool_use' ? 'tool_use' : 'end_turn'

@@ -26,6 +26,12 @@ It validates sessions on every request and denies legacy unscoped plugin surface
 workbench mode. The inherited general team-mode proposal below remains historical;
 this fork's Project collaboration contract is narrower and separately tested.
 
+M3 wraps that existing Workflow service with [commit-specific delivery](subsystems/project-delivery.md):
+versioned immutable Attempt/role/model snapshots, per-role Git worktrees outside DSH data,
+independent test processes, typed Review/SHA gates, explicit GitHub draft publication and
+human acceptance. Restart records interruption; retry preserves evidence. Actual DSH and
+GitHub fixture proof is available; true-model/browser acceptance is tracked separately.
+
 ## Layout
 
 | Path | What it is |

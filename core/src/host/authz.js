@@ -234,7 +234,7 @@ export function install(rt) {
     const ep = String(endpoint ?? '')
 
     if (ep === 'platform-login') return rt.platformIdentityEnabled ? ALLOW : deny('bot/forbidden', 'Platform identity is not configured')
-    if (['project-members', 'project-invite', 'project-join', 'project-leave', 'project-member-remove', 'project-quota', 'project-workflow'].includes(ep) && !rt.sharedProjectMode?.()) return deny('bot/forbidden', 'Project workbench is not enabled')
+    if (['project-task-run', 'project-task-detail', 'project-task-accept', 'project-task-reject', 'project-attempt-log', 'project-attempt-cleanup', 'project-members', 'project-invite', 'project-join', 'project-leave', 'project-member-remove', 'project-quota', 'project-workflow'].includes(ep) && !rt.sharedProjectMode?.()) return deny('bot/forbidden', 'Project workbench is not enabled')
     if (rt.platformIdentityEnabled && ['auth-invite', 'auth-redeem', 'auth-remove-member'].includes(ep)) return deny('bot/platform-auth', 'Use control-plane account authentication')
     if (!actor) {
       if (NO_ACTOR_ALLOWED.has(ep)) return ALLOW
@@ -242,7 +242,7 @@ export function install(rt) {
     }
 
     if (rt.sharedProjectMode?.()) {
-      if (['project-members', 'project-invite', 'project-join', 'project-leave', 'project-member-remove', 'project-quota', 'project-workflow'].includes(ep)) return ALLOW
+      if (['project-task-run', 'project-task-detail', 'project-task-accept', 'project-task-reject', 'project-attempt-log', 'project-attempt-cleanup', 'project-members', 'project-invite', 'project-join', 'project-leave', 'project-member-remove', 'project-quota', 'project-workflow'].includes(ep)) return ALLOW
       if (ep.startsWith('flybot/') && !['flybot/bots', 'flybot/changes', 'flybot/decide'].includes(ep)) return deny('bot/project-required', 'Use a Project-scoped endpoint')
       if (['workflows', 'workflow-save', 'usage'].includes(ep)) return deny('bot/project-required', 'Use a Project-scoped endpoint')
     }

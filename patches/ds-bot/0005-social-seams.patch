@@ -503,7 +503,7 @@ diff --git a/src/host/channel.js b/src/host/channel.js
    // Updates change the dsh profile, not the team, so a reading host may run them too.
 -  const READS = new Set(['state', 'models', 'efforts', 'earlier', 'room-progress', 'exchange', 'usage', 'schedules', 'memory-view', 'browser-wait', 'browser-result', 'diagnostics', 'diagnostics-log', 'diagnostics-clear', 'update-check', 'update-install', 'dsh-update-install', 'repo-stars', 'approval-answer'])
 +  // auth-whoami is a read of the already-resolved actor; invite/redeem/revoke/remove-member write.
-+  const READS = new Set(['project-detail', 'state', 'models', 'efforts', 'earlier', 'room-progress', 'room-history', 'exchange', 'usage', 'schedules', 'memory-view', 'browser-wait', 'browser-result', 'diagnostics', 'diagnostics-log', 'diagnostics-clear', 'update-check', 'update-install', 'dsh-update-install', 'repo-stars', 'approval-answer', 'auth-whoami', 'workflows'])
++  const READS = new Set(['projects', 'project-read', 'project-board', 'project-members', 'project-task-detail', 'project-attempt-log', 'project-detail', 'state', 'models', 'efforts', 'earlier', 'room-progress', 'room-history', 'exchange', 'usage', 'schedules', 'memory-view', 'browser-wait', 'browser-result', 'diagnostics', 'diagnostics-log', 'diagnostics-clear', 'update-check', 'update-install', 'dsh-update-install', 'repo-stars', 'approval-answer', 'auth-whoami', 'workflows'])
 +
 +  // A chat reference chip names a Session whose snapshot rides to every recipient of
 +  // the message, so the author must be able to read what they share (#53, #106).
@@ -524,7 +524,7 @@ diff --git a/src/host/channel.js b/src/host/channel.js
  
    function setPrefs(body) {
      if (body.theme !== undefined) {
-@@ -97,28 +97,64 @@ export function install(rt) {
+@@ -97,28 +97,65 @@ export function install(rt) {
        else if (body.motion === 'quiet' || body.motion === 'lively') state.prefs.motion = body.motion
        else throw invalid('Motion must be quiet, normal or lively')
      }
@@ -565,7 +565,8 @@ diff --git a/src/host/channel.js b/src/host/channel.js
        const readOnly = rt.readOnly()
 -      if (readOnly !== undefined && !READS.has(endpoint)) return fail(readOnly, 'bot/read-only')
 +      const flybotRead = endpoint.startsWith('flybot/') && rt.flybotIsRead?.(endpoint.slice('flybot/'.length)) === true
-+      if (readOnly !== undefined && !READS.has(endpoint) && !flybotRead) return fail(readOnly, 'bot/read-only')
++      const projectRead = endpoint === 'project-workflow' && ['state', 'templates'].includes(body.operation ?? 'state')
++      if (readOnly !== undefined && !READS.has(endpoint) && !flybotRead && !projectRead) return fail(readOnly, 'bot/read-only')
 +      // Actor is resolved once from the member session token; body.actorId / payload.actorId
 +      // grant nothing and are ignored (#48).
 +      const actor = sessionToken ? await rt.authenticate(sessionToken) : null
@@ -841,7 +842,7 @@ diff --git a/src/host/channel.js b/src/host/channel.js
              content: [{ type: 'text', text }],
            }, AbortSignal.timeout(30_000))
            return ok(true)
-@@ -319,32 +319,148 @@ export function install(rt) {
+@@ -319,32 +319,154 @@ export function install(rt) {
          case 'diagnostics-clear':
            await rt.diagnostics.clear()
            return ok(true)
@@ -866,6 +867,12 @@ diff --git a/src/host/channel.js b/src/host/channel.js
 +          return ok(await rt.workflowEndpoint(endpoint, body))
 +        // Projects (#1691): a durable Project record and the binding a group, Bot or run names.
 +        case 'projects':
++        case 'project-task-run':
++        case 'project-task-detail':
++        case 'project-task-accept':
++        case 'project-task-reject':
++        case 'project-attempt-log':
++        case 'project-attempt-cleanup':
 +        case 'project-members':
 +        case 'project-invite':
 +        case 'project-join':

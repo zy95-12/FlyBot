@@ -1,0 +1,146 @@
+---
+subsystem: project-delivery
+owned_paths:
+  - core/src/host/project-delivery.js
+  - core/src/host/project-delivery-template.js
+  - core/src/host/project-github.js
+  - core/test/project-delivery.test.js
+---
+
+# Project code delivery (fork M3)
+
+One code-delivery entry uses the existing Workflow plugin. Project delivery owns
+idempotent Attempts, Git worktrees and evidence; the plugin still owns node dispatch,
+step deadlines, ephemeral lifecycle and Run state. There is no parallel workflow engine.
+The versioned path is `project-delivery/v1`: Developer → Tester → Reviewer, followed by
+explicit human acceptance. A node reply cannot mark a Task accepted.
+
+## Provisioning
+
+The operator configures repository capabilities on the `bot` entry, outside Project
+request bodies. Repository keys must match Project.repository:
+
+```yaml
+projectRepositories:
+  owner/repository:
+    path: /operator/provisioned/repository
+    model: provider/model
+    testCommand: [node, --test, code.test.mjs]
+    allowedPaths: [code.mjs, code.test.mjs]
+    github:
+      credential: gh-cli
+      configDir: /operator/github-automation-config
+projectWorkspaceRoot: /operator/disposable/flybot-workspaces
+```
+
+`model` may use a served default resolved once at Attempt creation. Its resolved ref
+and complete graph are pinned on the Attempt. `testCommand` is an argv array selected
+by the operator, never a client shell string. Tests have bounded output and timeout
+(default 120 seconds, ceiling 300 seconds). The small demo has no dependency install;
+other repositories must provision a self-contained test command/environment.
+
+The worktree root defaults to `flybot-workspaces` beside DSH_HOME. It must be outside
+DSH's data directory: the existing DSH/FlyBot working-directory guard refuses execution
+inside its data. Each workspace is registered to Project/Attempt/role before creation;
+a partial allocation retains cleanup intent. Symlink roots are refused. Runtime
+creation accepts only an allocated registered execution path. The ordinary operator
+repository/worktree and its checkout are never edited by a delivery attempt.
+
+GitHub automation is explicit. `gh-cli` obtains the existing operator-selected GitHub
+credential in memory, using the provided config directory; it is never placed in Bot
+context, test environment, command-line arguments or state.json. Push uses a fixed
+HTTPS URL for the provisioned Project repository and an environment-only auth header.
+Publish creates/reuses a draft PR for the unique Attempt branch. It never merges.
+M4 adds the broader project-versus-personal credential/delegation contract. Missing
+GitHub credentials fail delivery after preserving code/test/Review evidence.
+
+## Attempt and execution lifecycle
+
+`project-task-run {taskId,requestId}` checks authenticated Project create/task-write
+rights, then reserves `(projectId,taskId,requestId)` before filesystem effects. A repeat
+returns the same Attempt; a new retry needs a new requestId and preserves prior attempts.
+One Task cannot have another running/waiting Attempt. The server creates the fixed graph
+under Project authority; Member requests cannot use that authority to edit arbitrary
+graphs. The actual initiating member and automation owner are separately recorded.
+
+An Attempt stores direct projectId/taskId, requirement/criteria snapshot, workflowVersion,
+full immutable node/model graph, branch/base/candidate SHA, workspaces, Run id, initiating
+member, execution owner and evidence. Developer gets a unique branch; Tester and
+Reviewer get separate detached worktrees. Host execution context supplies exact cwd to
+each ephemeral Bot. The Run records Attempt, Workflow and primary Workspace directly.
+Managed graphs cannot be edited, reset, rebound or deleted through the general gateway;
+pause/resume keep the same Run. Retry creates a new Attempt and new workspaces.
+
+The host seals Developer's changes into a commit after checking the provisioned path
+allowlist, and resets the independent Tester/Reviewer worktrees to that SHA. Tester
+replies trigger a fresh reset/clean and the independent host-selected test command;
+model assertions cannot manufacture passing evidence. Reviewer must return structured
+`OUTPUT review: {"commit":"full SHA","verdict":"approve|request-changes","summary":"..."}`
+from a clean worktree at the candidate SHA. A failed test, wrong SHA, missing verdict,
+request-changes or failed node ends the Run; it does not merely emit a shadow warning.
+Duplicate step results reuse sealed evidence and do not reset another active worktree.
+Different Attempts have separate evidence locks and can execute concurrently within
+Project quota. The existing plugin step deadlines bound model waits.
+
+After matching tests/Review, publication must return the same PR head SHA. Only then
+can the Task enter result-ready / Attempt waiting-acceptance. Generic task transitions
+cannot accept provisioned code Tasks or bypass Attempt gates. Code Task records carrying
+Attempts are protected from the legacy bounded Task pruning.
+
+`project-task-accept {attemptId}` requires Owner/Maintainer and rechecks clean candidate,
+unchanged title/criteria, canonical Run done, matching passing tests and approved Review,
+test-log integrity and current open PR head. It records acceptedBy/time and transitions
+Task to accepted. `project-task-reject {attemptId,reason}` preserves old evidence/PR and
+marks the Attempt failed so a new retry can address feedback. Human acceptance here is
+a runtime product action, not an independent GitHub code-review PASS or merge approval.
+
+On startup, preparing/running Attempts become interrupted with an explicit failure;
+canonical active Run/Task state is reconciled. Prior workspaces/evidence remain available
+and a new Attempt may retry. This does not claim exact process-crash continuation or a
+cross-store transaction. A push/PR response lost during a crash can leave a draft remote
+artifact; its unique branch/SHA remain recorded for operator reconciliation. The GitHub
+publisher checks for an existing PR before creating one, but no exactly-once network
+transaction is promised.
+
+## Read, retention and cleanup
+
+- `project-task-detail {taskId}` returns the current Task and all its Attempts, guarded by
+  current membership. `project-attempt-log {attemptId}` reads only the recorded test log
+  and verifies its hash; arbitrary request paths cannot select files.
+- Archive allows admitted work to finish but refuses new attempts. Delete refuses
+  preparing/running/waiting delivery attempts and retains terminal attribution/history.
+- `project-attempt-cleanup {attemptId}` requires an Owner/Maintainer, refuses active or
+  waiting work and removes only registered worktrees inside the owned root. It updates
+  both canonical Workspace metadata and Attempt history. It works after Project deletion
+  through the retained authorized tombstone. Branches, PRs and evidence remain.
+- Filesystem worktree separation and per-role sessions are demonstrated. This is not a
+  container/OS security sandbox: the inherited Workflow Bot tool preset remains in use.
+  A production service needs stronger execution isolation and credential/process fencing.
+
+## Verification and evidence limits
+
+Core delivery tests use actual Git repositories/worktrees and actual Node test processes.
+They cover duplicate admission/step results, isolated Tasks/roles, matching test/Review/PR
+SHA gates, failed tests/retries, stale candidate/head, cleanup bounds, recovery, path
+policy and immutable role/model definitions. Publisher/network assertions are injected
+fixtures in unit tests, not a claim of live GitHub or independent review.
+
+The required actual DSH probe (`npm run test:demo:runtime`) additionally runs `--delivery`:
+a deterministic model drives real shell edits, separate role cwd, independent tests and
+commit-specific reviewer output. Missing GitHub credentials explicitly block publish and
+acceptance, and registered worktrees are cleaned. It also retains the existing M0 probe.
+
+An explicitly requested remote integration command is available:
+
+```sh
+node dev/demo/run.mjs --delivery --github-repo owner/repository --github-config-dir /operator/gh-config
+```
+
+It clones that repository into disposable data, commits the small fixture, publishes a
+real draft PR, verifies its head against the tests/Review, exercises human acceptance and
+cleans local registered worktrees. It writes GitHub and is not run in routine CI. The
+local M3 implementation produced [artifact PR #12](https://github.com/zy95-12/FlyBot/pull/12),
+head `d8371cbc797889340b602bf1352011a7c3fd7d7d`, through actual DSH/Git/GitHub with a deterministic
+model. That draft is not the milestone implementation PR and is not independently reviewed.
+True-model and browser acceptance remain pending M3/M6 until a model configuration is
+available; the working conversation requests only its config name/path, not secret text.

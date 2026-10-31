@@ -3,13 +3,14 @@ FlyBot patch 0002-flybot-api-host on Fei2411/DeepSeek-Bot@2b10c70 (ds-bot/). Gen
 diff --git a/index.js b/index.js
 --- a/index.js
 +++ b/index.js
-@@ -4,9 +4,21 @@
+@@ -4,9 +4,22 @@
  import { join } from 'node:path'
  import * as diagnostics from './src/host/diagnostics.js'
  import * as store from './src/host/store.js'
 +import * as harness from './src/host/harness.js'
 +import * as memberAuth from './src/host/member-auth.js'
 +import * as platformIdentity from './src/host/platform-identity.js'
++import * as projectDelivery from './src/host/project-delivery.js'
 +import * as projectAccess from './src/host/project-access.js'
 +import * as authz from './src/host/authz.js'
 +import * as roomMembership from './src/host/room-membership.js'
@@ -60,7 +61,7 @@ diff --git a/index.js b/index.js
  // install. Listeners run and tools are listed in registration order, so this order holds:
  // usage meters model requests after every listener that rewrites them.
 -const MODULES = [diagnostics, store, models, permissions, turns, delivery, roster, folders, agents, prompt, timeContext, tools, chatIndex, groups, approvals, resume, memory, parts, images, secrets, connectors, capabilities, schedules, browser, usage, update, dshUpdate, channel]
-+const MODULES = [diagnostics, store, harness, memberAuth, platformIdentity, projectAccess, authz, models, permissions, turns, busyAck, steeringInterrupt, delivery, roster, folders, agents, prompt, timeContext, tools, decisions, projectState, meetings, chatIndex, groups, roomMembership, reach, tasks, projectBoard, taskDrive, approvals, resume, memory, parts, images, secrets, connectors, connectorAccess, capabilities, schedules, projectAssistant, projectChief, projectTeam, automationDefault, browser, usage, update, dshUpdate, hooks, remoteChat, workflowStore, channel]
++const MODULES = [diagnostics, store, harness, memberAuth, platformIdentity, projectAccess, projectDelivery, authz, models, permissions, turns, busyAck, steeringInterrupt, delivery, roster, folders, agents, prompt, timeContext, tools, decisions, projectState, meetings, chatIndex, groups, roomMembership, reach, tasks, projectBoard, taskDrive, approvals, resume, memory, parts, images, secrets, connectors, connectorAccess, capabilities, schedules, projectAssistant, projectChief, projectTeam, automationDefault, browser, usage, update, dshUpdate, hooks, remoteChat, workflowStore, channel]
  
  export function apply(ctx, config = {}) {
 -  createRuntime(ctx, config)
@@ -901,7 +902,7 @@ diff --git a/src/host/store.js b/src/host/store.js
        // LEGACY: Bots saved with a lab ran on that lab's default model; the model they
        // last ran on becomes their own, so dropping the lab changes nothing for them.
        if ('lab' in bot) {
-@@ -161,12 +161,87 @@ export function install(rt) {
+@@ -161,12 +161,88 @@ export function install(rt) {
        migrated = true
      }
      // Unnamed groups from before names followed their members may still list old names.
@@ -953,6 +954,7 @@ diff --git a/src/host/store.js b/src/host/store.js
 +      }
 +    }
 +    if (rt.projects.migrateLegacy()) migrated = true
++    if (rt.projectDelivery?.recover()) migrated = true
 +    if (syncDesignatedChief()) migrated = true
      indexSessions()
      return { migrated: migrated || stale.length > 0, stale }

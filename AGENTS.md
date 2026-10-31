@@ -13,7 +13,11 @@ The owner authorized M1–M6 sequential implementation, one PR per milestone. Re
 [M1 ownership contract](docs/subsystems/project-domain.md) before changing Task/Run/Project
 logic; routing changes must never reassign existing work. Shared workbench changes
 also follow [Project access](docs/subsystems/project-access.md): verify platform sessions
-on every request and retain Project authorization on all new entry points.
+on every request and retain Project authorization on all new entry points. Code delivery
+follows [Project delivery](docs/subsystems/project-delivery.md): bump its template version
+when the role/graph contract changes, preserve Attempt history and require matching
+commit evidence before human acceptance. Never claim a deterministic fixture is a real
+model or independent Review PASS.
 
 
 1. Read [LESSONS.md](LESSONS.md) (open lessons are constraints).

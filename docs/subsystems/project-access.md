@@ -131,3 +131,11 @@ passed to the child over stdin, not command-line arguments or inherited environm
 The CI test job runs this after M0 checks against the same immutable platform source
 and asserts the platform worktree remains clean. Actual model/GitHub/browser delivery
 acceptance is M3/M6, not a claim of these tests.
+
+## Fork M3 — 2026-10-31
+
+M3 adds project-task-run/detail/accept/reject and project-attempt-log/cleanup under the
+same current human membership policy. Fixed-template server creation does not delegate
+arbitrary configuration to a Member. Managed delivery graphs cannot be reset/edited;
+new retries use new Attempts. [Delivery contract](project-delivery.md) records the exact
+evidence gates, operator repository/GitHub provisioning and current validation limits.

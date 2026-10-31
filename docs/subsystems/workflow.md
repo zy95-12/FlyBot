@@ -142,3 +142,11 @@ M2 passes checked executionProjectId through node spawn to host-owned ephemeral 
 so a shared runtime does not invoke the ambiguous initial-owner fallback. Shared Task
 writes and legacy run/define tools cannot bypass the Project gateway. Gateway admission,
 role/quota/scope checks and read filtering live in [Project access](project-access.md).
+
+## Fork M3 — 2026-10-31
+
+M3 keeps this service as the sole dispatch/deadline engine. Host context supplies fixed
+role workdirs and requirement brief; stepResult calls the host delivery gate before
+advancing an Attempt-backed node. A gate failure ends/releases the Run immediately.
+Run reports carry Workflow/Attempt/Workspace IDs. General workflows retain existing
+behavior. [Versioned delivery contract](project-delivery.md) owns artifacts and acceptance.

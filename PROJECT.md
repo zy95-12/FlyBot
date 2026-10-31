@@ -38,10 +38,16 @@ See [baseline ownership and tests](docs/subsystems/demo-baseline.md).
 - The owner authorized continuing M2–M6, one PR per milestone, with memory, architecture
   and tests updated in each. [M1 decision](decisions/2026-10-31-m1-project-ownership.md).
 
-- M2 implements the [shared access contract](docs/subsystems/project-access.md): unchanged
+- M2 ([PR #11](https://github.com/zy95-12/FlyBot/pull/11), complete local verification, awaiting review) implements the [shared access contract](docs/subsystems/project-access.md): unchanged
   platform auth API adapter, stable subject mapping, human membership policy/invites,
   immediate revocation and scoped Workflow gateway. It is explicitly configured; physical
   isolation, agent delegation/credentials and browser delivery remain M3–M6.
+
+- M3 implements the [commit-specific delivery contract](docs/subsystems/project-delivery.md)
+  on the existing Workflow service: versioned Attempts, real role worktrees/cwd, host test
+  evidence, Review/SHA gates and human acceptance. Actual DSH and draft artifact PR #12
+  were exercised with a deterministic model; true-model acceptance is pending model
+  configuration. M4–M6 implementation remains authorized and continues separately.
 
 ## Historical upstream Project State
 
