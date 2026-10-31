@@ -26,7 +26,7 @@ export function install(rt) {
     const id = String(body.projectId ?? '')
     const project = rt.requireProjectAccess(actor, id)
     let repository = { configured: false }
-    try { const settings = repositorySettings(rt, project); repository = { configured: true, name: project.repository, model: settings.model ?? rt.config.projectModel ?? null } } catch {}
+    try { const settings = repositorySettings(rt, project); repository = { configured: true, name: project.repository, model: settings.model ?? rt.config.projectModel ?? null } } catch { /* Unprovisioned repository is represented as configured:false. */ }
     const workers = Object.values(rt.state.bots).filter(bot => bot.projectId === id && bot.ephemeral).map(bot => ({ id: bot.id, role: bot.role, attemptId: bot.attemptId ?? null, workspaceId: bot.workspaceId ?? null, createdAt: bot.createdAt }))
     const nowCpu = process.cpuUsage(), now = process.hrtime.bigint()
     const elapsedMicros = Number(now - measured) / 1000

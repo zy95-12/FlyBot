@@ -6,7 +6,7 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
   const drafts = new Map()
   const el = (tag, text, cls) => { const node = doc.createElement(tag); if (text != null) node.textContent = String(text); if (cls) node.className = cls; return node }
   const button = (text, action, disabled = false) => { const node = el('button', text); node.type = 'button'; node.disabled = disabled; node.onclick = action; return node }
-  const link = (text, url) => { const node = el('a', text); try { const parsed = new URL(url); if (parsed.protocol === 'https:') { node.href = parsed.href; node.target = '_blank'; node.rel = 'noopener noreferrer' } } catch {} return node }
+  const link = (text, url) => { const node = el('a', text); try { const parsed = new URL(url); if (parsed.protocol === 'https:') { node.href = parsed.href; node.target = '_blank'; node.rel = 'noopener noreferrer' } } catch { /* Invalid external evidence URL remains plain text. */ } return node }
   const box = (title, ...children) => { const node = el('section', null, 'card'); node.append(el('h2', title), ...children.filter(Boolean)); return node }
   const json = value => el('pre', JSON.stringify(value, null, 2))
   const route = (id, next = 'board', task = '') => { win.location.hash = `/projects/${encodeURIComponent(id)}/${next}${task ? `/${encodeURIComponent(task)}` : ''}` }
@@ -172,7 +172,7 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
     if (focus) { const target = doc.getElementById(focus); if (target) { target.focus(); if (typeof start === 'number' && target.setSelectionRange && !['number', 'email'].includes(target.type)) target.setSelectionRange(start, end) } }
   }
   async function start() {
-    try { mode = await api.call('auth-mode'); try { bootstrap = await api.call('workbench-state') } catch {} }
+    try { mode = await api.call('auth-mode'); try { bootstrap = await api.call('workbench-state') } catch { /* An expired or absent member session displays the sign-in form. */ } }
     catch (failure) { error = failure.message }
     if (disposed) return
     changeRoute(); timer = win.setInterval(() => { if (bootstrap && !busy && !doc.hidden) void refresh() }, pollMs)
