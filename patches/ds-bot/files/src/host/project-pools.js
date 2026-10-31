@@ -54,6 +54,8 @@ export function createProjectPools(rt) {
     if (expectedGeneration !== undefined && c.generation !== expectedGeneration) throw refuse('Claim generation changed before handoff admission')
     const row = { id: `handoff-${randomUUID()}`, version: POOL_PROTOCOL, policyVersion: 'project-role-policy/v1', definitionRevision: definitions(task.projectId).revision, projectId: task.projectId, taskId: task.id, attemptId, initiatedBy: c.initiatedBy, from, to, reason, requestId, purpose, evidence: clone(trustedEvidence), claims: clone(evidence), requirements: { title: task.title, criteria: task.criteria ?? '' }, status: 'pending', generation: ++c.generation, createdAt: Date.now() }
     c.history.push(row); c.botId = to; c.status = target.role === 'chief' ? 'arbitration' : 'queued'; c.currentHandoffId = row.id; delete c.claim
+    if (c.block) { row.resolvedBlock = clone(c.block); delete c.block }
+    if (task.chiefQuestion) { row.resolvedChiefQuestion = clone(task.chiefQuestion); delete task.chiefQuestion }
     task.handoff = { from: fromRole || 'requester', to: target.role, reason, at: row.createdAt }
     await rt.save()
     return clone(row)

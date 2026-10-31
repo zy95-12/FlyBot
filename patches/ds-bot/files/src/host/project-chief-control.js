@@ -33,6 +33,15 @@ export function inspectionFacts(state, task, thresholds, now = Date.now()) {
   if (['queued', 'arbitration', 'blocked'].includes(c?.status) && now - (c.history.at(-1)?.createdAt ?? task.updatedAt) > thresholds.longWaitMs) reasons.push('Task wait exceeds the configured duration threshold')
   return { taskId: task.id, fingerprint, handoffsWithoutProgress: handoffs, reasons, observedAt: now, checkpoint, lastMeaningfulProgressAt, progressEvidence }
 }
+export function allocationProof(state, task) {
+  const id = task.deliveryAttemptId, attempt = state.projectAttempts?.[id]
+  const leases = Object.values(state.projectResourceLeases ?? {}).filter(row => row.attemptId === id)
+  const workers = [...Object.values(state.projectHarnessWorkers ?? {}), ...Object.values(state.bots ?? {}).filter(row => row.ephemeral)].filter(row => row.attemptId === id)
+  const counts = { leases: leases.length, workers: workers.length, sessions: Object.keys(attempt?.roleSessions ?? {}).length + (attempt?.roleSessionHistory?.length ?? 0), workspaces: Object.keys(attempt?.workspaces ?? {}).length }
+  // All delivery adapters persist registration before an external worker may start.
+  const absent = Boolean(attempt) && !task.collaboration?.claim?.workerId && Object.values(counts).every(count => count === 0)
+  return { version: 'registered-before-external-start/v1', attemptId: id ?? null, status: absent ? 'not-allocated' : 'recorded-or-unknown', counts }
+}
 export function createProjectChiefControl(rt) {
   const policies = () => (rt.state.projectChiefPolicies ??= {})
   const active = new Map(), waiters = new Map()
@@ -97,6 +106,7 @@ export function createProjectChiefControl(rt) {
       task.lastMeaningfulProgressAt = facts.lastMeaningfulProgressAt; task.meaningfulProgressEvidence = structuredClone(facts.progressEvidence)
       const claim = task.collaboration?.claim, worker = rt.state.projectHarnessWorkers?.[claim?.workerId]
       return { taskId: task.id, title: task.title, criteria: task.criteria ?? '', projectTaskKind: task.projectTaskKind ?? 'code', status: task.status,
+        allocationProof: allocationProof(rt.state, task),
         execution: claim ? { status: claim.status, startedAt: claim.createdAt, elapsedMs: Date.now() - claim.createdAt, workerStatus: worker?.status ?? null, lastEventAt: worker?.lastEventAt ?? null } : null,
         handoff: task.collaboration?.history.at(-1) ? { id: task.collaboration.history.at(-1).id, purpose: task.collaboration.history.at(-1).purpose, reason: task.collaboration.history.at(-1).reason } : null,
         block: task.collaboration?.block ?? null, resources: Object.values(rt.state.projectResourceLeases ?? {}).filter(lease => rt.state.projectAttempts?.[lease.attemptId]?.taskId === task.id).map(lease => ({ role: lease.role, status: lease.status, attemptId: lease.attemptId, workerId: lease.worker?.handle ?? null, releasedAt: lease.releasedAt ?? null, releaseProof: lease.releaseProof?.kind ?? null })),

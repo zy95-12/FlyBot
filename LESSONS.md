@@ -286,3 +286,8 @@ its claim active. Chief correctly refused blind retry because host facts conflic
 Fence failed admission, retain unconfirmed occupancy, route the failure to Chief,
 and include actual resource exit proof and handoff reason in judgement context.
 A pre-candidate Chief retry may pin a fresh repaired base; keep the old Attempt.
+
+Chief correctly held a legacy interrupted claim when its snapshot omitted whether
+that Attempt had ever allocated execution. Expose the bind-before-start host
+registration proof (with all lease/worker/session/workspace counts), not a missing
+PID inference. Any registered/unknown record prevents the never-allocated claim.

@@ -140,3 +140,12 @@ test('dispatch failure fences late results and retains unconfirmed worker occupa
   assert.equal(f.task.collaboration.status, 'arbitration')
   await assert.rejects(f.pool.decide('task', failed, { action: 'complete', reason: 'Late result' }), /stale/)
 })
+
+test('a successful new handoff clears stale blocking UI facts while retaining their audit', async () => {
+  const f = setup(); await f.admit(); const claim = await f.claim()
+  f.task.collaboration.block = { reason: 'Old failure' }; f.task.chiefQuestion = { decisionId: 'old-question' }
+  await f.pool.decide('task', claim, { action: 'transfer', to: 'p:tester', reason: 'Prerequisite repaired' })
+  assert.equal(f.task.collaboration.block, undefined); assert.equal(f.task.chiefQuestion, undefined)
+  assert.equal(f.task.collaboration.history.at(-1).resolvedBlock.reason, 'Old failure')
+  assert.equal(f.task.collaboration.history.at(-1).resolvedChiefQuestion.decisionId, 'old-question')
+})

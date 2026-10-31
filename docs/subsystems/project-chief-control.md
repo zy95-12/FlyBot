@@ -87,3 +87,7 @@ worker state and heartbeat so Chief can distinguish a legitimate long task.
 Judgement snapshots include the actual handoff reason, block and Task-scoped
 resource lease/exit-proof facts, so failed admission is distinguishable from a
 live long-running worker. No lease is released solely on a model judgement.
+
+Snapshots expose bind-before-external-start registration proof: an Attempt with
+no lease, worker, Session, Workspace or claim worker handle never allocated execution.
+Any such record makes allocation recorded/unknown; missing PID is never this proof.

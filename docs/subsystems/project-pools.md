@@ -87,3 +87,6 @@ Failed execute/dispatch admission fences the old claim and records a rejected
 receipt before entering Chief arbitration. Unknown worker exits retain occupancy;
 absence of a returned worker handle does not fabricate exit confirmation. Late
 results against failed receipts are stale, not idempotent successful decisions.
+
+A successful new handoff clears stale active block/question fields and archives
+them on its receipt, preserving audit without reporting repaired work as blocked.

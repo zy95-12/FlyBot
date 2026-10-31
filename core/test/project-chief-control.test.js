@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { createProjectChiefControl, inspectionFacts } from '../src/host/project-chief-control.js'
+import { createProjectChiefControl, inspectionFacts, allocationProof } from '../src/host/project-chief-control.js'
 const thresholds = { maxHandoffsWithoutProgress: 3, longExecutionMs: 10000, missingHeartbeatMs: 5000, longWaitMs: 8000 }
 test('Chief inspection counts verified artifact progress rather than message or transfer churn', () => {
   const task = { id: 't', updatedAt: 1, deliveryAttemptId: 'a', collaboration: { status: 'queued', generation: 7, history: Array.from({ length: 5 }, (_, index) => ({ evidence: [], reason: 'Progress message ' + index, createdAt: index + 1 })) } }
@@ -72,4 +72,16 @@ test('an unmanaged restart does not fabricate successful Chief execution or repl
   await f.request.onResult(f.result())
   assert.equal(f.accepted(), 0)
   assert.equal(f.task.status, 'result-ready')
+})
+
+test('host registration proof distinguishes never-allocated recovery from an unknown external worker', () => {
+  const task = { deliveryAttemptId: 'a', collaboration: { claim: { status: 'interrupted' } } }
+  const state = { projectAttempts: { a: { workspaces: {}, roleSessions: {} } } }
+  assert.equal(allocationProof(state, task).status, 'not-allocated')
+  state.projectResourceLeases = { l: { attemptId: 'a', status: 'unreachable' } }
+  assert.equal(allocationProof(state, task).status, 'recorded-or-unknown')
+  state.projectResourceLeases = {}; task.collaboration.claim.workerId = 'unknown-worker'
+  assert.equal(allocationProof(state, task).status, 'recorded-or-unknown')
+  delete task.collaboration.claim.workerId; state.projectAttempts.a.roleSessions.developer = { status: 'prepared' }
+  assert.equal(allocationProof(state, task).status, 'recorded-or-unknown')
 })
