@@ -566,3 +566,28 @@ test('Chief recovery before any sealed candidate pins a fresh Attempt to the cur
   assert.equal(f.rt.state.projectAttempts[id].taskId, f.task.id)
   assert.equal(previous.status, 'interrupted')
 })
+
+test('Chief route resumes interrupted unsealed code only with confirmed worker release and retains failure history', async t => {
+  const f = await setup(t, undefined, { pool: true }); await f.start('resume-unsealed')
+  const previous = f.attempt(), path = join(f.directory, 'unsealed-worktree')
+  git(f.repository, ['worktree', 'add', '--detach', path, previous.baseSha])
+  writeFileSync(join(path, 'code.mjs'), 'export const add = (a,b) => a+b;\n')
+  previous.workspaces.developer = { id: 'resume-w', kind: 'worktree', status: 'allocated', repository: f.repository, path }
+  previous.status = 'interrupted'; previous.failure = { message: 'Restart while awaiting host preparation' }
+  const oldRunId = previous.runId; f.rt.state.projectExecutions[oldRunId].status = 'failed'
+  f.rt.state.projectHarnessWorkers = { stopped: { id: 'stopped', attemptId: previous.id, status: 'released' } }
+  f.rt.state.projectResourceLeases = { lease: { id: 'lease', attemptId: previous.id, status: 'released' } }
+  const id = await f.rt.projectDelivery.reworkPool({ task: f.rt.state.tasks[f.task.id], claim: { id: 'resume-claim', attemptId: previous.id, botId: 'p1:chief' }, reason: 'Git index capability repaired', force: false, decisionId: 'chief-resume' })
+  assert.equal(id, previous.id); assert.equal(previous.status, 'running')
+  assert.equal(readFileSync(join(path, 'code.mjs'), 'utf8'), 'export const add = (a,b) => a+b;\n')
+  assert.equal(previous.resumptions[0].failure.message, 'Restart while awaiting host preparation')
+  assert.equal(previous.resumptions[0].decisionId, 'chief-resume')
+  assert.notEqual(previous.runId, oldRunId); assert.equal(f.rt.state.projectExecutions[oldRunId].status, 'failed')
+  assert.equal(previous.failure, undefined)
+  previous.status = 'interrupted'; f.rt.state.projectResourceLeases.lease.status = 'unreachable'
+  f.rt.state.projectResourceLeases.lease.worker = { kind: 'sdk', handle: 'unknown-worker' }
+  f.rt.state.projectHarnessWorkers.stopped.status = 'unreachable'
+  const next = await f.rt.projectDelivery.reworkPool({ task: f.rt.state.tasks[f.task.id], claim: { id: 'unknown-exit', attemptId: previous.id, botId: 'p1:chief' }, reason: 'Unknown worker requires isolation', force: false })
+  assert.notEqual(next, previous.id, 'Unknown capacity never permits reuse of the old working directory')
+  assert.equal(f.rt.state.projectResourceLeases.lease.status, 'unreachable')
+})

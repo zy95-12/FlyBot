@@ -299,3 +299,9 @@ files: a local worktree stores its index outside cwd. Select only that registere
 worktree Git directory and the repository object store as Codex writable roots.
 Shared refs/config and network remain outside the grant. Loopback/private host
 verification remains a host testing operation; report sandbox Not run honestly.
+
+A service restart also marked a paused, unsealed Attempt interrupted after Dev had
+exited. Preserve the existing code on Chief route only when every recorded lease
+and worker is released, no native worker remains, cancellation was not requested
+and the registered workspace contains changes. Record a resumption with the old
+failure and Chief decision. Unknown exits never permit working-directory reuse.

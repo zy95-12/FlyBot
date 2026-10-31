@@ -94,3 +94,6 @@ them on its receipt, preserving audit without reporting repaired work as blocked
 Chief route to Dev may resume a running pre-candidate Attempt in its existing
 workspace after a preparation fix. Explicit return, interrupted Attempts and
 candidate-backed rework create a new Attempt, retaining prior evidence.
+
+Route forwards explicit resume intent; delivery validates release proof before
+reusing an interrupted unsealed workspace. Explicit return still requests rework.

@@ -247,3 +247,12 @@ immutable. Candidate-backed rework keeps its original base and seeds that candid
 Host prompts distinguish SDK-local checks from the configured host verification:
 blocked loopback/private log paths are Not run, and a testing handoff requests the
 actual host command. Pre-candidate resume preserves uncommitted implementation.
+
+Across restart, Chief route may resume an interrupted pre-candidate workspace
+with changes after all bound workers/leases are released and no native worker
+remains. Cancellation forbids resume. Resumptions retain old status, failure and
+Chief decision; unknown occupancy creates isolated work rather than reusing it.
+
+Interrupted preparation resume creates a new Run, retains the failed Run and
+archives the prior Attempt failure on its resumption record; active failure state
+clears only after the host validates safe workspace reuse.

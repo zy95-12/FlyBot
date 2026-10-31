@@ -522,14 +522,29 @@ export function createProjectDelivery(rt, { publisher } = {}) {
       attempt.acceptedViaChief = decision.id; if (task.result) task.result.summary = `Chief confirmed: ${decision.reason}`; task.completedBy = { kind: 'chief', authorizedBy: actor.memberId, decisionId: decision.id, runId: actor.chiefJobId }; await rt.save(); return accepted
     } catch (error) { attempt.chiefDecision = prior; throw error }
   }
-  async function reworkPool({ task, claim, reason, force = false }) {
+  async function reworkPool({ task, claim, reason, force = false, decisionId }) {
     const previous = ownEntry(attempts(), claim.attemptId)
     if (!previous) throw reject('Chief rework has no original Attempt')
-    if (!force && !previous.candidateSha) return previous.id
+    if (!force && !previous.candidateSha && previous.status === 'running') return previous.id
+    if (!force && !previous.candidateSha && previous.status === 'interrupted' && !previous.cancelRequested && previous.workspaces.developer?.status === 'allocated') {
+      const leases = Object.values(state.projectResourceLeases ?? {}).filter(row => row.attemptId === previous.id)
+      const workers = Object.values(state.projectHarnessWorkers ?? {}).filter(row => row.attemptId === previous.id)
+      const native = Object.values(state.bots ?? {}).filter(row => row.ephemeral && row.attemptId === previous.id)
+      const knownExited = leases.every(row => row.status === 'released') && workers.every(row => row.status === 'released') && !native.length
+      if (knownExited && await workspaceGit(previous.workspaces.developer, ['status', '--porcelain'])) {
+        const previousRunId = previous.runId
+        previous.runId = `pool-run-${randomUUID()}`
+        previous.resumptions ??= []
+        previous.resumptions.push({ kind: 'pre-candidate-preparation', previousRunId, runId: previous.runId, previousStatus: previous.status, failure: structuredClone(previous.failure ?? null), decisionId: decisionId ?? null, reason, at: Date.now(), leaseIds: leases.map(row => row.id), workerIds: workers.map(row => row.id) })
+        previous.status = 'running'; previous.updatedAt = Date.now(); delete previous.failure
+        rt.bindProject({ kind: 'run', id: previous.runId, projectId: task.projectId, taskId: task.id, attemptId: previous.id, status: 'queued' })
+        await rt.save(); return previous.id
+      }
+    }
     const id = `attempt-${randomUUID()}`
     if (['running', 'waiting-acceptance'].includes(previous.status)) previous.status = 'returned'
     previous.returned = { at: Date.now(), by: claim.botId, reason }
-    const next = { id, protocol: previous.protocol, projectId: previous.projectId, taskId: task.id, requestKey: hash(`${task.projectId}\n${task.id}\n${claim.id}`), workflowVersion: previous.workflowVersion, status: 'running', initiatedBy: previous.initiatedBy, executionOwnerId: previous.executionOwnerId, baseSha: force && !previous.candidateSha ? await git(settingsOf(projectOf(task.projectId)).path, ['rev-parse', 'HEAD']) : previous.baseSha, seedSha: previous.candidateSha, requirement: structuredClone(previous.requirement), feedback: { previousAttemptId: previous.id, kind: 'bot-return', reason, candidateSha: previous.candidateSha }, agentDefinitions: rt.projectAgents.deliveryDefinitions(task.projectId), roleSessions: {}, rolePolicies: {}, resourceLeases: {}, workspaces: {}, evidence: {}, createdAt: Date.now(), updatedAt: Date.now(), runId: `pool-run-${randomUUID()}` }
+    const next = { id, protocol: previous.protocol, projectId: previous.projectId, taskId: task.id, requestKey: hash(`${task.projectId}\n${task.id}\n${claim.id}`), workflowVersion: previous.workflowVersion, status: 'running', initiatedBy: previous.initiatedBy, executionOwnerId: previous.executionOwnerId, baseSha: !previous.candidateSha && (force || previous.status === 'interrupted') ? await git(settingsOf(projectOf(task.projectId)).path, ['rev-parse', 'HEAD']) : previous.baseSha, seedSha: previous.candidateSha, requirement: structuredClone(previous.requirement), feedback: { previousAttemptId: previous.id, kind: 'bot-return', reason, candidateSha: previous.candidateSha }, agentDefinitions: rt.projectAgents.deliveryDefinitions(task.projectId), roleSessions: {}, rolePolicies: {}, resourceLeases: {}, workspaces: {}, evidence: {}, createdAt: Date.now(), updatedAt: Date.now(), runId: `pool-run-${randomUUID()}` }
     previous.supersededBy = id
     setEntry(attempts(), id, next); task.deliveryAttemptId = id
     rt.bindProject({ kind: 'run', id: previous.runId, projectId: task.projectId, taskId: task.id, attemptId: previous.id, status: 'failed' })
