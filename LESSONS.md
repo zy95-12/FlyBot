@@ -13,6 +13,14 @@ Dated, short lessons from real FlyBot work. Agents read this **before coding**. 
 
 ## Open lessons
 
+### 2026-10-31 — Check context after the last prompt transformation
+
+Seen 1×. M7.1 inspection found Workflow graph sanitization caps node prompts at 4,000
+characters. Appending role memory there can silently hide it from the model. Snapshot
+bounded public context at admission, inject it at host Session creation after that cap,
+and assert actual DSH model requests contain published memory/repository instructions.
+
+
 ### 2026-10-31 — A Bot ID alone cannot authorize a private Project agent
 
 Seen 1×. M4 boundary review found a group/old Session could map to the same Bot while

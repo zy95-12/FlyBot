@@ -4,7 +4,8 @@ import { ownEntry, setEntry } from './store.js'
 import { defineTool } from './tool-schema.js'
 import { output } from './tools.js'
 import { textOf } from './text.js'
-import { resolveAgentSkills, skillInstructions } from './project-agent-skills.js'
+import { resolveAgentSkills } from './project-agent-skills.js'
+import { roleContext } from './project-role-context.js'
 import { deliveryGraph } from './project-delivery-template.js'
 
 const digest = text => createHash('sha256').update(text).digest('hex')
@@ -33,6 +34,15 @@ export function createProjectAgents(rt) {
   const transcripts = () => (state.projectAgentTranscripts ??= {})
   const proposals = () => (state.projectAgentProposals ??= {})
   const definitions = () => (state.projectAgentDefinitions ??= {})
+  const roleMemory = () => (state.projectRoleMemory ??= {})
+  function memoryFor(projectId, role, refs = []) {
+    return refs.map(id => {
+      const row = ownEntry(roleMemory(), id)
+      if (!row || row.projectId !== projectId || row.role !== role) throw refuse('Role memory reference belongs to another scope or is missing')
+      const { versions: _versions, ...current } = row
+      return structuredClone(current)
+    })
+  }
   const delegations = new Map()
   let tail = Promise.resolve()
   const serial = fn => { const result = tail.then(fn, fn); tail = result.then(() => {}, () => {}); return result }
@@ -72,7 +82,7 @@ export function createProjectAgents(rt) {
     const rows = [{ role: 'chief', name: 'Chief', instructions: CHIEF_PROMPT, model, skills: ['project-context', 'task-planning'], tools: [] },
       ...workerNodes.map(node => ({ role: node.id, name: node.name, instructions: node.prompt, model: node.model,
         skills: node.id === 'developer' ? ['code-change'] : node.id === 'tester' ? ['test-evidence'] : ['commit-review'], tools: [] }))]
-    const record = { projectId, revision: 1, roles: rows.map(row => ({ ...row, id: `${projectId}:${row.role}`, toolPolicy: row.role === 'chief' ? { kind: 'scoped-project', filesystem: false, connectors: [] } : { kind: 'registered-worktree', shell: true, connectors: [], isolation: 'cwd-only' } })) }
+    const record = { projectId, revision: 1, roles: rows.map(row => ({ ...row, id: `${projectId}:${row.role}`, memoryRefs: [], execution: { harness: 'flybot', resourceIds: [] }, toolPolicy: row.role === 'chief' ? { kind: 'scoped-project', filesystem: false, connectors: [] } : { kind: 'registered-worktree', shell: true, connectors: [], isolation: 'cwd-only' } })) }
     setEntry(definitions(), projectId, record)
     return record
   }
@@ -104,7 +114,7 @@ export function createProjectAgents(rt) {
       bot = rt.botOf(created.id)
     }
     const record = { id, projectId, definitionVersion: visibility === 'private' ? 'private-project-agent/v1' : 'public-project-chief/v1', memberId: visibility === 'private' ? actor.memberId : null, visibility, botId: bot.id,
-      sessionId: rt.chatOf(bot.id), createdAt: Date.now() }
+      sessionId: rt.chatOf(bot.id), createdAt: known?.createdAt ?? Date.now(), carrierGeneration: (known?.carrierGeneration ?? 0) + 1 }
     bot.projectId = projectId
     bot.projectAgent = { id, visibility, memberId: record.memberId }
     setEntry(agents(), id, record)
@@ -177,13 +187,19 @@ export function createProjectAgents(rt) {
     if (delegations.has(agent.id) || rt.activityView?.()[agent.botId]) throw Object.assign(refuse('Agent is answering; wait for its current turn'), { code: 'bot/busy' })
     if (visibility === 'public') {
       const definition = definitionSet(agent.projectId).roles.find(row => row.role === 'chief')
+      if ((definition.execution?.harness ?? 'flybot') !== 'flybot' || definition.execution?.resourceIds?.length) throw refuse('Selected execution Harness/resource is not provisioned')
       const bot = rt.botOf(agent.botId)
-      bot.instructions = CHIEF_PROMPT + '\n\nProject persona:\n' + definition.instructions + '\n\n' + skillInstructions(resolveAgentSkills(rt, definition.skills))
+      const snapshot = roleContext({ projectId: agent.projectId, role: 'chief', revision: definitionSet(agent.projectId).revision,
+        definition: { ...definition, resolvedSkills: resolveAgentSkills(rt, definition.skills) }, memory: memoryFor(agent.projectId, 'chief', definition.memoryRefs),
+        knowledge: ownEntry(state.projectKnowledge ?? {}, agent.projectId) ?? [], repository: await rt.projectDelivery?.repositoryContext(agent.projectId) ?? [] })
+      agent.nextContext = snapshot
+      bot.instructions = CHIEF_PROMPT + '\n\n' + snapshot.text
       if (definition.model && bot.model !== definition.model) { bot.model = definition.model; await rt.applyModel?.(bot) }
     }
     const delegation = { id: randomUUID(), exchangeId: randomUUID(), actor: { ...actor }, definitionRevision: definitionSet(agent.projectId).revision, at: Date.now(), started: false, revoked: false }
     delegations.set(agent.id, delegation)
-    agent.lastRequest = { id: randomUUID(), initiatedBy: actor.memberId, executorBotId: agent.botId, definitionRevision: definitionSet(agent.projectId).revision, definitionVersion: agent.definitionVersion, model: rt.botOf(agent.botId)?.model ?? null, at: Date.now() }
+    agent.lastRequest = { id: randomUUID(), initiatedBy: actor.memberId, executorBotId: agent.botId, definitionRevision: definitionSet(agent.projectId).revision, definitionVersion: agent.definitionVersion, model: rt.botOf(agent.botId)?.model ?? null, exchangeId: delegation.exchangeId, phase: 'queued', at: Date.now(), ...(agent.nextContext ? { context: agent.nextContext } : {}) }
+    delete agent.nextContext
     logOf(agent.id).push({ ...agent.lastRequest, kind: 'human', memberId: actor.memberId, text })
     await rt.save()
     try {
@@ -226,10 +242,35 @@ export function createProjectAgents(rt) {
         resolveAgentSkills(rt, skills)
         next.skills = skills
       }
+      if (body.memoryRefs !== undefined) {
+        if (!Array.isArray(body.memoryRefs) || body.memoryRefs.length > 20 || body.memoryRefs.some(id => typeof id !== 'string')) throw refuse('Invalid role memory references')
+        memoryFor(projectId, role.role, body.memoryRefs)
+        next.memoryRefs = [...new Set(body.memoryRefs)]
+      }
+      if (body.execution !== undefined) {
+        const execution = body.execution
+        if (!execution || !['flybot', 'codex', 'claude-agent'].includes(execution.harness) || !Array.isArray(execution.resourceIds) || execution.resourceIds.length > 20 || execution.resourceIds.some(id => typeof id !== 'string' || !/^[A-Za-z0-9_-]{1,100}$/.test(id))) throw refuse('Invalid role execution reference')
+        next.execution = { harness: execution.harness, resourceIds: [...new Set(execution.resourceIds)] }
+      }
       Object.assign(role, next)
       set.revision++
       await rt.save()
       return { definitions: structuredClone(set) }
+    }
+    if (endpoint === 'project-role-memory-write') {
+      rt.requireProjectAccess(actor, projectId, 'configure')
+      if (!ROLES.includes(body.role)) throw refuse('Unknown public agent role')
+      const text = clean(body.text, 4000)
+      const reference = clean(body.source?.reference, 300)
+      if (!text || !reference || body.source?.kind !== 'human') throw refuse('Role memory needs explicit human publication and source')
+      const previous = body.memoryId ? ownEntry(roleMemory(), body.memoryId) : null
+      if (body.memoryId && (!previous || previous.projectId !== projectId || previous.role !== body.role)) throw refuse('Role memory belongs to another scope')
+      const row = { id: previous?.id ?? `role-memory-${randomUUID()}`, projectId, role: body.role, text, revision: (previous?.revision ?? 0) + 1,
+        source: { kind: 'human', reference, memberId: actor.memberId }, at: Date.now(),
+        versions: previous ? [...(previous.versions ?? []), { revision: previous.revision, text: previous.text, source: previous.source, at: previous.at }] : [] }
+      setEntry(roleMemory(), row.id, row)
+      await rt.save()
+      return { memory: structuredClone(row) }
     }
     if (endpoint === 'project-knowledge-write') {
       rt.requireProjectAccess(actor, projectId, 'create')
@@ -256,6 +297,7 @@ export function createProjectAgents(rt) {
       public: { id: publicAgent.id, botId: publicAgent.botId, visibility: 'public' }, mine: structuredClone(mine),
       privateMemory: structuredClone(ownEntry(privateNotes(), mine.id) ?? []),
       proposals: Object.values(proposals()).filter(row => row.projectId === projectId && row.memberId === actor.memberId).map(row => structuredClone(row)),
+      roleMemory: Object.values(roleMemory()).filter(row => row.projectId === projectId).map(row => structuredClone(row)),
       knowledge: structuredClone(ownEntry(state.projectKnowledge ?? {}, projectId) ?? []) }
   }
   function onEvent(session, event) {
@@ -265,14 +307,18 @@ export function createProjectAgents(rt) {
     const delegation = delegations.get(agent.id)
     if (event.type === 'user/message' && delegation && !delegation.revoked && event.data?.source?.exchangeId === delegation.exchangeId) { delegation.messageObserved = true; delegation.started = delegation.turnStarted === true }
     if (event.type === 'turn/start' && delegation && !delegation.revoked) { delegation.turnStarted = true; delegation.started = delegation.messageObserved === true; delegation.turn = event.data?.turn }
-    if (event.type === 'assistant/message') {
+    if (event.type === 'assistant/message' && delegation?.started && !delegation.revoked && (!event.data?.turn || !delegation.turn || event.data.turn === delegation.turn)) {
       const text = textOf(event.data?.message?.content)
       if (text) {
         logOf(agent.id).push({ id: randomUUID(), kind: 'agent', text: text.slice(0, 16000), at: Date.now(), initiatedBy: agent.lastRequest?.initiatedBy ?? null, executorBotId: agent.botId, definitionRevision: agent.lastRequest?.definitionRevision ?? null })
         void rt.save().catch(error => rt.warn('Project agent transcript save failed: %s', error.message))
       }
     }
-    if (event.type === 'turn/end' && delegation?.started && (!event.data?.turn || !delegation.turn || event.data.turn === delegation.turn)) delegations.delete(agent.id)
+    if (event.type === 'turn/end' && delegation?.started && (!event.data?.turn || !delegation.turn || event.data.turn === delegation.turn)) {
+      if (agent.lastRequest?.exchangeId === delegation.exchangeId) agent.lastRequest.phase = 'completed'
+      delegations.delete(agent.id)
+      void rt.save().catch(error => rt.warn('Project Chief completion save failed: %s', error.message))
+    }
   }
   function revoke(projectId, memberId) {
     for (const [id, delegation] of delegations) {
@@ -313,7 +359,11 @@ export function createProjectAgents(rt) {
   }
   const deliveryDefinitions = projectId => {
     const definitions = structuredClone(definitionSet(projectId))
-    for (const role of definitions.roles) role.resolvedSkills = resolveAgentSkills(rt, role.skills)
+    for (const role of definitions.roles) {
+      role.resolvedSkills = resolveAgentSkills(rt, role.skills)
+      role.memory = memoryFor(projectId, role.role, role.memoryRefs)
+      role.execution ??= { harness: 'flybot', resourceIds: [] }
+    }
     return definitions
   }
   const isDelegationActive = (id, delegationId) => { const entry = delegations.get(id); return entry?.id === delegationId && !entry.revoked }

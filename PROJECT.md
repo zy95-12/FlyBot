@@ -55,6 +55,14 @@ See [baseline ownership and tests](docs/subsystems/demo-baseline.md).
   validation covers creation/publication/revocation; real-model/browser acceptance
   subsequently passed in M6. Runtime code-worker OS isolation is not claimed by this demo.
 
+- M7 is owner-authorized in [#20](https://github.com/zy95-12/FlyBot/issues/20),
+  implemented sequentially as #21–#25, one PR per issue. It explicitly authorizes native,
+  Codex SDK and Claude Agent SDK Harness choices; the inherited upstream removal of
+  Codex does not govern this fork. Control-plane remains unchanged. M7.1 introduces
+  explicit public role memory and bounded hashed execution contexts, durable Chief
+  identity/history and per-Attempt temporary Session bindings. Resource dispatch, SDK
+  execution, setup terminal and real mixed-resource acceptance remain subsequent phases.
+
 ## Historical upstream Project State
 
 ## Mission

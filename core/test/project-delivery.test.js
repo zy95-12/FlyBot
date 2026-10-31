@@ -203,7 +203,7 @@ test('managed delivery definitions and role/model snapshots cannot be edited or 
   const attempt = fixture.attempt()
   assert.equal(attempt.workflowDefinition.nodes[0].model, 'fixture/model')
   for (const operation of ['graph', 'set-model', 'concurrency', 'reset', 'delete']) await assert.rejects(fixture.rt.projectEndpoint('project-workflow', { projectId: 'p1', workflowId: attempt.workflowId, operation, nodes: [] }, alice), /immutable/)
-  assert.equal(attempt.workflowVersion, 'project-delivery/v1')
+  assert.equal(attempt.workflowVersion, 'project-delivery/v2')
 })
 
 
@@ -256,4 +256,34 @@ test('human return preserves old evidence and retry can only accept its own newl
   assert.equal(next.status, 'accepted')
   assert.equal(fixture.rt.state.tasks[fixture.task.id].status, 'accepted')
   assert.equal(fixture.rt.state.projectAttempts[old.id].status, 'failed')
+})
+
+
+test('temporary role context freezes memory, repository instructions and session ownership', async t => {
+  const fixture = await setup(t)
+  writeFileSync(join(fixture.repository, 'AGENTS.md'), 'Repository rule: verify negative inputs')
+  git(fixture.repository, ['add', 'AGENTS.md']); git(fixture.repository, ['commit', '-m', 'Repository instructions'])
+  const saved = await fixture.rt.projectEndpoint('project-role-memory-write', { projectId: 'p1', role: 'developer', text: 'Preserve input precision', source: { kind: 'human', reference: 'explicit published rule' } }, alice)
+  await fixture.rt.projectEndpoint('project-agent-definition', { projectId: 'p1', role: 'developer', memoryRefs: [saved.memory.id] }, alice)
+  await fixture.start('session-first')
+  const first = fixture.attempt()
+  const descriptor = first.roleSessions.developer
+  assert.match(descriptor.context.text, /Repository rule: verify negative inputs/)
+  assert.match(descriptor.context.text, /Preserve input precision/)
+  assert.match(descriptor.context.text, /add\(2,3\) must equal 5/)
+  assert.equal(descriptor.attemptId, first.id)
+  const worker = { id: 'worker-test', sessionId: 'worker-session' }
+  await fixture.rt.projectDelivery.bindSession(first.workspaces.developer, worker)
+  assert.equal(descriptor.sessionId, worker.sessionId)
+  await assert.rejects(fixture.rt.projectDelivery.bindSession(first.workspaces.developer, { id: 'another', sessionId: 'another-session' }), /already bound/)
+  await fixture.rt.projectDelivery.releaseSession(worker.id)
+  assert.equal(descriptor.status, 'released')
+  await assert.rejects(fixture.rt.projectDelivery.bindSession(first.workspaces.developer, worker), /released/)
+  await fixture.rt.projectEndpoint('project-agent-definition', { projectId: 'p1', role: 'developer', instructions: 'New persona' }, alice)
+  assert.doesNotMatch(descriptor.context.text, /New persona/)
+  fixture.rt.bindProject({ kind: 'run', id: first.runId, projectId: 'p1', status: 'failed', taskId: fixture.task.id, attemptId: first.id })
+  await fixture.start('session-second')
+  assert.notEqual(fixture.attempt().roleSessions.developer.id, descriptor.id)
+  assert.match(fixture.attempt().roleSessions.developer.context.text, /New persona/)
+  assert.match(fixture.attempt().roleSessions.developer.context.text, /previousAttemptId/)
 })

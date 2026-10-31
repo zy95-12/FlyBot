@@ -3,6 +3,7 @@ subsystem: project-agents
 owned_paths:
   - core/src/host/project-agents.js
   - core/src/host/project-agent-skills.js
+  - core/src/host/project-role-context.js
   - core/src/host/project-credentials.js
   - core/test/project-agents.test.js
   - core/test/project-credentials.test.js
@@ -173,3 +174,34 @@ away the human/Project discriminator; replacing a carrier preserves the logical 
 The integrated [real-provider acceptance](../live-acceptance.md) confirms actual models read
 their own JSON context, acknowledge private notes and create one shared Task as the current
 human. It exposed and verifies the truncation/serialization/idempotence fixes above.
+
+
+## M7.1 — persistent definitions and memory, replaceable execution Sessions
+
+`projectAgentDefinitions` remains the public role registry. Each role now carries explicit
+`memoryRefs` and `execution {harness, resourceIds}` references, including Chief. Existing
+records without these fields retain native execution defaults. Non-native/unprovisioned
+selection fails closed until the following resource/Harness phases implement dispatch.
+No configuration field grants filesystem or human authority.
+
+`projectRoleMemory` is public, explicitly published by a configuring human through
+`project-role-memory-write`. A record is scoped to exactly one Project and role, with
+revision, human source/reference and prior published versions. Cross-scope/missing refs
+are refused before configuration changes. Private notes, transcripts and proposals are
+never a source. No execution transcript is automatically promoted to long-term memory.
+Owners can explicitly publish verified experience and cite its source.
+
+A Chief turn freezes persona, Skills, referenced memory, public knowledge and registered
+repository instruction excerpts into `lastRequest.context`. Its hash/version/source refs
+remain with the request. Chief has no idle inference timer; incoming human messages use
+the existing delegated inbox/turn machinery. Logical identity/history survive carrier
+replacement. Completion is recorded, and late callbacks without an active matching
+Session/delegation cannot append messages. New configuration affects the next turn.
+
+Delivery snapshots use the same assembler, with Task criteria and prior Attempt feedback.
+The context is capped at 48,000 characters and rejects overflow. Repository AGENTS,
+PROJECT, ROADMAP and LESSONS are read from Git at an explicit commit, each capped at
+6,000 characters with truncation flag, full-content hash and original size. Context is
+JSON fenced with angle brackets escaped. Public inputs are task data, never permissions.
+The host inserts the snapshot after the Workflow graph's 4,000-character prompt boundary;
+actual DSH runtime assertions check the model request contains memory and repo content.

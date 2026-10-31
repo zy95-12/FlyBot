@@ -94,3 +94,8 @@ M6's [shared demo](shared-demo.md) starts unchanged control-plane, actual DSH an
 restricted gateway with disposable private data. Browser acceptance uses two platform
 identities and independent contexts. Workflow dispatch resolves a bound Task's Project
 Chief, so shared execution does not require bootstrapping the private legacy operator UI.
+
+
+### Fork M7.1 — 2026-10-31
+
+M7.1 separates durable role definitions/public role memory from per-Attempt execution Session snapshots. Existing Workflow retains lifecycle and scheduling; the host supplies hashed bounded context after graph prompt sanitization. See [role contract](subsystems/project-agents.md) and [session binding](subsystems/project-delivery.md).
