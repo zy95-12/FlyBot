@@ -22,7 +22,7 @@ import { faceMentions, mentionedByHandle } from './face-mentions.js'
 import { FEED_EVENTS, installFeed } from './flybot-feed.js'
 import { createPluginModel } from './plugin-model.js'
 import { defineTool } from './tool-schema.js'
-import { retiredBot } from './store.js'
+import { ownEntry, retiredBot } from './store.js'
 import { codePoints } from './text.js'
 import { EPHEMERAL_DENIED_TOOLS } from './tools.js'
 

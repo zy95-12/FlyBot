@@ -72,6 +72,8 @@ test('run and workspace ownership is direct, immutable and survives project dele
   assert.equal(workspace.workspace.projectId, 'p1')
   rt.bindProject({ kind: 'run', id: 'r1', projectId: 'p1', workspaceId: workspace.workspace.id })
   assert.equal(rt.state.projectExecutions.r1.projectId, 'p1')
+  assert.equal(rt.flybot.projects.readRun('r1').projectId, 'p1')
+  assert.equal(rt.flybot.projects.readRun('__proto__'), undefined)
   assert.throws(() => rt.bindProject({ kind: 'run', id: 'r1', projectId: 'p2' }), /immutable/i)
   await rt.projectEndpoint('project-delete', { id: 'p1' })
   assert.equal(rt.readProject('p1'), null)
