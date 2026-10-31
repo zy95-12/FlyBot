@@ -80,3 +80,11 @@ Terminal lifecycle is covered by `serve_check.py`: it privately enters random pa
 logs in through the real gateway, sends Ctrl-C after readiness and separately during
 startup, and asserts the owned temporary tree is empty. The supervisor waits for Node's
 graceful cleanup; it does not use subprocess.run's immediate kill-on-KeyboardInterrupt.
+
+`--live-check` explicitly selects real DeepSeek and GitHub browser acceptance. It refuses
+missing provider environment or fork/credential configuration, uses an immutable host
+addition test outside model worktrees, runs actual scoped private/public agent tools,
+returns a candidate through Alice's UI, checks new tests/commit and PR SHA on retry, then
+accepts through Alice's UI. A second operator fixture forces host-test failure and checks
+retry/queue/revocation. No mock-model request is permitted in this mode. The CLI supervisor
+allows a bounded 20-minute live run; key-free regression timeouts are unchanged.

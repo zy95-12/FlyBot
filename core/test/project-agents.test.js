@@ -172,3 +172,54 @@ test('a queued or foreign exchange cannot activate another human’s agent deleg
   rt.projectAgents.revoke('p1', alice.memberId)
   assert.equal(rt.projectAgents.isDelegationActive(scope.agentId, scope.delegationId), false)
 })
+
+test('long identical Project names retain unique public and per-user carriers after the host name limit', async t => {
+  const { rt } = await setup(t)
+  const one = 'project-00000000-0000-0000-0000-000000000001', two = 'project-00000000-0000-0000-0000-000000000002'
+  rt.state.projects[one] = { ...rt.state.projects.p1, id: one }; rt.state.projects[two] = { ...rt.state.projects.p2, id: two }
+  rt.state.projects[one].name = rt.state.projects[two].name = 'A very long shared Project name for multiple people'
+  const create = rt.createBot
+  rt.createBot = async spec => {
+    const name = String(spec.name).trim().slice(0, 40)
+    if (Object.values(rt.state.bots).some(bot => bot.name === name)) throw new Error('duplicate truncated Bot name')
+    return create({ ...spec, name })
+  }
+  const a = await get(rt, alice, one)
+  const b = await get(rt, bob, one)
+  const other = await get(rt, alice, two)
+  const names = [a.public, a.mine, b.mine, other.public, other.mine].map(agent => rt.botOf(agent.botId).name)
+  assert.equal(new Set(names).size, names.length)
+  assert.ok(names.every(name => name.length <= 40))
+})
+
+test('scoped tool results preserve structured facts and Task ids in model-visible JSON', async t => {
+  const { rt, ctx } = await setup(t)
+  const a = await get(rt, alice)
+  await message(rt, alice)
+  const context = ctx.registeredTools.get('project_agent_context')
+  const result = await context.execute({}, { agent: { id: a.mine.botId } })
+  assert.equal(typeof result, 'string')
+  assert.equal(JSON.parse(context.output.render({}, result)[0].text).project.id, 'p1')
+  await message(rt, bob, 'public')
+  const b = await get(rt, bob), tool = ctx.registeredTools.get('project_agent_task')
+  const created = await tool.execute({ title: 'One public request' }, { agent: { id: b.public.botId } })
+  assert.match(JSON.parse(tool.output.render({}, created)[0].text).id, /^task-/)
+})
+
+test('repeated concurrent task tools in one human request reuse their Task/proposal without weakening original criteria', async t => {
+  const { rt } = await setup(t)
+  const b = await get(rt, bob)
+  await message(rt, bob, 'public')
+  const bot = rt.botOf(b.public.botId)
+  const rows = await Promise.all([rt.projectAgents.task(bot, { title: 'One request', criteria: 'Keep these criteria' }), rt.projectAgents.task(bot, { title: 'One request' })])
+  assert.equal(rows[0].id, rows[1].id)
+  assert.equal(rows[1].criteria, 'Keep these criteria')
+  assert.equal(Object.keys(rt.state.tasks).length, 1)
+  rt.projectAgents.onEvent({ id: b.public.botId }, { type: 'turn/end', data: { turn: 1 } })
+  await message(rt, bob, 'public')
+  const next = await rt.projectAgents.task(bot, { title: 'One request' })
+  assert.notEqual(next.id, rows[0].id, 'a new human request can intentionally create another Task')
+  await message(rt, bob)
+  const proposals = await Promise.all([rt.projectAgents.task(rt.botOf(b.mine.botId), { title: 'Private proposal' }), rt.projectAgents.task(rt.botOf(b.mine.botId), { title: 'Private proposal' })])
+  assert.equal(proposals[0].proposalId, proposals[1].proposalId)
+})

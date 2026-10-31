@@ -33,7 +33,7 @@ test('reject optimized Python before assertions can silently stop checking the p
 test('real model and GitHub flags refuse incomplete configuration before platform import', t => {
   const directory = mkdtempSync(join(tmpdir(), 'flybot-demo-flags-'))
   t.after(() => rmSync(directory, { recursive: true, force: true }))
-  for (const flags of [['--real-model'], ['--github-repo', 'example/demo'], ['--serve-workbench', '--github-repo', 'example/demo', '--github-config-dir', 'relative']]) {
+  for (const flags of [['--real-model'], ['--live-check'], ['--live-check', '--github-repo', 'example/demo'], ['--github-repo', 'example/demo'], ['--serve-workbench', '--github-repo', 'example/demo', '--github-config-dir', 'relative']]) {
     const result = spawnSync('python3', [script, '--control-plane', directory, ...flags], { encoding: 'utf8' })
     assert.equal(result.status, 2, result.stderr)
     assert.match(result.stderr, /requires|GitHub requires|must be absolute/)

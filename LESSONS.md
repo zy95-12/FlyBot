@@ -139,3 +139,17 @@ Python subprocess.run kills a child when KeyboardInterrupt unwinds, which can cu
 Node's DSH/data cleanup. The M6 foreground launcher uses an owned process session and
 explicit graceful termination/wait. Node keeps shutdown handlers active during cleanup.
 Test both ready-state Ctrl-C and interruption during startup with actual temporary data.
+
+## 2026-10-31 — verify what the real model sees after a tool runs (Seen 1×)
+
+An object under a string tool schema rendered as `[object Object]`; a real Chief retried
+Task creation while deterministic fixtures only noticed that a tool ran. Serialize the
+result as JSON, assert the rendered facts/ids, and deduplicate repeated mutations within
+the exact live human delegation. Successful internal execution is not model-visible proof.
+
+## 2026-10-31 — identity discriminators must survive host name truncation (Seen 1×)
+
+The 40-character Bot name limit removed the member suffix from long Project agent names,
+so a second member could not open the shared view. Put the logical identity digest first
+and keep the total name within the host limit. Reproduce with real-length Project ids and
+the host's truncation/uniqueness contract, not short unit-test ids.

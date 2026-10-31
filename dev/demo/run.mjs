@@ -7,6 +7,7 @@ import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { mockModel } from './mock.mjs'
+import { checkLiveWorkbench } from './live-workbench.mjs'
 import { serveWorkbench } from './serve.mjs'
 import { checkWorkbench } from './workbench.mjs'
 import { checkQueue } from './queue.mjs'
@@ -43,9 +44,10 @@ async function waitFor(read, label, milliseconds = 90_000) {
 async function main() {
   const agents = process.argv.includes('--agents')
   const serve = process.argv.includes('--workbench-serve')
-  const realModel = process.argv.includes('--real-model')
-  const workbench = process.argv.includes('--workbench') || serve
-  if (realModel && (!serve || !process.env.DEEPSEEK_API_KEY || !process.env.DEEPSEEK_BASE_URL)) throw new Error('Real-model demo requires --workbench-serve and explicit DEEPSEEK_API_KEY/DEEPSEEK_BASE_URL environment configuration')
+  const live = process.argv.includes('--live-check')
+  const realModel = process.argv.includes('--real-model') || live
+  const workbench = process.argv.includes('--workbench') || serve || live
+  if (realModel && (!serve && !live || !process.env.DEEPSEEK_API_KEY || !process.env.DEEPSEEK_BASE_URL)) throw new Error('Real-model demo requires --workbench-serve or --live-check and explicit DEEPSEEK_API_KEY/DEEPSEEK_BASE_URL environment configuration')
   const requestStop = () => shutdown.abort()
   if (serve) { process.on('SIGINT', requestStop); process.on('SIGTERM', requestStop) }
   const queue = process.argv.includes('--queue')
@@ -67,6 +69,8 @@ async function main() {
   mkdirSync(workspace)
   mkdirSync(scratch)
   if (delivery) provisionDeliveryFixture(workspace, githubRepository)
+  const golden = join(directory, 'golden-test.mjs')
+  if (live) writeFileSync(golden, `import assert from 'node:assert/strict'; import {pathToFileURL} from 'node:url'; import {resolve} from 'node:path'; const {add}=await import(pathToFileURL(resolve('code.mjs'))); for(const [a,b] of [[2,3],[-7,2],[11,13],[0,0],[0,-4],[1.5,2.5]]) assert.equal(add(a,b),a+b); console.log('Immutable host addition tests passed'); if(process.argv.includes('--force-failure')) {console.error('Intentional host-test failure for negative acceptance');process.exit(9)}`)
   for (const entry of readdirSync(harness)) {
     if (entry.startsWith('.')) continue
     symlinkSync(join(harness, entry), join(modules, entry))
@@ -96,8 +100,8 @@ async function main() {
     patch = join(directory, 'shared.patch.yml')
     const botConfig = { projectWorkbench: true, ...(workbench ? { projectDemoMode: realModel ? 'real-provider' : 'deterministic-fixture' } : {}),
       ...(shared ? { controlPlane: { origin: shared.origin, ownerSubject: shared.ownerSubject } } : {}),
-      ...(delivery ? { projectRepositories: { [githubRepository ?? 'example/delivery-fixture']: { ...(githubRepository ? { github: { credential: 'gh-cli', configDir: githubConfigDir } } : {}), path: workspace, testCommand: [process.execPath, '--test', 'code.test.mjs'], allowedPaths: ['code.mjs', 'code.test.mjs'] } } } : {}) }
-    writeFileSync(patch, readFileSync(join(root, 'docker/web.patch.yml'), 'utf8') + `\n- id: bot\n  config: ${JSON.stringify(botConfig)}\n`, { mode: 0o600 })
+      ...(delivery ? { projectRepositories: { [githubRepository ?? 'example/delivery-fixture']: { ...(githubRepository ? { github: { credential: 'gh-cli', configDir: githubConfigDir } } : {}), path: workspace, testCommand: live ? [process.execPath, golden] : [process.execPath, '--test', 'code.test.mjs'], allowedPaths: ['code.mjs', 'code.test.mjs'] }, ...(live ? { 'example/intentional-failure': { path: workspace, testCommand: [process.execPath, golden, '--force-failure'], allowedPaths: ['code.mjs', 'code.test.mjs'] } } : {}) } } : {}) }
+    writeFileSync(patch, readFileSync(join(root, 'docker/web.patch.yml'), 'utf8') + (live ? '\n- id: llm-deepseek\n  config: { thinking: disabled, reasoningEffort: off, maxTokens: 8192 }\n' : '') + `\n- id: bot\n  config: ${JSON.stringify(botConfig)}\n`, { mode: 0o600 })
   }
   const child = spawn(process.execPath, [cli, '--profile', 'web', '--patch', patch,
     '--no-open', '--port', String(port)], { cwd: workspace, env, stdio: ['ignore', log, log], detached: true })
@@ -132,6 +136,13 @@ async function main() {
       const result = await call(...args)
       assert.equal(result.ok, true, `API ${args[0]}: ${result.error?.code ?? 'failed'}`)
       return result.value
+    }
+    if (live) {
+      if (!shared || !githubRepository || !githubConfigDir) throw new Error('Live acceptance requires platform accounts and explicit GitHub repository/config directory')
+      const report = await checkLiveWorkbench({ credentials: shared, port, cookie, saved, waitFor: (read, label) => waitFor(read, label, 600_000), githubRepository, githubConfigDir, artifacts: process.env.FLYBOT_DEMO_ARTIFACTS })
+      assert.equal(observations.length, 0, 'Real acceptance must not contact the mock model')
+      console.log(JSON.stringify({ ...report, source: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(), dirty: execFileSync('git', ['status', '--porcelain'], { cwd: root, encoding: 'utf8' }).trim() !== '' }))
+      return
     }
     if (serve) {
       if (!shared) throw new Error('Workbench serving requires --shared credentials on stdin')

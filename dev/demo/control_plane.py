@@ -80,7 +80,7 @@ def check(base, shared=False, workbench=False, serve=False, runtime_args=None):
                 raise RuntimeError('Shared demo stopped with an error')
             return {'demo': 'stopped and cleaned'}
         result = subprocess.run(command,
-                                input=json.dumps(credentials), capture_output=True, text=True, timeout=140)
+                                input=json.dumps(credentials), capture_output=True, text=True, timeout=1200 if '--live-check' in command else 140)
         if result.returncode:
             raise RuntimeError('Shared runtime check failed: ' + result.stderr[-6000:])
         return json.loads(result.stdout)
@@ -92,6 +92,7 @@ def check(base, shared=False, workbench=False, serve=False, runtime_args=None):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--serve-workbench', action='store_true', help='Serve a disposable two-account Project demo; ask passwords privately')
+    parser.add_argument('--live-check', action='store_true', help='Run two-account real-model and real-GitHub browser acceptance')
     parser.add_argument('--real-model', action='store_true', help='Use explicit model environment with --serve-workbench')
     parser.add_argument('--github-repo', help='Explicit fork repository for draft delivery artifacts')
     parser.add_argument('--github-config-dir', type=Path, help='Explicit absolute gh credential directory for Project automation')
@@ -101,13 +102,15 @@ def main():
     parser.add_argument('--port', type=int, default=18088, help='Loopback port; 0 allocates a free port')
     parser.add_argument('--control-plane', type=Path, required=True, help='Existing unmodified control-plane checkout')
     args = parser.parse_args()
-    if args.real_model and not args.serve_workbench:
+    if args.real_model and not (args.serve_workbench or args.live_check):
         parser.error('--real-model requires --serve-workbench')
-    if bool(args.github_repo) != bool(args.github_config_dir) or args.github_repo and not args.serve_workbench:
+    if bool(args.github_repo) != bool(args.github_config_dir) or args.github_repo and not (args.serve_workbench or args.live_check):
         parser.error('GitHub requires --serve-workbench, --github-repo and --github-config-dir together')
-    if args.real_model and (not os.environ.get('DEEPSEEK_API_KEY') or not os.environ.get('DEEPSEEK_BASE_URL')):
+    if (args.real_model or args.live_check) and (not os.environ.get('DEEPSEEK_API_KEY') or not os.environ.get('DEEPSEEK_BASE_URL')):
         parser.error('--real-model requires explicit DEEPSEEK_API_KEY and DEEPSEEK_BASE_URL environment configuration')
-    runtime_args = ['--real-model'] if args.real_model else []
+    if args.live_check and not args.github_repo:
+        parser.error('--live-check requires explicit GitHub repository and credential directory')
+    runtime_args = ['--live-check'] if args.live_check else ['--real-model'] if args.real_model else []
     if args.github_repo:
         if not args.github_config_dir.is_absolute():
             parser.error('--github-config-dir must be absolute')
@@ -119,7 +122,7 @@ def main():
         parser.error('Run checks without Python optimization')
     sys.dont_write_bytecode = True
     sys.path.insert(0, str(checkout / 'control_plane'))
-    password = secrets.token_urlsafe(32) if args.check or args.shared_check or args.workbench_check or args.serve_workbench else (
+    password = secrets.token_urlsafe(32) if args.check or args.shared_check or args.workbench_check or args.serve_workbench or args.live_check else (
         os.environ.get('FLYBOT_DEMO_ADMIN_PASSWORD') or getpass.getpass('Temporary admin password (12+ characters): '))
     if len(password) < 12:
         parser.error('Admin password needs at least 12 characters')
@@ -153,8 +156,8 @@ def main():
                     raise RuntimeError('Demo API failed to start')
                 time.sleep(0.05)
             base = f'http://127.0.0.1:{sock.getsockname()[1]}'
-            if args.check or args.shared_check or args.workbench_check or args.serve_workbench:
-                print(json.dumps(check(base, args.shared_check or args.workbench_check or args.serve_workbench, args.workbench_check, args.serve_workbench, runtime_args), indent=2))
+            if args.check or args.shared_check or args.workbench_check or args.serve_workbench or args.live_check:
+                print(json.dumps(check(base, args.shared_check or args.workbench_check or args.serve_workbench or args.live_check, args.workbench_check or args.live_check, args.serve_workbench, runtime_args), indent=2))
             else:
                 print(f'Panel: {base}/dashboard/console.html\nAccount: admin@example.com\nTemporary data is deleted on exit.', flush=True)
                 while thread.is_alive():

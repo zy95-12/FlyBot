@@ -166,3 +166,9 @@ decisions, concluded as [docs/governance.md](docs/governance.md) requires and re
   dispatch fix found through that fresh entry. See [shared demo](docs/shared-demo.md) and
   [M6 decision](decisions/2026-10-31-m6-shared-demo.md). True-model full delivery acceptance
   remains pending model configuration; deterministic runtime/browser evidence is separate.
+
+- The owner supplied an official DeepSeek credential for live validation. Official model
+  catalog and a real inference call succeeded; live browser/GitHub acceptance is in progress.
+  Credentials are process-only and are never repository memory. Integration fixes include
+  model-visible JSON tool results, same-request Task/proposal deduplication, bounded unique
+  carrier names, and propagation of human-return feedback into retry snapshots.

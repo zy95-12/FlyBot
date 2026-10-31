@@ -112,3 +112,30 @@ row has a source SHA, Project/Task/Attempt ids, candidate/PR SHA, logs and obser
 outcome. CPU/RSS shown in the app measure the shared process; absent per-Project/GPU metrics
 stay unavailable. No production deployment, untrusted-code sandbox, multi-host pool,
 auto-merge or exact crash continuation is claimed.
+
+## Automated real-provider acceptance
+
+With the provider environment supplied by the operator's secret mechanism and the explicit
+authorized test-fork gh configuration available:
+
+```sh
+FLYBOT_DEMO_ARTIFACTS=/private/absolute/evidence \
+/tmp/flybot-demo-python/bin/python dev/demo/control_plane.py \
+  --control-plane ../flybot-control-plane --live-check --port 0 \
+  --github-repo YOUR_ACCOUNT/YOUR_FORK --github-config-dir /absolute/private/gh-config
+```
+
+This mode makes chargeable real-provider calls and creates draft artifact PRs in the
+selected fork. It uses no canned model response and asserts the mock endpoint was never
+contacted. Alice/Bob are temporary real platform accounts controlled by browser automation;
+Alice's acceptance proves the human-role UI/authorization path, not an independent human
+code-review judgment or a repository Reviewer PASS. The real delivery Reviewer inspects
+its sealed worktree and names the candidate SHA separately.
+
+The host's immutable test runs outside the candidate tree, so a model cannot pass this
+acceptance by weakening its editable regression tests. A human-role return requests an
+additional fractional/zero test; the new Attempt must receive that feedback, add the test,
+produce a new commit/PR and preserve both histories. The negative Project deliberately
+forces its host test nonzero, then exercises retry, queue and membership removal. The
+report includes actual Attempt ids, commit/PR/evidence hashes and elapsed time. It excludes
+API keys, member credentials, raw private conversation, trace/HAR and owner cookies.
