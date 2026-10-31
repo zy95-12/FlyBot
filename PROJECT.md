@@ -32,11 +32,16 @@ are not this fork's decision-makers merely because inherited docs name them.
 
 See [baseline ownership and tests](docs/subsystems/demo-baseline.md).
 
-- M1 implementation adds Project service/policy/repository boundaries, immutable work
+- M1 implementation ([PR #10](https://github.com/zy95-12/FlyBot/pull/10), complete local verification, awaiting review) adds Project service/policy/repository boundaries, immutable work
   ownership, explicit migration, archive/delete/member-removal rules and an owner-only
   detail API. Workspace records are directory references; M3 supplies worktree isolation.
 - The owner authorized continuing M2–M6, one PR per milestone, with memory, architecture
   and tests updated in each. [M1 decision](decisions/2026-10-31-m1-project-ownership.md).
+
+- M2 implements the [shared access contract](docs/subsystems/project-access.md): unchanged
+  platform auth API adapter, stable subject mapping, human membership policy/invites,
+  immediate revocation and scoped Workflow gateway. It is explicitly configured; physical
+  isolation, agent delegation/credentials and browser delivery remain M3–M6.
 
 ## Historical upstream Project State
 

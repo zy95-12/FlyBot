@@ -1,0 +1,133 @@
+---
+subsystem: project-access
+owned_paths:
+  - core/src/host/project-access.js
+  - core/src/host/platform-identity.js
+  - core/test/project-access.test.js
+  - core/test/platform-identity.test.js
+---
+
+# Shared Project access (fork M2)
+
+M2 is an explicitly configured Project workbench path. It reuses unchanged
+control-plane `/api/auth/login`, `/api/auth/session`, `/api/auth/logout` and account
+administration. FlyBot owns the subject adapter, Project roles/invites/policy and
+scoped Workflow gateway. It does not alter platform source, schema, host manager,
+launch-token routing, cookie domain, deployment or upgrade configuration.
+
+## Configuration and identity
+
+The `bot` Cordis entry may configure:
+
+```yaml
+config:
+  projectWorkbench: true
+  controlPlane:
+    origin: https://panel.example.com
+    ownerSubject: explicitly-provisioned-platform-user-id
+```
+
+`origin` must be HTTPS (loopback HTTP is accepted for the disposable demo), with no
+path, query, credentials or fragment. `ownerSubject` is operator provisioning, never
+first-login inference. Its verified subject binds to owner-1. Other subjects map to
+stable issuer-scoped IDs; the platform admin role does not grant any Project role.
+`projectWorkbench: true` without controlPlane supports existing local identities for
+isolated tests; the complete shared demo configures the platform adapter.
+
+`platform-login {email,password}` forwards only those credentials to the existing
+platform login API and returns an opaque FlyBot member session. Accounts and platform
+invitations remain managed by control-plane. Passwords and raw platform Cookie/CSRF
+values stay in memory, never state.json or application output. Each channel request
+validates the upstream session again with a five-second timeout and redirects disabled;
+a failed/expired/suspended/mismatched subject fails closed. Session cookie refresh is
+kept only in memory. No positive authentication cache exists. Restart deliberately
+requires login again; subject mappings and Project memberships persist.
+
+`auth-revoke` also calls existing platform logout and revokes the local session even
+if the platform is unavailable. Local account invitation/redemption/removal APIs are
+blocked with platform identity configured; there is no local-token fallback.
+Credentials use the existing DSH authenticated same-origin channel, whose transport
+admission is still required. No cross-subdomain cookie sharing is introduced.
+
+## Human operation matrix
+
+| Operation | Owner | Maintainer | Member | Nonmember |
+| --- | --- | --- | --- | --- |
+| Project, board, detail, members, scoped Workflow state | yes | yes | yes | denied |
+| Create active Project Task | yes | yes | yes | denied |
+| Update/cancel/request input/report own Task | yes | yes | own request only | denied |
+| Update another member's Task, accept/send back delivery | yes | yes | denied | denied |
+| Start a Run | yes | yes | own Task only | denied |
+| Pause/resume/reset Run | yes | yes | denied | denied |
+| Configure graph/model/concurrency/Workspace reference/quota | yes | yes | denied | denied |
+| Invite/remove Member | yes | yes | denied | denied |
+| Remove Maintainer, assign role, archive/delete/bind Project | yes | denied | denied | denied |
+| Leave Project | owner cannot leave | yes | yes | denied |
+| Legacy private memory/team details | primary owner only | denied | denied | denied |
+
+Roles are the human `project.roles` policy, never Bot.role, body userId/memberId/role,
+or platform account role. Human identities are derived from the authenticated session.
+New shared Tasks cannot clear projectId to escape later revocation. Public/individual
+agent privacy and delegated authority are extended by M4; M2 does not expose private
+Chief/assistant chats to other members.
+
+Project invites are random, hash-only, single-use, expire after 24 hours and grant
+Member to the authenticated joiner. They cannot create a platform account or grant
+Owner. Outstanding invites also require their issuer to retain invite authority.
+Membership/role changes take effect on the next request, including a stale
+page or cached actor. Removing/leaving revokes unused invites issued by that member.
+Admitted project work continues under project authority; its requester/evidence remain
+attributed. Removal does not silently cancel or reattribute a running task. Owner and
+Maintainer may control it. Removed members cannot start or read work. Host member
+removal still follows M1's anti-orphan rules; platform account suspension is handled by
+the existing platform session API and management endpoints.
+
+## Workflow execution boundary
+
+Use `project-workflow {projectId, operation, ...}`. Supported operations are state,
+templates, create, graph, concurrency, set-model, step-timeout, assign, pause, resume,
+reset and delete. It reuses the existing workflow plugin service. Project/Task/Run IDs
+are checked before dispatch, and Project context/capping Bots are host-derived.
+The gateway never opens the existing global plugin write gate. In workbench mode,
+unscoped plugin APIs, the second workflow-definition surface and global usage are
+denied; the built-in Bot/change projections retain only the caller's own permitted
+records. Existing single-human behavior remains when workbench mode is off.
+
+Returned Workflow rows/runs/history/queue/held tasks are filtered to the Project.
+Legacy mixed-project transcript/preview rows are not exposed; M3 provides typed Run
+logs/evidence. Gateway creation binds the new graph before it may run. Shared Task
+writes do not auto-ingest through an unscoped plugin route, and the old run/define
+workflow tools direct callers to this gateway. M4 introduces explicit agent authority.
+
+Quota is Project maxConcurrent (1–32, default 2), independent of graph concurrency.
+Admissions are serialized; a repeated start returns an already-active Run and a
+foreign active Run for the same Task is refused. At capacity M2 returns bot/quota;
+M5 adds the visible queue. Node connector declarations are refused until explicit
+project credentials are supplied in M4. Ephemeral Bots receive checked execution
+Project context and that Project's owner, avoiding the legacy ambiguous-owner fallback
+on a two-member runtime. This is automation ownership, not personal GitHub delegation.
+Physical code workspace isolation remains M3.
+
+## Verification
+
+`project-access.test.js` covers the matrix, forged identity/AI labels, hash/single-use
+invitations, revocation/stale pages, acceptance, null detachment, unscoped read denial,
+real service gateway isolation, concurrent quota admission and duplicate starts.
+`platform-identity.test.js` covers issuer/subject binding, no persisted credentials,
+upstream suspension/logout/substitution, restart login and invalid configuration.
+Both use existing core test globs; Workflow regressions retain normal legacy behavior.
+
+Run the actual platform + DSH proof against an unchanged checkout:
+
+```sh
+/path/to/platform/python dev/demo/control_plane.py --control-plane /path/to/control-plane --shared-check --port 0
+```
+
+It creates private disposable SQLite/accounts, then actual pinned DSH with a deterministic
+model and real shell tools. Alice invites Bob, both read the same Task/board, Bob executes
+the Project Workflow, removal denies stale Task/detail reads, platform suspension
+invalidates the existing session, and logout is refused thereafter. Credentials are
+passed to the child over stdin, not command-line arguments or inherited environment.
+The CI test job runs this after M0 checks against the same immutable platform source
+and asserts the platform worktree remains clean. Actual model/GitHub/browser delivery
+acceptance is M3/M6, not a claim of these tests.

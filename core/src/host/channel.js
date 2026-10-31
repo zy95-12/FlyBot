@@ -670,6 +670,13 @@ export function install(rt) {
           return ok(await rt.workflowEndpoint(endpoint, body))
         // Projects (#1691): a durable Project record and the binding a group, Bot or run names.
         case 'projects':
+        case 'project-members':
+        case 'project-invite':
+        case 'project-join':
+        case 'project-leave':
+        case 'project-member-remove':
+        case 'project-quota':
+        case 'project-workflow':
         case 'project-create':
         case 'project-read':
         case 'project-detail':
@@ -690,6 +697,9 @@ export function install(rt) {
           await rt.load()
           await rt.setBriefShare(String(body.id ?? ''), String(body.botId ?? ''), body.share === true, actor)
           return ok(true)
+        case 'platform-login':
+          if (!rt.platformLogin) return fail('Platform identity is not configured', 'bot/not-found')
+          return ok(await rt.platformLogin(body))
         case 'auth-whoami':
           return ok(actor)
         case 'auth-invite': {

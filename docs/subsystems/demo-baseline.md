@@ -40,3 +40,10 @@ changes. [Install](install.md) owns OCI/Compose; core-host/workflow own runtime 
 M1 extends the actual DSH runtime probe: create a Project Task, rebind its Bot, check
 the original Project board, execute the Workflow and assert both plugin/host direct
 projectId plus the terminal Run report. This runs via test:demo:runtime and verify.
+
+## Fork M2 — 2026-10-31
+
+M2 adds --shared-check to the external platform adapter and shared.mjs to the existing
+actual DSH harness. Credentials travel over stdin. It checks two platform logins, invite/
+shared Task/Workflow, member removal, platform suspension and logout; the required test
+job executes it against unchanged pinned platform source. [Contract](project-access.md).

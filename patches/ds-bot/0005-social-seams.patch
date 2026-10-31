@@ -841,7 +841,7 @@ diff --git a/src/host/channel.js b/src/host/channel.js
              content: [{ type: 'text', text }],
            }, AbortSignal.timeout(30_000))
            return ok(true)
-@@ -319,32 +319,138 @@ export function install(rt) {
+@@ -319,32 +319,148 @@ export function install(rt) {
          case 'diagnostics-clear':
            await rt.diagnostics.clear()
            return ok(true)
@@ -866,6 +866,13 @@ diff --git a/src/host/channel.js b/src/host/channel.js
 +          return ok(await rt.workflowEndpoint(endpoint, body))
 +        // Projects (#1691): a durable Project record and the binding a group, Bot or run names.
 +        case 'projects':
++        case 'project-members':
++        case 'project-invite':
++        case 'project-join':
++        case 'project-leave':
++        case 'project-member-remove':
++        case 'project-quota':
++        case 'project-workflow':
 +        case 'project-create':
 +        case 'project-read':
 +        case 'project-detail':
@@ -886,6 +893,9 @@ diff --git a/src/host/channel.js b/src/host/channel.js
 +          await rt.load()
 +          await rt.setBriefShare(String(body.id ?? ''), String(body.botId ?? ''), body.share === true, actor)
 +          return ok(true)
++        case 'platform-login':
++          if (!rt.platformLogin) return fail('Platform identity is not configured', 'bot/not-found')
++          return ok(await rt.platformLogin(body))
 +        case 'auth-whoami':
 +          return ok(actor)
 +        case 'auth-invite': {

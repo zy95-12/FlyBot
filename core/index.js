@@ -6,6 +6,8 @@ import * as diagnostics from './src/host/diagnostics.js'
 import * as store from './src/host/store.js'
 import * as harness from './src/host/harness.js'
 import * as memberAuth from './src/host/member-auth.js'
+import * as platformIdentity from './src/host/platform-identity.js'
+import * as projectAccess from './src/host/project-access.js'
 import * as authz from './src/host/authz.js'
 import * as roomMembership from './src/host/room-membership.js'
 import * as reach from './src/host/reach.js'
@@ -61,7 +63,7 @@ export const inject = ['llm', 'tools', 'systemPrompt', 'sessionController', 'ses
 // the functions other modules call; they call them through `rt` at run time, never during
 // install. Listeners run and tools are listed in registration order, so this order holds:
 // usage meters model requests after every listener that rewrites them.
-const MODULES = [diagnostics, store, harness, memberAuth, authz, models, permissions, turns, busyAck, steeringInterrupt, delivery, roster, folders, agents, prompt, timeContext, tools, decisions, projectState, meetings, chatIndex, groups, roomMembership, reach, tasks, projectBoard, taskDrive, approvals, resume, memory, parts, images, secrets, connectors, connectorAccess, capabilities, schedules, projectAssistant, projectChief, projectTeam, automationDefault, browser, usage, update, dshUpdate, hooks, remoteChat, workflowStore, channel]
+const MODULES = [diagnostics, store, harness, memberAuth, platformIdentity, projectAccess, authz, models, permissions, turns, busyAck, steeringInterrupt, delivery, roster, folders, agents, prompt, timeContext, tools, decisions, projectState, meetings, chatIndex, groups, roomMembership, reach, tasks, projectBoard, taskDrive, approvals, resume, memory, parts, images, secrets, connectors, connectorAccess, capabilities, schedules, projectAssistant, projectChief, projectTeam, automationDefault, browser, usage, update, dshUpdate, hooks, remoteChat, workflowStore, channel]
 
 export function apply(ctx, config = {}) {
   const rt = createRuntime(ctx, config)

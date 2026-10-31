@@ -240,9 +240,9 @@ export function install(rt) {
     const actorId = projectActorId(actor)
     return actorId !== null && actorId === owner
   }
-  const requireProjectOwner = (project, actor) => {
+  const requireProjectOwner = (project, actor, action = 'manage') => {
     if (project === null) return
-    if (projectCanManage(project, actor)) return
+    if (rt.sharedProjectMode?.() ? rt.projectCan(actor, project.id, action) : projectCanManage(project, actor)) return
     throw projectRefusal('Only the owner of this Project may change it', 'bot/forbidden')
   }
 
@@ -254,6 +254,9 @@ export function install(rt) {
     return project.roles
   }
   const projectEndpoint = async (endpoint, body = {}, actor = null) => {
+    const scoped = await rt.projectAccessEndpoint?.(endpoint, body, actor)
+    if (scoped !== undefined) return scoped
+
     switch (endpoint) {
       // #1828: the sidebar reads one list, and each entry carries the caller's own role and the
       // roles they may switch to — both from the same policy the endpoint applies, so the menu and
@@ -272,7 +275,7 @@ export function install(rt) {
         return { project }
       }
       case 'project-workspace-create': {
-        requireProjectOwner(requireProject(body.projectId), actor)
+        requireProjectOwner(requireProject(body.projectId), actor, 'configure')
         const workspace = rt.projects.createWorkspace(body)
         await save()
         return { workspace }
@@ -303,7 +306,7 @@ export function install(rt) {
       case 'project-create': {
         // The caller is stamped as the owner; a member id from the body cannot mint a
         // Project someone else manages.
-        const project = createProject({ ...body, ownerUserId: projectActorId(actor) ?? undefined })
+        const project = createProject({ ...body, ...(rt.sharedProjectMode?.() ? { ownerUserIds: [] } : {}), ownerUserId: projectActorId(actor) ?? undefined })
         // One assistant per Project (#1712). A Project must not fail because automation is off, so
         // a refusal here is recorded on the record and the Project is still created.
         if (rt.projectAssistant !== undefined) {

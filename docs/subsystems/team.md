@@ -4,7 +4,18 @@ owned_paths:
   - docs/subsystems/team.md
 ---
 
-# team (planned authority contract)
+# team (historical upstream authority contract)
+
+## Fork M2 applicability — 2026-10-31
+
+The owner authorized a separate Project collaboration path in this fork. Its shipped
+implementation contract is [Project access](project-access.md), enabled explicitly by
+projectWorkbench/controlPlane configuration, with the existing private Bot gates
+retained. It does not enable the full designated-Chief routing/owner team model below.
+The following upstream proposal and its no-enablement language remain historical for
+that broader model. Platform auth, role/revocation and scoped Workflow tests guard the
+fork path; M3 physical isolation and M4 agent delegation are separate deliverables.
+
 
 Proposed ownership and authority contract for multi-human FlyBot: **human owner ↔ designated Chief ↔ specialists** (tree children).
 

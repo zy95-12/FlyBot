@@ -986,6 +986,7 @@ export function createWorkflowService({
         ephemeral = await spawnAll(item.nodes, bots() ?? [], spawn, item.model ?? '', {
           callerBotId: task.callerBotId,
           authorBotId: item.authoredBy,
+          projectId: task.projectId,
         })
       } catch (error) {
         await releaseAll(error.spawned ?? [], release, warn)

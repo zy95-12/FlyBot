@@ -9,8 +9,8 @@ stages below do not restrict the fork's approved Project and frontend refactor.
 | Milestone | Deliverable | Status / issue |
 | --- | --- | --- |
 | M0 | Isolated DSH/tool/cwd/lifecycle and unchanged-platform HTTP checks | Merged PR #9; [#2](https://github.com/zy95-12/FlyBot/issues/2) |
-| M1 | Project domain and direct Task/Run/Workspace ownership | Implemented, verification/review in progress; [#3](https://github.com/zy95-12/FlyBot/issues/3) |
-| M2 | Shared membership, platform identity adapter and backend authorization | Planned; [#4](https://github.com/zy95-12/FlyBot/issues/4) |
+| M1 | Project domain and direct Task/Run/Workspace ownership | PR #10 verified locally, awaiting review; [#3](https://github.com/zy95-12/FlyBot/issues/3) |
+| M2 | Shared membership, platform identity adapter and backend authorization | Implemented, final validation/review in progress; [#4](https://github.com/zy95-12/FlyBot/issues/4) |
 | M3 | Worktree, code/tests/PR/review evidence and human acceptance | Planned; [#5](https://github.com/zy95-12/FlyBot/issues/5) |
 | M4 | Public project Bots and private user/project agents | Planned; [#6](https://github.com/zy95-12/FlyBot/issues/6) |
 | M5 | Rebuild task navigation, Project board, details and resource view | Planned; [#7](https://github.com/zy95-12/FlyBot/issues/7) |

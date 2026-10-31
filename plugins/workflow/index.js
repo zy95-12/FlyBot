@@ -44,6 +44,7 @@ export function apply(ctx, config = {}) {
         try {
           const id = await fb.bot.create({
             name,
+            ...(spec.executionProjectId ? { executionProjectId: spec.executionProjectId } : {}),
             role: spec.role || '',
             instructions: prompt,
             systemPrompt: prompt,
@@ -132,7 +133,7 @@ export function apply(ctx, config = {}) {
         task: { type: 'string', description: 'Task id, such as #1280. Omitted ids are generated.' },
       },
       // fb.tools.register hands the calling Bot to execute() as the second argument's botId (#1544).
-      execute: (args, ctx) => service.runNamed({ ...(args ?? {}), ...(ctx?.botId ? { callerBotId: ctx.botId } : {}) }),
+      execute: (args, ctx) => fb.projects?.shared?.() ? { ok: false, error: 'Use the Project Workflow gateway' } : service.runNamed({ ...(args ?? {}), ...(ctx?.botId ? { callerBotId: ctx.botId } : {}) }),
     }))
     offs.push(fb.tools.register({
       name: 'define_workflow',
@@ -144,7 +145,7 @@ export function apply(ctx, config = {}) {
         edges: { type: 'array', required: true, description: 'Hand-offs { from, to }. A fork is two edges out; a join is two edges in. A condition is when: { output, eq } or { else: true }. A loop is loop: true with max (1–8, default 3) and optional until: { output, eq }.' },
         stepTimeoutMinutes: { type: 'number', description: 'How long one step may wait for its Bot before the run fails, 1–120. Omit for the 45-minute default.' },
       },
-      execute: (args, ctx) => service.define({ ...(args ?? {}), ...(ctx?.botId ? { callerBotId: ctx.botId } : {}) }),
+      execute: (args, ctx) => fb.projects?.shared?.() ? { ok: false, error: 'Use the Project Workflow gateway' } : service.define({ ...(args ?? {}), ...(ctx?.botId ? { callerBotId: ctx.botId } : {}) }),
     }))
   }
   if (typeof fb.bot?.send?.use === 'function') {
@@ -179,6 +180,7 @@ export function apply(ctx, config = {}) {
       offs.push(fb.tasks.onProjectProvider(({ hasTask } = {}) => service.projectTasks({ hasTask })))
     }
     offs.push(fb.tasks.onWrite(task => {
+      if (fb.projects?.shared?.() && task?.projectId) return null
       const result = service.ingest(task ?? {})
       if (result?.matched === true && result.already !== true && result.decision?.kind === 'bot') {
         return { ownerBotId: result.decision.id }

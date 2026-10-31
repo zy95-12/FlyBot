@@ -68,3 +68,5 @@ keep it to what a reader must act on.
 | 2026-10-29 | [Stage 1 dogfood: the #1550 classification, approval and reclassification](2026-10-29-stage-1-dogfood.md) | major | accepted |
 
 - [2026-10-31 M1 ownership and lifecycle](2026-10-31-m1-project-ownership.md) — accepted fork implementation scope; review/merge separate.
+
+- [M2 shared Project access](2026-10-31-m2-shared-access.md) — owner-authorized implementation, separate review/merge.

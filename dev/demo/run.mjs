@@ -7,6 +7,7 @@ import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { mockModel } from './mock.mjs'
+import { checkShared } from './shared.mjs'
 import { verifyArtifact } from './artifact.mjs'
 
 const root = resolve(import.meta.dirname, '../..')
@@ -33,6 +34,7 @@ async function waitFor(read, label, milliseconds = 90_000) {
 }
 
 async function main() {
+  const shared = process.argv.includes('--shared') ? JSON.parse(readFileSync(0, 'utf8')) : null
   const harness = join(root, 'core/dev/harness/node_modules')
   const cli = join(harness, '@deepseek-ai/dsh/lib/bin.js')
   assert.ok(existsSync(cli), 'Run npm ci and npm run harness in core/ first')
@@ -69,7 +71,13 @@ async function main() {
     NODE_OPTIONS: `--import=${join(import.meta.dirname, 'resolve.mjs')}` }
   // External connector credentials are not needed in this transport check.
   for (const name of Object.keys(env)) if (/TOKEN|SECRET|API_KEY/.test(name) && name !== 'DEEPSEEK_API_KEY') delete env[name]
-  const child = spawn(process.execPath, [cli, '--profile', 'web', '--patch', join(root, 'docker/web.patch.yml'),
+  let patch = join(root, 'docker/web.patch.yml')
+  if (shared) {
+    patch = join(directory, 'shared.patch.yml')
+    writeFileSync(patch, readFileSync(join(root, 'docker/web.patch.yml'), 'utf8') +
+      `\n- id: bot\n  config:\n    projectWorkbench: true\n    controlPlane:\n      origin: ${JSON.stringify(shared.origin)}\n      ownerSubject: ${JSON.stringify(shared.ownerSubject)}\n`, { mode: 0o600 })
+  }
+  const child = spawn(process.execPath, [cli, '--profile', 'web', '--patch', patch,
     '--no-open', '--port', String(port)], { cwd: workspace, env, stdio: ['ignore', log, log], detached: true })
   closeSync(log)
   let childError
@@ -102,6 +110,11 @@ async function main() {
       const result = await call(...args)
       assert.equal(result.ok, true, `API ${args[0]}: ${result.error?.code ?? 'failed'}`)
       return result.value
+    }
+    if (shared) {
+      const report = await checkShared({ credentials: shared, api, call, saved, waitFor, workspace: teamWorkspace, verifyArtifact })
+      console.log(JSON.stringify(report))
+      return
     }
     const state = await api('state')
     const modelRef = state.models.find(row => /deepseek-flash/.test(row.ref))?.ref ?? state.models.at(-1)?.ref

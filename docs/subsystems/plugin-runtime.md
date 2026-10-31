@@ -132,3 +132,10 @@ M1 types and exposes projects.read/readRun/context/bindRun. Context derives Proj
 from the durable Task; bindRun accepts optional task/workspace/status metadata and
 refuses foreign references. The host retains canonical execution ownership/history.
 [Project contract](project-domain.md) defines the scope; shared authorization is M2.
+
+## Fork M2 — 2026-10-31
+
+M2 exposes projects.shared() and trusted executionProjectId for plugin-created ephemeral
+Bots, resolving their owner from the checked Project. In workbench mode, built-in Bot/
+change reads narrow to permitted owner records; unscoped plugin APIs remain denied at
+the channel. [Project access](project-access.md) describes gateway and credential limits.
