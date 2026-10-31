@@ -1,0 +1,171 @@
+// M0: real pinned DSH, disposable data, deterministic model, actual shell execution.
+import assert from 'node:assert/strict'
+import { spawn, execFileSync } from 'node:child_process'
+import { once } from 'node:events'
+import { existsSync, mkdirSync, mkdtempSync, openSync, closeSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync, realpathSync } from 'node:fs'
+import { createServer } from 'node:net'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
+import { mockModel } from './mock.mjs'
+
+const root = resolve(import.meta.dirname, '../..')
+const sleep = ms => new Promise(done => setTimeout(done, ms))
+const json = path => JSON.parse(readFileSync(path, 'utf8'))
+
+async function freePort() {
+  const server = createServer()
+  server.listen(0, '127.0.0.1')
+  await once(server, 'listening')
+  const port = server.address().port
+  await new Promise(done => server.close(done))
+  return port
+}
+
+async function waitFor(read, label, milliseconds = 90_000) {
+  const end = Date.now() + milliseconds
+  while (Date.now() < end) {
+    const value = await read()
+    if (value) return value
+    await sleep(200)
+  }
+  throw new Error(`Timeout: ${label}`)
+}
+
+async function main() {
+  const harness = join(root, 'core/dev/harness/node_modules')
+  const cli = join(harness, '@deepseek-ai/dsh/lib/bin.js')
+  assert.ok(existsSync(cli), 'Run npm ci and npm run harness in core/ first')
+  const directory = realpathSync(mkdtempSync(join(tmpdir(), 'flybot-m0-')))
+  const home = join(directory, 'data')
+  const workspace = join(directory, 'workspace')
+  const profile = join(home, 'profiles/web')
+  const modules = join(profile, 'node_modules')
+  mkdirSync(modules, { recursive: true })
+  mkdirSync(workspace)
+  for (const entry of readdirSync(harness)) {
+    if (entry.startsWith('.')) continue
+    symlinkSync(join(harness, entry), join(modules, entry))
+  }
+  symlinkSync(join(root, 'core'), join(modules, 'ds-bot'))
+  mkdirSync(join(modules, '@flybot'), { recursive: true })
+  symlinkSync(join(root, 'plugins/workflow'), join(modules, '@flybot/workflow'))
+  writeFileSync(join(profile, 'package.json'), JSON.stringify({ name: 'm0-profile', private: true,
+    dependencies: { 'ds-bot': `link:${root}/core`, '@flybot/workflow': `link:${root}/plugins/workflow`,
+      '@deepseek-ai/dsh-base': '0.2.1-rc.2', '@deepseek-ai/dsh-web-app': '0.2.1-rc.2' },
+    dsh: { profile: { bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'ds-bot', '@flybot/workflow'] } } }))
+  const observations = []
+  const model = mockModel(observations)
+  model.listen(0, '127.0.0.1')
+  await once(model, 'listening')
+  const port = await freePort()
+  const logPath = join(directory, 'web.log')
+  const log = openSync(logPath, 'w', 0o600)
+  const env = { ...process.env, HOME: directory, DSH_HOME: home,
+    DEEPSEEK_API_KEY: 'mock-key', DEEPSEEK_BASE_URL: `http://127.0.0.1:${model.address().port}/v1`,
+    NODE_OPTIONS: `--import=${join(import.meta.dirname, 'resolve.mjs')}` }
+  // External connector credentials are not needed in this transport check.
+  for (const name of Object.keys(env)) if (/TOKEN|SECRET|API_KEY/.test(name) && name !== 'DEEPSEEK_API_KEY') delete env[name]
+  const child = spawn(process.execPath, [cli, '--profile', 'web', '--patch', join(root, 'docker/web.patch.yml'),
+    '--no-open', '--port', String(port)], { cwd: workspace, env, stdio: ['ignore', log, log], detached: true })
+  closeSync(log)
+  let childError
+  child.on('error', error => { childError = error })
+  const statePath = join(home, 'bot/state.json')
+  const saved = () => existsSync(statePath) ? json(statePath) : null
+  const teamWorkspace = join(home, 'bot/workspace')
+  let keep = false
+  const stop = signal => {
+    if (!child.pid) return
+    try { process.kill(-child.pid, signal) } catch (error) {
+      if (error.code !== 'ESRCH') console.error(`Could not stop demo process group: ${error.code}`)
+    }
+  }
+  try {
+    const login = await waitFor(() => {
+      if (childError || child.exitCode !== null) throw new Error('DSH exited before startup')
+      return readFileSync(logPath, 'utf8').match(/http:\/\/127\.0\.0\.1:\d+\/\?token=[^\s]+/)?.[0]
+    }, 'DSH startup')
+    const response = await fetch(login, { redirect: 'manual', signal: AbortSignal.timeout(5000) })
+    const cookie = response.headers.getSetCookie().map(row => row.split(';')[0]).join('; ')
+    assert.ok(cookie, 'DSH login cookie')
+    const call = async (endpoint, payload = {}, member) => {
+      const response = await fetch(`http://127.0.0.1:${port}/api/bot`, { method: 'POST',
+        headers: { 'content-type': 'application/json', cookie, ...(member ? { 'x-flybot-member-session': member } : {}) },
+        body: JSON.stringify({ endpoint, payload }), signal: AbortSignal.timeout(10_000) })
+      return response.json()
+    }
+    const api = async (...args) => {
+      const result = await call(...args)
+      assert.equal(result.ok, true, `API ${args[0]}: ${result.error?.code ?? 'failed'}`)
+      return result.value
+    }
+    const state = await api('state')
+    const modelRef = state.models.find(row => /deepseek-flash/.test(row.ref))?.ref ?? state.models.at(-1)?.ref
+    assert.ok(modelRef, 'Mock model route catalog')
+    const chief = Object.values(saved().bots).find(bot => saved().mainBotIds.includes(bot.id))
+    await api('update-bot', { id: chief.id, model: modelRef })
+    const created = await api('flybot/workflow/create', { name: 'M0 probe', nodes: [
+      { id: 'probe', name: 'Probe', role: 'M0 verifier', model: modelRef, prompt: 'Execute the isolated M0 shell probe.', tools: [], outputs: [{ name: 'proof' }] },
+    ], edges: [], maxConcurrent: 1 })
+    const workflow = created.workflows.find(row => row.name === 'M0 probe')
+    assert.ok(workflow, 'Workflow created')
+    await api('flybot/workflow/assign', { workflowId: workflow.id, taskId: 'm0-task', title: 'M0 probe', brief: 'Write probe.mjs and proof.json and execute the test.' })
+    const ephemeral = await waitFor(() => Object.values(saved().bots).find(bot => bot.ephemeral), 'ephemeral Bot creation')
+    assert.equal(ephemeral.hidden, true)
+    assert.ok(ephemeral.ownerId, 'Ephemeral Bot has an owner')
+    await waitFor(() => existsSync(join(teamWorkspace, 'proof.json')), 'real bash writes and test')
+    const proof = json(join(teamWorkspace, 'proof.json'))
+    assert.equal(proof.cwd, teamWorkspace)
+    assert.equal(proof.test, 'passed')
+    const { add } = await import(join(teamWorkspace, 'probe.mjs'))
+    assert.equal(add(7, -2), 5)
+    await waitFor(() => !saved().bots[ephemeral.id], 'ephemeral Bot cleanup')
+    const workflowSaved = json(join(home, 'bot/flybot-workflow/workflows.json'))
+    assert.equal(workflowSaved.lanes[workflow.id].last.status, 'done')
+    const worker = await api('create-bot', { name: 'Explicit cwd probe', model: modelRef, workDir: workspace })
+    await api('update-bot', { id: worker.id, permission: 'danger-full-access' })
+    await api('send', { sessionId: worker.id, text: 'Execute the M0 shell probe in the configured working folder.' })
+    await waitFor(() => existsSync(join(workspace, 'proof.json')), 'explicit Bot cwd')
+    assert.equal(json(join(workspace, 'proof.json')).cwd, workspace)
+    await waitFor(async () => Object.keys((await api('state')).activity ?? {}).length === 0, 'explicit Bot idle')
+    await api('delete-bot', { id: worker.id })
+    assert.ok(observations.some(row => row.toolRequested) && observations.some(row => row.toolResult), 'Tool call/result round trip')
+    assert.ok(observations.some(row => row.sessionHeader), 'DSH session header')
+    const invitation = await api('auth-invite')
+    const alice = await api('auth-redeem', { token: invitation.token, displayName: 'Alice' })
+    const second = await api('auth-invite', {}, alice.sessionToken)
+    const bob = await api('auth-redeem', { token: second.token, displayName: 'Bob' })
+    assert.notEqual(alice.memberId, bob.memberId)
+    assert.equal((await api('auth-whoami', {}, alice.sessionToken)).memberId, alice.memberId)
+    assert.equal((await api('auth-whoami', {}, bob.sessionToken)).memberId, bob.memberId)
+    const blocked = await call('flybot/workflow/create', { name: 'Unauthorized shared write', nodes: [] }, bob.sessionToken)
+    assert.equal(blocked.error?.code, 'bot/blocked-shared')
+    const report = { source: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(),
+      dirty: execFileSync('git', ['status', '--porcelain'], { cwd: root, encoding: 'utf8' }).trim() !== '',
+      dsh: json(join(harness, '@deepseek-ai/dsh/package.json')).version,
+      model: 'deterministic mock (not real-model acceptance)', transport: 'real DSH HTTP',
+      checks: ['authenticated API', 'ephemeral creation/owner/cleanup', 'default team cwd and explicit Bot cwd', 'actual bash write/test',
+        'independent code verification', 'tool call/result and session header', 'two distinct member sessions', 'shared plugin write denied'],
+      blockers: ['Platform users are not linked to DSH members (M2).',
+        'Shared project Workflow writes remain blocked with multiple members (M2).',
+        'Workflow spawn does not accept a per-run cwd; run Bots inherit the FlyBot team workspace, not the DSH process cwd (M3).'],
+      notRun: ['real model', 'GitHub PR', 'browser UI', 'production deployment'] }
+    console.log(JSON.stringify(report, null, 2))
+    if (process.env.M0_REPORT) writeFileSync(resolve(process.env.M0_REPORT), JSON.stringify(report, null, 2) + '\n', { mode: 0o600 })
+  } catch (error) {
+    keep = true
+    console.error(`M0 failed: ${error.message}\nPrivate diagnostics retained at ${directory}; do not publish web.log.`)
+    process.exitCode = 1
+  } finally {
+    if (child.pid && child.exitCode === null) {
+      stop('SIGTERM')
+      await Promise.race([once(child, 'exit'), sleep(5000)])
+      stop('SIGKILL')
+    }
+    model.closeAllConnections()
+    await new Promise(done => model.close(done))
+    if (!keep) rmSync(directory, { recursive: true, force: true })
+  }
+}
+
+await main()

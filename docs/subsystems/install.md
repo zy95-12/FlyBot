@@ -15,6 +15,19 @@ owned_paths:
 
 Tooling for setup checks, the architecture-docs gate and the container image (#352).
 
+## Fork development baseline
+
+`npm run demo:check` runs the isolated M0 fixture in `dev/demo/` against the pinned
+published DSH packages. It exercises real HTTP, bash, working directories and
+ephemeral lifecycle with a deterministic model; it records existing multi-member
+write restrictions rather than disabling them. See [the baseline guide](../../dev/demo/README.md).
+The task sidebar and Project board will be redesigned; the fixture does not depend
+on the current UI. The sibling control-plane's existing platform services are reused.
+
+The Docker image records operator-supplied `FLYBOT_SOURCE_REPOSITORY` and
+`FLYBOT_REVISION` in OCI source/revision labels. Compose forwards both build args.
+Revision defaults to `unknown`, so release builds must pass a clean checkout's SHA.
+
 ## Owns
 
 - `core/scripts/` — helper scripts (e.g. `check-arch-docs.mjs`).

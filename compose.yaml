@@ -5,7 +5,11 @@
 #   FLYBOT_PORT=3081 docker compose -p alice up -d --build
 services:
   flybot:
-    build: .
+    build:
+      context: .
+      args:
+        FLYBOT_SOURCE_REPOSITORY: ${FLYBOT_SOURCE_REPOSITORY:-zy95-12/FlyBot}
+        FLYBOT_REVISION: ${FLYBOT_REVISION:-unknown}
     image: flybot:${FLYBOT_TAG:-local}
     restart: unless-stopped
     # Host networking, and the server binds the host's 127.0.0.1 only (docker/web.patch.yml):

@@ -31,6 +31,10 @@ COPY docker/ /opt/flybot/docker/
 # Bots, Sessions, credentials), the pnpm store and the Bots' workspace.
 RUN mkdir -p /data && chown node:node /data
 ENV DSH_HOME=/data HOME=/data NODE_ENV=production
+ARG FLYBOT_SOURCE_REPOSITORY=zy95-12/FlyBot
+ARG FLYBOT_REVISION=unknown
+LABEL org.opencontainers.image.source="https://github.com/${FLYBOT_SOURCE_REPOSITORY}" \
+      org.opencontainers.image.revision="${FLYBOT_REVISION}"
 USER node
 WORKDIR /data
 VOLUME ["/data"]
