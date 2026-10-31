@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import { createRuntime } from '../index.js'
+import { roleExecutionPrompt } from '../src/host/project-role-policy.js'
 import { createProjectDelivery } from '../src/host/project-delivery.js'
 import { fakeContext } from './fake-ctx.js'
 import { apply as applyWorkflow } from '../../plugins/workflow/index.js'
@@ -209,7 +210,7 @@ test('managed delivery definitions and role/model snapshots cannot be edited or 
   const attempt = fixture.attempt()
   assert.equal(attempt.workflowDefinition.nodes[0].model, 'fixture/model')
   for (const operation of ['graph', 'set-model', 'concurrency', 'reset', 'delete']) await assert.rejects(fixture.rt.projectEndpoint('project-workflow', { projectId: 'p1', workflowId: attempt.workflowId, operation, nodes: [] }, alice), /immutable/)
-  assert.equal(attempt.workflowVersion, 'project-delivery/v3')
+  assert.equal(attempt.workflowVersion, 'project-delivery/v4')
 })
 
 
@@ -346,6 +347,8 @@ test('workspace cleanup refuses orphan native workers and unknown SDK leases aft
 test('existing Workflow executes three SDK contract workers through seal/test/review/accept and releases every lease', async t => {
   const fixture = await setup(t, undefined, { sdkContract: true })
   const { rt, directory } = fixture, runtimeDir = join(directory, 'contract-runtime')
+  writeFileSync(join(fixture.repository, 'AGENTS.md'), 'Complete policy.\n'.repeat(500) + '\nSDK_MODEL_POLICY_TAIL\n')
+  git(fixture.repository, ['add', '.']); git(fixture.repository, ['commit', '-m', 'Complete runtime policy'])
   mkdirSync(join(runtimeDir, 'src/host'), { recursive: true })
   writeFileSync(join(runtimeDir, 'src/host/project-harness-worker.mjs'), `
 import {createInterface} from 'node:readline';import{writeFileSync}from'node:fs';import{execFileSync}from'node:child_process';
@@ -353,7 +356,7 @@ const write=v=>process.stdout.write(JSON.stringify(v)+'\\n');write({type:'ready'
 createInterface({input:process.stdin}).on('line',line=>{const m=JSON.parse(line);
 if(m.type==='stop'){write({type:'stopped',released:true});setTimeout(()=>process.exit(0),20);return;}
 if(m.type!=='start')return;
-if(!m.prompt.includes('project-role-context/v1')){write({type:'failure',reason:'Missing model-visible role context'});return;}
+if(!m.prompt.includes('project-role-context/v1') || !m.prompt.includes('project-role-policy/v1') || !m.prompt.includes('SDK_MODEL_POLICY_TAIL')){write({type:'failure',reason:'Missing model-visible role context'});return;}
 let text;if(!m.settings.readOnly){writeFileSync('code.mjs','export const add=(a,b)=>a+b;\\n');text='OUTPUT implementation: fixed addition';}
 else if(m.prompt.includes('Independently review the candidate diff')){const commit=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();text='OUTPUT review: '+JSON.stringify({commit,verdict:'approve',summary:'Contract reviewer inspected the exact candidate'});}
 else text='OUTPUT tests: inspected the committed tests';
@@ -411,4 +414,43 @@ test('candidate seal distinguishes no change and refuses a changed symbolic link
   fs.writeFileSync(join(symlink.repository, 'outside'), 'private outside file')
   await assert.rejects(symlink.gate('developer'), /symbolic link outside/)
   assert.equal(fixture.published.length, 0)
+})
+
+test('complete role policy reaches the execution prompt and remains pinned to its source commit', async t => {
+  const fixture = await setup(t)
+  const fs = await import('node:fs')
+  fs.mkdirSync(join(fixture.repository, '.claude/skills/review-pr'), { recursive: true })
+  writeFileSync(join(fixture.repository, 'AGENTS.md'), 'Policy preamble.\n'.repeat(500) + '\nREQUIRED_END_OF_FULL_POLICY\n')
+  writeFileSync(join(fixture.repository, '.claude/skills/review-pr/SKILL.md'), 'FULL_REVIEW_PROTOCOL: use Ran and Not run at the exact tip.')
+  git(fixture.repository, ['add', '.']); git(fixture.repository, ['commit', '-m', 'Policy sources'])
+  await fixture.start('full-policy')
+  const attempt = fixture.attempt()
+  assert.ok(attempt.rolePolicies?.developer?.text.includes('REQUIRED_END_OF_FULL_POLICY'), 'Do not truncate governing rules at the old 6000-character preview limit')
+  assert.ok(attempt.rolePolicies.reviewer.text.includes('FULL_REVIEW_PROTOCOL'))
+  assert.equal(attempt.rolePolicies.developer.sources.find(row => row.name === 'AGENTS.md').sha256, createHash('sha256').update(readFileSync(join(fixture.repository, 'AGENTS.md'))).digest('hex'))
+  assert.equal(attempt.rolePolicies.developer.commit, attempt.baseSha)
+  assert.equal(attempt.roleSessions.developer.context.sources.policy.sha256, attempt.rolePolicies.developer.sha256)
+  assert.ok(roleExecutionPrompt(attempt.workflowDefinition.nodes.find(node => node.id === 'developer').prompt, attempt.roleSessions.developer).includes('REQUIRED_END_OF_FULL_POLICY'), 'The runtime prompt, not only stored metadata, must carry the full policy')
+  let nativeInput
+  fixture.rt.createBot = async input => {
+    nativeInput = input
+    const bot = { id: 'native-policy-worker', sessionId: 'native-policy-session', ...input }
+    fixture.rt.state.bots[bot.id] = bot
+    return bot
+  }
+  await fixture.rt.flybot.scope('policy-test').bot.create({ name: 'Native policy worker', ephemeral: true, executionProjectId: 'p1', executionWorkDir: attempt.workspaces.developer.path, instructions: 'Cleaned short node prompt' })
+  assert.match(nativeInput.systemPrompt, /REQUIRED_END_OF_FULL_POLICY/)
+  assert.match(nativeInput.instructions, /project-role-policy\/v1/)
+  await implement(fixture)
+  attempt.rolePolicies.reviewer.text += 'changed rules'
+  await assert.rejects(fixture.gate('tester'), /policy evidence/)
+})
+
+test('a required role convention source cannot silently disappear', async t => {
+  const fixture = await setup(t)
+  fixture.rt.config.projectRepositories['example/demo'].requiredRolePolicySources = { developer: ['MISSING_POLICY.md'] }
+  const started = await fixture.start('required-policy')
+  assert.equal(started.attempt.status, 'failed')
+  assert.match(started.attempt.failure.message, /Required role policy source/)
+  assert.equal(Object.keys(fixture.rt.state.projectHarnessWorkers ?? {}).length, 0)
 })

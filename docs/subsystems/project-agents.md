@@ -4,6 +4,8 @@ owned_paths:
   - core/src/host/project-agents.js
   - core/src/host/project-agent-skills.js
   - core/src/host/project-role-context.js
+  - core/src/host/project-role-policy.js
+  - core/test/project-role-policy.test.js
   - core/src/host/project-credentials.js
   - core/test/project-agents.test.js
   - core/test/project-credentials.test.js
@@ -225,3 +227,35 @@ M7.4 role execution adds an explicit SDK model alongside native served model; Ow
 ### M7.5 — 2026-10-31
 
 M7.5 native Chief can also use an authorized local candidate pool with a per-turn lease; end/cancel releases execution occupancy while its logical Bot/history remains resident. SDK Chief may run on a prepared Docker resource with explicit profile and empty public cwd; no private content transfers.
+
+## Complete role conventions (repair R2, issue #35)
+
+Developer, Tester and Reviewer retain their repository work conventions. Built-in
+Skills spell out reproduction, red/green evidence, memory/architecture/test updates,
+canonical patches, exact-SHA checks, independent review and honest Ran/Not run.
+Custom library Skills that exceed the supported size fail explicitly; no silent
+truncation of governing rules is allowed. Owner decisions override historical
+upstream identities, while execution and merge gates retain their authority.
+
+Each new delivery Session stores `project-role-policy/v1`: complete public policy
+files from its base commit, source SHA-256/byte counts, role conventions and a
+bundle hash. The separate bounded context keeps summaries, persona, memory, Task
+and policy references. Host native creation and SDK dispatch append the complete
+policy **after** Workflow node cleaning, which otherwise truncates node prompts.
+Policy hashes are checked at execution and subsequent delivery gates. Missing
+required files or an oversized bundle blocks execution rather than dropping rules.
+Policy content is escaped, fenced repository guidance and never adds tool authority.
+
+Default sources include AGENTS, PROJECT, ROADMAP, LESSONS, CONTRIBUTING, code
+standards, applicable fork decisions and role-specific fix-issue/review-pr/testing
+protocols. An operator may configure `rolePolicySources[role]`,
+`requiredRolePolicySources[role]` and `rolePolicyProfile`; sources must be regular
+files in the pinned Git tree. FlyBot repositories require the common rules and
+role protocol, and code sealing requires memory, regression tests and matching
+architecture changes. Generic projects retain their own development conventions.
+
+A delivery recommendation is recorded with exact candidate SHA, policy hash and
+observed SDK command evidence. It explicitly reports repository review as INC:
+JSON `approve` cannot establish the separately authorized signed forge Reviewer
+PASS, identity/signature verification, merge authorization or human acceptance.
+Existing host test and candidate-evidence checks still apply.

@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto'
 import { mkdir, appendFile, readFile, copyFile } from 'node:fs/promises'
 import { isAbsolute, join, resolve, relative, dirname } from 'node:path'
 import { createInterface } from 'node:readline'
+import { verifyRolePolicy, roleExecutionPrompt } from './project-role-policy.js'
 import { fileDigest } from './project-resource-workspaces.js'
 import { ownEntry, setEntry } from './store.js'
 const refuse = message => Object.assign(new Error(message), { code: 'bot/harness' })
@@ -54,6 +55,7 @@ export function createProjectHarness(rt) {
     if (!workspace) throw refuse('SDK worker requires an active registered Workspace')
     const session = chief?.session ?? rt.projectDelivery.sessionFor(workspace)
     if (!session || session.execution.harness === 'flybot') return null
+    if (session.policy) verifyRolePolicy(session.policy, session.context.sources.policy?.sha256)
     if (!VERSIONS[session.execution.harness] || !session.resourceLease) throw refuse('SDK Harness requires an admitted resource lease')
     rt.projectResources.requireBinding(session.projectId, session.resourceLease)
     const selected = await profile(session.projectId, session.resourceLease.resourceId, session.execution.harness)
@@ -167,7 +169,7 @@ export function createProjectHarness(rt) {
     const lease = ownEntry(rt.state.projectResourceLeases ?? {}, row.leaseId)
     if (!lease || lease.generation !== row.generation || lease.status === 'released') throw refuse('SDK callback lease is stale')
     control.outputs = (step.outputs ?? []).map(port => port.name)
-    const prompt = `${control.prompt}\n\n${control.session.context.text}\n\nTask ${step.taskId}: ${step.brief}\nInputs: ${JSON.stringify(step.inputs ?? {})}\nFinish with OUTPUT <name>: <value> for ${control.outputs.join(', ')}.`
+    const prompt = `${roleExecutionPrompt(control.prompt, control.session)}\n\nTask ${step.taskId}: ${step.brief}\nInputs: ${JSON.stringify(step.inputs ?? {})}\nFinish with OUTPUT <name>: <value> for ${control.outputs.join(', ')}.`
     row.status = 'running'
     control.process.stdin.write(JSON.stringify({ type: 'start', settings: { harness: row.harness, cwd: row.cwd, sessionId: control.resumeSessionId, noTools: row.role === 'chief', model: control.profile.model, env: control.env,
       ...(control.profile.baseUrl ? { baseUrl: control.profile.baseUrl } : {}), readOnly: row.role !== 'developer', maxBudgetUsd: control.profile.maxBudgetUsd ?? 1 }, prompt }) + '\n')

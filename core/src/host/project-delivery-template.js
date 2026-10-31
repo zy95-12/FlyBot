@@ -1,5 +1,5 @@
 // One versioned path through the existing Workflow plugin; no second execution engine.
-export const DELIVERY_VERSION = 'project-delivery/v3'
+export const DELIVERY_VERSION = 'project-delivery/v4'
 export const DELIVERY_ROLES = ['developer', 'tester', 'reviewer']
 export function deliveryGraph(model = '') {
   return {

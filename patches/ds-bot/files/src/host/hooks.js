@@ -9,6 +9,7 @@
 //   state.flybot.approvals[id]           sends held for the owner's decision
 // Types: ds-bot/types/flybot.d.ts. Plugins call flybot.scope('<plugin>') to get the
 // same API with their own field namespace; the unscoped API uses namespace 'shared'.
+import { roleExecutionPrompt } from './project-role-policy.js'
 import { createHash, randomUUID } from 'node:crypto'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { isApprovalWaiting } from '../shared/approval-waiting.js'
@@ -195,7 +196,7 @@ export function install(rt) {
     const executionWorkspace = executionWorkDir ? rt.projectDelivery?.ownsWorkspace(executionProject?.id, executionWorkDir) : null
     if (executionWorkDir && !executionWorkspace) throw new Error('Unregistered Project execution Workspace')
     const roleSession = executionWorkspace ? rt.projectDelivery?.sessionFor(executionWorkspace) : null
-    const assembledPrompt = roleSession ? `${instructions ?? ''}\n\n${roleSession.context.text}` : null
+    const assembledPrompt = roleSession ? roleExecutionPrompt(instructions ?? '', roleSession) : null
     const bot = await rt.createBot({
       name, role, instructions: assembledPrompt ?? instructions, createdBy,
       ...(executionProject ? { ownerId: executionProject.ownerUserId, ...(executionWorkDir ? { workDir: executionWorkDir } : {}) } : {}),

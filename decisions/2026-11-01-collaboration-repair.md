@@ -12,4 +12,12 @@ Chief inspection is a configurable scheduled task using FlyBot schedules. A proj
 
 Public URL/domain/TLS/tunnel work is explicitly deferred. Keep control-plane unchanged. Preserve current Task/Attempt and failed-session evidence. Do not treat smoke checks or mock SDK/clock results as actual shared-service acceptance. No production change or automatic timer registration follows from this document.
 
+R2 records complete versioned policy separately from bounded context previews and
+assembles it after Workflow transformations for native and SDK execution. Its
+branch stacks on R1 `acc4e929c70650eab88b65f69ca72fce81ebc99c`. Role guidance
+never adds authority; structured candidate approval cannot manufacture a signed
+forge review. After backend repairs, the owner authorizes assigning subsequent
+fixes through the real FlyBot service to exercise role handoffs and Chief fallback.
+This is distinct from authorizing merges or deferring failed acceptance.
+
 Written-by: Codex
