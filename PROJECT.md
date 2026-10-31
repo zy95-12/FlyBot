@@ -24,8 +24,8 @@ are not this fork's decision-makers merely because inherited docs name them.
 - M0 is implemented on [PR #9](https://github.com/zy95-12/FlyBot/pull/9), merged (2026-10-31):
   real DSH/tool execution with a deterministic model, plus a FlyBot-owned HTTP adapter
   exercising unchanged external platform source. This is not real-model PR delivery.
-- Known seams: platform/member identity mapping, project-scoped multi-member Workflow
-  writes and per-run cwd remain M1–M3 work. Existing denials stay enforced.
+- The baseline identity, scoped Workflow-write and per-run cwd seams are implemented
+  through M1–M3; later milestone integration and live acceptance are recorded below.
 - Durable repository memory is this page, ROADMAP, LESSONS and dated decisions. Update
   them and matching architecture docs alongside code, with regression coverage in
   verify/CI and tested-SHA evidence. Never edit live DSH/Bot memory for repository decisions.
@@ -40,20 +40,20 @@ See [baseline ownership and tests](docs/subsystems/demo-baseline.md).
 
 - M2 ([PR #11](https://github.com/zy95-12/FlyBot/pull/11), complete local verification, awaiting review) implements the [shared access contract](docs/subsystems/project-access.md): unchanged
   platform auth API adapter, stable subject mapping, human membership policy/invites,
-  immediate revocation and scoped Workflow gateway. It is explicitly configured; physical
-  isolation, agent delegation/credentials and browser delivery remain M3–M6.
+  immediate revocation and scoped Workflow gateway. It is explicitly configured; worktrees,
+  agent delegation/credentials and browser delivery are supplied by M3–M6 below.
 
-- M3 ([draft PR #13](https://github.com/zy95-12/FlyBot/pull/13), full local verify) implements the [commit-specific delivery contract](docs/subsystems/project-delivery.md)
+- M3 ([PR #13](https://github.com/zy95-12/FlyBot/pull/13), full local verify) implements the [commit-specific delivery contract](docs/subsystems/project-delivery.md)
   on the existing Workflow service: versioned Attempts, real role worktrees/cwd, host test
   evidence, Review/SHA gates and human acceptance. Actual DSH and draft artifact PR #12
-  were exercised with a deterministic model; true-model acceptance is pending model
-  configuration. M4–M6 implementation remains authorized and continues separately.
+  were first exercised with a deterministic model. Integrated real-model/GitHub/browser
+  acceptance subsequently passed in M6; [evidence](docs/live-acceptance.md).
 
 - M4 implements [scoped Project agents](docs/subsystems/project-agents.md): fresh public
   Chief, private human/Project identities, separate memory/history/proposals, live delegated
   tool checks, role/skill snapshots and exact GitHub credential scopes. Actual DSH fixture
-  validation covers creation/publication/revocation; real-model/browser acceptance remains
-  M6. Runtime code-worker OS isolation is not claimed by this demo.
+  validation covers creation/publication/revocation; real-model/browser acceptance
+  subsequently passed in M6. Runtime code-worker OS isolation is not claimed by this demo.
 
 ## Historical upstream Project State
 
