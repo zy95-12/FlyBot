@@ -60,8 +60,9 @@ See [baseline ownership and tests](docs/subsystems/demo-baseline.md).
   Codex SDK and Claude Agent SDK Harness choices; the inherited upstream removal of
   Codex does not govern this fork. Control-plane remains unchanged. M7.1 introduces
   explicit public role memory and bounded hashed execution contexts, durable Chief
-  identity/history and per-Attempt temporary Session bindings. Resource dispatch, SDK
-  execution, setup terminal and real mixed-resource acceptance remain subsequent phases.
+  identity/history and per-Attempt temporary Session bindings. M7.2–M7.5 code is on PRs #27–#30: resource leases, SDK Harnesses, Owner setup and
+  verified Git handoffs. Authenticated real mixed-resource acceptance remains pending
+  dedicated authorized profiles; implementation and acceptance are separate.
 
 ## Historical upstream Project State
 

@@ -104,3 +104,7 @@ M7.4 separates adminMemberIds from Project-owner use grants; safe list canManage
 ### M7.5 — 2026-10-31
 
 M7.5 captures resource physical binding hashes per lease and adds host-only bounded upload/download through local/Docker transports. Candidate bundle hash/commit/scope checks happen before import; credentials and raw chats are never file-transfer inputs. Native workers remain local, SDK workers may execute on prepared Docker targets.
+
+Version probes, command adapters, worker startup and private setup profiles now select the
+same explicit nodePath (or the running host Node for local resources). Runtime paths are
+absolute operator settings; tests cover executable paths containing spaces without a shell.

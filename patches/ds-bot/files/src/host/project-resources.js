@@ -24,6 +24,7 @@ export function createProjectResources(rt) {
     const resource = ownEntry(resources(), resourceId)
     if (!project || !resource || !resource.allowedProjectOwnerIds?.includes(project.ownerUserId) || resource.projectIds && !resource.projectIds.includes(projectId)) throw failure('Execution resource is not authorized for this Project')
     if (!['local', 'docker'].includes(resource.type) || !isAbsolute(resource.root ?? '') || !Number.isInteger(resource.capacity) || resource.capacity < 1 || resource.capacity > 64) throw failure('Execution resource configuration is invalid')
+    if (resource.nodePath !== undefined && !isAbsolute(resource.nodePath) || resource.runtimeDir !== undefined && !isAbsolute(resource.runtimeDir)) throw failure('Resource runtime paths must be absolute')
     if (resource.type === 'docker' && (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,100}$/.test(resource.container ?? '') || !/^\d+(?::\d+)?$/.test(resource.user ?? ''))) throw failure('Docker resource needs an explicit container and numeric UID')
     return resource
   }
@@ -139,6 +140,7 @@ export function createProjectResources(rt) {
   function startProcess(projectId, resourceId, { argv, cwd }) {
     const item = setting(projectId, resourceId)
     if (!Array.isArray(argv) || !argv.length || !isAbsolute(cwd ?? '') || !contains(item.root, cwd)) throw failure('Invalid resource process target')
+    if (argv[0] === 'node') argv = [item.nodePath ?? (item.type === 'local' ? process.execPath : 'node'), ...argv.slice(1)]
     const options = { env: safeEnv(), stdio: ['pipe', 'pipe', 'pipe'], detached: item.type === 'local' }
     return item.type === 'local' ? spawn(argv[0], argv.slice(1), { ...options, cwd })
       : spawn('docker', ['exec', '-i', '--user', item.user, '--workdir', cwd, item.container, 'env', '-i', 'PATH=/usr/local/bin:/usr/bin:/bin', ...argv], options)
@@ -146,6 +148,7 @@ export function createProjectResources(rt) {
   async function command(projectId, resourceId, { argv, cwd, timeout = 30_000, input } = {}) {
     const item = setting(projectId, resourceId)
     if (!Array.isArray(argv) || !argv.length || argv.some(value => typeof value !== 'string' || value.includes('\0')) || !isAbsolute(cwd ?? '') || !contains(item.root, cwd)) throw failure('Invalid resource command or working directory')
+    if (argv[0] === 'node') argv = [item.nodePath ?? (item.type === 'local' ? process.execPath : 'node'), ...argv.slice(1)]
     const options = { timeout: Math.min(timeout, 120_000), maxBuffer: 2 * 1024 * 1024, env: safeEnv() }
     // No shell interpolation. Target paths and credentials never become host shell code.
     if (input !== undefined) throw failure('Resource command input requires a streaming adapter')

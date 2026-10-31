@@ -1,4 +1,8 @@
 import assert from 'node:assert/strict'
+import { mkdtemp, writeFile, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { once } from 'node:events'
 import { test } from 'node:test'
 import { createProjectResources } from '../src/host/project-resources.js'
 
@@ -74,4 +78,21 @@ test('changing a registered physical target cannot silently migrate an admitted 
   rt.config.projectResources.local.root = '/tmp/another-host-directory'
   assert.throws(() => resources.requireBinding('p1', lease), /binding changed/)
   assert.equal(resources.occupied('local'), 1)
+})
+
+
+test('resource commands and worker processes use the same explicit Node executable', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'flybot-resource-node-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const executable = join(root, 'configured node runtime')
+  await writeFile(executable, '#!/bin/sh\nprintf "configured-runtime"\n', { mode: 0o700 })
+  const { rt } = fixture()
+  rt.config.projectResources.local.root = root
+  rt.config.projectResources.local.nodePath = executable
+  const resources = createProjectResources(rt)
+  assert.equal((await resources.command('p1', 'local', { cwd: root, argv: ['node', '-v'] })).stdout, 'configured-runtime')
+  const child = resources.startProcess('p1', 'local', { cwd: root, argv: ['node', '-v'] })
+  let output = ''; child.stdout.on('data', part => { output += part }); child.stderr.resume(); child.stdin.end()
+  await once(child, 'close')
+  assert.equal(output, 'configured-runtime')
 })

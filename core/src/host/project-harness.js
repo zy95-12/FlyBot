@@ -19,7 +19,7 @@ export function createProjectHarness(rt) {
     const generated = isAbsolute(resource.profileRoot ?? '') ? { home: join(resource.profileRoot, sha(`${projectId}\n${principalId}`).slice(0, 24), harness), configDir: join(resource.profileRoot, sha(`${projectId}\n${principalId}`).slice(0, 24), harness, 'config') } : null
     const selected = configured ?? (harness === 'flybot' ? null : generated)
     if (!selected || !isAbsolute(selected.home ?? '') || !isAbsolute(selected.configDir ?? '')) throw refuse('Resource Harness needs an explicitly authorized principal/profile and model')
-    const env = { PATH: `${resource.type === 'local' ? dirname(resource.nodePath ?? process.execPath) + ':' : ''}/usr/local/bin:/usr/bin:/bin`, LANG: 'C.UTF-8', HOME: selected.home,
+    const env = { PATH: `${resource.nodePath || resource.type === 'local' ? dirname(resource.nodePath ?? process.execPath) + ':' : ''}/usr/local/bin:/usr/bin:/bin`, LANG: 'C.UTF-8', HOME: selected.home,
       ...(harness === 'flybot' ? { DSH_HOME: selected.configDir } : harness === 'codex' ? { CODEX_HOME: selected.configDir } : { CLAUDE_CONFIG_DIR: selected.configDir, API_TIMEOUT_MS: '30000', CLAUDE_CODE_MAX_RETRIES: '1', CLAUDE_AGENT_SDK_CLIENT_APP: 'flybot' }) }
     if (resource.type === 'local' && !forSetup) {
       try {
