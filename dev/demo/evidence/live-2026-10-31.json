@@ -1,0 +1,141 @@
+{
+  "milestone": "M6",
+  "model": "real DeepSeek official deepseek-flash",
+  "providerOrigin": "https://api.deepseek.com/anthropic",
+  "platform": "unchanged control-plane",
+  "runtime": "actual DSH + Chromium + real GitHub",
+  "checks": [
+    "two real platform logins through shared browser entry",
+    "real private agents execute scoped tools and keep per-user notes isolated",
+    "real Chief scoped tool creates shared Task as Bob",
+    "real Developer/Tester/Reviewer and immutable host tests at matching SHA",
+    "real GitHub draft PR heads verified",
+    "Alice browser return reaches retry context and fresh code/tests commit",
+    "Alice browser acceptance changes canonical Task and actual metrics",
+    "Bob acceptance refused",
+    "refresh/duplicate request preserves one active Attempt",
+    "intentional host test failure refuses PR and acceptance",
+    "failed Task retry preserves failure evidence",
+    "live quota queue allocates no workspace",
+    "member revocation cancels queued work and denies old agent/page",
+    "all role worktrees cleaned and Worker leases released",
+    "owner cookie absent and raw Harness APIs refused",
+    "logout revokes browser credential"
+  ],
+  "evidence": [
+    {
+      "attemptId": "attempt-54e33adc-c7fc-4414-8d4e-9ac8291c1075",
+      "taskId": "task-020c780e7594851a",
+      "projectId": "project-33205cea-54a3-4fef-b72e-b5e1775986b1",
+      "status": "waiting-acceptance",
+      "candidateSha": "3210f18b4a1d9c14cef007b042511ec14f5cc2df",
+      "tests": {
+        "passed": true,
+        "sha": "3210f18b4a1d9c14cef007b042511ec14f5cc2df",
+        "logSha256": "03c8fb6cf48a13c226d0848277e15a7063cb99a43fad2a9ad8088ac6839cb104"
+      },
+      "review": {
+        "sha": "3210f18b4a1d9c14cef007b042511ec14f5cc2df",
+        "verdict": "approve",
+        "summary": "Diff vs base 7c13918 changes only code.mjs (a-b -> a+b) and code.test.mjs (+33 regression lines). add(a,b) returns a+b and is correct for positive, negative, zero and fractional inputs. node --test code.test.mjs: 5/5 pass, exit 0. Revert-proof verified in a scratch copy: 0/5 pass with a-b. All four acceptance categories covered; isolated artifact, no doc/changelog/verify obligations. No defects found.",
+        "at": 1793451776158
+      },
+      "pr": {
+        "number": 18,
+        "url": "https://github.com/zy95-12/FlyBot/pull/18",
+        "sha": "3210f18b4a1d9c14cef007b042511ec14f5cc2df",
+        "repository": "zy95-12/FlyBot",
+        "executorLogin": "zy95-12",
+        "credentialScope": "project-automation"
+      },
+      "elapsedMs": 58351
+    },
+    {
+      "attemptId": "attempt-6af0fc8c-3720-4771-af6b-cd57b5837dc4",
+      "taskId": "task-020c780e7594851a",
+      "projectId": "project-33205cea-54a3-4fef-b72e-b5e1775986b1",
+      "status": "accepted",
+      "candidateSha": "a81191adf546541653b9a457432c358a0cc9ec97",
+      "tests": {
+        "passed": true,
+        "sha": "a81191adf546541653b9a457432c358a0cc9ec97",
+        "logSha256": "03c8fb6cf48a13c226d0848277e15a7063cb99a43fad2a9ad8088ac6839cb104"
+      },
+      "review": {
+        "sha": "a81191adf546541653b9a457432c358a0cc9ec97",
+        "verdict": "approve",
+        "summary": "add(a,b) fixed from a-b to a+b, computing correct numeric addition for positive, negative, zero and fractional inputs. Tests extended with positive, negative, zero (including the human-requested add(-4.5,0)===-4.5 at line 18 and its mirror), and fractional assertions. Verified at the tip: node code.test.mjs exit 0, node --test code.test.mjs 1/1 pass; the suite fails against the pre-existing a-b implementation (code.test.mjs:1, -1 !== 5), so the regression coverage genuinely discriminates. Diff limited to code.mjs and code.test.mjs; no secrets, no unrelated files. Note, not a defect: an unscoped node --test at the repo root collects the whole repository (2066 tests, 411 fails) and returns exit 0, so it proves nothing for this artifact; only the scoped run is meaningful.",
+        "at": 1793451871022
+      },
+      "pr": {
+        "number": 19,
+        "url": "https://github.com/zy95-12/FlyBot/pull/19",
+        "sha": "a81191adf546541653b9a457432c358a0cc9ec97",
+        "repository": "zy95-12/FlyBot",
+        "executorLogin": "zy95-12",
+        "credentialScope": "project-automation"
+      },
+      "feedback": {
+        "previousAttemptId": "attempt-54e33adc-c7fc-4414-8d4e-9ac8291c1075",
+        "kind": "human-return",
+        "reason": "Add a dedicated regression assertion for add(-4.5, 0) === -4.5 in code.test.mjs, and keep the correct addition implementation. This is human-requested follow-up coverage; produce a fresh candidate and preserve prior evidence.",
+        "candidateSha": "3210f18b4a1d9c14cef007b042511ec14f5cc2df"
+      },
+      "elapsedMs": 96328
+    },
+    {
+      "attemptId": "attempt-80dda2d2-06d2-49ac-be0e-c78db2fff3c5",
+      "taskId": "task-45e4ebeff74bb8d2",
+      "projectId": "project-172ef3c4-8529-4c4d-89c2-42e8a47f7e37",
+      "status": "failed",
+      "candidateSha": "958954f02262a6fdb357e5bb6880800ac97e4f32",
+      "tests": {
+        "passed": false,
+        "sha": "958954f02262a6fdb357e5bb6880800ac97e4f32",
+        "logSha256": "1c195f3c735d8b83857c8497d0043061905746abe4281661edf67bad6b5ece40"
+      },
+      "elapsedMs": 118699
+    },
+    {
+      "attemptId": "attempt-04fc08c0-cfca-495a-ad6c-4dc08fced37b",
+      "taskId": "task-45e4ebeff74bb8d2",
+      "projectId": "project-172ef3c4-8529-4c4d-89c2-42e8a47f7e37",
+      "status": "failed",
+      "candidateSha": "22e58793e795dbb3853565c2bca1f8dd3dd4aa92",
+      "tests": {
+        "passed": false,
+        "sha": "22e58793e795dbb3853565c2bca1f8dd3dd4aa92",
+        "logSha256": "1c195f3c735d8b83857c8497d0043061905746abe4281661edf67bad6b5ece40"
+      },
+      "feedback": {
+        "previousAttemptId": "attempt-80dda2d2-06d2-49ac-be0e-c78db2fff3c5",
+        "kind": "execution-failure",
+        "reason": "Configured tests failed; see Attempt evidence",
+        "candidateSha": "958954f02262a6fdb357e5bb6880800ac97e4f32"
+      },
+      "elapsedMs": 115205
+    }
+  ],
+  "metrics": {
+    "window": {
+      "kind": "rolling-seven-days",
+      "since": 1792847077596,
+      "until": 1793451877596
+    },
+    "acceptedTasks": 1,
+    "duration": {
+      "basis": "Task created to human acceptance, includes queue/execution/human wait",
+      "samples": 1,
+      "meanMs": 158019,
+      "medianMs": 158019
+    }
+  },
+  "elapsedMs": 408914,
+  "notRun": [
+    "production deployment",
+    "repository independent review PASS",
+    "merge"
+  ],
+  "source": "f126f8cb62c0298b37c46b68f3f8221c8e8f9441",
+  "dirty": false
+}

@@ -157,3 +157,12 @@ M4 role/model/persona/resolved skill revisions are fixed by the host on M3 deliv
 Attempts before graph creation. Worker dispatch remains this plugin; private/public
 chat delegation is a separate service and never changes a running Attempt snapshot.
 See [agents](project-agents.md) and [delivery](project-delivery.md).
+
+### M6 shared entry regression
+
+A Project Run resolves its sender from the host's durable Task Project context and that
+Project's current Chief. It does not require an unrelated private legacy Main Bot to
+have been bootstrapped by the operator UI. A missing Project Chief fails dispatch; it
+never borrows another Project's or personal main. Unbound legacy Runs retain their
+existing main-sender behavior. Browser acceptance starts with a fresh shared entry,
+which caught this dependency that older API probes (calling private `state`) concealed.

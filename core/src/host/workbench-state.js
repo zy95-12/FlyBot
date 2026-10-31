@@ -20,7 +20,7 @@ export function install(rt) {
     if (!rt.sharedProjectMode() || !actor?.memberId) throw Object.assign(new Error('Sign in to the Project workbench'), { code: 'bot/unauthorized' })
     if (endpoint === 'workbench-state') {
       const projects = await rt.projectEndpoint('projects', {}, actor)
-      return { self: { memberId: actor.memberId, displayName: actor.displayName ?? actor.memberId }, ...projects,
+      return { demoMode: rt.config.projectDemoMode ?? null, self: { memberId: actor.memberId, displayName: actor.displayName ?? actor.memberId }, ...projects,
         models: await rt.catalog(), repositories: Object.entries(rt.config.projectRepositories ?? {}).filter(([, settings]) => repositoryAllowed(settings, actor.memberId)).map(([name]) => name) }
     }
     const id = String(body.projectId ?? '')

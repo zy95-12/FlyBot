@@ -105,3 +105,12 @@ Do not use the existing production Compose project for a demo.
 
 The current sidebar and Project UI impose no constraints on future APIs. M5
 rebuilds the task navigation and Project board around the new domain contracts.
+
+## M5/M6 shared Project entry
+
+The rebuilt UI, restricted gateway, quota queue and two-account browser/interactive demo
+are documented in [shared demo](../../docs/shared-demo.md). `npm run test:demo:browser`
+needs the pinned optional Playwright package and explicit control-plane/Python paths. The
+foreground `--serve-workbench` launcher privately prompts for demo account passwords and
+shares only the restricted gateway URL. True-model mode requires explicit existing model
+configuration and is never silently replaced by the deterministic model.

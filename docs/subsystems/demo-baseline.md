@@ -67,3 +67,28 @@ M5 adds `node dev/demo/run.mjs --queue`: real DSH + deterministic model, three s
 Tasks with quota one, no allocation while waiting, automatic drain after Worker release,
 duplicate request identity and cancellation after member removal. It is part of runtime
 verify. This is not a real model or GitHub publication test.
+
+M6 adds the optional browser development package (pinned Playwright), `browser-check.mjs`,
+`workbench.mjs` and a foreground `serve.mjs` gateway launcher. CI installs Chromium and
+runs `npm run test:demo:browser` against the same immutable control-plane checkout. Standard
+verify retains the four key-free actual DSH probes and offline entry guards. Browser
+acceptance requires explicit platform/Python/browser installations; it is not silently
+skipped or replaced by DOM fixtures. Passwords enter the DSH runner via stdin; no browser
+trace/HAR, cookies or model credentials are emitted. Failure diagnostics stay private.
+
+Terminal lifecycle is covered by `serve_check.py`: it privately enters random passwords,
+logs in through the real gateway, sends Ctrl-C after readiness and separately during
+startup, and asserts the owned temporary tree is empty. The supervisor waits for Node's
+graceful cleanup; it does not use subprocess.run's immediate kill-on-KeyboardInterrupt.
+
+`--live-check` explicitly selects real DeepSeek and GitHub browser acceptance. It refuses
+missing provider environment or fork/credential configuration, uses an immutable host
+addition test outside model worktrees, runs actual scoped private/public agent tools,
+returns a candidate through Alice's UI, checks new tests/commit and PR SHA on retry, then
+accepts through Alice's UI. A second operator fixture forces host-test failure and checks
+retry/queue/revocation. No mock-model request is permitted in this mode. The CLI supervisor
+allows a bounded 20-minute live run; key-free regression timeouts are unchanged.
+
+The real-provider run subsequently passed at `f126f8c`; [live acceptance](../live-acceptance.md)
+and the committed JSON record preserve source/evidence/timing and distinguish human-role
+browser automation from an independent human or repository review PASS.

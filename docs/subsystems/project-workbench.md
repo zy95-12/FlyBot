@@ -95,3 +95,25 @@ controls, scoped Task creation, gateway escape routes/cookie isolation, quota/re
 repository capability ownership and real DSH queue/drain/revocation. `npm run verify`
 checks generated assets. M6 owns full two-account browser acceptance; deterministic model
 transport is not real-model delivery or an independent repository review PASS.
+
+### M6 acceptance and launcher
+
+`dev/demo/control_plane.py --workbench-check` drives two real control-plane accounts,
+Chromium contexts and the shared gateway against a fresh actual DSH. `--serve-workbench`
+starts a disposable interactive demo with privately entered account passwords. An
+explicit `--real-model` selects existing environment configuration; missing key/base URL
+fails before startup and cannot silently fall back to a fixture. Explicit GitHub fork and
+credential directory flags enable Project automation drafts. Only the gateway and existing
+platform URLs are printed, never the Harness owner login or account passwords.
+
+The UI identifies deterministic demo transport, provides explicit accessible form names
+(including selects), and reads actual Workflow node status alongside Attempt evidence
+and workspaces. Browser tests await route-specific content before interacting with a
+similarly named form in the next view. See [shared demo acceptance](../shared-demo.md)
+for reproducible commands, evidence matrix and pending live-model acceptance.
+
+The Task view shows priority, source Issue/PR, context/criteria, age, current role/Worker
+workspaces, Attempt elapsed time, real diff statistics and explicit failure/return reasons.
+Board cards sort by the existing urgent/high/normal/low contract. Active or terminal Tasks
+cannot start a duplicate delivery from the UI, and requester input waits use the existing
+question-id-bound answer endpoint; approval waits retain their separate server gate.

@@ -124,3 +124,32 @@ also receives the private runtime owner login. M5 uses a fixed-upstream endpoint
 gateway with the cookie held server-side. Test blocked raw/plugin routes and cookie
 stripping alongside runtime membership. Repository name equality also does not grant
 operator filesystem/GitHub capabilities: verify the provisioned Project owner.
+
+## 2026-10-31 — test the fresh shared entry without private UI bootstrap (Seen 1×)
+
+Old runtime probes called private `state`, which created a legacy Main Bot before any
+Project delivery. The actual shared browser did not, exposing Workflow's `no-sender`
+dependency. Resolve the dispatch sender from the durable Task Project's Chief and fail
+if missing, never borrow an unrelated private main. Keep a fresh two-account browser
+regression; DOM/API tests alone do not prove clean startup integration.
+
+## 2026-10-31 — terminal supervision must await owned runtime cleanup (Seen 1×)
+
+Python subprocess.run kills a child when KeyboardInterrupt unwinds, which can cut off
+Node's DSH/data cleanup. The M6 foreground launcher uses an owned process session and
+explicit graceful termination/wait. Node keeps shutdown handlers active during cleanup.
+Test both ready-state Ctrl-C and interruption during startup with actual temporary data.
+
+## 2026-10-31 — verify what the real model sees after a tool runs (Seen 1×)
+
+An object under a string tool schema rendered as `[object Object]`; a real Chief retried
+Task creation while deterministic fixtures only noticed that a tool ran. Serialize the
+result as JSON, assert the rendered facts/ids, and deduplicate repeated mutations within
+the exact live human delegation. Successful internal execution is not model-visible proof.
+
+## 2026-10-31 — identity discriminators must survive host name truncation (Seen 1×)
+
+The 40-character Bot name limit removed the member suffix from long Project agent names,
+so a second member could not open the shared view. Put the logical identity digest first
+and keep the total name within the host limit. Reproduce with real-length Project ids and
+the host's truncation/uniqueness contract, not short unit-test ids.

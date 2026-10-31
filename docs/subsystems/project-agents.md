@@ -152,3 +152,24 @@ host execution preset and no OS sandbox is claimed. Shared browser delivery also
 restricted gateway that keeps the outer DSH owner credential and raw DSH Session APIs away
 from members; M5/M6 implement/test that entry. This is a trusted-input collaboration demo,
 not a claim of hardened hostile-code multi-tenancy or encrypted server-side storage.
+
+### Real-model integration findings
+
+Scoped tools serialize their structured return as JSON under the declared string output
+schema. Rendering an object with String(value) loses facts/Task ids as `[object Object]`;
+real agents may retry an otherwise successful creation. Regression coverage checks the
+model-visible render, not only the internal service result.
+
+Within one live human delegation, repeated concurrent task-tool calls with the same
+normalized title reuse the first Task/proposal and preserve its original criteria. The
+key binds agent identity, delegation and title; a new human request can intentionally
+create another Task. Authorization is rechecked inside the serialized mutation. Private
+proposals remain private and still require separate human publication.
+
+Carrier names place a digest of the logical identity before a short Project label, keeping
+uniqueness within the host's 40-code-unit limit. Long equal Project names cannot truncate
+away the human/Project discriminator; replacing a carrier preserves the logical identity.
+
+The integrated [real-provider acceptance](../live-acceptance.md) confirms actual models read
+their own JSON context, acknowledge private notes and create one shared Task as the current
+human. It exposed and verifies the truncation/serialization/idempotence fixes above.

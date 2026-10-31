@@ -21,7 +21,7 @@
   // src/client/workbench/app.js
   function mountWorkbench(root, api, { pollMs = 4e3 } = {}) {
     const doc = root.ownerDocument, win = doc.defaultView;
-    let bootstrap, mode, selected = "", tab = "board", taskId = "", detail, resources, agents, members, history, taskDetail;
+    let bootstrap, mode, selected = "", tab = "board", taskId = "", detail, resources, agents, members, history, taskDetail, workflowState;
     let epoch = 0, controller, error = "", notice = "", timer, disposed = false, busy = false;
     const drafts = /* @__PURE__ */ new Map();
     const el = (tag, text, cls) => {
@@ -37,11 +37,11 @@
       node.onclick = action;
       return node;
     };
-    const link = (text, url) => {
+    const link = (text, url, allowLoopback = false) => {
       const node = el("a", text);
       try {
         const parsed = new URL(url);
-        if (parsed.protocol === "https:") {
+        if (parsed.protocol === "https:" || allowLoopback && parsed.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(parsed.hostname)) {
           node.href = parsed.href;
           node.target = "_blank";
           node.rel = "noopener noreferrer";
@@ -71,9 +71,10 @@
           input.append(row);
         }
         else if (type !== "textarea") input.type = type;
+        input.setAttribute("aria-label", title);
         input.name = field;
         input.id = `${name}-${field}`;
-        input.value = saved[field] ?? "";
+        input.value = saved[field] ?? (options?.[0] ?? "");
         input.required = type !== "optional" && !options;
         if (type === "optional") input.type = "text";
         input.oninput = () => {
@@ -131,15 +132,15 @@
         const calls = ["project-detail", "project-resources", "project-agents", "project-members"].map((endpoint) => api.call(endpoint, { projectId: id }, controller.signal));
         const extra = section === "private" || section === "bots" ? api.call("project-agent-history", { projectId: id, visibility: section === "private" ? "private" : "public" }, controller.signal) : null;
         const task = tid ? api.call("project-task-detail", { taskId: tid }, controller.signal) : null;
-        const values = await Promise.all([...calls, extra, task]);
+        const values = await Promise.all([...calls, extra, task, api.call("project-workflow", { projectId: id, operation: "state" }, controller.signal)]);
         if (values[5] && values[5].task.projectId !== id) throw new Error("Task belongs to another Project");
         if (current !== epoch || disposed) return;
-        [detail, resources, agents, members, history, taskDetail] = values;
+        [detail, resources, agents, members, history, taskDetail, workflowState] = values;
         error = "";
         render();
       } catch (failure) {
         if (current !== epoch || disposed || failure.name === "AbortError") return;
-        detail = resources = agents = members = history = taskDetail = null;
+        detail = resources = agents = members = history = taskDetail = workflowState = null;
         error = failure.message;
         render();
       }
@@ -157,7 +158,7 @@
       }
       ++epoch;
       controller?.abort();
-      detail = resources = agents = members = history = taskDetail = null;
+      detail = resources = agents = members = history = taskDetail = workflowState = null;
       error = "";
       notice = "";
       render();
@@ -165,15 +166,29 @@
     }
     function taskPanel(task) {
       const node = el("article", null, "task");
-      node.append(button(task.title, () => route(selected, "tasks", task.id)), el("small", `${task.status} · ${task.requesterId}`));
+      const run = (workflowState?.workflows ?? []).flatMap((row) => row.runs ?? []).find((row) => row.task?.id === task.id);
+      const phase = Object.entries(run?.nodeStatus ?? {}).filter(([, status]) => status === "running").map(([role]) => role).join(", ");
+      const queued = resources.queue.some((row) => row.taskId === task.id && row.status === "waiting");
+      node.append(button(task.title, () => route(selected, "tasks", task.id)), el("small", `${task.priority ?? "normal"} · ${task.status} · ${phase || (queued ? "waiting for quota" : task.requesterId)}`));
       return node;
     }
     function attemptsPanel() {
       const task = taskDetail.task, canWrite = detail.permissions.configure || task.requesterId === bootstrap.self.memberId;
-      const node = box(task.title, el("p", task.criteria ?? "No acceptance criteria"));
-      node.append(button("Run / retry", () => act(() => scoped("project-task-run", { taskId: task.id, requestId: win.crypto.randomUUID() })), !canWrite || !resources.repository.configured || busy));
+      const node = box(task.title, el("p", task.criteria ?? "No acceptance criteria"), el("p", task.note ?? "No additional context"), el("p", `Priority: ${task.priority ?? "normal"} · status: ${task.status}`));
+      if (Number.isFinite(task.createdAt)) node.append(el("p", `Task age: ${Math.max(0, Math.round((Date.now() - task.createdAt) / 6e4))} min, including waiting`));
+      if (task.target?.href) node.append(link("Source Issue / PR", task.target.href));
+      if (task.status === "blocked") node.append(box("Waiting for input / approval", json({ waitingFor: task.waitingFor, input: task.inputRequest, approvalId: task.approvalId })));
+      if (task.waitingFor === "input" && task.requesterId === bootstrap.self.memberId && !task.approvalId && !task.inputApprovalIds?.length) node.append(form("answer", [["answer", "Answer current question", "textarea"]], (values) => scoped("task-answer-input", { id: task.id, questionId: task.inputRequest.id, ...values }), "Answer"));
+      const activeAttempt = taskDetail.attempts.some((attempt) => ["preparing", "running", "waiting-acceptance"].includes(attempt.status));
+      node.append(button("Run / retry", () => act(() => scoped("project-task-run", { taskId: task.id, requestId: win.crypto.randomUUID() })), !canWrite || !resources.repository.configured || activeAttempt || ["accepted", "cancelled"].includes(task.status) || busy));
       for (const attempt of taskDetail.attempts) {
         const card = box(`Attempt · ${attempt.status}`, el("code", attempt.id), el("p", attempt.candidateSha ?? "No candidate commit"), json(attempt.evidence ?? {}));
+        if (attempt.failure?.message) card.append(box("Failure / requested changes", el("p", attempt.failure.message)));
+        const ended = attempt.acceptedAt ?? attempt.failure?.at;
+        card.append(el("p", `Attempt elapsed: ${Math.max(0, Math.round(((ended ?? Date.now()) - attempt.createdAt) / 1e3))} sec (includes preparation and waiting)`));
+        const workflow = workflowState?.workflows?.find((row) => row.id === attempt.workflowId);
+        const run = [...workflow?.runs ?? [], workflow?.run].find((row) => row?.id === attempt.runId);
+        card.append(box("Role progress and workspaces", json({ roles: run?.nodeStatus ?? {}, workspaces: attempt.workspaces, models: attempt.agentDefinitions?.roles?.map((row) => ({ role: row.role, model: row.model })) ?? [] })));
         if (attempt.pr?.url) card.append(link("Open pull request", attempt.pr.url));
         card.append(button("Test log", () => act(async () => {
           const log = await scoped("project-attempt-log", { attemptId: attempt.id });
@@ -196,9 +211,9 @@
       node.append(stats, el("p", "Delivery duration: Task creation to human acceptance, including queue and human wait."));
       const columns = el("div", null, "columns");
       const groups = [["Open", (task) => !["working", "result-ready", "accepted", "cancelled", "failed"].includes(task.status)], ["In progress", (task) => ["working", "result-ready"].includes(task.status)], ["Completed", (task) => ["accepted", "cancelled", "failed"].includes(task.status)]];
-      for (const [label, predicate] of groups) columns.append(box(label, ...(detail.tasks ?? []).filter(predicate).map(taskPanel)));
+      for (const [label, predicate] of groups) columns.append(box(label, ...(detail.tasks ?? []).filter(predicate).sort((a, b) => ["urgent", "high", "normal", "low"].indexOf(a.priority ?? "normal") - ["urgent", "high", "normal", "low"].indexOf(b.priority ?? "normal")).map(taskPanel)));
       node.append(columns);
-      if (detail.permissions.create) node.append(box("Create Task", form("task", [["title", "Requirement"], ["criteria", "Acceptance criteria", "textarea"], ["note", "Context", "optional"]], (values) => scoped("task-create", { ...values, botId: agents.public.botId }), "Create Task")));
+      if (detail.permissions.create) node.append(box("Create Task", form("task", [["title", "Requirement"], ["criteria", "Acceptance criteria", "textarea"], ["note", "Context", "optional"], ["priority", "Priority", "text", ["normal", "high", "urgent", "low"]], ["target", "Source Issue / PR (optional)", "optional"]], (values) => scoped("task-create", { ...values, botId: agents.public.botId }), "Create Task")));
       return node;
     }
     function membersPanel() {
@@ -259,6 +274,7 @@
         }, "Sign in")));
       } else {
         sidebar.append(el("p", bootstrap.self.displayName));
+        if (bootstrap.demoMode) main.append(el("p", bootstrap.demoMode === "deterministic-fixture" ? "Demo: deterministic model fixture. Delivery requires real evidence; this is not real-model acceptance." : "Demo: configured real model provider. Inspect delivery evidence before acceptance."));
         const picker = el("select");
         picker.setAttribute("aria-label", "Project");
         picker.append(el("option", "Choose Project"));
@@ -281,7 +297,7 @@
           bootstrap = null;
           selected = "";
           ++epoch;
-          detail = resources = agents = members = history = taskDetail = null;
+          detail = resources = agents = members = history = taskDetail = workflowState = null;
         })));
         if (!selected) {
           main.append(el("h1", "Projects"), ...bootstrap.projects.map((project) => box(project.name, el("p", `${project.role} · ${project.status}`), button("Open Project", () => route(project.id)))));
@@ -297,7 +313,7 @@
           main.append(taskDetail ? attemptsPanel() : tab === "members" ? membersPanel() : ["bots", "private"].includes(tab) ? agentsPanel() : tab === "resources" ? resourcesPanel() : boardPanel());
         } else main.append(el("p", error ? "Project unavailable. Select another Project or refresh." : "Loading Project…"));
       }
-      if (mode?.panelUrl) sidebar.append(link("Control-plane account panel", mode.panelUrl));
+      if (mode?.panelUrl) sidebar.append(link("Control-plane account panel", mode.panelUrl, true));
       if (error) {
         const alert = el("p", error, "error");
         alert.setAttribute("role", "alert");

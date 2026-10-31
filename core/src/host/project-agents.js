@@ -91,14 +91,14 @@ export function createProjectAgents(rt) {
     if (visibility === 'public') {
       const previous = project.chief
       const definition = definitionSet(projectId).roles.find(row => row.role === 'chief')
-      const created = await rt.createBot({ name: `Public ${project.name.slice(0, 30)} ${projectId.slice(-6)} Chief`,
+      const created = await rt.createBot({ name: `Chief ${digest(id).slice(0, 16)} ${Array.from(project.name).slice(0, 6).join('')}`,
         role: 'Public Project Chief', instructions: definition.instructions, hidden: true, ownerId: project.ownerUserId,
         ...(definition.model ? { model: definition.model } : {}) })
       bot = rt.botOf(created.id)
       if (previous?.botId) project.legacyChiefs = [...(project.legacyChiefs ?? []), { ...previous, archivedAt: Date.now() }]
       project.chief = { botId: bot.id, sessionId: rt.chatOf(bot.id), createdAt: Date.now() }
     } else {
-      const created = await rt.createBot({ name: `Private ${project.name.slice(0, 24)} ${projectId.slice(-6)} ${String(actor.memberId).slice(-8)}`,
+      const created = await rt.createBot({ name: `Private ${digest(id).slice(0, 16)} ${Array.from(project.name).slice(0, 6).join('')}`,
         role: 'Private Project Agent', instructions: PRIVATE_PROMPT, hidden: true, ownerId: actor.memberId,
         ...(rt.config.projectModel ? { model: rt.config.projectModel } : {}) })
       bot = rt.botOf(created.id)
@@ -138,21 +138,29 @@ export function createProjectAgents(rt) {
     const { agent, actor } = await authorize(bot)
     return writeMemory(agent, actor, text)
   }
-  async function task(bot, body) {
-    const { agent, actor } = await authorize(bot)
+  function task(bot, body) { return serial(async () => {
+    const { agent, actor, delegation } = await authorize(bot)
     rt.requireProjectAccess(actor, agent.projectId, 'create')
     const title = clean(body.title, 300)
     if (!title) throw refuse('A Task needs a title')
+    const requestKey = digest(`${agent.id}\n${delegation.id}\n${title}`)
+    const existingProposal = Object.values(proposals()).find(row => row.requestKey === requestKey && row.memberId === actor.memberId && row.projectId === agent.projectId)
+    if (existingProposal) return { proposalId: existingProposal.id, fields: structuredClone(existingProposal.fields), publishRequired: true, already: true }
+    const existingTask = Object.values(state.tasks).find(row => row.agentRequestKey === requestKey && row.projectId === agent.projectId && row.requesterId === actor.memberId)
+    if (existingTask) return structuredClone(existingTask)
     const fields = { title, criteria: clean(body.criteria, 2000), note: clean(body.note, 2000) }
     if (agent.visibility === 'private') {
-      const row = { id: `proposal-${randomUUID()}`, projectId: agent.projectId, memberId: actor.memberId, fields, createdAt: Date.now() }
+      const row = { id: `proposal-${randomUUID()}`, projectId: agent.projectId, memberId: actor.memberId, fields, requestKey, createdAt: Date.now() }
       setEntry(proposals(), row.id, row)
       await rt.save()
       return { proposalId: row.id, fields, publishRequired: true }
     }
     const chief = rt.readProject(agent.projectId).chief.botId
-    return rt.taskEndpoint('task-create', { ...fields, botId: chief, projectId: agent.projectId }, actor)
-  }
+    const task = await rt.taskEndpoint('task-create', { ...fields, botId: chief, projectId: agent.projectId }, actor)
+    ownEntry(state.tasks, task.id).agentRequestKey = requestKey
+    await rt.save()
+    return task
+  }) }
   async function run(bot, body) {
     const { agent, actor } = await authorize(bot)
     const task = ownEntry(state.tasks, String(body.taskId ?? ''))
@@ -329,7 +337,7 @@ export function install(rt) {
       const bot = rt.botOf(rt.selfOf(sessionId) ?? sessionId)
       const agent = rt.projectAgents.recordForBot(bot?.id)
       if (!agent || rt.chatOf(bot.id) !== sessionId) throw refuse('Project agent tools require the current own Session')
-      return execute(args, bot)
+      return JSON.stringify(await execute(args, bot))
     },
   }))
   const allowed = new Set(methods.map(([name]) => name))

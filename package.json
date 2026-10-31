@@ -15,6 +15,7 @@
     "test:interop": "node --import ./dev/interop/no-network.mjs --test \"dev/interop/test/*.test.mjs\"",
     "demo:interop": "node --import ./dev/interop/no-network.mjs dev/interop/demo.mjs",
     "lint:live-e2e": "node scripts/lint-live-e2e.mjs",
-    "test:live-e2e": "node --test \"dev/live-e2e/test/*.test.mjs\""
+    "test:live-e2e": "node --test \"dev/live-e2e/test/*.test.mjs\"",
+    "test:demo:browser": "node dev/demo/browser-check.mjs"
   }
 }

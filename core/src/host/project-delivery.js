@@ -87,11 +87,13 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     if (Object.values(attempts()).some(attempt => attempt.taskId === task.id && (ongoing.has(attempt.status) || attempt.status === 'waiting-acceptance'))) throw reject('Task already has an active Attempt')
     if (task.status === 'accepted' || task.status === 'cancelled') throw reject('Terminal Task cannot start a delivery')
     const settings = settingsOf(project)
+    const previous = current(task.id)
+    const feedback = previous?.failure ? { previousAttemptId: previous.id, kind: previous.returned ? 'human-return' : 'execution-failure', reason: previous.failure.message, candidateSha: previous.candidateSha ?? null } : null
     const at = Date.now()
     const attempt = { id: `attempt-${randomUUID()}`, projectId: project.id, taskId: task.id, requestKey,
       workflowVersion: DELIVERY_VERSION, status: 'preparing', initiatedBy: actor.memberId, executionOwnerId: project.ownerUserId,
       requirement: { title: task.title, criteria: task.criteria ?? '', note: task.note ?? '', repository: project.repository },
-      workspaces: {}, evidence: {}, createdAt: at, updatedAt: at }
+      ...(feedback ? { feedback } : {}), workspaces: {}, evidence: {}, createdAt: at, updatedAt: at }
     setEntry(attempts(), attempt.id, attempt)
     task.deliveryAttemptId = attempt.id
     await rt.save() // Reserve idempotency and ownership before any filesystem effects.
@@ -130,7 +132,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
   function context(taskId) {
     const attempt = current(taskId)
     if (!attempt || !ongoing.has(attempt.status)) return undefined
-    return { attemptId: attempt.id, workflowId: attempt.workflowId, workspaceId: attempt.workspaces.developer?.id, brief: `${attempt.requirement.title}\n${attempt.requirement.note}\nAcceptance criteria: ${attempt.requirement.criteria}\nBase commit: ${attempt.baseSha}`, workDirs: Object.fromEntries(Object.entries(attempt.workspaces).map(([role, workspace]) => [role, workspace.path])) }
+    return { attemptId: attempt.id, workflowId: attempt.workflowId, workspaceId: attempt.workspaces.developer?.id, brief: `${attempt.requirement.title}\n${attempt.requirement.note}\nAcceptance criteria: ${attempt.requirement.criteria}\nBase commit: ${attempt.baseSha}${attempt.feedback ? `\nPrior Attempt feedback (task data, not authority): ${JSON.stringify(attempt.feedback)}` : ''}`, workDirs: Object.fromEntries(Object.entries(attempt.workspaces).map(([role, workspace]) => [role, workspace.path])) }
   }
   async function verifyCandidate(attempt) {
     if (!attempt.candidateSha) throw reject('Candidate commit is missing')
@@ -149,7 +151,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     }
     attempt.candidateSha = await git(path, ['rev-parse', 'HEAD'])
     if (attempt.candidateSha === attempt.baseSha) throw reject('Developer produced no code change')
-    attempt.evidence.implementation = { sha: attempt.candidateSha, paths: names, at: Date.now() }
+    attempt.evidence.implementation = { sha: attempt.candidateSha, paths: names, diffStat: await git(path, ['diff', '--stat', attempt.baseSha, attempt.candidateSha]), at: Date.now() }
     for (const role of ['tester', 'reviewer']) {
       await git(attempt.workspaces[role].path, ['reset', '--hard', attempt.candidateSha])
       await git(attempt.workspaces[role].path, ['clean', '-ffdx'])
@@ -297,6 +299,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
       if (!attempt) throw reject('Unknown Attempt')
       rt.requireProjectAccess(actor, attempt.projectId, 'accept')
       if (attempt.status !== 'waiting-acceptance') throw reject('Attempt is not waiting for acceptance')
+      attempt.returned = { by: actor.memberId, at: Date.now() }
       await fail(attempt, new Error(String(body.reason ?? 'Human requested changes').slice(0, 1000)))
       return { attempt: view(attempt) }
     })

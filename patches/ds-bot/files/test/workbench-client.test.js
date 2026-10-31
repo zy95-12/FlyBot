@@ -14,7 +14,7 @@ function fixture(t, override = () => undefined) {
     const special = override(endpoint, payload)
     if (special !== undefined) return special
     const id = payload.projectId
-    if (endpoint === 'auth-mode') return { mode: 'platform' }
+    if (endpoint === 'auth-mode') return { mode: 'platform', panelUrl: 'http://127.0.0.1:18088' }
     if (endpoint === 'workbench-state') return { self: { memberId: 'bob', displayName: 'Bob' }, repositories: [], projects: [{ id: 'a', name: 'Alpha' }, { id: 'b', name: 'Beta' }] }
     if (endpoint === 'project-detail') return { project: { id, name: id === 'a' ? 'Alpha' : 'Beta', role: 'member' }, permissions: { create: true }, tasks: [{ id: `task-${id}`, title: id === 'a' ? '<img src=x onerror=alert(1)>' : 'Beta task', requesterId: 'bob', status: 'open' }] }
     if (endpoint === 'project-resources') return { metrics: { acceptedTasks: 0, duration: { medianMs: null } }, activeSlots: 0, quota: { maxConcurrent: 1 }, repository: { configured: false }, queue: [] }
@@ -30,6 +30,8 @@ function fixture(t, override = () => undefined) {
 test('Project board renders untrusted titles as text and Member cannot manage others', async t => {
   const { dom, root, calls } = fixture(t)
   await tick()
+  assert.equal(root.querySelector('a').href, 'http://127.0.0.1:18088/')
+  assert.equal(root.querySelector('[name=title]').getAttribute('aria-label'), 'Requirement')
   assert.match(root.textContent, /<img src=x onerror=alert\(1\)>/)
   assert.equal(root.querySelector('img'), null)
   assert.match(root.textContent, /No samples/)
@@ -38,7 +40,7 @@ test('Project board renders untrusted titles as text and Member cannot manage ot
   form.querySelector('[name=criteria]').value = 'Reject bad input'
   form.dispatchEvent(new dom.window.Event('submit', { cancelable: true }))
   await tick()
-  assert.deepEqual(calls.find(row => row.endpoint === 'task-create').payload, { projectId: 'a', title: 'Add parser', criteria: 'Reject bad input', note: '', botId: 'chief-a' })
+  assert.deepEqual(calls.find(row => row.endpoint === 'task-create').payload, { projectId: 'a', title: 'Add parser', criteria: 'Reject bad input', note: '', priority: 'normal', target: '', botId: 'chief-a' })
   dom.window.location.hash = '/projects/a/members'; await tick()
   assert.ok(![...root.querySelectorAll('button')].some(node => ['Remove', 'Make Maintainer'].includes(node.textContent)))
 })
@@ -70,4 +72,21 @@ test('API uses member session header only and clears it on logout', async () => 
   assert.equal(requests[0].init.headers['x-flybot-member-session'], 'member-credential')
   assert.equal(requests[1].init.headers['x-flybot-member-session'], undefined)
   assert.equal(requests[0].init.headers.cookie, undefined)
+})
+
+test('Task detail exposes failure evidence and answers only the current requester question', async t => {
+  const { dom, root, calls } = fixture(t, endpoint => endpoint === 'project-task-detail' ? {
+    task: { id: 'task-a', projectId: 'a', title: 'Blocked parser', criteria: 'Handle invalid tokens', requesterId: 'bob', priority: 'high', status: 'blocked', waitingFor: 'input', inputRequest: { id: 'question-2', question: 'Choose error format' }, createdAt: Date.now() - 120000, target: { href: 'https://github.com/example/repo/issues/2' } },
+    attempts: [{ id: 'old', status: 'failed', createdAt: Date.now() - 1000, failure: { at: Date.now(), message: 'Configured tests failed' }, evidence: { implementation: { diffStat: 'parser.js | 3 ++-' } } }],
+  } : undefined)
+  await tick(); dom.window.location.hash = '/projects/a/tasks/task-a'; await tick()
+  assert.match(root.textContent, /Priority: high/)
+  assert.match(root.textContent, /Choose error format/)
+  assert.match(root.textContent, /Configured tests failed/)
+  assert.equal(root.querySelector('a[href="https://github.com/example/repo/issues/2"]').textContent, 'Source Issue / PR')
+  assert.equal([...root.querySelectorAll('button')].find(node => node.textContent === 'Run / retry').disabled, true, 'unprovisioned repository cannot execute')
+  const form = root.querySelector('#answer-answer').form
+  form.querySelector('[name=answer]').value = 'Use structured errors'
+  form.dispatchEvent(new dom.window.Event('submit', { cancelable: true })); await tick()
+  assert.deepEqual(calls.find(row => row.endpoint === 'task-answer-input').payload, { projectId: 'a', id: 'task-a', questionId: 'question-2', answer: 'Use structured errors' })
 })

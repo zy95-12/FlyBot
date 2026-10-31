@@ -159,3 +159,24 @@ Queue admission rechecks current membership, preserves immutable Task/Run owners
 allocates worktrees only when quota permits. Explicit stop releases the existing single
 Run; orphan Workers retain capacity. Shared Project creation cannot supply filesystem cwd,
 and scoped agent/Worker identities cannot move to a different Project.
+
+M6 adds return→retry→accept regression coverage: an authorized human return retains the
+old Attempt/evidence, retry uses a new workspace/Attempt, and only that Attempt's current
+verified commit can be accepted. The test uses the explicitly injected publisher fixture;
+real GitHub and real-model acceptance are recorded independently. Actual shared browser
+execution now uses the Project Chief sender without private `state` bootstrap.
+
+Candidate implementation evidence also stores git's actual base→candidate diff statistics
+and changed paths. The UI can show a change summary without fabricating one from a model's
+completion sentence; old Attempts without this optional field retain their original evidence.
+
+Real-model return validation found that the prior Attempt's human feedback was not in the
+new work brief. A retry now snapshots the previous Attempt id, failure/return reason and
+candidate SHA as task data. Human-return metadata remains on the old Attempt; a new human
+request does not rewrite its evidence. The new worktree still starts from the configured
+base, so the model must implement the current requirements plus supplied feedback. This
+fix adds retry input data without changing saved role/graph definitions.
+
+[Real-provider acceptance](../live-acceptance.md) passed for actual role execution and GitHub
+artifact PR heads #18/#19, human-role browser return/follow-up/accept, immutable host test
+failure and retry. This is integrated M6 evidence, not a claim of independent PR review.
