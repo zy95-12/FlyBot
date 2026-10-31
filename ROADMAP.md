@@ -1,5 +1,29 @@
 # FlyBot — Roadmap
 
+## Active fork roadmap — 2026-10-31
+
+The owner-approved plan is [fork #1](https://github.com/zy95-12/FlyBot/issues/1), recorded
+in [the fork decision](decisions/2026-10-31-project-first-fork.md). Historical upstream
+stages below do not restrict the fork's approved Project and frontend refactor.
+
+| Milestone | Deliverable | Status / issue |
+| --- | --- | --- |
+| M0 | Isolated DSH/tool/cwd/lifecycle and unchanged-platform HTTP checks | PR #9 pending review/merge; [#2](https://github.com/zy95-12/FlyBot/issues/2) |
+| M1 | Project domain and direct Task/Run/Workspace ownership | Planned; [#3](https://github.com/zy95-12/FlyBot/issues/3) |
+| M2 | Shared membership, platform identity adapter and backend authorization | Planned; [#4](https://github.com/zy95-12/FlyBot/issues/4) |
+| M3 | Worktree, code/tests/PR/review evidence and human acceptance | Planned; [#5](https://github.com/zy95-12/FlyBot/issues/5) |
+| M4 | Public project Bots and private user/project agents | Planned; [#6](https://github.com/zy95-12/FlyBot/issues/6) |
+| M5 | Rebuild task navigation, Project board, details and resource view | Planned; [#7](https://github.com/zy95-12/FlyBot/issues/7) |
+| M6 | Repeatable two-user end-to-end acceptance | Planned; [#8](https://github.com/zy95-12/FlyBot/issues/8) |
+
+Reuse platform services unchanged first; new project logic/adapters belong in FlyBot.
+M0's deterministic model and existing shared-write denials do not imply M2/M3 completion.
+GPU pools, multi-host scheduling, auto-merge and exact crash resume remain deferred.
+The 30–43 person-day estimate is provisional pending interfaces/frontend design.
+
+## Historical upstream roadmap
+
+
 What the project is doing now, in what order, and what it deliberately is not doing. The plan of
 record is the accepted proposal [#1550](https://github.com/ThinkFlowLab/FlyBot/issues/1550)
 (approved by the owner on 2026-10-29, recorded in

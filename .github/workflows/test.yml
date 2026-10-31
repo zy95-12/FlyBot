@@ -41,6 +41,21 @@ jobs:
           dsh: 0.2.1-rc.2
           coverage: 'true'
           plugins: 'false'
+      - name: M0 regression and real DSH runtime checks
+        run: npm run lint:demo && npm run test:demo && npm run test:demo:runtime
+      - name: Read unchanged control-plane baseline
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          repository: zy95-12/flybot-control-plane
+          ref: 0369a2e0007cd4ca75474c049e7fe57da1f313a6
+          path: .demo-control-plane
+          persist-credentials: false
+      - name: M0 HTTP checks against unchanged platform
+        run: |
+          python3 -m venv "$RUNNER_TEMP/flybot-demo-python"
+          "$RUNNER_TEMP/flybot-demo-python/bin/python" -m pip install -r .demo-control-plane/control_plane/requirements.txt -r dev/demo/requirements.txt
+          "$RUNNER_TEMP/flybot-demo-python/bin/python" dev/demo/control_plane.py --control-plane .demo-control-plane --check --port 0
+          test -z "$(git -C .demo-control-plane status --porcelain)"
 
   # Each peer plugin (plugins/<name>) on its own: lint and its suite against core/ and the DSH
   # harness. DSH_HARNESS points the frontend (web entry) tests at real Cordis; a skipped test

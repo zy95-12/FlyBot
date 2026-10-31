@@ -4,6 +4,7 @@ Detail pages for each FlyBot subsystem. Each page lists `owned_paths`, what the 
 
 | Subsystem | Page | Owned paths (summary) |
 | --- | --- | --- |
+| demo-baseline | [demo-baseline.md](demo-baseline.md) | `dev/demo/`, `scripts/lint-demo.mjs` — M0 checks and unchanged-platform adapter |
 | ds-bot-core | [ds-bot-core.md](ds-bot-core.md) | `core/dev/`, `core/types/`, `ds-bot/`, `ds-bot.pin.json`, `patches/ds-bot/README.md`, `scripts/ds-bot-patches.mjs` (pin, patch format, dev tooling; generated patches are not owned) |
 | core-host | [core-host.md](core-host.md) | `core/index.js`, `core/src/host/`, `core/src/shared/`, `core/web-search.js`, host tests |
 | core-client | [core-client.md](core-client.md) | `core/src/client/`, `core/client.js` |

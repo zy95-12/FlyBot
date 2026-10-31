@@ -32,6 +32,7 @@ Every record carries these, in this order, so a reader can stop at the one they 
 
 | Field | Content |
 | --- | --- |
+| 2026-10-31 | [Project-first fork and platform reuse](2026-10-31-project-first-fork.md) | major | accepted for fork scope |
 | **Date** | The date the decision was concluded, and its time zone when the hour matters |
 | **Decision** | One paragraph in the imperative or the past tense: what was decided, stated so it can be acted on |
 | **Class** | `ordinary`, `major` or `severe`, as [docs/governance.md](../docs/governance.md) defines them |

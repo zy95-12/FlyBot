@@ -10,3 +10,4 @@ node_modules/
 /shots/
 .playwright-mcp/
 .ds-bot-check/
+.demo-control-plane/

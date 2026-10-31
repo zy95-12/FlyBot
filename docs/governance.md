@@ -1,5 +1,13 @@
 # Governance
 
+## Fork applicability — 2026-10-31
+
+Current user-authorized fork scope is recorded in the [fork decision](../decisions/2026-10-31-project-first-fork.md)
+and current sections of PROJECT/ROADMAP. Upstream people/stages and implementation
+inventory below are historical context. Recording the accepted Project/UI direction
+is not a code-review PASS and does not waive CI, review or deployment gates.
+
+
 How this project decides things, in the wording the repository actually uses today. It is the
 operational form of the decision contract in
 [#1550](https://github.com/ThinkFlowLab/FlyBot/issues/1550), applied to the Bots, groups, tasks and

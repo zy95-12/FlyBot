@@ -1,0 +1,36 @@
+---
+subsystem: demo-baseline
+owned_paths:
+  - dev/demo/
+  - scripts/lint-demo.mjs
+---
+
+# demo-baseline
+
+Fork M0 tooling, not a shipped runtime/platform service. Scope: [fork decision](../../decisions/2026-10-31-project-first-fork.md).
+
+## Boundaries
+
+- `run.mjs` uses pinned published DSH, core/Workflow, private temporary data and a
+  deterministic loopback model. Actual bash writes/tests code; `artifact.mjs`
+  independently verifies cwd, evidence and cases with distinct expected results.
+  Child TMPDIR/TMP/TEMP live inside that private tree so spill/native-loader data
+  is included in cleanup; the runtime test checks the enclosing temp directory.
+- `control_plane.py` imports an explicitly selected external platform checkout with
+  bytecode writes disabled and disposable SQLite settings. It reuses panel/auth APIs;
+  it never starts the privileged manager or changes source, upgrade or deploy settings.
+  CI pins the external revision and checks that its working tree remains unchanged.
+- Existing multi-member write denials are asserted, not removed. Real-model PR delivery,
+  identity mapping and per-run cwd are later work. No current UI structure is required.
+
+## Tests
+
+`npm run test:demo` covers missing/false artifacts, wrong cwd, failed tests, fabricated
+results, constant output, missing exports, invalid platform paths and optimized-Python
+refusal. `npm run test:demo:runtime` checks actual DSH/tool execution, ephemeral
+owner/cleanup, cwd/member boundaries and temporary-data cleanup. Both and `lint:demo`
+run in local verify and the required CI test job. That job separately exercises
+real HTTP against unchanged pinned platform source. Layers are in `docs/testing-layers.json`.
+
+Changes update this doc and regression cases, plus Project State/decisions when scope
+changes. [Install](install.md) owns OCI/Compose; core-host/workflow own runtime features.

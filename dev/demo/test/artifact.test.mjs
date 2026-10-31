@@ -1,0 +1,43 @@
+import assert from 'node:assert/strict'
+import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { test } from 'node:test'
+import { verifyArtifact } from '../artifact.mjs'
+
+function fixture(t, code = 'export const add = (a, b) => a + b', proof = {}) {
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'flybot-proof-')))
+  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  writeFileSync(join(dir, 'probe.mjs'), code)
+  writeFileSync(join(dir, 'proof.json'), JSON.stringify({ cwd: dir, test: 'passed', sum: 5, ...proof }))
+  return dir
+}
+
+test('accept actual executable code with a matching cwd and successful test evidence', async t => {
+  const dir = fixture(t)
+  assert.equal((await verifyArtifact(dir)).cwd, dir)
+})
+
+test('a completion claim without a file cannot pass', async t => {
+  const dir = fixture(t)
+  rmSync(join(dir, 'proof.json'))
+  await assert.rejects(verifyArtifact(dir), { code: 'ENOENT' })
+})
+
+test('reject evidence from another directory even if the model reports success', async t => {
+  await assert.rejects(verifyArtifact(fixture(t, undefined, { cwd: '/a/different/worktree' })), /assigned directory/)
+})
+
+test('reject failed test evidence or a fabricated numeric result', async t => {
+  await assert.rejects(verifyArtifact(fixture(t, undefined, { test: 'failed' })), /executed test/)
+  await assert.rejects(verifyArtifact(fixture(t, undefined, { sum: 999 })), /recorded result/)
+})
+
+test('regression: constant-five code must not pass independent verification', async t => {
+  // The original M0 checker asked only add(7, -2), also 5: a false implementation passed.
+  await assert.rejects(verifyArtifact(fixture(t, 'export const add = () => 5')), /Independent case/)
+})
+
+test('reject a missing code export even when the proof JSON claims success', async t => {
+  await assert.rejects(verifyArtifact(fixture(t, 'export const other = 5')), /must export add/)
+})

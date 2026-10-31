@@ -8,6 +8,32 @@ architecture lives in [docs/architecture.md](docs/architecture.md) and
 Current stage and priorities: [ROADMAP.md](ROADMAP.md). How decisions are made:
 [docs/governance.md](docs/governance.md). Dated decisions: [decisions/](decisions/README.md).
 
+## Fork Project State — 2026-10-31
+
+This is `zy95-12/FlyBot`. Current scope is the [shared-project roadmap](https://github.com/zy95-12/FlyBot/issues/1)
+and [fork decision](decisions/2026-10-31-project-first-fork.md). The inherited mission,
+people and stage descriptions below are historical upstream context; upstream accounts
+are not this fork's decision-makers merely because inherited docs name them.
+
+- Project is the target stable boundary for Task/Run/Workspace ownership. Bots and
+  Sessions are replaceable execution/interaction carriers; migration is M1 work.
+- Reuse control-plane identity, auth, invitation, instance and operations APIs unchanged
+  where possible. Put project business logic/adapters in FlyBot; justify a missing API
+  separately. The platform PR was withdrawn, not merged.
+- Rebuild task navigation and the Project board; current UI/components are not constraints.
+- M0 is implemented on [PR #9](https://github.com/zy95-12/FlyBot/pull/9), pending review/merge:
+  real DSH/tool execution with a deterministic model, plus a FlyBot-owned HTTP adapter
+  exercising unchanged external platform source. This is not real-model PR delivery.
+- Known seams: platform/member identity mapping, project-scoped multi-member Workflow
+  writes and per-run cwd remain M1–M3 work. Existing denials stay enforced.
+- Durable repository memory is this page, ROADMAP, LESSONS and dated decisions. Update
+  them and matching architecture docs alongside code, with regression coverage in
+  verify/CI and tested-SHA evidence. Never edit live DSH/Bot memory for repository decisions.
+
+See [baseline ownership and tests](docs/subsystems/demo-baseline.md).
+
+## Historical upstream Project State
+
 ## Mission
 
 FlyBot is a local team of long-lived AI Bots that runs on DeepSeek Harness (DSH), in your own

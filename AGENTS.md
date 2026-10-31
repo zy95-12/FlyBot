@@ -4,6 +4,13 @@ Instructions for AI coding agents that work on this repository. Human contributo
 
 ## Before you code
 
+For this fork, read current [PROJECT.md](PROJECT.md), [ROADMAP.md](ROADMAP.md) and the
+[dated fork decision](decisions/2026-10-31-project-first-fork.md) before coding.
+Update repository memory, matching architecture docs and regression tests with behavior
+changes. Inherited upstream people/stages are historical; the fork user's instructions
+govern current scope. CI, review, secret-handling and deployment gates remain unchanged.
+
+
 1. Read [LESSONS.md](LESSONS.md) (open lessons are constraints).
 2. Read [docs/code-standards.md](docs/code-standards.md) (Verifier honesty, fences, merge gate).
 3. Keep the **Hard rules** below; never patch DSH or commit secrets.
