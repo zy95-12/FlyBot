@@ -127,3 +127,10 @@ M7.3 PR #28 passed full verify at 034d86c, remains draft pending authenticated a
 ### M7.5 — 2026-10-31
 
 M7 implementation PRs: #26 role Sessions, #27 resource pools, #28 official SDK Harnesses, #29 Owner setup, #30 handoff/integration. Full verify passed #26–#29 tips; final #30 validation/report is recorded in its PR. Real authenticated SDK/browser mixed-resource acceptance remains pending dedicated authorized profiles; M8 continuous CI/review and M9 persistent dogfood operations remain later work.
+
+### M7 validation update — 2026-11-01
+
+Owner requested Codex-only real acceptance on the current machine using zy95-12 GitHub.
+Run the opt-in dedicated-profile SDK/Workflow/PR/return/retry/acceptance path and record
+its exact source SHA. Do not block this scoped demonstration on Claude configuration;
+keep the broader mixed-Harness/two-resource criteria explicitly outstanding.

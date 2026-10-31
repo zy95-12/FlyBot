@@ -41,3 +41,16 @@ test('regression: constant-five code must not pass independent verification', as
 test('reject a missing code export even when the proof JSON claims success', async t => {
   await assert.rejects(verifyArtifact(fixture(t, 'export const other = 5')), /must export add/)
 })
+
+test('Codex live acceptance requires explicit profile/model and an owned GitHub repository', async () => {
+  const { codexSettings } = await import('../codex-check.mjs')
+  const flags = ['--codex-profile', '/private/config', '--codex-model', 'test-model', '--github-login', 'owner', '--github-repo', 'owner/fork', '--github-config-dir', '/private/gh']
+  assert.equal(codexSettings(flags).repository, 'owner/fork')
+  for (const option of ['--codex-profile', '--codex-model', '--github-login', '--github-repo', '--github-config-dir']) {
+    const missing = flags.slice(), index = missing.indexOf(option)
+    missing.splice(index, 2)
+    assert.throws(() => codexSettings(missing), /requires explicit/)
+  }
+  assert.throws(() => codexSettings(flags.map(value => value === 'owner/fork' ? 'someone-else/fork' : value)), /requires explicit/)
+  assert.throws(() => codexSettings(flags.map(value => value === '/private/config' ? 'relative' : value)), /requires explicit/)
+})

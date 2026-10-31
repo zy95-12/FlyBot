@@ -207,3 +207,12 @@ M7.4 adds Owner role/persona/Skills/memory/Harness/model/multiple-resource confi
 ### M7.5 — 2026-10-31
 
 M7.5 implements local/Docker Git workspace handoffs, SHA256 manifests, one final sealed candidate without intermediate worker history, independent host-verifier tests, same-SHA review and sealed SDK event evidence. Browser integration fixes runtime/terminal/input channel routing; callback-aware stop acknowledgement prevents release deadlock. See docs/m7-acceptance.md: positive authenticated three-Harness/two-resource PR acceptance still needs dedicated profiles, so M7 is not declared fully accepted.
+
+### M7 Codex-only acceptance authorization — 2026-11-01
+
+The owner authorized existing zy95-12 GitHub and Codex authentication on this machine
+for real Codex validation. A private selected profile outside the repository is used;
+no auth values, unrelated Codex history or connector configuration are copied into the
+repository. The opt-in `--codex-check` exercises the native host/Workflow with real SDK
+Chief/Dev/Tester/Reviewer and draft PR evidence. Claude and mixed-resource acceptance
+remain separate. No merge or production deployment is authorized by this validation.
