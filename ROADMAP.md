@@ -155,3 +155,18 @@ original scheduled wake after logout, editable pause/resume and actual Dev→Chi
 return on one Task. Dogfood exposed HTTP registration, release/reconcile race and
 failed-admission status defects; fixes remain in R6 PR #47 with regressions. R7
 completion and all remaining #41 acceptance are still pending.
+
+R7 #40 candidate restores Project-scoped internal role rooms, mention/member routing,
+registered text artifacts, native public streaming and readable pool/Timeline views.
+See [inventory and limits](docs/subsystems/project-collaboration.md) and the
+[implementation decision](decisions/2026-11-01-r7-native-collaboration.md).
+The deterministic service/DOM checks do not satisfy criterion 7. Chromium/backend is
+blocked by this worker's loopback-listen policy; operator deployed three-role acceptance
+and Chief overall judgement remain pending. No Task is closed by this checkpoint.
+
+R7 rework preserves the existing candidate and failed Attempt. The reported core
+registration failure and browser fixture authentication mismatch have local red/green
+evidence; full host verification and actual deployed three-role acceptance remain gates.
+
+
+R7 rework adds socket-free complete workbench bootstrap/agent initialization checks and repairs the release-fragment format found in the current full verification log. This does not establish Chromium or deployed-service acceptance; Tester must run the configured host gate and the operator must rerun browser clicks.

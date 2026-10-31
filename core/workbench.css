@@ -229,3 +229,44 @@ fieldset {
   font-family: monospace;
   white-space: pre-wrap;
 }
+.room-list {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.conversation {
+  max-width: 900px;
+  min-height: 180px;
+}
+.conversation .card {
+  border-radius: 18px;
+  background: #f7f9ff;
+}
+.conversation-text code {
+  background: #eaf0fa;
+  padding: 2px 5px;
+  border-radius: 4px;
+}
+.conversation-text pre {
+  background: #172235;
+  color: #e4eaf6;
+  padding: 16px;
+}
+.conversation-text pre code {
+  background: transparent;
+  padding: 0;
+}
+.conversation-text p {
+  white-space: pre-wrap;
+  margin: 8px 0;
+}
+.conversation-text h3 {
+  font-size: 17px;
+}
+.conversation-text a {
+  overflow-wrap: anywhere;
+}
+nav button:focus-visible {
+  outline: 3px solid #5879cb;
+}

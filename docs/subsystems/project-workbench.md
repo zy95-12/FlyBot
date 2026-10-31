@@ -177,3 +177,14 @@ call. This does not replace issue #40 native rich multi-Bot UI restoration.
 Actual shared-entry repair: the explicit HTTP allowlist now includes pool, query,
 GitHub read, delegation mode and Chief/schedule endpoints. Project authorization
 still executes downstream; raw schedule/state/DSH APIs remain refused.
+
+## R7 native collaboration candidate (#40)
+
+The standalone app now exposes scoped internal rooms, mention/member routing and
+registered documents, native public-text streaming, explicit conversation stop and
+readable Markdown/evidence cards. Pools and Timeline derive actual Task collaboration
+and Chief records. Refresh and action-return fences both protect Project switches.
+Original Harness UI primitives require its private module loader and cannot be imported
+into this standalone entry; the safe DOM renderer loads no remote content. The complete
+[source/API/UI inventory and verification limits](project-collaboration.md) is authoritative
+for this restoration. No raw owner Session/group/plugin API is added to the gateway.

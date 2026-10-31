@@ -296,3 +296,11 @@ delegation. Coordination jobs cannot authorize themselves or create arbitrary Ta
 
 Chief coordination retains explicitly published shared Project knowledge alongside
 its role memory; private human notes/history remain excluded.
+
+R7 #40 extends existing delegated conversations to independent room/role carriers.
+Room execution snapshots current public role definitions, Skills and published memory;
+restricted room history never enters the public Chief or a human's private agent.
+Conversation-only delegation rejects Task/run effects for native and SDK roles.
+Native text streams are bounded, process-local and tied to the exact live delegation;
+reasoning is excluded. Scoped stop fences callbacks before awaiting owned worker exit.
+See [collaboration contract](project-collaboration.md).

@@ -291,3 +291,25 @@ Chief correctly held a legacy interrupted claim when its snapshot omitted whethe
 that Attempt had ever allocated execution. Expose the bind-before-start host
 registration proof (with all lease/worker/session/workspace counts), not a missing
 PID inference. Any registered/unknown record prevents the never-allocated claim.
+
+### 2026-11-01 — a room needs its own scoped conversation carrier (Seen 1×)
+
+The shared entry exposed only final Chief/private text, while global room APIs carried
+owner-wide authority. Route internal roles through existing scoped delegation, bind each
+room/role to an independent Session and check participants on documents as well as chat.
+Exclude reasoning and raw tool arguments from public streams; fence action responses as
+well as refreshes after route changes. Loopback-listen refusal is blocked browser evidence,
+never an excuse to call a fixture the actual shared-service acceptance.
+
+### 2026-11-01 — Browser fixtures must implement the channel token contract (Seen 1×)
+
+The actual channel extracts the member-session header before calling authenticate.
+A fixture expecting Headers failed before any UI assertion. Exercise the real route
+with valid, invalid and revoked tokens before starting Chromium; keep these checks
+in verify and report browser assertions separately. Update registration-order tests
+when adding a native stream observer rather than removing the observer to satisfy them.
+
+
+### 2026-11-01 — Bootstrap the full browser fixture before launching Chromium
+
+Seen 2×. A rooms-only channel preflight missed lazy Project agent creation calling a nonexistent runtime index method. Use the actual save boundary to refresh indexes and exercise every rooms-page bootstrap endpoint for each human role before sockets. Keep one changelog entry per fragment; read the current complete verification log rather than attributing a new failure to the prior run.

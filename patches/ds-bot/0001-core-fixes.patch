@@ -9686,13 +9686,15 @@ diff --git a/test/images.test.js b/test/images.test.js
 diff --git a/test/install.test.js b/test/install.test.js
 --- a/test/install.test.js
 +++ b/test/install.test.js
-@@ -33,10 +33,20 @@ test('apply registers listeners, tools, and effects in a fixed order', (t) => {
+@@ -33,10 +33,22 @@ test('apply registers listeners, tools, and effects in a fixed order', (t) => {
    const { ctx, stop, applyResult } = start()
    t.after(stop)
    assert.equal(applyResult, undefined)
 +  assert.equal(ctx.registeredTools.has('project_agent_context'), false, 'legacy mode does not expose workbench tools')
    assert.deepEqual(ctx.calls, [
      'effect ds-bot: state lock',
++    // Project streaming is observed before the session/delegation guards.
++    'on llm/stream',
 +    // Project scope guard stays installed even if the workbench is later disabled.
 +    'on session/event',
 +    // Reject stale Project delegations, then intercept managed schedule deliveries.

@@ -202,3 +202,9 @@ A Chief role name alone grants no access. New control endpoints remain Project s
 
 Authenticated HTTP route regressions cover every R3–R6 collaboration endpoint
 and reject a nonmember at the real Project boundary, beyond direct service tests.
+
+R7 room list/create/read/message/document/stop and agent-stop endpoints pass the actual
+channel dispatcher and restricted gateway into current Project membership checks.
+Restricted rooms additionally require an explicit participant; document IDs are scoped
+to that room. No primary-owner or ambient raw Session bypass exists. SDK resource read
+models hide workers bound to rooms the caller cannot read.

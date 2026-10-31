@@ -115,6 +115,7 @@ export function install(rt) {
       return { run: await rt.projectChiefControl.request(body.projectId, 'inspection', { requestId: body.requestId, requestedBy: actor.memberId }) }
     }
     if (endpoint === 'project-scheduled-task') return rt.projectScheduledTasks.endpoint(body, actor)
+    if (endpoint === 'project-rooms' || endpoint.startsWith('project-room-') || endpoint === 'project-agent-stop') return rt.projectAgents.endpoint(endpoint, body, actor)
     if (endpoint === 'project-agent-mode') return rt.projectDelegations.mode(body, actor)
     if (endpoint === 'project-github-read') return rt.projectGithubRead(body, actor)
     if (endpoint === 'project-chief-question') return rt.projectAgents.chiefQuestion(body, actor)

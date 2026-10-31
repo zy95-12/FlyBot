@@ -893,3 +893,9 @@ See [Chief control](project-chief-control.md) for authority and restart invarian
 
 Repair HTTP integration: register the pool/query/GitHub/delegation/Chief/schedule
 APIs in the concrete channel dispatcher, with Project rights checked downstream.
+
+R7 Project collaboration adds explicit authenticated room and conversation-stop channel
+cases and workbench-only authorization vocabulary. The gateway never forwards raw DSH
+room/Session routes. Rooms reuse existing Project agent delegation and documented native
+llm/stream middleware; they cannot authorize Task effects. See
+[Project collaboration](project-collaboration.md) for ownership and scope boundaries.

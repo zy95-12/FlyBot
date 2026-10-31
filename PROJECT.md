@@ -274,3 +274,21 @@ resume and restoration to 30 minutes. R7 actual Dev requested Chief arbitration;
 Chief returned the same Task to Dev with a fresh Attempt. This exposed a concurrent
 resource-release reconciliation race, fixed with a red/green regression. Actual
 full R7 delivery and persistent 30-minute/restart acceptance remain in progress.
+
+### R7 (#40) collaboration candidate — 2026-11-01
+
+Scoped internal rooms now route @mentions to independent native/SDK role conversations,
+with member-bound histories/documents, public native text streaming and explicit stop.
+The shared UI adds safe Markdown, real pools/Timeline and readable role/evidence cards.
+[Capability inventory](docs/subsystems/project-collaboration.md) records restored paths,
+operator-only surfaces and limits. Tests use deterministic execution where stated.
+Loopback listening is refused in this worker sandbox, so Chromium/backend and real
+shared-service acceptance are pending; no completion, review PASS or deployment is claimed.
+
+R7 rework at prior candidate `f03f89d5b933fe315ad3fc937b3702533125bcb3` repairs
+the native stream listener registration expectation and browser fixture session-token
+adapter. Channel authentication checks run in verify without sockets or Chromium;
+actual browser and operator shared-service acceptance remain pending.
+
+
+Rework of the c9f9b5d candidate fixes the browser fixture through the real runtime save boundary and checks every rooms-page bootstrap endpoint for all three human roles before opening sockets. The current full-run log also exposed an invalid two-paragraph changelog fragment; the existing validator reproduces it and passes after consolidation. Chromium and deployed-service acceptance remain pending independent execution.

@@ -162,7 +162,7 @@ test('repair pool, query, delegation and Chief endpoints reach the actual HTTP P
   rt.authenticate = async () => alice
   const prior = rt.projectEndpoint
   rt.projectEndpoint = async endpoint => ({ routedProjectEndpoint: endpoint })
-  for (const endpoint of ['project-task-pools', 'project-chief-question', 'project-github-read', 'project-agent-mode', 'project-chief-state', 'project-chief-configure', 'project-chief-inspect', 'project-scheduled-task']) {
+  for (const endpoint of ['project-rooms', 'project-room-create', 'project-room-read', 'project-room-message', 'project-room-attachment', 'project-room-stop', 'project-agent-stop', 'project-task-pools', 'project-chief-question', 'project-github-read', 'project-agent-mode', 'project-chief-state', 'project-chief-configure', 'project-chief-inspect', 'project-scheduled-task']) {
     const result = await rt.testHttp(endpoint)
     assert.equal(result.ok, true, endpoint)
     assert.equal(result.value.routedProjectEndpoint, endpoint)

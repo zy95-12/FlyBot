@@ -114,3 +114,26 @@ test('Owner role form preserves persona, supports checked resource pools and pro
   assert.deepEqual(saved.memoryRefs, ['published-memory'])
   assert.deepEqual(calls.filter(row => row.endpoint === 'project-runtime-check').map(row => row.payload.resourceId), ['local', 'isolated'])
 })
+
+test('rooms click through scoped routing, safe Markdown and registered artifacts without owner APIs', async t => {
+  const { dom, root, calls, app } = fixture(t, (endpoint, payload) => {
+    if (endpoint === 'project-rooms') return { rooms: [{ id: 'room-a', name: 'Engineering' }] }
+    if (endpoint === 'project-room-read') return { id: 'room-a', name: 'Engineering', memberIds: [], messages: [{ speaker: 'developer', text: '# Plan\n**Review** `parser`\n[unsafe](javascript:alert)\n<img src=x onerror=alert(1)>' }], attachments: [{ id: 'doc-a', name: 'Scope.md' }], sessions: [{ role: 'tester', phase: 'running', harness: 'flybot', live: { text: 'Streaming **answer**' } }] }
+    if (endpoint === 'project-room-attachment') return { name: 'Scope.md', text: 'Only this room' }
+    if (endpoint === 'project-room-message') { assert.equal(payload.roomId, 'room-a'); return { deliveries: [] } }
+  })
+  await tick()
+  ;[...root.querySelectorAll('button')].find(node => node.textContent === 'Rooms & mentions').click(); await tick()
+  ;[...root.querySelectorAll('button')].find(node => node.textContent === 'Engineering').click(); await tick()
+  assert.equal(root.querySelector('.conversation strong').textContent, 'Review')
+  assert.equal(root.querySelector('img'), null)
+  assert.equal(root.querySelector('a[href^="javascript:"]'), null)
+  assert.match(root.textContent, /Streaming answer/)
+  const input = root.querySelector('[name=text]'); input.value = '@tester check parser'; input.dispatchEvent(new dom.window.Event('input'))
+  input.form.dispatchEvent(new dom.window.Event('submit', { cancelable: true })); await tick()
+  assert.equal(calls.find(row => row.endpoint === 'project-room-message').payload.text, '@tester check parser')
+  await app.refresh()
+  ;[...root.querySelectorAll('button')].find(node => node.textContent === 'Scope.md').click(); await tick()
+  assert.match(root.textContent, /Only this room/)
+  assert.ok(calls.every(row => !['state', 'earlier', 'room-history', 'send'].includes(row.endpoint)))
+})

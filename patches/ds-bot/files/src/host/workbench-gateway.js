@@ -13,6 +13,7 @@ export const WORKBENCH_ENDPOINTS = new Set([
   'task-create', 'task-update', 'task-cancel', 'task-answer-input',
   'project-task-run', 'project-task-detail', 'project-task-accept', 'project-task-reject',
   'project-attempt-stop', 'project-attempt-log', 'project-attempt-cleanup',
+  'project-rooms', 'project-room-create', 'project-room-read', 'project-room-message', 'project-room-attachment', 'project-room-stop', 'project-agent-stop',
   'project-agents', 'project-agent-message', 'project-agent-history', 'project-agent-memory-write', 'project-role-memory-write', 'project-agent-definition',
   'project-task-pools', 'project-chief-question', 'project-github-read', 'project-agent-mode',
   'project-chief-state', 'project-chief-configure', 'project-chief-inspect', 'project-scheduled-task',

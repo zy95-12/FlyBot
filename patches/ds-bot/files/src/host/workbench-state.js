@@ -56,7 +56,7 @@ export function install(rt) {
     return { projectId: id, quota: project.quota ?? { maxConcurrent: 2 }, activeSlots: rt.projectScheduler.slots(id),
       queue: Object.values(rt.state.projectQueue ?? {}).filter(entry => entry.projectId === id).map(entry => structuredClone(entry)), workers,
       workspaces: Object.values(rt.state.projectWorkspaces ?? {}).filter(workspace => workspace.projectId === id),
-      harnessWorkers: Object.values(rt.state.projectHarnessWorkers ?? {}).filter(row => row.projectId === id && (row.visibility !== 'private' || row.memberId === actor.memberId)).map(({ eventLog: _log, sealedLog: _sealedLog, cwd: _cwd, ...row }) => structuredClone(row)),
+      harnessWorkers: Object.values(rt.state.projectHarnessWorkers ?? {}).filter(row => row.projectId === id && (row.visibility !== 'private' || row.memberId === actor.memberId) && (!row.roomId || (() => { const room = ownEntry(rt.state.projectRooms ?? {}, row.roomId); return room?.projectId === id && (!room.memberIds.length || room.memberIds.includes(actor.memberId)) })())).map(({ eventLog: _log, sealedLog: _sealedLog, cwd: _cwd, ...row }) => structuredClone(row)),
       executionResources: rt.projectResources?.list(id, actor) ?? [],
       resourceLeases: Object.values(rt.state.projectResourceLeases ?? {}).filter(row => row.projectId === id).map(({ worker: _worker, ...row }) => structuredClone(row)),
       chief: rt.projectChiefControl?.view(id, actor) ?? null,

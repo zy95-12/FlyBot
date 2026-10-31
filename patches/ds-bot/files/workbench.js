@@ -18,13 +18,88 @@
     };
   }
 
+  // src/client/workbench/conversation.js
+  function conversationText(doc, text) {
+    const root = doc.createElement("div");
+    root.className = "conversation-text";
+    function inline(parent, value) {
+      const pattern = /(`[^`\n]+`|\*\*[^*\n]+\*\*|\[[^\]\n]+\]\([^\s)]+\))/g;
+      let offset = 0;
+      for (const match of value.matchAll(pattern)) {
+        parent.append(doc.createTextNode(value.slice(offset, match.index)));
+        const token = match[0];
+        let node;
+        if (token.startsWith("`")) {
+          node = doc.createElement("code");
+          node.textContent = token.slice(1, -1);
+        } else if (token.startsWith("**")) {
+          node = doc.createElement("strong");
+          node.textContent = token.slice(2, -2);
+        } else {
+          const [, label, url] = token.match(/^\[(.*)\]\((.*)\)$/);
+          node = doc.createElement("span");
+          node.textContent = label;
+          try {
+            const parsed = new URL(url);
+            if (["https:", "http:"].includes(parsed.protocol) && !parsed.username && !parsed.password) {
+              node = doc.createElement("a");
+              node.textContent = label;
+              node.href = parsed.href;
+              node.target = "_blank";
+              node.rel = "noopener noreferrer";
+            }
+          } catch {
+          }
+        }
+        parent.append(node);
+        offset = match.index + token.length;
+      }
+      parent.append(doc.createTextNode(value.slice(offset)));
+    }
+    let code, list;
+    for (const line of String(text ?? "").split("\n")) {
+      if (line.startsWith("```")) {
+        if (code) code = null;
+        else {
+          const pre = doc.createElement("pre");
+          code = doc.createElement("code");
+          pre.append(code);
+          root.append(pre);
+        }
+        list = null;
+        continue;
+      }
+      if (code) {
+        code.append(doc.createTextNode(line + "\n"));
+        continue;
+      }
+      const item = line.match(/^\s*(?:[-*]|\d+\.)\s+(.*)$/);
+      if (item) {
+        if (!list) {
+          list = doc.createElement("ul");
+          root.append(list);
+        }
+        const row = doc.createElement("li");
+        inline(row, item[1]);
+        list.append(row);
+        continue;
+      }
+      list = null;
+      const heading = line.match(/^(#{1,4})\s+(.*)$/);
+      const node = doc.createElement(heading ? `h${heading[1].length + 2 > 6 ? 6 : heading[1].length + 2}` : "p");
+      inline(node, heading ? heading[2] : line);
+      root.append(node);
+    }
+    return root;
+  }
+
   // src/client/workbench/app.js
   function mountWorkbench(root, api, { pollMs = 4e3 } = {}) {
     const doc = root.ownerDocument, win = doc.defaultView;
     let bootstrap, mode, selected = "", tab = "board", taskId = "", detail, resources, agents, members, history, taskDetail, workflowState;
     let epoch = 0, controller, error = "", notice = "", timer, disposed = false, busy = false;
     const drafts = /* @__PURE__ */ new Map();
-    let runtimeTerminal, terminalTimer, terminalPolling = false;
+    let runtimeTerminal, terminalTimer, terminalPolling = false, rooms, roomView, pools;
     async function closeTerminal() {
       const terminal = runtimeTerminal;
       runtimeTerminal = null;
@@ -97,7 +172,6 @@
       node.append(el("h2", title), ...children.filter(Boolean));
       return node;
     };
-    const json = (value) => el("pre", JSON.stringify(value, null, 2));
     const route = (id, next = "board", task = "") => {
       win.location.hash = `/projects/${encodeURIComponent(id)}/${next}${task ? `/${encodeURIComponent(task)}` : ""}`;
     };
@@ -109,11 +183,12 @@
           const group = el("fieldset");
           group.append(el("legend", title));
           for (const option of options ?? []) {
-            const wrapper2 = el("label", option, "choice"), input2 = el("input");
+            const value = typeof option === "string" ? option : option.value, label2 = typeof option === "string" ? option : option.label;
+            const wrapper2 = el("label", label2, "choice"), input2 = el("input");
             input2.type = "checkbox";
             input2.name = field;
-            input2.value = option;
-            input2.checked = (saved[field] ?? initial ?? []).includes(option);
+            input2.value = value;
+            input2.checked = (saved[field] ?? initial ?? []).includes(value);
             input2.oninput = () => {
               const values = drafts.get(key) ?? {};
               values[field] = [...group.querySelectorAll("input:checked")].map((row) => row.value);
@@ -177,7 +252,12 @@
         if (!disposed) render();
       }
     }
-    const scoped = (endpoint, body = {}) => api.call(endpoint, { projectId: selected, ...body });
+    const scoped = async (endpoint, body = {}) => {
+      const captured = epoch, id = selected;
+      const result = await api.call(endpoint, { projectId: id, ...body });
+      if (disposed || captured !== epoch || selected !== id) throw Object.assign(new Error("Project view changed"), { name: "AbortError" });
+      return result;
+    };
     async function refresh() {
       const current = ++epoch;
       controller?.abort();
@@ -194,23 +274,26 @@
         if (!state.projects.some((project) => project.id === id)) throw new Error("Project access was removed or the Project is unavailable");
         const calls = ["project-detail", "project-resources", "project-agents", "project-members"].map((endpoint) => api.call(endpoint, { projectId: id }, controller.signal));
         const extra = section === "private" || section === "bots" ? api.call("project-agent-history", { projectId: id, visibility: section === "private" ? "private" : "public" }, controller.signal) : null;
-        const task = tid ? api.call("project-task-detail", { taskId: tid }, controller.signal) : null;
+        const task = tid && section === "tasks" ? api.call("project-task-detail", { taskId: tid }, controller.signal) : null;
         const values = await Promise.all([...calls, extra, task, api.call("project-workflow", { projectId: id, operation: "state" }, controller.signal)]);
         if (values[5] && values[5].task.projectId !== id) throw new Error("Task belongs to another Project");
         if (current !== epoch || disposed) return;
         [detail, resources, agents, members, history, taskDetail, workflowState] = values;
+        const collaboration = await Promise.all([api.call("project-rooms", { projectId: id }, controller.signal), api.call("project-task-pools", { projectId: id }, controller.signal), section === "rooms" && tid ? api.call("project-room-read", { projectId: id, roomId: tid }, controller.signal) : null]);
+        if (current !== epoch || disposed) return;
+        [rooms, pools, roomView] = collaboration;
         error = "";
         render();
       } catch (failure) {
         if (current !== epoch || disposed || failure.name === "AbortError") return;
-        detail = resources = agents = members = history = taskDetail = workflowState = null;
+        detail = resources = agents = members = history = taskDetail = workflowState = rooms = roomView = pools = null;
         error = failure.message;
         render();
       }
     }
     function changeRoute() {
       void closeTerminal();
-      const match = win.location.hash.match(/^#\/projects\/([^/]+)\/(board|tasks|members|bots|resources|private)(?:\/([^/]+))?$/);
+      const match = win.location.hash.match(/^#\/projects\/([^/]+)\/(board|tasks|members|bots|resources|private|rooms|activity)(?:\/([^/]+))?$/);
       try {
         selected = match ? decodeURIComponent(match[1]) : "";
         tab = match?.[2] ?? "board";
@@ -222,7 +305,7 @@
       }
       ++epoch;
       controller?.abort();
-      detail = resources = agents = members = history = taskDetail = workflowState = null;
+      detail = resources = agents = members = history = taskDetail = workflowState = rooms = roomView = pools = null;
       error = "";
       notice = "";
       render();
@@ -242,19 +325,19 @@
       const node = box(task.title, el("p", task.criteria ?? "No acceptance criteria"), el("p", task.note ?? "No additional context"), el("p", `Priority: ${task.priority ?? "normal"} · status: ${task.status}`));
       if (Number.isFinite(task.createdAt)) node.append(el("p", `Task age: ${Math.max(0, Math.round((Date.now() - task.createdAt) / 6e4))} min, including waiting`));
       if (task.target?.href) node.append(link("Source Issue / PR", task.target.href));
-      if (task.status === "blocked") node.append(box("Waiting for input / approval", json({ waitingFor: task.waitingFor, input: task.inputRequest, approvalId: task.approvalId })));
+      if (task.status === "blocked") node.append(box("Waiting for input / approval", el("p", task.inputRequest?.question ?? task.waitingFor ?? "Approval required"), task.approvalId ? el("p", "An authorized approver must resolve this request; answering text cannot approve it.") : null));
       if (task.waitingFor === "input" && task.requesterId === bootstrap.self.memberId && !task.approvalId && !task.inputApprovalIds?.length) node.append(form("answer", [["answer", "Answer current question", "textarea"]], (values) => scoped("task-answer-input", { id: task.id, questionId: task.inputRequest.id, ...values }), "Answer"));
       if (!resources.repository.configured && resources.repository.reason) node.append(box("Repository execution blocked", el("p", resources.repository.reason)));
       const activeAttempt = taskDetail.attempts.some((attempt) => ["preparing", "running", "waiting-acceptance"].includes(attempt.status));
       node.append(button("Run / retry", () => act(() => scoped("project-task-run", { taskId: task.id, requestId: win.crypto.randomUUID() })), !canWrite || !resources.repository.configured || activeAttempt || ["accepted", "cancelled"].includes(task.status) || busy));
       for (const attempt of taskDetail.attempts) {
-        const card = box(`Attempt · ${attempt.status}`, el("code", attempt.id), el("p", attempt.candidateSha ?? "No candidate commit"), json(attempt.evidence ?? {}));
+        const card = box(`Attempt · ${attempt.status}`, el("p", attempt.candidateSha ? `Candidate ${attempt.candidateSha.slice(0, 12)}` : "No candidate commit"), evidencePanel(attempt.evidence));
         if (attempt.failure?.message) card.append(box("Failure / requested changes", el("p", attempt.failure.message)));
         const ended = attempt.acceptedAt ?? attempt.failure?.at;
         card.append(el("p", `Attempt elapsed: ${Math.max(0, Math.round(((ended ?? Date.now()) - attempt.createdAt) / 1e3))} sec (includes preparation and waiting)`));
         const workflow = workflowState?.workflows?.find((row) => row.id === attempt.workflowId);
         const run = [...workflow?.runs ?? [], workflow?.run].find((row) => row?.id === attempt.runId);
-        card.append(box("Role progress and workspaces", json({ roles: run?.nodeStatus ?? {}, workspaces: attempt.workspaces, models: attempt.agentDefinitions?.roles?.map((row) => ({ role: row.role, model: row.model })) ?? [] })));
+        card.append(box("Role progress and workspaces", ...Object.entries(run?.nodeStatus ?? {}).map(([role, status]) => el("p", `${role}: ${status}`)), ...(attempt.agentDefinitions?.roles ?? []).map((row) => el("p", `${row.name ?? row.role} · ${row.execution?.harness ?? "flybot"} · ${row.execution?.model ?? row.model ?? "Default model"} · Skills: ${(row.skills ?? []).join(", ") || "None"}`))));
         if (attempt.pr?.url) card.append(link("Open pull request", attempt.pr.url));
         card.append(button("Test log", () => act(async () => {
           const log = await scoped("project-attempt-log", { attemptId: attempt.id });
@@ -270,6 +353,63 @@
         if (detail.permissions.configure) card.append(button("Stop execution", () => act(() => scoped("project-attempt-stop", { attemptId: attempt.id })), busy), button("Clean workspaces", () => act(() => scoped("project-attempt-cleanup", { attemptId: attempt.id })), busy));
         node.append(card);
       }
+      return node;
+    }
+    function evidencePanel(evidence = {}) {
+      const panel = box("Verified artifacts");
+      if (evidence.implementation?.diffStat) panel.append(el("pre", evidence.implementation.diffStat));
+      if (evidence.tests) panel.append(el("p", `Host tests: ${evidence.tests.ok === true || evidence.tests.passed === true ? "passed" : evidence.tests.ok === false ? "failed" : "See test log"}`));
+      if (evidence.review) panel.append(el("p", `Candidate review: ${evidence.review.verdict ?? "unavailable"} · ${evidence.review.summary ?? ""}`));
+      if (!Object.keys(evidence).length) panel.append(el("p", "No sealed evidence yet"));
+      return panel;
+    }
+    function roomsPanel() {
+      const node = box("Project conversations", el("p", "Rooms use independent scoped Sessions. @chief, @developer, @tester and @reviewer route to participating Bots. Conversations do not execute Tasks."));
+      const navigation = el("nav", null, "room-list");
+      for (const room of rooms?.rooms ?? []) navigation.append(button(room.name, () => route(selected, "rooms", room.id)));
+      node.append(navigation);
+      if (roomView) {
+        node.append(el("h2", roomView.name), el("p", roomView.memberIds.length ? "Restricted to selected Project members" : "Shared with current Project members"));
+        const conversation = el("div", null, "conversation");
+        conversation.setAttribute("role", "log");
+        conversation.setAttribute("aria-label", "Room conversation");
+        for (const row of roomView.messages) conversation.append(box(row.speaker ?? "Message", conversationText(doc, row.text)));
+        for (const session of roomView.sessions ?? []) {
+          conversation.append(el("p", `${session.role}: ${session.phase} · ${session.harness} · ${session.model ?? "Default model"}`));
+          if (session.live?.text) conversation.append(box(`${session.role} answering…`, conversationText(doc, session.live.text)));
+          if (["queued", "running"].includes(session.phase)) conversation.append(button(`Stop ${session.role}`, () => act(() => scoped("project-room-stop", { roomId: roomView.id, role: session.role })), busy));
+        }
+        node.append(conversation, form(`room-message-${roomView.id}`, [["text", "Room message (@role)", "textarea"], ["attachmentIds", "Include registered documents", "checkboxes", roomView.attachments.map((row) => ({ value: row.id, label: row.name }))]], (values) => scoped("project-room-message", { roomId: roomView.id, ...values }), "Send to room"));
+        const attachments = box("Registered documents and artifacts", el("p", "Text documents stay in this room; raw filesystem paths and remote images are unavailable."));
+        for (const row of roomView.attachments) attachments.append(button(row.name, () => act(async () => {
+          const captured = epoch, id = selected;
+          const result = await scoped("project-room-attachment", { roomId: roomView.id, attachmentId: row.id });
+          if (captured === epoch && selected === id) notice = `${result.name}
+${result.text}`;
+        })));
+        attachments.append(form(`attachment-${roomView.id}`, [["name", "Document name"], ["text", "Document content", "textarea"]], (values) => scoped("project-room-attachment", { roomId: roomView.id, ...values }), "Register document"));
+        node.append(attachments);
+      }
+      if (detail.permissions.create) node.append(box("Create a room", form("room-create", [["name", "Room name"], ["roles", "Participating Bots", "checkboxes", ["chief", "developer", "tester", "reviewer"], ["chief"]], ["memberIds", "Restrict to members (empty shares with Project)", "checkboxes", members.members.map((row) => row.memberId)]], async (values) => {
+        const room = await scoped("project-room-create", values);
+        route(selected, "rooms", room.id);
+      }, "Create room")));
+      return node;
+    }
+    function activityPanel() {
+      const node = box("Logical Bot pools", el("p", "Tasks keep their identity across returns and transfers. Completion requests wait for Chief judgement; a fixed DAG is optional."));
+      for (const pool of pools?.pools ?? []) node.append(box(pool.role, ...(pool.tasks ?? []).map((task) => button(task.title ?? task.id, () => route(selected, "tasks", task.id)))));
+      const events = [];
+      for (const task of detail.tasks ?? []) {
+        if (task.collaboration?.claim) events.push({ at: task.collaboration.claim.createdAt ?? task.updatedAt, title: task.title, text: `Claimed by ${task.collaboration.botId?.split(":").at(-1) ?? "Bot"}` });
+        for (const receipt of task.collaboration?.history ?? []) events.push({ at: receipt.createdAt, title: task.title, text: `${receipt.from?.split(":").at(-1) ?? "Requester"} → ${receipt.to?.split(":").at(-1)} · ${receipt.purpose ?? receipt.status} · ${receipt.reason}` });
+      }
+      for (const run of resources.chief?.runs ?? []) events.push({ at: run.createdAt, title: `Chief ${run.purpose}`, text: `${run.status} · ${run.summary ?? run.failure ?? ""}` });
+      const timeline = box("Timeline");
+      for (const event of events.sort((a, b) => (b.at ?? 0) - (a.at ?? 0)).slice(0, 100)) timeline.append(box(event.title, el("small", event.at ? new Date(event.at).toLocaleString() : "Time unavailable"), el("p", event.text)));
+      if (!events.length) timeline.append(el("p", "No recorded collaboration events yet"));
+      node.append(timeline);
+      for (const workflow of workflowState?.workflows ?? []) node.append(box(workflow.name ?? "Workflow", ...(workflow.runs ?? []).map((run) => el("p", `${run.task?.title ?? "Run"} · ${run.status}`))));
       return node;
     }
     function boardPanel() {
@@ -303,14 +443,16 @@
     function agentsPanel() {
       const privateView = tab === "private", visibility = privateView ? "private" : "public";
       const node = box(privateView ? "My Project agent" : "Public Chief", el("p", privateView ? "Your conversation, notes and unpublished proposals are private to this Project and account." : "This conversation is shared with current Project members."));
-      for (const message of history?.messages ?? []) node.append(box(message.role ?? message.kind ?? "Message", el("p", message.text ?? message.content ?? "")));
+      for (const message of history?.messages ?? []) node.append(box(message.speaker ?? (message.kind === "human" ? "You" : privateView ? "Project companion" : "Chief"), conversationText(doc, message.text ?? message.content ?? "")));
+      if (history?.live) node.append(box("Answering…", conversationText(doc, history.live.text), history.live.tool ? el("p", `Using ${history.live.tool}`) : null));
+      if (history?.busy) node.append(button("Stop reply", () => act(() => scoped("project-agent-stop", { visibility })), busy));
       node.append(form("message", [["text", "Message", "textarea"]], (values) => scoped("project-agent-message", { ...values, visibility }), history?.busy ? "Agent busy" : "Send"));
       if (privateView) {
         node.append(el("p", `Agent mode: ${agents.delegation?.mode ?? "safe"}. Safe mode requires approval before Task publication. Watch mode acts with your current Project permissions until revoked.`));
         node.append(form("agent-mode", [["mode", "Agent mode", "select", ["safe", "watch"], agents.delegation?.mode ?? "safe"]], (values) => scoped("project-agent-mode", values), "Set agent mode"));
         node.append(form("chief-question", [["text", "Question for Chief", "textarea"]], (values) => scoped("project-chief-question", { ...values, requestId: win.crypto.randomUUID() }), "Ask Chief without a Task"));
         node.append(box("Private notes", ...agents.privateMemory.map((note) => el("p", note.text)), form("memory", [["text", "Remember privately", "textarea"]], (values) => scoped("project-agent-memory-write", values))));
-        for (const proposal of agents.proposals) node.append(box(proposal.taskId ? "Published Task" : "Unpublished proposal", el("p", proposal.taskId ? "Published; execution requires a separate run request." : "Private proposal; it has not been published or assigned."), json(proposal.fields), button(proposal.taskId ? "Published" : "Publish as shared Task", () => act(() => scoped("project-agent-proposal-apply", { proposalId: proposal.id })), Boolean(proposal.taskId) || busy)));
+        for (const proposal of agents.proposals) node.append(box(proposal.taskId ? "Published Task" : "Unpublished proposal", el("p", proposal.taskId ? "Published; execution requires a separate run request." : "Private proposal; it has not been published or assigned."), el("h3", proposal.fields.title), el("p", proposal.fields.criteria), el("p", proposal.fields.note), button(proposal.taskId ? "Published" : "Publish as shared Task", () => act(() => scoped("project-agent-proposal-apply", { proposalId: proposal.id })), Boolean(proposal.taskId) || busy)));
       } else {
         const chief = resources.chief, settings = chief?.policy.inspection ?? chief?.template;
         if (chief && settings) {
@@ -365,7 +507,7 @@
           }
           node.append(card);
         }
-        node.append(box("Shared knowledge", ...agents.knowledge.map((row) => el("p", row.text))));
+        node.append(box("Shared knowledge", ...agents.knowledge.map((row) => el("p", row.text)), form("share-summary", [["text", "Publish a verified summary", "textarea"]], (values) => scoped("project-knowledge-write", { ...values, kind: "fact" }), "Share summary")));
       }
       return node;
     }
@@ -383,8 +525,8 @@
         node.append(row);
       }
       for (const worker of resources.harnessWorkers ?? []) {
-        const row = box(`${worker.role} · ${worker.harness}`, el("p", `${worker.status} · ${worker.resourceId} · ${worker.backendSessionId ?? "Session pending"}`));
-        if (worker.pending?.kind === "permission" && detail.permissions.configure) row.append(json(worker.pending.request), button("Allow requested action", () => act(() => scoped("project-execution-input", { workerId: worker.id, generation: worker.generation, requestId: worker.pending.id, allow: true })), busy), button("Deny requested action", () => act(() => scoped("project-execution-input", { workerId: worker.id, generation: worker.generation, requestId: worker.pending.id, allow: false })), busy));
+        const row = box(`${worker.role} · ${worker.harness}`, el("p", `${worker.status} · ${worker.resourceId} · ${worker.sdkVersion ? "SDK " + worker.sdkVersion : "SDK pending"} · ${worker.model ?? "Model unavailable"}`));
+        if (worker.pending?.kind === "permission" && detail.permissions.configure) row.append(el("p", `Permission requested: ${worker.pending.request?.name ?? "Runtime action"}`), el("p", worker.pending.request?.description ?? "Review the scoped execution evidence before allowing this action."), button("Allow requested action", () => act(() => scoped("project-execution-input", { workerId: worker.id, generation: worker.generation, requestId: worker.pending.id, allow: true })), busy), button("Deny requested action", () => act(() => scoped("project-execution-input", { workerId: worker.id, generation: worker.generation, requestId: worker.pending.id, allow: false })), busy));
         else if (worker.pending) row.append(el("p", worker.pending.text), form(`execution-${worker.id}`, [["text", "Continue the same execution Session", "textarea"]], (values) => scoped("project-execution-input", { workerId: worker.id, generation: worker.generation, text: values.text })));
         node.append(row);
       }
@@ -393,7 +535,7 @@
         if (["waiting", "blocked"].includes(entry.status) && (detail.permissions.configure || entry.memberId === bootstrap.self.memberId)) row.append(button("Cancel queue request", () => act(() => scoped("project-queue-cancel", { queueId: entry.id })), busy));
         node.append(row);
       }
-      node.append(box("Workers and workspaces", json({ workers: resources.workers, workspaces: resources.workspaces })), box("Shared host process", el("p", `RSS ${Math.round(resources.host.rssBytes / 1048576)} MiB · CPU ${resources.host.cpuPercent == null ? "not sampled" : `${resources.host.cpuPercent.toFixed(1)}%`}`), el("p", resources.host.reason)), box("My platform instance", el("p", "Account instance from control-plane; separate from the shared execution host."), json(resources.platformInstance ?? { status: "Unavailable" })));
+      node.append(box("Workers and workspaces", ...(resources.workers ?? []).map((row) => el("p", `${row.role ?? "Worker"} · ${row.createdAt ? new Date(row.createdAt).toLocaleString() : "Time unavailable"}`)), ...(resources.workspaces ?? []).map((row) => el("p", `${row.role ?? row.kind ?? "Workspace"} · ${row.status ?? "registered"}`))), box("Shared host process", el("p", resources.host ? `RSS ${Math.round(resources.host.rssBytes / 1048576)} MiB · CPU ${resources.host.cpuPercent == null ? "not sampled" : `${resources.host.cpuPercent.toFixed(1)}%`}` : "Unavailable"), el("p", resources.host?.reason)), box("My platform instance", el("p", "Account instance from control-plane; separate from the shared execution host."), el("p", resources.platformInstance?.status ?? "Unavailable")));
       return node;
     }
     function render() {
@@ -423,7 +565,7 @@
         }
         picker.onchange = () => route(picker.value);
         sidebar.append(picker);
-        for (const [key, title] of [["board", "Task board"], ["members", "Members"], ["bots", "Public Bots"], ["resources", "Resources"], ["private", "My Project agent"]]) sidebar.append(button(title, () => route(selected, key), !selected));
+        for (const [key, title] of [["board", "Task board"], ["members", "Members"], ["bots", "Public Bots"], ["rooms", "Rooms & mentions"], ["activity", "Pools & Timeline"], ["resources", "Resources"], ["private", "My Project agent"]]) sidebar.append(button(title, () => route(selected, key), !selected));
         sidebar.append(button("All Projects", () => {
           win.location.hash = "";
         }), button("Sign out", () => act(async () => {
@@ -435,7 +577,7 @@
           bootstrap = null;
           selected = "";
           ++epoch;
-          detail = resources = agents = members = history = taskDetail = workflowState = null;
+          detail = resources = agents = members = history = taskDetail = workflowState = rooms = roomView = pools = null;
         })));
         if (!selected) {
           main.append(el("h1", "Projects"), ...bootstrap.projects.map((project) => box(project.name, el("p", `${project.role} · ${project.status}`), button("Open Project", () => route(project.id)))));
@@ -448,7 +590,7 @@
           }, "Join")));
         } else if (detail) {
           main.append(el("h1", detail.project.name), el("p", `${detail.project.role} · ${detail.project.status} · ${detail.project.repository ?? "No repository"}`));
-          main.append(taskDetail ? attemptsPanel() : tab === "members" ? membersPanel() : ["bots", "private"].includes(tab) ? agentsPanel() : tab === "resources" ? resourcesPanel() : boardPanel());
+          main.append(taskDetail ? attemptsPanel() : tab === "members" ? membersPanel() : ["bots", "private"].includes(tab) ? agentsPanel() : tab === "resources" ? resourcesPanel() : tab === "rooms" ? roomsPanel() : tab === "activity" ? activityPanel() : boardPanel());
         } else main.append(el("p", error ? "Project unavailable. Select another Project or refresh." : "Loading Project…"));
       }
       if (mode?.panelUrl) sidebar.append(link("Control-plane account panel", mode.panelUrl, true));

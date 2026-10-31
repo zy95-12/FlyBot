@@ -6,6 +6,7 @@ import { output } from './tools.js'
 import { textOf } from './text.js'
 import { resolveAgentSkills } from './project-agent-skills.js'
 import { roleContext } from './project-role-context.js'
+import { createProjectRooms } from './project-rooms.js'
 import { deliveryGraph } from './project-delivery-template.js'
 
 const digest = text => createHash('sha256').update(text).digest('hex')
@@ -45,6 +46,7 @@ export function createProjectAgents(rt) {
     })
   }
   const delegations = new Map()
+  const rooms = createProjectRooms(rt, { send: (body, actor) => serial(() => send(body, actor)), stop: stopAgent })
   let tail = Promise.resolve()
   const serial = fn => { const result = tail.then(fn, fn); tail = result.then(() => {}, () => {}); return result }
   const keyOf = (projectId, memberId) => `private-${digest(`${projectId}\n${memberId}`).slice(0, 32)}`
@@ -60,6 +62,7 @@ export function createProjectAgents(rt) {
     const delegation = delegations.get(agent.id)
     if (!delegation || delegation.revoked || !admitting && !delegation.started || agent.visibility === 'private' && delegation.actor.memberId !== agent.memberId) throw refuse('Agent has no active human delegation')
     const actor = delegation.actor
+    if (agent.roomId) rooms.requireRoom(agent.projectId, agent.roomId, actor)
     rt.requireProjectAccess(actor, agent.projectId)
     return { agent, actor, delegation }
   }
@@ -93,9 +96,9 @@ export function createProjectAgents(rt) {
     setEntry(definitions(), projectId, record)
     return record
   }
-  async function ensure(projectId, actor, visibility = 'private') {
+  async function ensure(projectId, actor, visibility = 'private', room = null, role = 'chief') {
     const project = rt.requireProjectAccess(actor, projectId)
-    const id = visibility === 'private' ? keyOf(projectId, actor.memberId) : `public-${projectId}`
+    const id = room ? `room-${room.id}-${role}` : visibility === 'private' ? keyOf(projectId, actor.memberId) : `public-${projectId}`
     const known = ownEntry(agents(), id)
     if (known?.status === 'retired') return known
     if (known && rt.botOf(known.botId)) {
@@ -106,7 +109,7 @@ export function createProjectAgents(rt) {
     }
     if (project.status !== 'active') throw refuse('Project is archived; a new agent cannot be created')
     let bot
-    if (visibility === 'public') {
+    if (visibility === 'public' && !room) {
       const previous = project.chief
       const definition = definitionSet(projectId).roles.find(row => row.role === 'chief')
       const created = await rt.createBot({ name: `Chief ${digest(id).slice(0, 16)} ${Array.from(project.name).slice(0, 6).join('')}`,
@@ -115,13 +118,17 @@ export function createProjectAgents(rt) {
       bot = rt.botOf(created.id)
       if (previous?.botId) project.legacyChiefs = [...(project.legacyChiefs ?? []), { ...previous, archivedAt: Date.now() }]
       project.chief = { botId: bot.id, sessionId: rt.chatOf(bot.id), createdAt: Date.now() }
+    } else if (room) {
+      const definition = definitionSet(projectId).roles.find(row => row.role === role)
+      const created = await rt.createBot({ name: `${role} ${digest(id).slice(0, 20)}`, role: definition.name, instructions: CHIEF_PROMPT, hidden: true, ownerId: project.ownerUserId, ...(definition.model ? { model: definition.model } : {}) })
+      bot = rt.botOf(created.id)
     } else {
       const created = await rt.createBot({ name: `Private ${digest(id).slice(0, 16)} ${Array.from(project.name).slice(0, 6).join('')}`,
         role: 'Private Project Agent', instructions: PRIVATE_PROMPT, hidden: true, ownerId: actor.memberId,
         ...(rt.config.projectModel ? { model: rt.config.projectModel } : {}) })
       bot = rt.botOf(created.id)
     }
-    const record = { id, projectId, definitionVersion: visibility === 'private' ? 'private-project-agent/v3' : 'public-project-chief/v1', memberId: visibility === 'private' ? actor.memberId : null, visibility, botId: bot.id,
+    const record = { id, projectId, ...(room ? { roomId: room.id, role } : {}), definitionVersion: visibility === 'private' ? 'private-project-agent/v3' : 'public-project-chief/v1', memberId: visibility === 'private' ? actor.memberId : null, visibility, botId: bot.id,
       sessionId: rt.chatOf(bot.id), createdAt: known?.createdAt ?? Date.now(), carrierGeneration: (known?.carrierGeneration ?? 0) + 1 }
     bot.projectId = projectId
     bot.projectAgent = { id, visibility, memberId: record.memberId }
@@ -136,7 +143,7 @@ export function createProjectAgents(rt) {
     const detail = await rt.projectEndpoint('project-detail', { id: agent.projectId }, actor)
     return { permissionMode: delegation.readOnly ? 'conversation' : actor.watchGrantId ? 'watch' : 'safe', project: detail.project, tasks: detail.tasks, runs: detail.runs,
       knowledge: ownEntry(state.projectKnowledge ?? {}, agent.projectId) ?? [],
-      publicMessages: (ownEntry(transcripts(), `public-${agent.projectId}`) ?? []).slice(-10).map(row => ({ ...row, text: row.text.slice(0, 2000) })),
+      publicMessages: (agent.roomId ? rooms.requireRoom(agent.projectId, agent.roomId, actor).messages : ownEntry(transcripts(), `public-${agent.projectId}`) ?? []).slice(-10).map(row => ({ ...row, text: row.text.slice(0, 2000) })),
       ...(agent.visibility === 'private' ? { privateMemory: (ownEntry(privateNotes(), agent.id) ?? []).slice(-20), privateConversation: logOf(agent.id).slice(-10).map(row => ({ ...row, text: row.text.slice(0, 2000) })) } : {}),
       identity: { visibility: agent.visibility, projectId: agent.projectId, memberId: actor.memberId } }
   }
@@ -200,28 +207,31 @@ export function createProjectAgents(rt) {
   }
   async function send(body, actor) {
     const visibility = body.visibility === 'public' ? 'public' : 'private'
-    const agent = await ensure(body.projectId, actor, visibility)
+    const room = body.roomId ? rooms.requireRoom(body.projectId, body.roomId, actor) : null
+    const role = room ? body.role : 'chief'
+    if (room && !room.roles.includes(role)) throw refuse('Role is not in this room')
+    const agent = await ensure(body.projectId, actor, visibility, room, role)
     const project = rt.requireProjectAccess(actor, agent.projectId)
     if (agent.status === 'retired' || project.status === 'deleted' || project.deleting) throw refuse('Project agent is retired')
     const text = clean(body.text)
     if (!text) throw refuse('A message needs text')
     if (delegations.has(agent.id) || rt.activityView?.()[agent.botId]) throw Object.assign(refuse('Agent is answering; wait for its current turn'), { code: 'bot/busy' })
     if (visibility === 'public') {
-      const definition = definitionSet(agent.projectId).roles.find(row => row.role === 'chief')
+      const definition = definitionSet(agent.projectId).roles.find(row => row.role === role)
       if ((definition.execution?.harness ?? 'flybot') !== 'flybot' && !definition.execution?.resourceIds?.length) throw refuse('SDK Chief requires an explicit resource pool')
       const bot = rt.botOf(agent.botId)
       const detail = await rt.projectEndpoint('project-detail', { id: agent.projectId }, actor)
       const projectFacts = { tasks: detail.tasks.slice(-20).map(({ id, title, status, criteria }) => ({ id, title, status, criteria: clean(criteria, 1000) })),
         runs: detail.runs.slice(-10).map(({ id, taskId, status }) => ({ id, taskId, status })), publicMessages: logOf(agent.id).slice(-8).map(row => ({ kind: row.kind, text: row.text.slice(0, 1500) })) }
-      const snapshot = roleContext({ projectId: agent.projectId, role: 'chief', revision: definitionSet(agent.projectId).revision, projectFacts,
-        definition: { ...definition, resolvedSkills: resolveAgentSkills(rt, definition.skills) }, memory: memoryFor(agent.projectId, 'chief', definition.memoryRefs),
+      const snapshot = roleContext({ projectId: agent.projectId, role, revision: definitionSet(agent.projectId).revision, projectFacts,
+        definition: { ...definition, resolvedSkills: resolveAgentSkills(rt, definition.skills) }, memory: memoryFor(agent.projectId, role, definition.memoryRefs),
         knowledge: ownEntry(state.projectKnowledge ?? {}, agent.projectId) ?? [], repository: await rt.projectDelivery?.repositoryContext(agent.projectId) ?? [] })
       agent.nextContext = snapshot
-      bot.instructions = CHIEF_PROMPT + '\n\n' + snapshot.text
+      bot.instructions = (room ? `You are the ${role} in this Project room. Answer only the explicit conversation; never claim code work or independent review was performed here.\n` : '') + CHIEF_PROMPT + '\n\n' + snapshot.text
       bot.systemPrompt = bot.instructions
       if (definition.model && bot.model !== definition.model) { bot.model = definition.model; await rt.applyModel?.(bot) }
     }
-    const delegation = { id: randomUUID(), exchangeId: randomUUID(), actor: { ...actor }, definitionRevision: definitionSet(agent.projectId).revision, at: Date.now(), started: false, revoked: false, publicationApproved: body.publicationApproved === true }
+    const delegation = { id: randomUUID(), exchangeId: randomUUID(), actor: { ...actor }, definitionRevision: definitionSet(agent.projectId).revision, at: Date.now(), started: false, revoked: false, publicationApproved: !room && body.publicationApproved === true, readOnly: Boolean(room), roomId: room?.id }
     const watchGrant = rt.projectDelegations?.forAgent(agent.visibility === 'private' ? agent.id : keyOf(agent.projectId, actor.memberId))
     if (watchGrant) delegation.watchGrantId = watchGrant.id
     delegations.set(agent.id, delegation)
@@ -230,18 +240,18 @@ export function createProjectAgents(rt) {
     logOf(agent.id).push({ ...agent.lastRequest, kind: 'human', memberId: actor.memberId, text })
     await rt.save()
     try {
-      const definition = definitionSet(agent.projectId).roles.find(row => row.role === 'chief')
+      const definition = definitionSet(agent.projectId).roles.find(row => row.role === role)
       if (visibility === 'public' && (definition.execution?.harness ?? 'flybot') === 'flybot' && definition.execution?.resourceIds?.length) {
-        const lease = await rt.projectResources.reserve({ projectId: agent.projectId, attemptId: `chief-turn-${delegation.id}`, sessionKey: delegation.id, role: 'chief', harness: 'flybot', resourceIds: definition.execution.resourceIds, maxConcurrent: 1 })
+        const lease = await rt.projectResources.reserve({ projectId: agent.projectId, attemptId: `chief-turn-${delegation.id}`, sessionKey: delegation.id, role, harness: 'flybot', resourceIds: definition.execution.resourceIds, maxConcurrent: 1 })
         if (rt.projectResources.setting(agent.projectId, lease.resourceId).type !== 'local') { await rt.projectResources.release(lease.id, lease.generation); throw refuse('Native Chief requires a local resource') }
         delegation.resourceLease = lease; agent.lastRequest.resourceLease = lease
         await rt.projectResources.markStarted(lease.id, lease.generation, { kind: 'native-turn', handle: delegation.exchangeId, botId: agent.botId, sessionId: agent.sessionId })
       }
       if (visibility === 'public' && (definition.execution?.harness ?? 'flybot') !== 'flybot') {
         delegation.started = true
-        await rt.projectHarness.chiefTurn({ agent, delegation, definition: structuredClone(definition), context: agent.lastRequest.context, text,
+        await rt.projectHarness.chiefTurn({ agent, delegation, definition: structuredClone(definition), context: agent.lastRequest.context, text: room ? rooms.prompt(room, text) : text,
           onResult: result => chiefReply(agent, delegation, result) })
-      } else await rt.deliver({ toId: agent.botId, sessionId: agent.sessionId, role: 'request', audience: 'user', text,
+      } else await rt.deliver({ toId: agent.botId, sessionId: agent.sessionId, role: 'request', audience: 'user', text: room ? rooms.prompt(room, text) : text,
         fromName: actor.displayName ?? actor.memberId, untrusted: true, exchangeId: delegation.exchangeId, projectDelegation: { agentId: agent.id, delegationId: delegation.id } })
     } catch (error) { if (delegations.get(agent.id)?.id === delegation.id) delegations.delete(agent.id); throw error }
     return { agent: structuredClone(agent), queued: true }
@@ -280,6 +290,7 @@ export function createProjectAgents(rt) {
   }) }
   function appendReply(agent, entry) {
     logOf(agent.id).push(entry)
+    if (agent.roomId) rooms.append(agent, entry)
     if (agent.returnAgentId) {
       const parent = ownEntry(agents(), agent.returnAgentId)
       if (parent?.memberId !== agent.memberId || parent.projectId !== agent.projectId) throw refuse('Conversation return scope changed')
@@ -346,9 +357,11 @@ export function createProjectAgents(rt) {
         if (action.tool === 'run' && action.args.taskId === '$lastTask') { const previous = results.at(-1); if (!previous?.id || !ownEntry(state.tasks, previous.id)) throw refuse('No confirmed Task is available for the requested run'); action.args = { ...action.args, taskId: previous.id } }
         results.push(action.tool === 'github_read' ? await githubRead(rt.botOf(agent.botId), action.args) : action.tool === 'task' ? await task(rt.botOf(agent.botId), action.args) : await run(rt.botOf(agent.botId), action.args))
       }
+      if (delegations.get(agent.id)?.id !== delegation.id || delegation.revoked) return
       appendReply(agent, { id: randomUUID(), kind: 'agent', text: clean(parsed.reply, 16000) + (results.length ? '\nHost-confirmed scoped action results: ' + JSON.stringify(results) : ''), at: Date.now(), initiatedBy: delegation.actor.memberId, definitionRevision: delegation.definitionRevision })
       agent.lastRequest.phase = 'completed'
     } catch {
+      if (delegations.get(agent.id)?.id !== delegation.id || delegation.revoked) return
       appendReply(agent, { id: randomUUID(), kind: 'agent', text: 'Chief could not complete this SDK request. Check the selected resource and retry; no delivery acceptance is implied.', at: Date.now() })
       agent.lastRequest.phase = 'failed'
     } finally {
@@ -358,6 +371,8 @@ export function createProjectAgents(rt) {
     }
   }
   async function endpoint(endpoint, body, actor) {
+    if (endpoint === 'project-rooms' || endpoint.startsWith('project-room-')) return rooms.endpoint(endpoint, body, actor)
+    if (endpoint === 'project-agent-stop') return stopAgent(body, actor)
     if (endpoint === 'project-agent-message') return serial(() => send(body, actor))
     if (endpoint === 'project-agent-proposal-apply') return serial(async () => {
       const proposal = ownEntry(proposals(), String(body.proposalId ?? ''))
@@ -440,7 +455,7 @@ export function createProjectAgents(rt) {
     }
     if (endpoint === 'project-agent-history') {
       const agent = await serial(() => ensure(projectId, actor, body.visibility === 'public' ? 'public' : 'private'))
-      return { agent: structuredClone(agent), messages: structuredClone(logOf(agent.id)), busy: delegations.has(agent.id) || Boolean(rt.activityView?.()[agent.botId]) }
+      return { agent: structuredClone(agent), live: liveFor(agent), messages: structuredClone(logOf(agent.id)), busy: delegations.has(agent.id) || Boolean(rt.activityView?.()[agent.botId]) }
     }
     const mine = await serial(() => ensure(projectId, actor))
     const publicAgent = await serial(() => ensure(projectId, actor, 'public'))
@@ -475,14 +490,67 @@ export function createProjectAgents(rt) {
     if (!actor) throw refuse('No persistent watch delegation is active')
     return serial(() => send({ projectId, visibility: 'private', text }, actor))
   }
+  async function stopAgent(body, actor) {
+    const agent = body.roomId ? Object.values(agents()).find(row => row.roomId === body.roomId && row.role === body.role) : await ensure(body.projectId, actor, body.visibility === 'public' ? 'public' : 'private')
+    rt.requireProjectAccess(actor, body.projectId)
+    if (body.roomId) rooms.requireRoom(body.projectId, body.roomId, actor)
+    if (!agent || agent.projectId !== body.projectId) throw refuse('Agent is unavailable')
+    const delegation = delegations.get(agent.id)
+    if (!delegation) return { stopped: false }
+    if (delegation.actor.memberId !== actor.memberId) rt.requireProjectAccess(actor, body.projectId, 'configure')
+    delegation.revoked = true
+    if (agent.lastRequest) agent.lastRequest.phase = 'stopping'
+    if (agent.lastRequest?.workerId) await rt.projectHarness.release(agent.lastRequest.workerId)
+    else {
+      const active = await rt.resolveAgent?.(agent.sessionId)
+      if (!active) { await rt.save(); return { stopped: false, reason: 'Conversation exit is unconfirmed; its delegation remains fenced' } }
+      for (const message of [...(active?.inbox?.nextStep ?? []), ...(active?.inbox?.nextTurn ?? [])]) if (message.source?.exchangeId === delegation.exchangeId) active.inbox.remove?.(message.id)
+      active?.cancel?.({ kind: 'hook', reason: 'Human stopped Project conversation' })
+      await active?.whenIdle?.()
+      if (delegation.resourceLease && active) await rt.projectResources.release(delegation.resourceLease.id, delegation.resourceLease.generation, { handle: delegation.exchangeId, exited: true })
+    }
+    if (delegations.get(agent.id)?.id === delegation.id) delegations.delete(agent.id)
+    if (agent.lastRequest) agent.lastRequest.phase = 'cancelled'
+    await rt.save()
+    return { stopped: true }
+  }
+  const streams = new Map()
+  function liveFor(agent) {
+    const live = streams.get(agent.id)
+    return live && delegations.get(agent.id)?.id === live.delegationId && !delegations.get(agent.id)?.revoked ? { text: live.text, tool: live.tool ?? null } : null
+  }
+  function stream(sessionId, next) {
+    const agent = recordForBot(rt.selfOf?.(sessionId))
+    const delegation = agent && delegations.get(agent.id)
+    if (!agent || agent.sessionId !== sessionId || !delegation?.started || delegation.revoked) return next()
+    const live = { delegationId: delegation.id, text: '' }; streams.set(agent.id, live)
+    return (async function* () {
+      for await (const chunk of next()) {
+        if (delegations.get(agent.id)?.id === delegation.id && !delegation.revoked && chunk.type === 'text-delta') live.text = (live.text + chunk.text).slice(-16000)
+        yield chunk
+      }
+    })()
+  }
   function onEvent(session, event) {
     const botId = rt.selfOf?.(session?.id)
     const agent = recordForBot(botId)
     if (!agent || agent.status === 'retired' || agent.sessionId !== session?.id) return
     const delegation = delegations.get(agent.id)
+    if (delegation) {
+      try {
+        rt.requireProjectAccess(delegation.actor, agent.projectId)
+        if (agent.roomId) rooms.requireRoom(agent.projectId, agent.roomId, delegation.actor)
+        const session = delegation.actor.sessionId && ownEntry(state.authSessions ?? {}, delegation.actor.sessionId)
+        const persistent = !delegation.readOnly && rt.projectDelegations?.forAgent(agent.visibility === 'private' ? agent.id : keyOf(agent.projectId, delegation.actor.memberId))
+        if (!persistent && delegation.actor.sessionId && (!session || session.revokedAt)) delegation.revoked = true
+      } catch { delegation.revoked = true }
+    }
     if (agent.lastRequest?.workerId) return // SDK Chief results use the fenced host callback, never dormant DSH events.
     if (event.type === 'user/message' && delegation && !delegation.revoked && event.data?.source?.exchangeId === delegation.exchangeId) { delegation.messageObserved = true; delegation.started = delegation.turnStarted === true }
-    if (event.type === 'turn/start' && delegation && !delegation.revoked) { delegation.turnStarted = true; delegation.started = delegation.messageObserved === true; delegation.turn = event.data?.turn }
+    if (event.type === 'turn/start' && delegation && !delegation.revoked) { delegation.turnStarted = true; delegation.started = delegation.messageObserved === true; delegation.turn = event.data?.turn; if (agent.lastRequest) agent.lastRequest.phase = 'running' }
+    if (event.type === 'tool/call' && delegation?.started && !delegation.revoked) { const live = streams.get(agent.id); if (live) live.tool = clean(event.data?.name, 100) }
+    if (event.type === 'tool/result') { const live = streams.get(agent.id); if (live) live.tool = null }
+    if (event.type === 'assistant/message') streams.delete(agent.id)
     if (event.type === 'assistant/message' && delegation?.started && !delegation.revoked && (!event.data?.turn || !delegation.turn || event.data.turn === delegation.turn)) {
       const text = textOf(event.data?.message?.content)
       if (delegation.chiefJob && text) delegation.chiefJobAnswer = text
@@ -491,6 +559,7 @@ export function createProjectAgents(rt) {
         void rt.save().catch(error => rt.warn('Project agent transcript save failed: %s', error.message))
       }
     }
+    if (event.type === 'turn/end') streams.delete(agent.id)
     if (event.type === 'turn/end' && delegation?.started && (!event.data?.turn || !delegation.turn || event.data.turn === delegation.turn)) {
       if (agent.lastRequest?.exchangeId === delegation.exchangeId) agent.lastRequest.phase = 'completed'
       if (delegation.resourceLease) void rt.projectResources.release(delegation.resourceLease.id, delegation.resourceLease.generation, { handle: delegation.exchangeId, exited: true }).catch(error => rt.warn('Chief turn lease release: %s', error.message))
@@ -569,11 +638,12 @@ export function createProjectAgents(rt) {
   }
   const isDelegationActive = (id, delegationId) => { const entry = delegations.get(id); return entry?.id === delegationId && !entry.revoked }
   const ensureProject = (projectId, actor) => serial(async () => { await ensure(projectId, actor, 'public'); return ensure(projectId, actor) })
-  return { hasExchange: exchangeId => [...delegations.values()].some(row => row.exchangeId === exchangeId && !row.revoked), privateIdentity: keyOf, ensurePublic: (projectId, actor) => serial(() => ensure(projectId, actor, 'public')), chiefBusy: projectId => delegations.has(`public-${projectId}`), startChiefJob, endpoint, chiefQuestion, askChief, githubRead, action, wakeWatch, revokeWatchGrant, ensureProject, isDelegationActive, actorOf, context, memory, task, run, onEvent, revoke, revokeSession, removeProject, deliveryDefinitions, recordForBot, ROLES }
+  return { stream, liveFor, hasExchange: exchangeId => [...delegations.values()].some(row => row.exchangeId === exchangeId && !row.revoked), privateIdentity: keyOf, ensurePublic: (projectId, actor) => serial(() => ensure(projectId, actor, 'public')), chiefBusy: projectId => delegations.has(`public-${projectId}`), startChiefJob, endpoint, chiefQuestion, askChief, githubRead, action, wakeWatch, revokeWatchGrant, ensureProject, isDelegationActive, actorOf, context, memory, task, run, onEvent, revoke, revokeSession, removeProject, deliveryDefinitions, recordForBot, ROLES }
 }
 
 export function install(rt) {
   rt.projectAgents = createProjectAgents(rt)
+  rt.ctx.on('llm/stream', (options, next) => options.purpose === undefined ? rt.projectAgents.stream(options.sessionId, next) : next())
   rt.ctx.on('session/event', (session, event) => rt.projectAgents.onEvent(session, event))
   rt.ctx.on('agent/pre-step', async (payload, next) => {
     const decision = await next()
