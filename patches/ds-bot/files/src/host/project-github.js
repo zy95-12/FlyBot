@@ -43,7 +43,7 @@ export function githubPublisher(settings = {}) {
       // A fixed URL avoids inheriting a model-edited remote; the credential is environment-only.
       try {
         await exec('git', ['-c', 'core.hooksPath=/dev/null', 'push', `https://github.com/${repository}.git`, `${attempt.candidateSha}:refs/heads/${attempt.branch}`], {
-          cwd: attempt.workspaces.developer.path, timeout: 120_000, maxBuffer: 64 * 1024,
+          cwd: attempt.publicationRepository ?? attempt.workspaces.developer.path, timeout: 120_000, maxBuffer: 64 * 1024,
           env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_CONFIG_COUNT: '2',
             GIT_CONFIG_KEY_0: 'http.https://github.com/.extraheader', GIT_CONFIG_VALUE_0: '',
             GIT_CONFIG_KEY_1: 'http.https://github.com/.extraheader', GIT_CONFIG_VALUE_1: `AUTHORIZATION: basic ${authorization}` },

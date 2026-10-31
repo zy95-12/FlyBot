@@ -261,6 +261,9 @@
           card.append(button("Accept this commit", () => act(() => scoped("project-task-accept", { attemptId: attempt.id, sha: attempt.candidateSha })), busy));
           card.append(form(`reject-${attempt.id}`, [["reason", "Requested changes", "textarea"]], (values) => scoped("project-task-reject", { attemptId: attempt.id, ...values }), "Request changes"));
         }
+        for (const [role, evidence] of Object.entries(attempt.evidence?.execution ?? {})) card.append(el("p", `${role}: ${evidence.harness} ${evidence.sdkVersion} · resource ${evidence.resourceId} · Session ${evidence.sessionId}`), button(`Read ${role} execution evidence`, () => act(async () => {
+          notice = (await scoped("project-attempt-log", { attemptId: attempt.id, role })).text ?? "No execution log";
+        })));
         if (detail.permissions.configure) card.append(button("Stop execution", () => act(() => scoped("project-attempt-stop", { attemptId: attempt.id })), busy), button("Clean workspaces", () => act(() => scoped("project-attempt-cleanup", { attemptId: attempt.id })), busy));
         node.append(card);
       }

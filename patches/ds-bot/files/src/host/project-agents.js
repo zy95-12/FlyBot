@@ -207,6 +207,12 @@ export function createProjectAgents(rt) {
     await rt.save()
     try {
       const definition = definitionSet(agent.projectId).roles.find(row => row.role === 'chief')
+      if (visibility === 'public' && (definition.execution?.harness ?? 'flybot') === 'flybot' && definition.execution?.resourceIds?.length) {
+        const lease = await rt.projectResources.reserve({ projectId: agent.projectId, attemptId: `chief-turn-${delegation.id}`, sessionKey: delegation.id, role: 'chief', harness: 'flybot', resourceIds: definition.execution.resourceIds, maxConcurrent: 1 })
+        if (rt.projectResources.setting(agent.projectId, lease.resourceId).type !== 'local') { await rt.projectResources.release(lease.id, lease.generation); throw refuse('Native Chief requires a local resource') }
+        delegation.resourceLease = lease; agent.lastRequest.resourceLease = lease
+        await rt.projectResources.markStarted(lease.id, lease.generation, { kind: 'native-turn', handle: delegation.exchangeId })
+      }
       if (visibility === 'public' && (definition.execution?.harness ?? 'flybot') !== 'flybot') {
         delegation.started = true
         await rt.projectHarness.chiefTurn({ agent, delegation, definition: structuredClone(definition), context: agent.lastRequest.context, text,
@@ -350,6 +356,7 @@ export function createProjectAgents(rt) {
     }
     if (event.type === 'turn/end' && delegation?.started && (!event.data?.turn || !delegation.turn || event.data.turn === delegation.turn)) {
       if (agent.lastRequest?.exchangeId === delegation.exchangeId) agent.lastRequest.phase = 'completed'
+      if (delegation.resourceLease) void rt.projectResources.release(delegation.resourceLease.id, delegation.resourceLease.generation, { handle: delegation.exchangeId, exited: true }).catch(error => rt.warn('Chief turn lease release: %s', error.message))
       delegations.delete(agent.id)
       void rt.save().catch(error => rt.warn('Project Chief completion save failed: %s', error.message))
     }
@@ -366,6 +373,7 @@ export function createProjectAgents(rt) {
         }
         active?.cancel?.({ kind: 'hook', reason: 'Project membership revoked' })
         await active?.whenIdle?.()
+        if (active && delegation.resourceLease) await rt.projectResources.release(delegation.resourceLease.id, delegation.resourceLease.generation, { handle: delegation.exchangeId, exited: true })
         if (delegations.get(id)?.id === delegation.id) delegations.delete(id)
       }).catch(() => {})
     }

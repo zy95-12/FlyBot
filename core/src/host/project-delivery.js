@@ -7,6 +7,7 @@ import { promisify } from 'node:util'
 import { ownEntry, setEntry } from './store.js'
 import { DELIVERY_ROLES, DELIVERY_VERSION, deliveryGraph } from './project-delivery-template.js'
 import { repositorySettings } from './project-repository-policy.js'
+import { createResourceWorkspaces, fileDigest } from './project-resource-workspaces.js'
 import { roleContext, contextHash } from './project-role-context.js'
 import { githubPublisher } from './project-github.js'
 
@@ -29,6 +30,8 @@ export function createProjectDelivery(rt, { publisher } = {}) {
   const { state, config } = rt
   const root = resolve(config.projectWorkspaceRoot ?? join(dirname(rt.dshHome), 'flybot-workspaces'))
   const artifacts = resolve(rt.home, 'project-artifacts')
+  const resourceWorkspaces = createResourceWorkspaces(rt, { hostGit: git, artifacts })
+  const workspaceGit = (workspace, args) => workspace.kind === 'resource-clone' ? resourceWorkspaces.git(workspace, args) : git(workspace.path, args)
   let recovered = false
   let tail = Promise.resolve()
   const serial = fn => { const result = tail.then(fn, fn); tail = result.then(() => {}, () => {}); return result }
@@ -63,17 +66,28 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     if (await realpath(root) !== root) throw reject('Delivery root must not be a symlink')
     for (const role of DELIVERY_ROLES) {
       if (attempt.cancelRequested) throw reject('Delivery was stopped')
-      const path = join(root, attempt.id, role)
-      await mkdir(join(root, attempt.id), { recursive: true, mode: 0o700 })
+      const lease = attempt.resourceLeases?.[role]
+      const resource = lease ? rt.projectResources.requireBinding(project.id, lease) : null
+      const workspaceRoot = resource?.root ?? root
+      const path = resource ? join(workspaceRoot, 'delivery', attempt.id, role) : join(root, attempt.id, role)
+      if (!resource || resource.type === 'local') await mkdir(resource ? join(workspaceRoot, 'delivery', attempt.id) : join(root, attempt.id), { recursive: true, mode: 0o700 })
       const workspace = { id: `workspace-${randomUUID()}`, projectId: project.id, attemptId: attempt.id, role, path, repository,
-        kind: 'worktree', status: 'allocating', createdAt: Date.now() }
+        kind: resource?.type === 'docker' ? 'resource-clone' : 'worktree', resourceId: lease?.resourceId ?? null, resourceRoot: workspaceRoot, ...(lease ? { resourceLease: lease } : {}), status: 'allocating', createdAt: Date.now() }
       setEntry(state.projectWorkspaces, workspace.id, workspace)
       attempt.workspaces[role] = workspace
       await rt.save() // Persist cleanup intent before git creates the worktree.
       const args = role === 'developer' ? ['worktree', 'add', '-b', attempt.branch, path, attempt.baseSha] : ['worktree', 'add', '--detach', path, attempt.baseSha]
-      await git(repository, args)
+      if (workspace.kind === 'resource-clone') await resourceWorkspaces.allocate(workspace, attempt)
+      else await git(repository, args)
       workspace.status = 'allocated'
       await rt.save()
+    }
+    if (Object.values(attempt.workspaces).some(row => row.kind === 'resource-clone')) {
+      const path = join(root, attempt.id, 'host-verifier')
+      const workspace = { id: `workspace-${randomUUID()}`, projectId: project.id, attemptId: attempt.id, role: 'host-verifier', path, repository,
+        kind: 'worktree', resourceId: null, resourceRoot: root, status: 'allocating', createdAt: Date.now() }
+      setEntry(state.projectWorkspaces, workspace.id, workspace); attempt.workspaces['host-verifier'] = workspace; await rt.save()
+      await git(repository, ['worktree', 'add', '--detach', path, attempt.baseSha]); workspace.status = 'allocated'; await rt.save()
     }
   }
   async function start(body, actor) {
@@ -104,7 +118,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
       attempt.resourceLeases = await rt.projectResources?.reserveRoles(project.id, attempt.id, definitions) ?? {}
       for (const lease of Object.values(attempt.resourceLeases)) {
         const resource = rt.projectResources.setting(project.id, lease.resourceId)
-        if (resource.type !== 'local' || !inside(resource.root, root)) throw reject('Native Harness requires a local resource containing the registered workspace root')
+        if (lease.harness === 'flybot' && resource.type !== 'local') throw reject('Native Harness requires a registered local resource')
       }
       await allocate(attempt, project, settings)
       if (attempt.cancelRequested) throw reject('Delivery was stopped')
@@ -149,33 +163,37 @@ export function createProjectDelivery(rt, { publisher } = {}) {
   }
   async function verifyCandidate(attempt) {
     if (!attempt.candidateSha) throw reject('Candidate commit is missing')
-    const path = attempt.workspaces.developer.path
-    if (await git(path, ['rev-parse', 'HEAD']) !== attempt.candidateSha || await git(path, ['status', '--porcelain'])) throw reject('Candidate changed; test and Review evidence is stale')
+    const workspace = attempt.workspaces.developer
+    if (await workspaceGit(workspace, ['rev-parse', 'HEAD']) !== attempt.candidateSha || await workspaceGit(workspace, ['status', '--porcelain'])) throw reject('Candidate changed; test and Review evidence is stale')
   }
   async function seal(attempt) {
     const settings = settingsOf(projectOf(attempt.projectId))
-    const path = attempt.workspaces.developer.path
-    const names = [...(await git(path, ['diff', '--name-only', attempt.baseSha])).split('\n'), ...(await git(path, ['ls-files', '--others', '--exclude-standard'])).split('\n')].filter(Boolean)
+    const workspace = attempt.workspaces.developer
+    const names = [...(await workspaceGit(workspace, ['diff', '--name-only', attempt.baseSha])).split('\n'), ...(await workspaceGit(workspace, ['ls-files', '--others', '--exclude-standard'])).split('\n')].filter(Boolean)
     const roots = settings.allowedPaths
     if (!Array.isArray(roots) || !roots.length || roots.some(value => typeof value !== 'string' || value.startsWith('/') || value.includes('..')) || names.some(name => !roots.some(prefix => name === prefix || name.startsWith(prefix.endsWith('/') ? prefix : `${prefix}/`)))) throw reject('Code changes exceed the provisioned repository paths')
-    if (await git(path, ['status', '--porcelain'])) {
-      await git(path, ['add', '--all', '--', '.'])
-      await git(path, ['commit', '-m', `Implement Task ${attempt.taskId}`])
+    await workspaceGit(workspace, ['reset', '--soft', attempt.baseSha]) // Seal one final commit; do not transfer intermediate worker history.
+    if (await workspaceGit(workspace, ['status', '--porcelain'])) {
+      await workspaceGit(workspace, ['add', '--all', '--', '.'])
+      await workspaceGit(workspace, ['commit', '-m', `Implement Task ${attempt.taskId}`])
     }
-    attempt.candidateSha = await git(path, ['rev-parse', 'HEAD'])
+    attempt.candidateSha = await workspaceGit(workspace, ['rev-parse', 'HEAD'])
     if (attempt.candidateSha === attempt.baseSha) throw reject('Developer produced no code change')
-    attempt.evidence.implementation = { sha: attempt.candidateSha, paths: names, diffStat: await git(path, ['diff', '--stat', attempt.baseSha, attempt.candidateSha]), at: Date.now() }
-    for (const role of ['tester', 'reviewer']) {
-      await git(attempt.workspaces[role].path, ['reset', '--hard', attempt.candidateSha])
-      await git(attempt.workspaces[role].path, ['clean', '-ffdx'])
+    if (workspace.kind === 'resource-clone') await resourceWorkspaces.importCandidate(workspace, attempt)
+    attempt.evidence.implementation = { sha: attempt.candidateSha, paths: names, diffStat: await workspaceGit(workspace, ['diff', '--stat', attempt.baseSha, attempt.candidateSha]), at: Date.now() }
+    for (const role of ['tester', 'reviewer', ...(attempt.workspaces['host-verifier'] ? ['host-verifier'] : [])]) {
+      const target = attempt.workspaces[role]
+      if (target.kind === 'resource-clone') await resourceWorkspaces.checkout(target, attempt)
+      else { await workspaceGit(target, ['reset', '--hard', attempt.candidateSha]); await workspaceGit(target, ['clean', '-ffdx']) }
     }
   }
   async function testCandidate(attempt) {
     await verifyCandidate(attempt)
     const settings = settingsOf(projectOf(attempt.projectId))
-    const path = attempt.workspaces.tester.path
-    await git(path, ['reset', '--hard', attempt.candidateSha])
-    await git(path, ['clean', '-ffdx'])
+    const workspace = attempt.workspaces['host-verifier'] ?? attempt.workspaces.tester
+    const path = workspace.path
+    await workspaceGit(workspace, ['reset', '--hard', attempt.candidateSha])
+    await workspaceGit(workspace, ['clean', '-ffdx'])
     const [command, ...args] = settings.testCommand
     let passed = false
     let output = ''
@@ -187,13 +205,13 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     await mkdir(join(artifacts, attempt.id), { recursive: true, mode: 0o700 })
     const log = join(artifacts, attempt.id, 'tests.log')
     await writeFile(log, output, { mode: 0o600 })
-    attempt.evidence.tests = { sha: attempt.candidateSha, passed, command: settings.testCommand, log, sha256: hash(output), at: Date.now() }
+    attempt.evidence.tests = { executor: 'independent-host-controller', workspaceId: workspace.id, resourceId: workspace.resourceId, sha: attempt.candidateSha, passed, command: settings.testCommand, log, sha256: hash(output), at: Date.now() }
     if (!passed) throw reject('Configured tests failed; see Attempt evidence')
   }
   async function review(attempt, outputs) {
     await verifyCandidate(attempt)
-    const path = attempt.workspaces.reviewer.path
-    if (await git(path, ['rev-parse', 'HEAD']) !== attempt.candidateSha || await git(path, ['status', '--porcelain'])) throw reject('Reviewer did not inspect the clean candidate commit')
+    const workspace = attempt.workspaces.reviewer
+    if (await workspaceGit(workspace, ['rev-parse', 'HEAD']) !== attempt.candidateSha || await workspaceGit(workspace, ['status', '--porcelain'])) throw reject('Reviewer did not inspect the clean candidate commit')
     let result
     try { result = typeof outputs?.review === 'string' ? JSON.parse(outputs.review) : outputs?.review } catch { throw reject('Review output must be commit-specific JSON') }
     if (!result || result.commit !== attempt.candidateSha || !['approve', 'request-changes'].includes(result.verdict) || typeof result.summary !== 'string' || !result.summary.trim()) throw reject('Review verdict is missing or names a different commit')
@@ -207,11 +225,31 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     attempt.status = 'waiting-acceptance'
     if (rt.taskDeliveryState?.(attempt.taskId, attempt.id, 'result-ready', 'Delivery evidence ready for human acceptance') === false) throw reject('Task ended before delivery evidence was ready')
   }
+  async function recordExecution(worker) {
+    const attempt = ownEntry(attempts(), worker.attemptId)
+    const session = attempt?.roleSessions?.[worker.role]
+    if (!attempt || attempt.status !== 'running' || session?.id !== worker.sessionKey || session.botId !== worker.id || worker.projectId !== attempt.projectId || worker.taskId !== attempt.taskId || session.resourceLease?.generation !== worker.generation || session.backendSessionId !== worker.backendSessionId) throw reject('SDK evidence does not belong to this execution Session')
+    if (!worker.sealedLog || await fileDigest(worker.sealedLog) !== worker.eventSha256) throw reject('SDK event evidence is missing or changed')
+    attempt.evidence.execution ??= {}
+    const record = { workerId: worker.id, role: worker.role, sessionId: worker.backendSessionId, resourceId: worker.resourceId, harness: worker.harness, sdkVersion: worker.sdkVersion,
+      generation: worker.generation, contextSha256: session.context.sha256, log: worker.sealedLog, sha256: worker.eventSha256, resultHash: worker.resultHash, at: Date.now() }
+    if (attempt.evidence.execution[worker.role] && attempt.evidence.execution[worker.role].resultHash !== record.resultHash) throw reject('SDK result was already sealed')
+    attempt.evidence.execution[worker.role] = record
+    await rt.save()
+  }
+  async function verifyExecution(attempt, role) {
+    const session = attempt.roleSessions?.[role]
+    if (!session || session.execution.harness === 'flybot') return
+    const evidence = attempt.evidence.execution?.[role]
+    if (!evidence || evidence.workerId !== session.botId || evidence.sessionId !== session.backendSessionId || evidence.generation !== session.resourceLease?.generation || evidence.contextSha256 !== session.context.sha256 || await fileDigest(evidence.log) !== evidence.sha256) throw reject('SDK execution evidence is missing, stale or changed')
+  }
   async function gate({ taskId, workflowId, runId, nodeId, outputs, ok = true }) {
     const attempt = current(taskId)
     if (attempt?.cancelRequested) throw reject('Delivery was stopped')
     if (!attempt || attempt.workflowId !== workflowId) throw reject('Delivery Attempt/Workflow mismatch')
     if (['accepted', 'cancelled'].includes(taskOf(taskId)?.status)) throw reject('Task has already ended')
+    for (const role of Object.keys(attempt.evidence.execution ?? {})) await verifyExecution(attempt, role)
+    await verifyExecution(attempt, nodeId)
     const completed = nodeId === 'developer' ? attempt.evidence.implementation : nodeId === 'tester' ? attempt.evidence.tests?.passed && attempt.evidence.tests : nodeId === 'reviewer' ? attempt.evidence.review?.verdict === 'approve' && attempt.pr : null
     if (completed && ['running', 'waiting-acceptance'].includes(attempt.status) && attempt.runId === runId) {
       await verifyCandidate(attempt)
@@ -243,6 +281,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     if (task.title !== attempt.requirement.title || (task.criteria ?? '') !== attempt.requirement.criteria) throw reject('Requirements changed; delivery evidence is stale')
     if (!attempt.runId || ownEntry(state.projectExecutions, attempt.runId)?.status !== 'done') throw reject('Delivery Run has not finished successfully')
     if (!attempt.pr || !attempt.evidence.tests?.passed || attempt.evidence.tests.sha !== attempt.candidateSha || attempt.evidence.review?.sha !== attempt.candidateSha || attempt.evidence.review.verdict !== 'approve') throw reject('Delivery evidence is missing or stale')
+    for (const role of DELIVERY_ROLES) await verifyExecution(attempt, role)
     const testLog = await readFile(attempt.evidence.tests.log, 'utf8')
     if (hash(testLog) !== attempt.evidence.tests.sha256) throw reject('Test log changed; evidence is stale')
     const pr = await publisherOf(projectOf(attempt.projectId)).read(attempt.pr)
@@ -260,11 +299,19 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     rt.requireProjectAccess(actor, attempt.projectId)
     if (!['owner', 'maintainer'].includes(rt.projectRoleOf?.(projectOf(attempt.projectId), actor.memberId))) throw reject('Only a Project manager may clean workspaces')
     if (ongoing.has(attempt.status) || attempt.status === 'waiting-acceptance') throw reject('Active delivery workspaces cannot be cleaned')
+    if (Object.values(state.bots ?? {}).some(bot => bot.ephemeral && bot.attemptId === attempt.id)) throw reject('Native worker release has not been confirmed')
+    if (Object.values(state.projectResourceLeases ?? {}).some(lease => lease.attemptId === attempt.id && lease.status !== 'released')) throw reject('Execution resource release has not been confirmed')
     for (const workspace of Object.values(attempt.workspaces)) {
       if (workspace.status === 'released') continue
-      if (!inside(root, resolve(workspace.path)) || workspace.attemptId !== attempt.id) throw reject('Workspace is outside the owned delivery root')
+      if (workspace.kind === 'resource-clone') {
+        await resourceWorkspaces.cleanup(workspace)
+        workspace.status = 'released'; workspace.releasedAt = Date.now()
+        Object.assign(state.projectWorkspaces[workspace.id], { status: 'released', releasedAt: workspace.releasedAt }); await rt.save(); continue
+      }
+      const ownedRoot = workspace.resourceRoot ?? root
+      if (!inside(ownedRoot, resolve(workspace.path)) || workspace.attemptId !== attempt.id) throw reject('Workspace is outside the owned delivery root')
       const actual = await realpath(workspace.path).catch(error => { if (error.code === 'ENOENT') return null; throw error })
-      if (actual && !inside(root, actual)) throw reject('Workspace resolves outside the delivery root')
+      if (actual && !inside(ownedRoot, actual)) throw reject('Workspace resolves outside the delivery root')
       const registered = (await git(workspace.repository, ['worktree', 'list', '--porcelain'])).split('\n').includes(`worktree ${workspace.path}`)
       if (registered) await git(workspace.repository, ['worktree', 'remove', '--force', workspace.path])
       else if (actual) await rm(workspace.path, { recursive: true, force: true })
@@ -289,7 +336,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
         const result = await rt.flybotEndpoint('workflow/reset', { workflowId: attempt.workflowId, runId: attempt.runId }, { actor })
         if (result?.ok === false) throw reject(result.error)
       }
-      const remaining = Object.values(state.bots).filter(bot => bot.ephemeral && bot.attemptId === attempt.id)
+      const remaining = [...Object.values(state.bots).filter(bot => bot.ephemeral && bot.attemptId === attempt.id), ...Object.values(state.projectResourceLeases ?? {}).filter(lease => lease.attemptId === attempt.id && lease.worker?.kind === 'sdk' && lease.status !== 'released')]
       if (remaining.length) return { attempt: view(attempt), stopping: true, remainingWorkers: remaining.length }
       await fail(attempt, new Error('Stopped by an authorized Project member'), 'cancelled')
       rt.projectScheduler?.wake()
@@ -300,7 +347,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
       const attempt = ownEntry(attempts(), body.attemptId)
       if (!attempt) throw reject('Unknown Attempt')
       rt.requireProjectAccess(actor, attempt.projectId)
-      const evidence = attempt.evidence.tests
+      const evidence = body.role ? attempt.evidence.execution?.[body.role] : attempt.evidence.tests
       if (!evidence?.log) return { text: null, reason: 'No test log is available' }
       const text = await readFile(evidence.log, 'utf8')
       if (hash(text) !== evidence.sha256) throw reject('Test log changed; evidence is stale')
@@ -387,8 +434,8 @@ export function createProjectDelivery(rt, { publisher } = {}) {
       await rt.save()
     }
   }
-  const ownsWorkspace = (projectId, path) => Object.values(state.projectWorkspaces ?? {}).find(workspace => workspace.projectId === projectId && workspace.path === path && workspace.kind === 'worktree' && workspace.status === 'allocated' && ongoing.has(ownEntry(attempts(), workspace.attemptId)?.status))
-  return { endpoint, context, repositoryContext, bindSession, releaseSession, sessionFor, recover, runReported, ownsWorkspace, gate: input => serialAttempt(current(input.taskId)?.id ?? input.taskId, () => gate(input)) }
+  const ownsWorkspace = (projectId, path) => Object.values(state.projectWorkspaces ?? {}).find(workspace => workspace.projectId === projectId && workspace.path === path && DELIVERY_ROLES.includes(workspace.role) && ['worktree', 'resource-clone'].includes(workspace.kind) && workspace.status === 'allocated' && ongoing.has(ownEntry(attempts(), workspace.attemptId)?.status))
+  return { endpoint, context, recordExecution, repositoryContext, bindSession, releaseSession, sessionFor, recover, runReported, ownsWorkspace, gate: input => serialAttempt(current(input.taskId)?.id ?? input.taskId, () => gate(input)) }
 }
 
 export function install(rt) {

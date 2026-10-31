@@ -174,3 +174,8 @@ M7.3 project-execution-input revalidates current Task write authority, worker ge
 ### M7.4 — 2026-10-31
 
 M7.4 routes runtime-check and terminal open/poll/input/resize/close through existing live Project identity. Member removal closes matching terminals immediately; task execution authority remains separate. A terminal needs resource admin in addition to configure.
+
+
+### M7.5 — 2026-10-31
+
+M7.5 adds actual HTTP-channel routing regression for environment/runtime/terminal/input endpoints. They must call projectEndpoint and its live configure/admin/Task guards, not workbenchEndpoint read models. The two-account browser reproduces Member terminal denial and actual Owner PTY operations.

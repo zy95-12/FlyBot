@@ -115,3 +115,8 @@ M7.3 adds an opt-in node dev/demo/harnesses.mjs negative probe using actual inst
 ### M7.4 — 2026-10-31
 
 M7.4 adds dev/demo/runtime-setup.mjs: opt-in actual UID1000 Docker PTY/profile/cleanup probe with no paid provider. Unit integration uses real local Python PTYs and a hidden dummy credential, verifies no screen/audit leak and kills interactive background jobs. Browser/authenticated SDK acceptance remains separate.
+
+
+### M7.5 — 2026-10-31
+
+M7.5 adds dev/demo/handoffs.mjs for actual Docker→host Git candidate import, same-SHA review checkout, independent host tests and corrupted-bundle rejection/cleanup. Official SDK negative probes also validate no-tools configuration reaches SDK events. Existing browser demo adds Owner configuration/actual PTY/Member denial; still deterministic model, never a real SDK acceptance claim.

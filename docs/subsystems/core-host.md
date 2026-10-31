@@ -866,3 +866,8 @@ M7.3 registers explicit-profile SDK worker execution and a current-authority pro
 ### M7.4 — 2026-10-31
 
 M7.4 registers runtime-setup/profile/PTY modules and scoped endpoints. Current session + Project configure + explicit resource-admin grant protect setup shells; session/member revocation closes only matching terminals. Resource-side worker stop confirmation strengthens lease release.
+
+
+### M7.5 — 2026-10-31
+
+M7.5 correctly routes runtime/terminal/input HTTP cases to Project authorization, rather than resource read models. Resource workspaces verify bundle hashes/commits, SDK logs are sealed before existing Workflow gates and cleanup rejects unconfirmed native/SDK workers. Native Chief local resource occupancy ends with its turn while identity persists.

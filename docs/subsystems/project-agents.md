@@ -220,3 +220,8 @@ M7.3 temporary workers may select Codex/Claude Agent SDK with an admitted resour
 ### M7.4 — 2026-10-31
 
 M7.4 role execution adds an explicit SDK model alongside native served model; Owner UI edits multiple resource IDs, bounded concurrency and published memory refs. Saving checks each resource but cannot mutate already frozen contexts.
+
+
+### M7.5 — 2026-10-31
+
+M7.5 native Chief can also use an authorized local candidate pool with a per-turn lease; end/cancel releases execution occupancy while its logical Bot/history remains resident. SDK Chief may run on a prepared Docker resource with explicit profile and empty public cwd; no private content transfers.

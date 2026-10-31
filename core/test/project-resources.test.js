@@ -66,3 +66,12 @@ test('missing environment/authentication evidence blocks a resource rather than 
   await assert.rejects(resources.reserve({ projectId: 'p1', attemptId: 'a', role: 'developer', sessionKey: 's', harness: 'flybot', resourceIds: ['local'] }), /readiness/)
   await assert.rejects(resources.reserve({ projectId: 'p1', attemptId: 'a', role: 'developer', sessionKey: 's', harness: 'codex', resourceIds: ['isolated'] }), /readiness/)
 })
+
+test('changing a registered physical target cannot silently migrate an admitted lease', async () => {
+  const { rt, resources } = fixture()
+  const lease = await resources.reserve({ projectId: 'p1', attemptId: 'a', role: 'developer', sessionKey: 'bound-target', harness: 'flybot', resourceIds: ['local'] })
+  assert.equal(resources.requireBinding('p1', lease).root, '/tmp/flybot-resource-local')
+  rt.config.projectResources.local.root = '/tmp/another-host-directory'
+  assert.throws(() => resources.requireBinding('p1', lease), /binding changed/)
+  assert.equal(resources.occupied('local'), 1)
+})

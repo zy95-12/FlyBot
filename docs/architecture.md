@@ -114,3 +114,8 @@ M7.3 adds [temporary Harness workers](subsystems/project-harness.md) through Wor
 ### M7.4 — 2026-10-31
 
 M7.4 [Owner runtime setup](subsystems/project-runtime-setup.md) adds bounded profile-scoped probes and resource-admin-authorized PTYs over existing authenticated HTTP; no WebSocket shell or control-plane mutation. Positive resource-side shutdown frames, not raw EOF alone, release SDK/terminal ownership.
+
+
+### M7.5 — 2026-10-31
+
+M7.5 adds [resource workspaces](subsystems/project-resource-workspaces.md): bounded SHA-scoped Git bundles, remote role clones, imported host publication and independent host verification. SDK completion artifacts bind Session/resource/generation/context/hash; every gate/acceptance rechecks them. New Attempts are delivery/v3; old snapshots remain intact. [Current acceptance](m7-acceptance.md) explicitly separates actual resource/browser checks from missing authenticated three-Harness acceptance.

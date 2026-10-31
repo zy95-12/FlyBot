@@ -1,7 +1,7 @@
 // Operator-provisioned execution capabilities; Project configuration only references IDs.
 import { execFile, spawn } from 'node:child_process'
-import { realpath } from 'node:fs/promises'
-import { randomUUID } from 'node:crypto'
+import { realpath, copyFile, stat } from 'node:fs/promises'
+import { randomUUID, createHash } from 'node:crypto'
 import { isAbsolute, relative, sep } from 'node:path'
 import { promisify } from 'node:util'
 import { ownEntry, setEntry } from './store.js'
@@ -26,6 +26,12 @@ export function createProjectResources(rt) {
     if (!['local', 'docker'].includes(resource.type) || !isAbsolute(resource.root ?? '') || !Number.isInteger(resource.capacity) || resource.capacity < 1 || resource.capacity > 64) throw failure('Execution resource configuration is invalid')
     if (resource.type === 'docker' && (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,100}$/.test(resource.container ?? '') || !/^\d+(?::\d+)?$/.test(resource.user ?? ''))) throw failure('Docker resource needs an explicit container and numeric UID')
     return resource
+  }
+  const bindingHash = item => createHash('sha256').update(JSON.stringify([item.type, item.root, item.container ?? null, item.user ?? null, item.runtimeDir ?? null, item.nodePath ?? null])).digest('hex')
+  function requireBinding(projectId, lease) {
+    const item = setting(projectId, lease.resourceId)
+    if (lease.bindingHash && bindingHash(item) !== lease.bindingHash) throw failure('Execution resource binding changed; migration is not permitted')
+    return item
   }
   function list(projectId, actor) {
     return Object.keys(resources()).flatMap(id => {
@@ -77,7 +83,7 @@ export function createProjectResources(rt) {
     const selected = select(request)
     const lease = { id: `resource-lease-${randomUUID()}`, generation: 1, projectId: request.projectId, attemptId: request.attemptId, role: request.role,
       sessionKey: request.sessionKey, purpose: request.purpose ?? 'execution', resourceId: selected.id, harness: request.harness, principalId: rt.readProject(request.projectId).ownerUserId, runtimeUser: selected.item.type === 'docker' ? selected.item.user : `uid:${process.getuid?.() ?? 'unknown'}`,
-      status: 'reserved', createdAt: Date.now() }
+      bindingHash: bindingHash(selected.item), status: 'reserved', createdAt: Date.now() }
     setEntry(leases(), lease.id, lease)
     await rt.save()
     return structuredClone(lease)
@@ -150,6 +156,22 @@ export function createProjectResources(rt) {
     }
     return exec('docker', ['exec', '--user', item.user, '--workdir', cwd, item.container, 'env', '-i', 'PATH=/usr/local/bin:/usr/bin:/bin', 'LANG=C.UTF-8', ...argv], options)
   }
+  async function uploadFile(projectId, resourceId, source, target, maxBytes = 128 * 1024 * 1024) {
+    const item = setting(projectId, resourceId)
+    const sourceInfo = await stat(source)
+    if (!sourceInfo.isFile() || sourceInfo.size > maxBytes || !isAbsolute(target) || !contains(item.root, target)) throw failure('Transfer exceeds file/scope limit')
+    if (item.type === 'local') await copyFile(source, target)
+    else await exec('docker', ['cp', source, `${item.container}:${target}`], { env: safeEnv(), timeout: 120_000, maxBuffer: 64 * 1024 })
+  }
+  async function downloadFile(projectId, resourceId, source, target, maxBytes = 128 * 1024 * 1024) {
+    const item = setting(projectId, resourceId)
+    if (!isAbsolute(source) || !contains(item.root, source) || !isAbsolute(target)) throw failure('Transfer exceeds resource scope')
+    const info = await command(projectId, resourceId, { cwd: item.root, argv: ['node', '-e', 'const fs=require("fs");const p=process.argv[1];const s=fs.lstatSync(p);if(!s.isFile()||s.isSymbolicLink()||fs.realpathSync(p)!==p)throw Error("Invalid artifact path");console.log(s.size)', source] })
+    if (!Number.isFinite(Number(info.stdout)) || Number(info.stdout) > maxBytes) throw failure('Transfer exceeds size limit')
+    if (item.type === 'local') await copyFile(source, target)
+    else await exec('docker', ['cp', `${item.container}:${source}`, target], { env: safeEnv(), timeout: 120_000, maxBuffer: 64 * 1024 })
+    if ((await stat(target)).size > maxBytes) throw failure('Transferred artifact exceeds size limit')
+  }
   async function probe(projectId, resourceId) {
     const item = setting(projectId, resourceId)
     let row
@@ -160,7 +182,7 @@ export function createProjectResources(rt) {
     state.projectResourceHealth ??= {}; setEntry(state.projectResourceHealth, resourceId, row); await rt.save()
     return structuredClone(row)
   }
-  return { setting, list, checkPool, plan, command, startProcess, probe, occupied, reconcile, recover,
+  return { setting, requireBinding, uploadFile, downloadFile, list, checkPool, plan, command, startProcess, probe, occupied, reconcile, recover,
     reserveRoles: (...args) => serial(() => reserveRoles(...args)),
     reserve: request => serial(() => reserve(request)), markStarted: (...args) => serial(() => markStarted(...args)), release: (...args) => serial(() => release(...args)) }
 }

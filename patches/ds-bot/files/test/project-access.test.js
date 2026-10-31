@@ -22,7 +22,11 @@ async function setup(t) {
   Object.assign(ctx, { llm: { listProviders: () => [], listModels: async () => [] },
     workspaceRegistry: { get: () => undefined, archiveSession: async () => {} },
     sessionController: { resolveAgent: async () => ({ agent: undefined }) }, sessions: { flush: async () => {} } })
+  let route
+  const register = ctx.connection.fetch.register
+  ctx.connection.fetch.register = options => { if (options.path.endsWith('bot')) route = options; return register(options) }
   const rt = createRuntime(ctx, { home, projectWorkbench: true })
+  rt.testHttp = async endpoint => (await route.fetch(new Request('http://localhost/api/bot', { method: 'POST', headers: { 'x-flybot-member-session': 'unit-session' }, body: JSON.stringify({ endpoint, payload: { projectId: 'p1' } }) }))).json()
   await rt.load()
   t.after(async () => { await ctx.dispose(); rmSync(home, { recursive: true, force: true, maxRetries: 5 }) })
   return rt
@@ -138,4 +142,17 @@ test('demoting an inviter immediately invalidates its outstanding invitations', 
   await rt.projectEndpoint('project-role', { id: 'p1', memberId: 'bob', role: 'member' }, alice)
   await assert.rejects(rt.projectEndpoint('project-join', { token: invite.token }, outsider), /unavailable/)
   assert.equal(rt.projectCan(outsider, 'p1'), false)
+})
+
+
+test('runtime, terminal and execution-input HTTP endpoints reach Project authorization instead of the resource read model', async t => {
+  const rt = await setup(t)
+  rt.authenticate = async () => alice
+  rt.projectEndpoint = async endpoint => ({ routedProjectEndpoint: endpoint })
+  rt.workbenchEndpoint = async () => ({ readModelOnly: true })
+  for (const endpoint of ['project-resource-environment-check', 'project-execution-input', 'project-runtime-check', 'project-terminal-open', 'project-terminal-poll', 'project-terminal-input', 'project-terminal-resize', 'project-terminal-close']) {
+    const result = await rt.testHttp(endpoint)
+    assert.equal(result.ok, true, endpoint)
+    assert.equal(result.value.routedProjectEndpoint, endpoint, endpoint)
+  }
 })

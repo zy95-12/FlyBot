@@ -62,3 +62,15 @@ test('SDK workers reject unregistered Workspaces and missing explicit profiles',
   delete rt.config.projectResources.r.profiles
   await assert.rejects(harness.spawn({ executionProjectId: 'p', executionWorkDir: cwd }), /explicitly authorized/)
 })
+
+test('Workflow result callback can await the same SDK worker release without blocking stop acknowledgement', async t => {
+  const { rt, harness, cwd } = await fixture(t)
+  const id = await harness.spawn({ executionProjectId: 'p', executionWorkDir: cwd, prompt: 'Implement Task' })
+  let finish, fail
+  const completed = new Promise((resolve, reject) => { finish = resolve; fail = reject })
+  harness.onResult(async () => { try { await harness.release(id); finish() } catch (error) { fail(error) } })
+  await harness.dispatch({ botId: id, taskId: 't', brief: 'Frozen requirement', outputs: [{ name: 'implementation' }] })
+  await completed
+  assert.equal(rt.state.projectHarnessWorkers[id].status, 'released')
+  assert.equal(rt.projectResources.occupied('r'), 0)
+})

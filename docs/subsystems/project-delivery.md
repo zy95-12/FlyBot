@@ -208,3 +208,8 @@ M7.2 reserves configured role resource leases before workspace allocation, binds
 ### M7.3 checkpoint — 2026-10-31
 
 M7.3 temporary role Session binding records native Bot or SDK worker handles. SDK OUTPUTs still pass the same host Git/test/review/publish/acceptance gates. Local selected resources must contain worktree root; remote transfer remains deferred to M7.5.
+
+
+### M7.5 — 2026-10-31
+
+M7.5 new Attempts use project-delivery/v3. Remote resource-clone roles import the same sealed candidate through bounded hash-verified Git bundles; host publication never receives a remote cwd or sends credentials there. Any remote role gets a separate host-verifier worktree for configured independent tests. SDK event evidence is sealed and rechecked before subsequent gates/acceptance. Cleanup refuses orphan Bots/unknown leases. See [resource workspace contract](project-resource-workspaces.md).

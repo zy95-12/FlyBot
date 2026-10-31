@@ -99,3 +99,8 @@ M7.3 adds startProcess for host-selected Node workers in explicit local/Docker t
 ### M7.4 — 2026-10-31
 
 M7.4 separates adminMemberIds from Project-owner use grants; safe list canManage is derived per current human. Probe-only leases may check authentication without assuming it first; capacity still applies. Profile roots/runtime paths remain operator settings, never browser-selected paths.
+
+
+### M7.5 — 2026-10-31
+
+M7.5 captures resource physical binding hashes per lease and adds host-only bounded upload/download through local/Docker transports. Candidate bundle hash/commit/scope checks happen before import; credentials and raw chats are never file-transfer inputs. Native workers remain local, SDK workers may execute on prepared Docker targets.
