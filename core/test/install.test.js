@@ -38,7 +38,10 @@ test('apply registers listeners, tools, and effects in a fixed order', (t) => {
     'effect ds-bot: state lock',
     // Project scope guard stays installed even if the workbench is later disabled.
     'on session/event',
+    // Reject stale Project delegations, then intercept managed schedule deliveries.
+    'on agent/pre-step',
     'tools guard',
+    'on agent/pre-step',
     'on llm/adapters-updated',
     'on session/event',
     'on session/event',
