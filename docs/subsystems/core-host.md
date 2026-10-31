@@ -874,3 +874,8 @@ M7.5 correctly routes runtime/terminal/input HTTP cases to Project authorization
 
 
 Repair R3 (#36): Runtime installs Project Bot pools before the admission scheduler. Store recovery fences interrupted claims alongside Attempt/resource recovery, preserving history and unknown exits. See [pool contract](project-pools.md).
+
+
+Repair R4 (#37): Host setup installs scoped GitHub reads separately from
+credential writes. Chief conversation handoffs have independent per-request
+delegations and private return routing. See [GitHub reads](project-github-read.md).

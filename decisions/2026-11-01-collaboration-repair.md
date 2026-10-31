@@ -27,4 +27,11 @@ execution remains explicit opt-in. No framework Chief inspection timer is added.
 R4 supplies conversation bridging and R6 supplies Chief arbitration/schedules;
 real-service acceptance remains required after those dependencies.
 
+R4 adds conversation handoffs rather than a Task subtype for inquiries. A Chief
+query receives only the explicit question plus shared facts, and returns to the
+originating private conversation. The host prohibits Task/run effects in query
+turns. Shared GitHub reads use explicit Project automation identity; personal
+reads select the exact human/Project profile. Publication and execution status
+are separate facts. Safe/watch persistence remains R5 scope.
+
 Written-by: Codex

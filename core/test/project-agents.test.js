@@ -306,3 +306,67 @@ test('native Chief pool leases end with the turn while its logical Bot remains r
   assert.ok(rt.botOf(sent.agent.botId))
   assert.equal((await get(rt, alice)).public.id, sent.agent.id)
 })
+
+test('ordinary private questions hand off to Chief and return to the original conversation without a Task', async t => {
+  const { rt } = await setup(t)
+  const original = await get(rt, alice)
+  await rt.projectEndpoint('project-agent-memory-write', { projectId: 'p1', text: 'PRIVATE_MEMORY_MUST_NOT_FORWARD' }, alice)
+  const request = { projectId: 'p1', text: 'What is the current project status?', requestId: 'status-question' }
+  const result = await rt.projectEndpoint('project-chief-question', request, alice)
+  assert.equal(Object.keys(rt.state.tasks).length, 0)
+  assert.equal(result.handoff.version, 'conversation-handoff/v1')
+  assert.equal((await rt.projectEndpoint('project-chief-question', request, alice)).already, true)
+  await assert.rejects(rt.projectEndpoint('project-chief-question', { ...request, text: 'Changed question' }, alice), /reused/)
+  const chief = Object.values(rt.state.projectAgents).find(row => row.conversationHandoffId === result.handoff.id)
+  const bot = rt.botOf(chief.botId)
+  assert.equal(chief.returnAgentId, original.mine.id)
+  assert.equal(JSON.stringify(chief.lastRequest.context).includes('PRIVATE_MEMORY_MUST_NOT_FORWARD'), false)
+  await assert.rejects(rt.projectAgents.task(bot, { title: 'An inquiry must not become this Task' }), /conversation handoff/)
+  await assert.rejects(rt.projectAgents.run(bot, { taskId: 'foreign', requestId: 'bad-run' }), /conversation handoff/)
+  rt.projectAgents.onEvent({ id: chief.sessionId }, { type: 'assistant/message', data: { message: { content: [{ type: 'text', text: 'Chief status answer' }] } } })
+  const history = await rt.projectEndpoint('project-agent-history', { projectId: 'p1', visibility: 'private' }, alice)
+  assert.equal(history.messages.at(-1).text, 'Chief status answer')
+  assert.equal(history.messages.at(-1).speaker, 'Chief')
+  assert.equal((rt.state.projectAgentTranscripts[original.public.id] ?? []).length, 0)
+  assert.equal((await rt.projectEndpoint('project-agent-history', { projectId: 'p1' }, bob)).messages.length, 0)
+  assert.equal(Object.keys(rt.state.tasks).length, 0)
+})
+
+test('SDK Chief conversation obeys read-only actions and returns scoped facts to its requester', async t => {
+  const { rt } = await setup(t)
+  const original = await get(rt, alice)
+  rt.state.projectAgentDefinitions.p1.roles.find(row => row.role === 'chief').execution = { harness: 'codex', resourceIds: ['local'] }
+  let called
+  rt.projectHarness.chiefTurn = async args => { called = args; return 'sdk-chief' }
+  rt.projectGithubRead = async (body, actor) => ({ repository: 'owner/repo', operation: body.operation, initiatedBy: actor.memberId, data: [{ number: 7, title: 'Current issue' }] })
+  const result = await rt.projectEndpoint('project-chief-question', { projectId: 'p1', requestId: 'sdk-query', text: 'Which issues remain?' }, alice)
+  assert.equal(called.delegation.readOnly, true)
+  assert.equal(called.context.role, undefined)
+  await called.onResult({ ok: true, text: JSON.stringify({ reply: 'Here are the host-confirmed issues.', actions: [{ tool: 'github_read', args: { operation: 'issues', projectId: 'foreign' } }] }) })
+  const replies = rt.state.projectAgentTranscripts[original.mine.id]
+  assert.match(replies.at(-1).text, /Current issue/)
+  assert.equal(replies.at(-1).conversationHandoffId, result.handoff.id)
+  assert.equal(Object.keys(rt.state.tasks).length, 0)
+  assert.equal(result.handoff.returnTo, original.mine.id)
+  assert.equal(called.agent.status, 'retired')
+})
+
+test('a conversation Chief cannot turn a question into a Task through SDK actions', async t => {
+  const { rt } = await setup(t); const original = await get(rt, alice)
+  rt.state.projectAgentDefinitions.p1.roles.find(row => row.role === 'chief').execution = { harness: 'codex', resourceIds: ['local'] }
+  let called; rt.projectHarness.chiefTurn = async args => { called = args }
+  await rt.projectEndpoint('project-chief-question', { projectId: 'p1', text: 'Just a question', requestId: 'no-task' }, alice)
+  await called.onResult({ ok: true, text: JSON.stringify({ reply: 'Incorrect publication', actions: [{ tool: 'task', args: { title: 'Unwanted task' } }] }) })
+  assert.equal(Object.keys(rt.state.tasks).length, 0)
+  assert.equal(rt.state.projectAgentTranscripts[original.mine.id].find(row => row.kind === 'handoff').status, 'failed')
+})
+
+test('impactful Task kinds survive private proposal publication and cannot become inquiries', async t => {
+  const { rt } = await setup(t); const original = await get(rt, alice)
+  await message(rt, alice)
+  const proposal = await rt.projectAgents.task(rt.botOf(original.mine.botId), { title: 'Decide the repository boundary', projectTaskKind: 'decision' })
+  assert.equal(Object.keys(rt.state.tasks).length, 0)
+  const published = await rt.projectEndpoint('project-agent-proposal-apply', { proposalId: proposal.proposalId }, alice)
+  assert.equal(published.task.projectTaskKind, 'decision')
+  await assert.rejects(rt.projectAgents.task(rt.botOf(original.mine.botId), { title: 'Ordinary inquiry', projectTaskKind: 'question' }), /impactful Task kind/)
+})

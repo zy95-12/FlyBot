@@ -13,6 +13,15 @@ Dated, short lessons from real FlyBot work. Agents read this **before coding**. 
 
 ## Open lessons
 
+### 2026-11-01 — Questions need a scoped conversation route, not a Task
+
+Seen 1×. A private assistant with only Task/run tools turned repository inquiries
+into proposed work instead of consulting Chief. Supply an isolated Chief
+conversation handoff and bounded GitHub read tools; return the answer to the
+originating private chat without forwarding its memory. Enforce read-only query
+actions in the host and distinguish publication, queueing and actual execution.
+
+
 ### 2026-11-01 — Transfer the Task after confirmed worker exit
 
 Seen 1×. Pool dispatch must not reserve all downstream roles, replace a returned

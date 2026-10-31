@@ -64,3 +64,8 @@ conversation-only bridging is integrated in R4. R3's SDK contract-process scenar
 covers Dev → Reviewer → Dev → Reviewer → Tester → Reviewer → Chief using a single execution
 resource, distinct Sessions, two Attempts and one Task. This is deterministic
 protocol evidence, not real Codex or persistent-service acceptance.
+
+
+Repair R4 (#37): Task admission preserves its published code/decision/release
+kind and rejects a conflicting execution-time kind. Ordinary inquiries are
+separate conversation handoffs, not pool Tasks. See [conversation routing](project-agents.md).

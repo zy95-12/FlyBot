@@ -12,6 +12,26 @@ export function deliveryMetrics(state, projectId, now = Date.now()) {
       meanMs: samples.length ? samples.reduce((sum, value) => sum + value, 0) / samples.length : null, medianMs: samples.length ? median(samples) : null } }
 }
 
+export function taskExecutionStatus(state, task) {
+  const queued = Object.values(state.projectQueue ?? {}).find(row => row.taskId === task.id && row.status === 'waiting')
+  const collaboration = task.collaboration
+  const worker = collaboration?.claim?.workerId
+  const sdk = worker ? state.projectHarnessWorkers?.[worker] : null
+  const activeNative = worker ? state.bots?.[worker] : null
+  const attempt = state.projectAttempts?.[task.deliveryAttemptId]
+  let phase = task.status === 'accepted' ? 'accepted' : task.status === 'cancelled' ? 'cancelled' : 'published'
+  if (['accepted', 'cancelled'].includes(task.status)) return { taskId: task.id, publication: 'published', phase, botId: collaboration?.botId ?? null, reason: null }
+  if (queued) phase = 'queued'
+  else if (collaboration?.status === 'arbitration') phase = 'awaiting-chief'
+  else if (collaboration?.status === 'blocked') phase = 'blocked'
+  else if (collaboration?.status === 'queued') phase = 'queued'
+  else if (collaboration?.status === 'claimed') phase = sdk?.status === 'running' || activeNative ? 'running' : sdk?.status === 'waiting-input' ? 'awaiting-input' : 'starting'
+  else if (attempt?.status === 'waiting-acceptance') phase = 'awaiting-acceptance'
+  else if (['failed', 'interrupted'].includes(attempt?.status)) phase = 'failed'
+  else if (attempt?.status === 'running') phase = 'running'
+  return { taskId: task.id, publication: 'published', phase, botId: collaboration?.botId ?? null, reason: collaboration?.block?.reason ?? queued?.reason ?? null }
+}
+
 export function install(rt) {
   let cpu = process.cpuUsage()
   let measured = process.hrtime.bigint()
@@ -36,9 +56,10 @@ export function install(rt) {
     return { projectId: id, quota: project.quota ?? { maxConcurrent: 2 }, activeSlots: rt.projectScheduler.slots(id),
       queue: Object.values(rt.state.projectQueue ?? {}).filter(entry => entry.projectId === id).map(entry => structuredClone(entry)), workers,
       workspaces: Object.values(rt.state.projectWorkspaces ?? {}).filter(workspace => workspace.projectId === id),
-      harnessWorkers: Object.values(rt.state.projectHarnessWorkers ?? {}).filter(row => row.projectId === id).map(({ eventLog: _log, cwd: _cwd, ...row }) => structuredClone(row)),
+      harnessWorkers: Object.values(rt.state.projectHarnessWorkers ?? {}).filter(row => row.projectId === id && (row.visibility !== 'private' || row.memberId === actor.memberId)).map(({ eventLog: _log, sealedLog: _sealedLog, cwd: _cwd, ...row }) => structuredClone(row)),
       executionResources: rt.projectResources?.list(id, actor) ?? [],
       resourceLeases: Object.values(rt.state.projectResourceLeases ?? {}).filter(row => row.projectId === id).map(({ worker: _worker, ...row }) => structuredClone(row)),
+      taskExecution: Object.values(rt.state.tasks).filter(task => task.projectId === id).map(task => taskExecutionStatus(rt.state, task)),
       repository, host, metrics: deliveryMetrics(rt.state, id), platformInstance: rt.platformInstance ? await rt.platformInstance(actor).catch(() => null) : null }
   }
 }

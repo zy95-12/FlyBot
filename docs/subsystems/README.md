@@ -49,3 +49,5 @@ Fork M7 Owner runtime configuration, credential probes and private PTY protocol:
 Fork M7 local/Docker Git handoff, candidate and sealed SDK evidence: [project-resource-workspaces](project-resource-workspaces.md).
 
 Project per-Bot handoff and claim lifecycle: [project-pools](project-pools.md).
+
+Bounded Project repository reads: [project-github-read](project-github-read.md).

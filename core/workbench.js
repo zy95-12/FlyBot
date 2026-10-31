@@ -232,8 +232,9 @@
       const node = el("article", null, "task");
       const run = (workflowState?.workflows ?? []).flatMap((row) => row.runs ?? []).find((row) => row.task?.id === task.id);
       const phase = Object.entries(run?.nodeStatus ?? {}).filter(([, status]) => status === "running").map(([role]) => role).join(", ");
+      const execution = resources.taskExecution?.find((row) => row.taskId === task.id);
       const queued = resources.queue.some((row) => row.taskId === task.id && row.status === "waiting");
-      node.append(button(task.title, () => route(selected, "tasks", task.id)), el("small", `${task.priority ?? "normal"} · ${task.status} · ${phase || (queued ? "waiting for quota" : task.requesterId)}`));
+      node.append(button(task.title, () => route(selected, "tasks", task.id)), el("small", `${task.priority ?? "normal"} · ${task.status} · ${execution?.phase || phase || (queued ? "waiting for quota" : task.requesterId)}`));
       return node;
     }
     function attemptsPanel() {
@@ -305,8 +306,9 @@
       for (const message of history?.messages ?? []) node.append(box(message.role ?? message.kind ?? "Message", el("p", message.text ?? message.content ?? "")));
       node.append(form("message", [["text", "Message", "textarea"]], (values) => scoped("project-agent-message", { ...values, visibility }), history?.busy ? "Agent busy" : "Send"));
       if (privateView) {
+        node.append(form("chief-question", [["text", "Question for Chief", "textarea"]], (values) => scoped("project-chief-question", { ...values, requestId: win.crypto.randomUUID() }), "Ask Chief without a Task"));
         node.append(box("Private notes", ...agents.privateMemory.map((note) => el("p", note.text)), form("memory", [["text", "Remember privately", "textarea"]], (values) => scoped("project-agent-memory-write", values))));
-        for (const proposal of agents.proposals) node.append(box("Unpublished proposal", json(proposal.fields), button(proposal.taskId ? "Published" : "Publish as shared Task", () => act(() => scoped("project-agent-proposal-apply", { proposalId: proposal.id })), Boolean(proposal.taskId) || busy)));
+        for (const proposal of agents.proposals) node.append(box(proposal.taskId ? "Published Task" : "Unpublished proposal", el("p", proposal.taskId ? "Published; execution requires a separate run request." : "Private proposal; it has not been published or assigned."), json(proposal.fields), button(proposal.taskId ? "Published" : "Publish as shared Task", () => act(() => scoped("project-agent-proposal-apply", { proposalId: proposal.id })), Boolean(proposal.taskId) || busy)));
       } else {
         for (const role of agents.definitions.roles) {
           const card = box(role.role, el("p", `Model: ${role.model ?? "Project default"} · revision ${role.revision ?? agents.definitions.revision}`), el("p", role.instructions));
