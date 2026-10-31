@@ -98,6 +98,8 @@ export function createProjectChiefControl(rt) {
       const claim = task.collaboration?.claim, worker = rt.state.projectHarnessWorkers?.[claim?.workerId]
       return { taskId: task.id, title: task.title, criteria: task.criteria ?? '', projectTaskKind: task.projectTaskKind ?? 'code', status: task.status,
         execution: claim ? { status: claim.status, startedAt: claim.createdAt, elapsedMs: Date.now() - claim.createdAt, workerStatus: worker?.status ?? null, lastEventAt: worker?.lastEventAt ?? null } : null,
+        handoff: task.collaboration?.history.at(-1) ? { id: task.collaboration.history.at(-1).id, purpose: task.collaboration.history.at(-1).purpose, reason: task.collaboration.history.at(-1).reason } : null,
+        block: task.collaboration?.block ?? null, resources: Object.values(rt.state.projectResourceLeases ?? {}).filter(lease => rt.state.projectAttempts?.[lease.attemptId]?.taskId === task.id).map(lease => ({ role: lease.role, status: lease.status, attemptId: lease.attemptId, workerId: lease.worker?.handle ?? null, releasedAt: lease.releasedAt ?? null, releaseProof: lease.releaseProof?.kind ?? null })),
         generation: task.collaboration?.generation ?? 0, destination: task.collaboration?.botId ?? null, attemptId: attempt?.id ?? null, candidateSha: attempt?.candidateSha ?? null,
         evidence: { implementation: attempt?.evidence.implementation ? { sha: attempt.evidence.implementation.sha, paths: attempt.evidence.implementation.paths } : null,
           tests: attempt?.evidence.tests ? { sha: attempt.evidence.tests.sha, passed: attempt.evidence.tests.passed, sha256: attempt.evidence.tests.sha256, command: attempt.evidence.tests.command } : null,

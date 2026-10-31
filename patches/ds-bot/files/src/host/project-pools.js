@@ -93,6 +93,7 @@ export function createProjectPools(rt) {
     const task = taskOf(taskId), c = task.collaboration
     const prior = c?.history.find(row => row.execution?.id === token?.id)
     if (prior) {
+      if (!prior.decision || prior.execution.status !== 'completed') throw refuse('Claim is stale or execution admission failed')
       await authority(task)
       if (prior.decision.intentHash !== intentHash(decision)) throw refuse('Execution decision idempotency key was reused with different content')
       return clone(c.history.find(row => row.requestId === (decision.requestId ?? token.id)) ?? { status: 'blocked', reason: c.block?.reason })
@@ -167,7 +168,26 @@ export function createProjectPools(rt) {
         await serial(async () => { const claim = await current(task, token); claim.workerId = workerId; await rt.save() })
         await adapter.dispatch({ task, claim: token, workerId })
       } catch (error) {
-        await serial(async () => { const c = task.collaboration; if (c.claim?.id !== token.id) return; c.status = 'blocked'; c.block = { reason: String(error.message).slice(0, 1000), at: Date.now() }; await rt.save() })
+        let failedClaim
+        const reason = `Execution admission failed: ${String(error.message).slice(0, 1000)}`
+        await serial(async () => {
+          const c = task.collaboration
+          if (c.claim?.id !== token.id) return
+          failedClaim = c.claim; failedClaim.status = 'failed'; failedClaim.failure = reason; ++c.generation
+          c.status = 'blocked'; c.block = { reason, at: Date.now() }; await rt.save()
+        })
+        if (!failedClaim) continue
+        failedClaim.exitConfirmed = false
+        if (failedClaim.workerId) { try { failedClaim.exitConfirmed = await adapter.release(failedClaim.workerId) } catch { failedClaim.exitConfirmed = false } }
+        await serial(async () => {
+          const c = task.collaboration
+          if (c.claim?.id !== token.id) return
+          const receipt = c.history.find(row => row.id === c.currentHandoffId)
+          if (receipt) { receipt.status = 'rejected'; receipt.finishedAt = Date.now(); receipt.failure = reason; receipt.execution = clone(failedClaim) }
+          await rt.save()
+          try { await offer(task, { from: failedClaim.botId, to: `${task.projectId}:chief`, reason, requestId: `admission-${failedClaim.id}`, attemptId: c.attemptId, purpose: 'arbitrate' }) }
+          catch { /* Preserve the block and unknown capacity when authority itself is unavailable. */ }
+        })
       }
     }
   }

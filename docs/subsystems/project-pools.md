@@ -82,3 +82,8 @@ claims its receipt, validates closure through existing gates or routes/returns
 with an explicit reason. Confirmed worker exit precedes intervention; unknown
 capacity remains held. Failed host verification offers the same Task to Chief.
 See [Chief control](project-chief-control.md).
+
+Failed execute/dispatch admission fences the old claim and records a rejected
+receipt before entering Chief arbitration. Unknown worker exits retain occupancy;
+absence of a returned worker handle does not fabricate exit confirmation. Late
+results against failed receipts are stale, not idempotent successful decisions.

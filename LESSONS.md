@@ -278,3 +278,11 @@ reconcile had captured an active lease, awaited supervisor metadata, then marked
 the now-released lease unreachable. Recheck terminal lease status after the await
 and skip currently controlled workers before supervisor I/O. A concurrent
 release/reconcile regression reproduces this race; never edit live status by hand.
+
+### 2026-11-01 — failed admission is not an active worker (Seen 1×)
+
+After the real repair restart, an interrupted Attempt failed preparation but left
+its claim active. Chief correctly refused blind retry because host facts conflicted.
+Fence failed admission, retain unconfirmed occupancy, route the failure to Chief,
+and include actual resource exit proof and handoff reason in judgement context.
+A pre-candidate Chief retry may pin a fresh repaired base; keep the old Attempt.

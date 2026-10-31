@@ -149,3 +149,9 @@ schedules; there is no Chief cadence in framework timers. After exact-tip full
 verification and its own draft PR, upgrade the backed-up shared backend, assign
 #40 through actual FlyBot and collect real Codex/handoff/Chief/restart evidence in
 #41. Protocol fixtures alone do not satisfy those integration criteria.
+
+R6 real-service integration now exercises ordinary Chief queries without Tasks,
+original scheduled wake after logout, editable pause/resume and actual Dev→Chief
+return on one Task. Dogfood exposed HTTP registration, release/reconcile race and
+failed-admission status defects; fixes remain in R6 PR #47 with regressions. R7
+completion and all remaining #41 acceptance are still pending.

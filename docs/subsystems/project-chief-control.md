@@ -83,3 +83,7 @@ Inspection records lastMeaningfulProgressAt and evidence references from a new
 candidate with passed host verification. A new commit alone or repeated tests at
 the same SHA cannot reset the handoff counter. Snapshots include execution age,
 worker state and heartbeat so Chief can distinguish a legitimate long task.
+
+Judgement snapshots include the actual handoff reason, block and Task-scoped
+resource lease/exit-proof facts, so failed admission is distinguishable from a
+live long-running worker. No lease is released solely on a model judgement.

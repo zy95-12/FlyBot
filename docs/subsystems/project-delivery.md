@@ -238,3 +238,8 @@ and current human authority. Non-code decisions need hashed outputs; release
 claims without trusted release evidence cannot close. Rework preserves Task and
 prior Attempt evidence. Host testTimeoutMs now honors configured positive values
 up to 1800000 ms instead of silently reducing a 600000-ms budget to 300000.
+
+Receiving role context includes current handoff and bounded candidate/test/review
+facts. Before any sealed candidate exists, an explicit Chief rework pins the new
+Attempt to current repaired repository HEAD; the original base/evidence remain
+immutable. Candidate-backed rework keeps its original base and seeds that candidate.

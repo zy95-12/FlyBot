@@ -114,3 +114,29 @@ test('revocation fences an active worker before stopping it and retains unconfir
   assert.equal(f.task.collaboration.status, 'blocked')
   await assert.rejects(f.pool.decide('task', token, { action: 'complete', reason: 'Late result after revocation' }), /stale/)
 })
+
+test('execution admission failure retires the claim and reaches Chief instead of leaving a phantom active worker', async () => {
+  const f = setup(); await f.admit()
+  f.adapter.execute = async () => { throw new Error('Pool Attempt is unavailable') }
+  await f.pool.pump()
+  assert.equal(f.task.collaboration.status, 'arbitration')
+  assert.equal(f.task.collaboration.claim, undefined)
+  const failed = f.task.collaboration.history[0]
+  assert.equal(failed.status, 'rejected')
+  assert.equal(failed.execution.status, 'failed')
+  assert.equal(failed.execution.exitConfirmed, false, 'Failure before binding must not invent exit proof')
+  assert.match(f.task.collaboration.history.at(-1).reason, /Pool Attempt is unavailable/)
+})
+
+test('dispatch failure fences late results and retains unconfirmed worker occupancy for Chief', async () => {
+  const f = setup(); await f.admit()
+  f.adapter.execute = async () => 'live-worker'
+  f.adapter.dispatch = async () => { throw new Error('dispatch rejected') }
+  f.adapter.release = async () => false
+  await f.pool.pump()
+  const failed = f.task.collaboration.history[0].execution
+  assert.equal(failed.status, 'failed'); assert.equal(failed.exitConfirmed, false)
+  assert.equal(failed.workerId, 'live-worker')
+  assert.equal(f.task.collaboration.status, 'arbitration')
+  await assert.rejects(f.pool.decide('task', failed, { action: 'complete', reason: 'Late result' }), /stale/)
+})

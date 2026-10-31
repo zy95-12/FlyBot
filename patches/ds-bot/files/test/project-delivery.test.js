@@ -551,3 +551,18 @@ write({type:'sdk-event',event:{type:'thread.started',thread_id:'chief-contract-'
   assert.equal(rt.readProject('p1').kind, undefined, 'Run metadata must not be written onto the Project returned by bindProject')
   assert.equal(Object.values(rt.state.tasks).length, 1)
 })
+
+test('Chief recovery before any sealed candidate pins a fresh Attempt to the current repaired repository base', async t => {
+  const f = await setup(t, undefined, { pool: true })
+  await f.start('before-backend-repair')
+  const previous = f.attempt(), base = previous.baseSha
+  writeFileSync(join(f.repository, 'host-repair.txt'), 'Verified repair to the execution backend\n')
+  git(f.repository, ['add', 'host-repair.txt']); git(f.repository, ['commit', '-m', 'Repair host before retry'])
+  const current = git(f.repository, ['rev-parse', 'HEAD'])
+  previous.status = 'interrupted'
+  const id = await f.rt.projectDelivery.reworkPool({ task: f.rt.state.tasks[f.task.id], claim: { id: 'chief-recovery', attemptId: previous.id, botId: 'p1:chief' }, reason: 'Confirmed prior exit; retry on repaired host', force: true })
+  assert.equal(f.rt.state.projectAttempts[id].baseSha, current)
+  assert.equal(previous.baseSha, base)
+  assert.equal(f.rt.state.projectAttempts[id].taskId, f.task.id)
+  assert.equal(previous.status, 'interrupted')
+})
