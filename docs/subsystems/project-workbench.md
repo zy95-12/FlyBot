@@ -173,3 +173,7 @@ Repair R6 exposes Chief configuration in the scoped workbench: editable schedule
 prompt/cadence, enable/pause, thresholds, inspect-now and recent actual Runs.
 The resource response includes minimal Chief state without an additional gateway
 call. This does not replace issue #40 native rich multi-Bot UI restoration.
+
+Actual shared-entry repair: the explicit HTTP allowlist now includes pool, query,
+GitHub read, delegation mode and Chief/schedule endpoints. Project authorization
+still executes downstream; raw schedule/state/DSH APIs remain refused.

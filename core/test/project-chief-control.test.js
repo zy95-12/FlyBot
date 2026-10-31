@@ -9,7 +9,13 @@ test('Chief inspection counts verified artifact progress rather than message or 
   assert.match(inspectionFacts(state, task, thresholds, 100).reasons[0], /without verified/)
   task.collaboration.history[3].evidence = [{ kind: 'implementation', sha: 'candidate' }]
   task.collaboration.history[4].evidence = [{ kind: 'implementation', sha: 'candidate' }]
-  assert.equal(inspectionFacts(state, task, thresholds, 100).handoffsWithoutProgress, 1)
+  assert.equal(inspectionFacts(state, task, thresholds, 100).handoffsWithoutProgress, 5, 'A new implementation commit alone cannot clear the bounce count')
+  task.collaboration.history[3].evidence.push({ kind: 'host-tests', passed: true, sha: 'candidate', sha256: 'host-log' })
+  task.collaboration.history[4].evidence.push({ kind: 'host-tests', passed: true, sha: 'candidate', sha256: 'another-run-log' })
+  const facts = inspectionFacts(state, task, thresholds, 100)
+  assert.equal(facts.handoffsWithoutProgress, 1, 'Repeating tests at the same SHA cannot reset the checkpoint')
+  assert.equal(facts.lastMeaningfulProgressAt, 4)
+  assert.equal(facts.progressEvidence[0].testLogSha256, 'host-log')
   task.chiefObservations = { fingerprint: 'a message is not a checkpoint', handoffCount: 5 }
   task.collaboration.history.forEach(row => { row.evidence = [] })
   assert.equal(inspectionFacts(state, task, thresholds, 100).handoffsWithoutProgress, 5)

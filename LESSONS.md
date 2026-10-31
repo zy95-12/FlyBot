@@ -260,3 +260,9 @@ A schedule interceptor rejected empty pre-step messages even when it consumed no
 reminder. Actual DSH executed the shell tool but never submitted the final Workflow
 result. Reject only a consumed managed-only delivery, preserve ordinary empty
 continuations, and verify the actual native runtime as well as fake schedule hooks.
+
+### 2026-11-01 — test collaboration through the restricted gateway (Seen 1×)
+
+Real shared-service Chief configuration returned HTTP 403: host endpoints were
+registered but the gateway allowlist still lacked R3–R6 APIs. Exercise actual HTTP
+forwarding with current member credentials and retain raw-owner API refusal.

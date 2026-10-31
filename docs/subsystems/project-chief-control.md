@@ -78,3 +78,8 @@ acceptance or shared-service restart evidence; those remain issue #41 acceptance
 
 Native continuation invariant: an empty pre-step inbox remains admitted when no
 managed reminder was consumed. A tool result may continue without new messages.
+
+Inspection records lastMeaningfulProgressAt and evidence references from a new
+candidate with passed host verification. A new commit alone or repeated tests at
+the same SHA cannot reset the handoff counter. Snapshots include execution age,
+worker state and heartbeat so Chief can distinguish a legitimate long task.

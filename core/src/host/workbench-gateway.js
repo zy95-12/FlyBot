@@ -14,6 +14,8 @@ export const WORKBENCH_ENDPOINTS = new Set([
   'project-task-run', 'project-task-detail', 'project-task-accept', 'project-task-reject',
   'project-attempt-stop', 'project-attempt-log', 'project-attempt-cleanup',
   'project-agents', 'project-agent-message', 'project-agent-history', 'project-agent-memory-write', 'project-role-memory-write', 'project-agent-definition',
+  'project-task-pools', 'project-chief-question', 'project-github-read', 'project-agent-mode',
+  'project-chief-state', 'project-chief-configure', 'project-chief-inspect', 'project-scheduled-task',
   'project-agent-proposal-apply', 'project-knowledge-write', 'project-credential-status', 'project-github-comment',
 ])
 const LIMIT = 1024 * 1024

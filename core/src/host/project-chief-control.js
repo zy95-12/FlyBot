@@ -8,16 +8,21 @@ const template = JSON.parse(readFileSync(new URL('./project-chief-schedule.json'
 const refuse = message => Object.assign(new Error(message), { code: 'bot/chief' })
 const digest = value => createHash('sha256').update(JSON.stringify(value)).digest('hex')
 const terminal = new Set(['accepted', 'cancelled'])
+function verifiedProgress(evidence = []) {
+  return evidence.filter(row => row.kind === 'host-tests' && row.passed === true && typeof row.sha === 'string' && typeof row.sha256 === 'string')
+}
 export function progressFingerprint(attempt) {
-  return digest({ candidate: attempt?.candidateSha ?? null, tests: attempt?.evidence?.tests ? { sha: attempt.evidence.tests.sha, passed: attempt.evidence.tests.passed, hash: attempt.evidence.tests.sha256 } : null,
-    review: attempt?.evidence?.review ? { sha: attempt.evidence.review.sha, verdict: attempt.evidence.review.verdict } : null })
+  const tests = attempt?.evidence?.tests
+  return digest(tests?.passed === true && tests.sha === attempt.candidateSha ? { testedCandidate: tests.sha } : null)
 }
 export function inspectionFacts(state, task, thresholds, now = Date.now()) {
   const c = task.collaboration, attempt = state.projectAttempts?.[task.deliveryAttemptId], fingerprint = progressFingerprint(attempt)
-  let checkpoint = 0, previous = digest([])
+  let checkpoint = 0, lastMeaningfulProgressAt = null, progressEvidence = []
+  const seen = new Set()
   for (const [index, receipt] of (c?.history ?? []).entries()) {
-    const evidence = digest(receipt.evidence ?? [])
-    if (evidence !== previous) { checkpoint = index + 1; previous = evidence }
+    const fresh = verifiedProgress(receipt.evidence).filter(row => !seen.has(row.sha))
+    for (const row of fresh) seen.add(row.sha)
+    if (fresh.length) { checkpoint = index + 1; lastMeaningfulProgressAt = receipt.createdAt; progressEvidence = fresh.map(row => ({ handoffId: receipt.id, sha: row.sha, testLogSha256: row.sha256 })) }
   }
   const handoffs = (c?.history.length ?? 0) - checkpoint
   const worker = c?.claim?.workerId ? state.projectHarnessWorkers?.[c.claim.workerId] : null
@@ -26,7 +31,7 @@ export function inspectionFacts(state, task, thresholds, now = Date.now()) {
   if (c?.claim?.status === 'active' && now - c.claim.createdAt > thresholds.longExecutionMs) reasons.push('Execution exceeds the configured duration threshold')
   if (worker?.status === 'running' && now - (worker.lastEventAt ?? worker.createdAt) > thresholds.missingHeartbeatMs) reasons.push('Execution heartbeat is missing')
   if (['queued', 'arbitration', 'blocked'].includes(c?.status) && now - (c.history.at(-1)?.createdAt ?? task.updatedAt) > thresholds.longWaitMs) reasons.push('Task wait exceeds the configured duration threshold')
-  return { taskId: task.id, fingerprint, handoffsWithoutProgress: handoffs, reasons, observedAt: now, checkpoint }
+  return { taskId: task.id, fingerprint, handoffsWithoutProgress: handoffs, reasons, observedAt: now, checkpoint, lastMeaningfulProgressAt, progressEvidence }
 }
 export function createProjectChiefControl(rt) {
   const policies = () => (rt.state.projectChiefPolicies ??= {})
@@ -89,7 +94,10 @@ export function createProjectChiefControl(rt) {
     return tasks.map(task => {
       const attempt = rt.state.projectAttempts?.[task.deliveryAttemptId]
       const facts = inspectionFacts(rt.state, task, policyOf(run.projectId).inspection.thresholds)
+      task.lastMeaningfulProgressAt = facts.lastMeaningfulProgressAt; task.meaningfulProgressEvidence = structuredClone(facts.progressEvidence)
+      const claim = task.collaboration?.claim, worker = rt.state.projectHarnessWorkers?.[claim?.workerId]
       return { taskId: task.id, title: task.title, criteria: task.criteria ?? '', projectTaskKind: task.projectTaskKind ?? 'code', status: task.status,
+        execution: claim ? { status: claim.status, startedAt: claim.createdAt, elapsedMs: Date.now() - claim.createdAt, workerStatus: worker?.status ?? null, lastEventAt: worker?.lastEventAt ?? null } : null,
         generation: task.collaboration?.generation ?? 0, destination: task.collaboration?.botId ?? null, attemptId: attempt?.id ?? null, candidateSha: attempt?.candidateSha ?? null,
         evidence: { implementation: attempt?.evidence.implementation ? { sha: attempt.evidence.implementation.sha, paths: attempt.evidence.implementation.paths } : null,
           tests: attempt?.evidence.tests ? { sha: attempt.evidence.tests.sha, passed: attempt.evidence.tests.passed, sha256: attempt.evidence.tests.sha256, command: attempt.evidence.tests.command } : null,
