@@ -104,3 +104,8 @@ M7.1 separates durable role definitions/public role memory from per-Attempt exec
 ### M7.2 — 2026-10-31
 
 M7.2 adds [execution resource capabilities](subsystems/project-resources.md) under the existing Project scheduler. Control-plane instance association is metadata, not invented remote execution; local/Docker command adapters and lease records stay in FlyBot.
+
+
+### M7.3 checkpoint — 2026-10-31
+
+M7.3 adds [temporary Harness workers](subsystems/project-harness.md) through Workflow lifecycle callbacks. Explicit resource/profile credentials, SDK thread ids and redacted event references remain separate from Project role memory and acceptance evidence.

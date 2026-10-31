@@ -105,3 +105,8 @@ reach released state. This validates real Harness transport/lifecycle, not real 
 ### M7.2 — 2026-10-31
 
 M7.2 adds the explicitly invoked node dev/demo/resources.mjs test-host probe. It creates its own disposable Docker container, verifies distinct actual runtimes/filesystems and candidate-pool capacity/release, then cleans up. It needs Docker and is not part of key-free ordinary CI or proof of mixed-Harness Task delivery.
+
+
+### M7.3 checkpoint — 2026-10-31
+
+M7.3 adds an opt-in node dev/demo/harnesses.mjs negative probe using actual installed official SDKs, isolated empty profiles and unreachable loopback providers. It confirms refusal of successful completion, never authenticated inference; raw logs/credentials are not published.

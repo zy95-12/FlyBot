@@ -303,6 +303,7 @@ export function install(rt) {
       switch (endpoint) {
         case 'auth-mode':
         case 'workbench-state':
+        case 'project-execution-input':
         case 'project-resource-environment-check':
         case 'project-resources':
           return ok(await rt.workbenchEndpoint(endpoint, body, actor))

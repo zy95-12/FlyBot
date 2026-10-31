@@ -127,3 +127,8 @@ M7.1 allows project-role-memory-write through the restricted gateway. This publi
 ### M7.2 — 2026-10-31
 
 M7.2 project-resources includes executionResources and sanitized resourceLeases. Connection targets, roots and worker handles remain server-side. Resource/role capacity blocks the existing queue before Attempt/worktree creation; unknown external workers keep Project slots occupied.
+
+
+### M7.3 checkpoint — 2026-10-31
+
+M7.3 resources read model includes sanitized Harness worker status/pending questions. Event-log and cwd paths remain server-side. The gateway allowlists only scoped project-execution-input, not arbitrary SDK or filesystem commands.

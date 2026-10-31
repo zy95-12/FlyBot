@@ -31,6 +31,8 @@ export function apply(ctx, config = {}) {
   const liveNames = new Map()
   const lifecycle = typeof fb.bot?.create === 'function' ? {
     async spawn(spec) {
+      const sdkWorker = await fb.projects?.execution?.spawn?.(spec)
+      if (sdkWorker) return sdkWorker
       // A node Bot keeps the file and shell rights a normal sidebar Bot has (permissionFor()).
       // spec.tools only selects connectors: the host records it as stepTools, and connector-access.js
       // then allows mcp__github__*/mcp__composio__* only for a connector the node named, refusing
@@ -68,7 +70,8 @@ export function apply(ctx, config = {}) {
       }
       throw last
     },
-    release(id) {
+    async release(id) {
+      if (await fb.projects?.execution?.release?.(id)) return
       // The instance is going away, so its name is free again. Without this the
       // allocator treats every name this process ever handed out as taken.
       for (const [name, owner] of liveNames) if (owner === id) liveNames.delete(name)
@@ -77,6 +80,8 @@ export function apply(ctx, config = {}) {
       return fb.bot.remove(id)
     },
     async dispatch(step) {
+      const sdk = await fb.projects?.execution?.dispatch?.(step)
+      if (sdk) return sdk
       const bots = fb.bot.list?.() ?? []
       const projectId = fb.projects?.context?.(step.taskId)?.projectId
       const chiefId = projectId ? fb.projects?.read?.(projectId)?.chief?.botId : null
@@ -113,6 +118,7 @@ export function apply(ctx, config = {}) {
   })
   void service.reap?.().catch(error => fb.warn?.('flybot-workflow: reap failed: %s', error))
   const offs = [
+    fb.projects?.execution?.onResult?.(result => service.stepResult(result)) ?? (() => {}),
     fb.api.handle('workflow/state', () => service.state(), { read: true }),
     fb.api.handle('workflow/create', body => service.create(body)),
     fb.api.handle('workflow/rename', body => service.rename(body)),

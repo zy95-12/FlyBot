@@ -203,3 +203,8 @@ SDK/resource allocation and cross-resource workspace transfer follow in M7.2–M
 ### M7.2 — 2026-10-31
 
 M7.2 reserves configured role resource leases before workspace allocation, binds native workers to the existing Session descriptor and confirms release after deletion. Native selected resources must be local and contain the registered worktree root; cross-resource Git transfer follows M7.5.
+
+
+### M7.3 checkpoint — 2026-10-31
+
+M7.3 temporary role Session binding records native Bot or SDK worker handles. SDK OUTPUTs still pass the same host Git/test/review/publish/acceptance gates. Local selected resources must contain worktree root; remote transfer remains deferred to M7.5.

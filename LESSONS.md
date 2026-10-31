@@ -174,3 +174,8 @@ the host's truncation/uniqueness contract, not short unit-test ids.
 ### M7.2 — 2026-10-31
 
 Seen 1× (2026-10-31, M7.2): a terminal Task/Run does not prove an external worker exited. Keep SDK/stopping/unreachable resource leases in Project occupancy, and release only with the bound worker handle and confirmed exit. Restart reconciliation must never silently free unknown processes.
+
+
+### M7.3 checkpoint — 2026-10-31
+
+Seen 1× (2026-10-31, M7.3): SDK turn-completed does not mean required outputs, committed code or delivery acceptance. Keep backend Session ids and required OUTPUT checks separate; truncated streams fail, questions remain waiting-input, and only confirmed worker exit releases capacity.

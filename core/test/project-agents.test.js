@@ -269,3 +269,26 @@ test('role context bounds total content and cannot reconstruct a closing data fe
   assert.match(context.text, /\\u003c/)
   assert.throws(() => roleContext({ definition: { instructions: 'x'.repeat(48000) } }), /exceeds/)
 })
+
+test('SDK Chief actions retain current human scope and never acquire generic tools', async t => {
+  const { rt } = await setup(t)
+  rt.config.projectResources = { local: { type: 'local', root: '/tmp', capacity: 1, allowedProjectOwnerIds: ['owner-1'], harnesses: ['codex'] } }
+  const { memory } = await rt.projectEndpoint('project-role-memory-write', { projectId: 'p1', role: 'chief', text: 'Published SDK Chief planning rule', source: { kind: 'human', reference: 'test rule' } }, alice)
+  await rt.projectEndpoint('project-agent-definition', { projectId: 'p1', role: 'chief', memoryRefs: [memory.id], execution: { harness: 'codex', resourceIds: ['local'] } }, alice)
+  let request
+  rt.projectHarness.chiefTurn = async input => { request = input; return 'sdk-chief-worker' }
+  const sent = await message(rt, bob, 'public', 'Create an addition task')
+  assert.match(request.context.text, /Published SDK Chief planning rule/)
+  await request.onResult({ ok: true, text: JSON.stringify({ reply: 'Created the requested Task', actions: [{ tool: 'task', args: { title: 'Addition task', criteria: 'verify addition', requesterId: alice.memberId } }] }) })
+  const task = Object.values(rt.state.tasks).at(-1)
+  assert.equal(task.requesterId, bob.memberId)
+  assert.equal(task.projectId, 'p1')
+  assert.equal(rt.state.projectAgents[sent.agent.id].lastRequest.phase, 'completed')
+  const count = Object.keys(rt.state.tasks).length
+  await request.onResult({ ok: true, text: JSON.stringify({ reply: 'Late', actions: [{ tool: 'task', args: { title: 'Late task' } }] }) })
+  assert.equal(Object.keys(rt.state.tasks).length, count)
+  await message(rt, alice, 'public', 'Try a forbidden action')
+  await request.onResult({ ok: true, text: JSON.stringify({ reply: 'Done', actions: [{ tool: 'shell', args: { command: 'touch unauthorized' } }] }) })
+  assert.equal(rt.state.projectAgents[sent.agent.id].lastRequest.phase, 'failed')
+  assert.equal(Object.keys(rt.state.tasks).length, count)
+})
