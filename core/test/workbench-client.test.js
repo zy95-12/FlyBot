@@ -73,3 +73,20 @@ test('API uses member session header only and clears it on logout', async () => 
   assert.equal(requests[1].init.headers['x-flybot-member-session'], undefined)
   assert.equal(requests[0].init.headers.cookie, undefined)
 })
+
+test('Task detail exposes failure evidence and answers only the current requester question', async t => {
+  const { dom, root, calls } = fixture(t, endpoint => endpoint === 'project-task-detail' ? {
+    task: { id: 'task-a', projectId: 'a', title: 'Blocked parser', criteria: 'Handle invalid tokens', requesterId: 'bob', priority: 'high', status: 'blocked', waitingFor: 'input', inputRequest: { id: 'question-2', question: 'Choose error format' }, createdAt: Date.now() - 120000, target: { href: 'https://github.com/example/repo/issues/2' } },
+    attempts: [{ id: 'old', status: 'failed', createdAt: Date.now() - 1000, failure: { at: Date.now(), message: 'Configured tests failed' }, evidence: { implementation: { diffStat: 'parser.js | 3 ++-' } } }],
+  } : undefined)
+  await tick(); dom.window.location.hash = '/projects/a/tasks/task-a'; await tick()
+  assert.match(root.textContent, /Priority: high/)
+  assert.match(root.textContent, /Choose error format/)
+  assert.match(root.textContent, /Configured tests failed/)
+  assert.equal(root.querySelector('a[href="https://github.com/example/repo/issues/2"]').textContent, 'Source Issue / PR')
+  assert.equal([...root.querySelectorAll('button')].find(node => node.textContent === 'Run / retry').disabled, true, 'unprovisioned repository cannot execute')
+  const form = root.querySelector('#answer-answer').form
+  form.querySelector('[name=answer]').value = 'Use structured errors'
+  form.dispatchEvent(new dom.window.Event('submit', { cancelable: true })); await tick()
+  assert.deepEqual(calls.find(row => row.endpoint === 'task-answer-input').payload, { projectId: 'a', id: 'task-a', questionId: 'question-2', answer: 'Use structured errors' })
+})
