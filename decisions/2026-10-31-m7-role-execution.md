@@ -26,3 +26,8 @@ No dissent recorded. Written-by: Codex
 ### M7.2 — 2026-10-31
 
 M7.2 implementation uses operator-configured local/Docker capabilities and the existing Project queue. Unknown workers retain leases after restart; credentials and environment readiness remain separate observations. Explicit platform instance association cannot confer remote-execution capability.
+
+
+### M7.3 checkpoint — 2026-10-31
+
+M7.3 connects temporary SDK workers through the existing Workflow lifecycle; explicit resource/principal profiles replace ambient login inheritance. This checkpoint keeps public Chief native until its safe scoped SDK action boundary is implemented. Real authorized SDK acceptance remains separate from negative/contract tests.

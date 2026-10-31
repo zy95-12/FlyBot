@@ -1,5 +1,5 @@
 // Operator-provisioned execution capabilities; Project configuration only references IDs.
-import { execFile } from 'node:child_process'
+import { execFile, spawn } from 'node:child_process'
 import { realpath } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import { isAbsolute, relative, sep } from 'node:path'
@@ -130,6 +130,13 @@ export function createProjectResources(rt) {
     }
     await rt.save()
   }
+  function startProcess(projectId, resourceId, { argv, cwd }) {
+    const item = setting(projectId, resourceId)
+    if (!Array.isArray(argv) || !argv.length || !isAbsolute(cwd ?? '') || !contains(item.root, cwd)) throw failure('Invalid resource process target')
+    const options = { env: safeEnv(), stdio: ['pipe', 'pipe', 'pipe'], detached: item.type === 'local' }
+    return item.type === 'local' ? spawn(argv[0], argv.slice(1), { ...options, cwd })
+      : spawn('docker', ['exec', '-i', '--user', item.user, '--workdir', cwd, item.container, 'env', '-i', 'PATH=/usr/local/bin:/usr/bin:/bin', ...argv], options)
+  }
   async function command(projectId, resourceId, { argv, cwd, timeout = 30_000, input } = {}) {
     const item = setting(projectId, resourceId)
     if (!Array.isArray(argv) || !argv.length || argv.some(value => typeof value !== 'string' || value.includes('\0')) || !isAbsolute(cwd ?? '') || !contains(item.root, cwd)) throw failure('Invalid resource command or working directory')
@@ -153,7 +160,7 @@ export function createProjectResources(rt) {
     state.projectResourceHealth ??= {}; setEntry(state.projectResourceHealth, resourceId, row); await rt.save()
     return structuredClone(row)
   }
-  return { setting, list, checkPool, plan, command, probe, occupied, reconcile, recover,
+  return { setting, list, checkPool, plan, command, startProcess, probe, occupied, reconcile, recover,
     reserveRoles: (...args) => serial(() => reserveRoles(...args)),
     reserve: request => serial(() => reserve(request)), markStarted: (...args) => serial(() => markStarted(...args)), release: (...args) => serial(() => release(...args)) }
 }

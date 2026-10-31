@@ -158,3 +158,8 @@ agent-local tools that cannot be hidden. Other Bots do not inherit these capabil
 ### Fork M7.1 — 2026-10-31
 
 M7.1 inserts frozen role context at host Bot creation after graph prompt truncation. It binds a registered Workspace to one execution Session, and archives release after successful Bot deletion. Legacy plugin Bots without delivery snapshots retain their existing behavior.
+
+
+### M7.3 checkpoint — 2026-10-31
+
+M7.3 adds projects.execution spawn/dispatch/release/onResult only for flybot-workflow, typed in flybot.d.ts. SDK worker output enters existing stepResult, not a persistent Bot chat. Native lifecycle stays available when spawn/dispatch returns null.

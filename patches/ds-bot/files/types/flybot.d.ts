@@ -382,6 +382,13 @@ export interface FlyBot {
   /** Project context is derived from the durable host Task. Not a user authorization token. */
   projects: {
     shared(): boolean
+    /** Existing Workflow lifecycle delegates explicitly configured SDK workers to the host. */
+    execution?: {
+      spawn(spec: Record<string, unknown>): Promise<string | null> | undefined
+      dispatch(step: Record<string, unknown>): Promise<unknown> | undefined
+      release(id: string): Promise<boolean> | undefined
+      onResult(fn: (result: { botId: string; ok: boolean; text: string }) => unknown): (() => void) | undefined
+    }
     deliveryGate(input: { taskId: string; workflowId: string; runId: string; nodeId: string; outputs?: Record<string, unknown>; ok?: boolean }): Promise<unknown> | undefined
     read(id: string): { id: string; status: 'active' | 'archived'; [key: string]: unknown } | undefined
     readRun(id: string): { id: string; projectId: string; status: string } | undefined

@@ -100,7 +100,6 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     await rt.save() // Reserve idempotency and ownership before any filesystem effects.
     try {
       const definitions = rt.projectAgents?.deliveryDefinitions(project.id)
-      if (definitions?.roles.some(role => role.role !== 'chief' && ((role.execution?.harness ?? 'flybot') !== 'flybot'))) throw reject('Selected execution Harness/resource is not provisioned')
       attempt.agentDefinitions = definitions
       attempt.resourceLeases = await rt.projectResources?.reserveRoles(project.id, attempt.id, definitions) ?? {}
       for (const lease of Object.values(attempt.resourceLeases)) {
@@ -376,7 +375,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     session.botId = bot.id
     session.sessionId = bot.sessionId
     session.status = 'bound'
-    if (session.resourceLease) await rt.projectResources?.markStarted(session.resourceLease.id, session.resourceLease.generation, { kind: 'native', botId: bot.id })
+    if (session.resourceLease) await rt.projectResources?.markStarted(session.resourceLease.id, session.resourceLease.generation, bot.kind === 'sdk' ? { kind: 'sdk', handle: bot.id } : { kind: 'native', botId: bot.id })
     await rt.save()
   }
   async function releaseSession(botId) {

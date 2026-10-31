@@ -210,3 +210,8 @@ actual DSH runtime assertions check the model request contains memory and repo c
 ### M7.2 — 2026-10-31
 
 M7.2 validates role resource references against operator grants before saving configuration. Optional maxConcurrent limits the configured role pool; new settings do not mutate saved Attempt/Session snapshots.
+
+
+### M7.3 checkpoint — 2026-10-31
+
+M7.3 temporary workers may select Codex/Claude Agent SDK with an admitted resource lease and explicit principal profile. Public Chief remains native until its scoped tool bridge is implemented; unsupported selection fails closed, despite storing unified references.

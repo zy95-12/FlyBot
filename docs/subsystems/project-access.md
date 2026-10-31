@@ -164,3 +164,8 @@ M7.1 routes project-role-memory-write through the existing shared gate; current 
 ### M7.2 — 2026-10-31
 
 M7.2 project-resource-environment-check requires current Project configure authority and an operator resource grant. This is a fixed bounded runtime probe, not arbitrary command execution; it does not establish SDK authentication.
+
+
+### M7.3 checkpoint — 2026-10-31
+
+M7.3 project-execution-input revalidates current Task write authority, worker generation and waiting state; permission approvals additionally require configure authority. It cannot select another Project or arbitrary backend Session.

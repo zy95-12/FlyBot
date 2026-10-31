@@ -166,3 +166,8 @@ have been bootstrapped by the operator UI. A missing Project Chief fails dispatc
 never borrows another Project's or personal main. Unbound legacy Runs retain their
 existing main-sender behavior. Browser acceptance starts with a fresh shared entry,
 which caught this dependency that older API probes (calling private `state`) concealed.
+
+
+### M7.3 checkpoint — 2026-10-31
+
+Fork M7.3 lifecycle first offers spawn/dispatch/release to the host SDK adapter, then uses the existing native Bot path. Host SDK results enter service.stepResult through a scoped callback; graph transitions, deadlines, delivery gates and release error handling are reused.

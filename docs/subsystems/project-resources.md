@@ -89,3 +89,8 @@ on a Docker-capable operator test host: it creates only a new owned container, e
 Node/file commands under UID 1000 and local Node in different filesystems/hostnames,
 verifies distribution/full capacity/release, then removes all owned data/container.
 It does not claim mixed-resource FlyBot Task/SDK acceptance; that belongs to M7.5.
+
+
+### M7.3 checkpoint — 2026-10-31
+
+M7.3 adds startProcess for host-selected Node workers in explicit local/Docker targets. Current SDK dispatch refuses remote Workspaces until M7.5 implements transfer; runtime environment and authentication observations remain distinct.

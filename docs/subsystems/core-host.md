@@ -856,3 +856,8 @@ M7.1 adds public role memory/context snapshots and binds temporary delivery Sess
 ### M7.2 — 2026-10-31
 
 M7.2 registers resource capabilities before delivery, preserves unknown leases at startup and exposes only safe metadata. Resource leases share existing admission and retain capacity across terminal Runs/restart; see [resource contract](project-resources.md).
+
+
+### M7.3 checkpoint — 2026-10-31
+
+M7.3 registers explicit-profile SDK worker execution and a current-authority project-execution-input endpoint. Unknown SDK exits retain leases; native fallback remains the existing Bot path. SDK Chief is still refused at this checkpoint.

@@ -1378,6 +1378,12 @@ export function install(rt) {
     projects: {
       shared() { return rt.sharedProjectMode?.() === true },
       deliveryGate(input) { return rt.projectDelivery?.gate(input) },
+      execution: {
+        spawn(spec) { return plugin === 'flybot-workflow' ? rt.projectHarness?.spawn(spec) : null },
+        dispatch(step) { return plugin === 'flybot-workflow' ? rt.projectHarness?.dispatch(step) : null },
+        release(id) { return plugin === 'flybot-workflow' ? rt.projectHarness?.release(id) : false },
+        onResult(fn) { return plugin === 'flybot-workflow' ? rt.projectHarness?.onResult(fn) : () => {} },
+      },
       read(id) {
         return typeof rt.readProject === "function" ? rt.readProject(String(id ?? '')) ?? undefined : undefined
       },

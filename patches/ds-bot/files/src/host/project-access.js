@@ -109,6 +109,7 @@ export function install(rt) {
     if (!actor?.memberId || !ownEntry(state.members, actor.memberId)) throw refusal('Sign in first')
     if (['project-credential-status', 'project-github-comment'].includes(endpoint)) return rt.projectCredentials.endpoint(endpoint, body, actor)
     if (['project-agents', 'project-agent-message', 'project-agent-history', 'project-agent-memory-write', 'project-role-memory-write', 'project-agent-definition', 'project-agent-proposal-apply', 'project-knowledge-write'].includes(endpoint)) return rt.projectAgents.endpoint(endpoint, body, actor)
+    if (endpoint === 'project-execution-input') return rt.projectHarness.input(body, actor)
     if (endpoint === 'project-resource-environment-check') {
       rt.requireProjectAccess(actor, body.projectId, 'configure')
       return rt.projectResources.probe(body.projectId, body.resourceId)

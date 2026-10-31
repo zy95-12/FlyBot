@@ -112,3 +112,8 @@ dissent. A stage moving from "not started" to "active" is itself a decision, not
 ### M7.2 — 2026-10-31
 
 M7.1 PR #26 passed full verify and actual DSH context/lifecycle checks. M7.2 implementation on feat/m7-resource-pools adds resource capabilities/leases and real local+Docker execution probes; integration acceptance with SDKs remains in M7.5.
+
+
+### M7.3 checkpoint — 2026-10-31
+
+M7.2 PR #27 passed full verify and the opt-in actual local/Docker resource probe. M7.3 adapters are in progress; the implementation PR remains draft until the safe SDK Chief path, remaining integration and real authorized SDK acceptance are complete.
