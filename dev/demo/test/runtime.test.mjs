@@ -54,3 +54,18 @@ test('real DSH Project agents keep private state separate and revoke old Session
   assert.ok(report.notRun.includes('real model'))
   assert.deepEqual(readdirSync(directory), [])
 })
+
+
+test('real DSH delivery queue enforces quota before allocation and rechecks membership', { timeout: 150_000 }, t => {
+  const directory = mkdtempSync(join(tmpdir(), 'flybot-queue-runtime-'))
+  t.after(() => rmSync(directory, { recursive: true, force: true }))
+  const result = spawnSync(process.execPath, [resolve(import.meta.dirname, '../run.mjs'), '--queue'], {
+    encoding: 'utf8', timeout: 140_000, env: { ...process.env, TMPDIR: directory, M0_REPORT: '' },
+  })
+  assert.equal(result.status, 0, result.stderr)
+  const report = JSON.parse(result.stdout)
+  assert.equal(report.milestone, 'M5')
+  assert.ok(report.checks.includes('Workflow release drains queue'))
+  assert.ok(report.checks.includes('revoked member queued request cancelled'))
+  assert.deepEqual(readdirSync(directory), [])
+})

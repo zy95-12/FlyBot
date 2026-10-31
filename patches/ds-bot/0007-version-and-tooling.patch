@@ -729,7 +729,7 @@ diff --git a/package.json b/package.json
    },
    "license": "Apache-2.0",
    "type": "module",
-@@ -27,7 +27,10 @@
+@@ -27,7 +27,11 @@
      ".": "./index.js",
      "./client": "./client.js",
      "./web-search": "./web-search.js",
@@ -737,20 +737,24 @@ diff --git a/package.json b/package.json
 +    "./package.json": "./package.json",
 +    "./types": {
 +      "types": "./types/flybot.d.ts"
-+    }
++    },
++    "./workbench-gateway": "./src/host/workbench-gateway.js"
    },
    "files": [
      "index.js",
-@@ -37,14 +37,18 @@
+@@ -37,14 +37,21 @@
      "web-search.js",
      "cordis.patch.yml",
      "README.md",
 -    "LICENSE"
 +    "LICENSE",
-+    "types/"
++    "types/",
++    "workbench.js",
++    "workbench.css"
    ],
    "scripts": {
-     "build": "node scripts/build-client.mjs",
+-    "build": "node scripts/build-client.mjs",
++    "build": "node scripts/build-client.mjs && node scripts/build-workbench.mjs",
      "test": "node --import ./test/harness-resolve.mjs --test \"test/*.test.js\"",
      "lint": "node scripts/lint.mjs",
 +    "arch-docs": "node scripts/check-arch-docs.mjs",
@@ -758,7 +762,8 @@ diff --git a/package.json b/package.json
 -    "check": "sh dev/check.sh"
 +    "check": "sh dev/check.sh",
 +    "ci:local": "bash scripts/local-ci.sh",
-+    "install:doctor": "node scripts/install-doctor.mjs"
++    "install:doctor": "node scripts/install-doctor.mjs",
++    "build:workbench": "node scripts/build-workbench.mjs"
    },
    "peerDependencies": {
      "@deepseek-ai/cordis": "*",

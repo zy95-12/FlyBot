@@ -154,3 +154,8 @@ These hold for every Bot and every routine, whatever the CI state, the label or 
 Changes to this page, to `ROADMAP.md`, to `docs/governance.md` or to `AGENTS.md` are **major**
 decisions, concluded as [docs/governance.md](docs/governance.md) requires and recorded in
 [`decisions/`](decisions/README.md).
+
+- M5 implements the standalone shared Project workbench, restricted gateway, durable
+  quota admission and actual acceptance/resource metrics. It reuses unchanged platform
+  services and the existing Workflow executor. See [M5 decision](decisions/2026-10-31-m5-project-workbench.md).
+  Browser/live-model acceptance is tracked separately in M6; no deployment is implied.

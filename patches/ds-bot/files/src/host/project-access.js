@@ -109,7 +109,9 @@ export function install(rt) {
     if (!actor?.memberId || !ownEntry(state.members, actor.memberId)) throw refusal('Sign in first')
     if (['project-credential-status', 'project-github-comment'].includes(endpoint)) return rt.projectCredentials.endpoint(endpoint, body, actor)
     if (['project-agents', 'project-agent-message', 'project-agent-history', 'project-agent-memory-write', 'project-agent-definition', 'project-agent-proposal-apply', 'project-knowledge-write'].includes(endpoint)) return rt.projectAgents.endpoint(endpoint, body, actor)
-    if (['project-task-run', 'project-task-detail', 'project-task-accept', 'project-task-reject', 'project-attempt-cleanup'].includes(endpoint)) return rt.projectDelivery.endpoint(endpoint, body, actor)
+    if (endpoint === 'project-task-run') return rt.projectScheduler.request(body, actor)
+    if (endpoint === 'project-queue-cancel') return rt.projectScheduler.cancel(body, actor)
+    if (['project-attempt-stop', 'project-attempt-log', 'project-task-run', 'project-task-detail', 'project-task-accept', 'project-task-reject', 'project-attempt-cleanup'].includes(endpoint)) return rt.projectDelivery.endpoint(endpoint, body, actor)
     if (endpoint === 'projects') return { projects: rt.listProjects().filter(project => rt.projectCan(actor, project.id)).map(project => safeProject(project, actor)) }
     if (endpoint === 'project-create') return undefined
     if (endpoint === 'project-join') {
@@ -127,10 +129,18 @@ export function install(rt) {
       return { project: safeProject(project, actor) }
     }
     if (endpoint === 'project-workflow') return serialWorkflow(body, actor)
+    if (endpoint === 'project-bind') {
+      if (body.kind === 'bot' && ownEntry(state.bots, String(body.id ?? ''))?.ownerId !== actor.memberId) throw refusal('Only the Bot owner may change its routing')
+      if (body.kind === 'group') {
+        const room = ownEntry(state.rooms, String(body.id ?? ''))
+        if (!room || !(rt.roomOwnedBy?.(actor, room.id) || rt.canManageParticipants?.(room, actor))) throw refusal('Only the group manager may change its routing')
+      }
+    }
     const bound = ['project-bind', 'project-of'].includes(endpoint) ? rt.projectOfMember(body.kind, body.id) : null
     const id = String(body.projectId ?? bound?.id ?? body.id ?? '')
     const project = rt.requireProjectAccess(actor, id)
     if (endpoint === 'project-detail') return safeDetail(id, actor)
+    if (endpoint === 'project-of') return { project: safeProject(project, actor) }
     if (endpoint === 'project-read') return { project: safeProject(project, actor), canManage: rt.projectCan(actor, id, 'manage') }
     if (endpoint === 'project-members') {
       const roles = rolesOf(project)
@@ -158,6 +168,7 @@ export function install(rt) {
       project.roles.members = (project.roles.members ?? []).filter(value => value !== memberId)
       for (const invitation of Object.values(invites())) if (invitation.projectId === id && invitation.createdBy === memberId && !invitation.usedAt) invitation.revokedAt = Date.now()
       rt.projectAgents?.revoke(id, memberId)
+      rt.projectScheduler?.revalidate(id)
       // Accepted project work continues under project authority; removal revokes new requests immediately.
       await rt.save()
       return { removed: true, activeRuns: activeRuns(id).length,

@@ -18,7 +18,7 @@ import { hasAnyGrant } from './reach.js'
 
 // Endpoints a request without an actor may still reach. auth-invite keeps the
 // bootstrap rule in member-auth (first invite signs the installing human in).
-const NO_ACTOR_ALLOWED = new Set(['auth-redeem', 'auth-whoami', 'auth-invite'])
+const NO_ACTOR_ALLOWED = new Set(['auth-mode', 'auth-redeem', 'auth-whoami', 'auth-invite'])
 
 // Resources that are one per deployment, not one per owner: blocked outright while
 // more than one member exists rather than silently shared. The DSH Agent (`add-agent`)
@@ -239,7 +239,7 @@ export function install(rt) {
     const ep = String(endpoint ?? '')
 
     if (ep === 'platform-login') return rt.platformIdentityEnabled ? ALLOW : deny('bot/forbidden', 'Platform identity is not configured')
-    if (['project-credential-status', 'project-github-comment', 'project-agents', 'project-agent-message', 'project-agent-history', 'project-agent-memory-write', 'project-agent-definition', 'project-agent-proposal-apply', 'project-knowledge-write', 'project-task-run', 'project-task-detail', 'project-task-accept', 'project-task-reject', 'project-attempt-log', 'project-attempt-cleanup', 'project-members', 'project-invite', 'project-join', 'project-leave', 'project-member-remove', 'project-quota', 'project-workflow'].includes(ep) && !rt.sharedProjectMode?.()) return deny('bot/forbidden', 'Project workbench is not enabled')
+    if (['workbench-state', 'project-resources', 'project-queue-cancel', 'project-attempt-stop', 'project-credential-status', 'project-github-comment', 'project-agents', 'project-agent-message', 'project-agent-history', 'project-agent-memory-write', 'project-agent-definition', 'project-agent-proposal-apply', 'project-knowledge-write', 'project-task-run', 'project-task-detail', 'project-task-accept', 'project-task-reject', 'project-attempt-log', 'project-attempt-cleanup', 'project-members', 'project-invite', 'project-join', 'project-leave', 'project-member-remove', 'project-quota', 'project-workflow'].includes(ep) && !rt.sharedProjectMode?.()) return deny('bot/forbidden', 'Project workbench is not enabled')
     if (rt.platformIdentityEnabled && ['auth-invite', 'auth-redeem', 'auth-remove-member'].includes(ep)) return deny('bot/platform-auth', 'Use control-plane account authentication')
     if (!actor) {
       if (NO_ACTOR_ALLOWED.has(ep)) return ALLOW
@@ -249,7 +249,7 @@ export function install(rt) {
     if (rt.sharedProjectMode?.()) {
       const agentSeats = [...(Array.isArray(body?.members) ? body.members : []), ...(Array.isArray(body?.add) ? body.add : []), ...(Array.isArray(body?.participants) ? body.participants.filter(row => row?.kind === 'bot').map(row => row.id) : [])]
       if (['create-room', 'update-room'].includes(ep) && agentSeats.some(id => state.bots?.[id]?.projectAgent)) return deny('bot/forbidden', 'Project agents cannot join group chats')
-      if (['project-credential-status', 'project-github-comment', 'project-agents', 'project-agent-message', 'project-agent-history', 'project-agent-memory-write', 'project-agent-definition', 'project-agent-proposal-apply', 'project-knowledge-write', 'project-task-run', 'project-task-detail', 'project-task-accept', 'project-task-reject', 'project-attempt-log', 'project-attempt-cleanup', 'project-members', 'project-invite', 'project-join', 'project-leave', 'project-member-remove', 'project-quota', 'project-workflow'].includes(ep)) return ALLOW
+      if (['workbench-state', 'project-resources', 'project-queue-cancel', 'project-attempt-stop', 'project-credential-status', 'project-github-comment', 'project-agents', 'project-agent-message', 'project-agent-history', 'project-agent-memory-write', 'project-agent-definition', 'project-agent-proposal-apply', 'project-knowledge-write', 'project-task-run', 'project-task-detail', 'project-task-accept', 'project-task-reject', 'project-attempt-log', 'project-attempt-cleanup', 'project-members', 'project-invite', 'project-join', 'project-leave', 'project-member-remove', 'project-quota', 'project-workflow'].includes(ep)) return ALLOW
       if (ep.startsWith('flybot/') && !['flybot/bots', 'flybot/changes', 'flybot/decide'].includes(ep)) return deny('bot/project-required', 'Use a Project-scoped endpoint')
       if (['workflows', 'workflow-save', 'usage'].includes(ep)) return deny('bot/project-required', 'Use a Project-scoped endpoint')
     }

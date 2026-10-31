@@ -838,3 +838,11 @@ private state while preserving shared history. [Agent contract](project-agents.m
 M4 delegated delivery also checks the exact active Project request before queuing a
 message, and scoped tools require that message/turn to have been observed. Cancellation
 removes only that exchange; a replacement delegation cannot inherit a queued old request.
+
+### Fork M5 integration
+
+The runtime installs the Project scheduler and safe workbench-state reader. API auth-mode
+is public only as a mode description; Project resources require the current actor. Shared
+Project Tasks retain history, scoped agent identities cannot be rebound, and repository
+filesystem capabilities are provisioned by operator/Project owner. See
+[Project workbench](project-workbench.md) for the restricted member entry and queue contract.

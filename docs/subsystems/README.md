@@ -29,3 +29,6 @@ The core is three pages so that a change to the browser client, to the server, o
 - [Project delivery](project-delivery.md) — M3 versioned Attempts, worktrees, evidence, GitHub drafts and human acceptance.
 
 - [Project agents](project-agents.md) — M4 public/private identity, memory, delegation, skills and credential scopes.
+
+- [Project workbench](project-workbench.md) — M5 restricted shared entry, Project UI,
+  durable quota admission and actual resource/acceptance metrics.

@@ -17,6 +17,8 @@
 // asks each registered provider for the workflow refs of tasks that still exist, and returns the
 // sections. It writes nothing, starts nothing and is not called unless someone asks for the board.
 import { open, readFile, stat } from 'node:fs/promises'
+import { resolve } from 'node:path'
+import { repositorySettings } from './project-repository-policy.js'
 import { join } from 'node:path'
 import { columnOf } from '../shared/task-board.js'
 import { DECISIONS_DIR, listProjectState, sha256 } from './project-state.js'
@@ -144,6 +146,7 @@ export function install(rt) {
   // the folder is the one its members work in — the same folder a meeting resolves through
   // `workDirFor` before it archives a decision, so the reader and the writer look in one place.
   const folderOf = (project) => {
+    if (rt.sharedProjectMode?.()) { try { return repositorySettings(rt, project).path } catch { return '' } }
     const own = text(project?.workDir)
     if (own !== '') return own
     for (const room of Object.values(rt.state?.rooms ?? {})) {
@@ -201,6 +204,7 @@ export function install(rt) {
       if (meeting === null || typeof meeting !== 'object' || meeting.status !== 'decided') continue
       if (!inProject(meeting, project)) continue
       const archivedDir = text(meeting.decisionDir)
+      if (rt.sharedProjectMode?.() && (!dir || resolve(archivedDir) !== resolve(dir))) continue
       if (archivedDir !== '' && !folders.includes(archivedDir)) folders.push(archivedDir)
       const archived = await archivedOf(meeting)
       if (archived !== undefined) found.push(archived)

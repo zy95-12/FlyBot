@@ -84,3 +84,8 @@ OpenCode adapter or additional team-mode gate is enabled.
 ## Reference
 
 See [docs/reference.md](reference.md) for API and CLI reference material.
+
+The fork M5 [Project workbench](subsystems/project-workbench.md) provides the shared browser
+entry, keeping Harness owner credentials server-side behind an endpoint allowlist. Its
+persisted admission queue wraps existing delivery/Workflow services; it adds no second
+Task store or DAG executor. Platform source remains unchanged.

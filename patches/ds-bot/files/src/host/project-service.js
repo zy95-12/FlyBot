@@ -230,6 +230,7 @@ export function install(rt) {
     }
     const member = projectMemberOf(kind, id)
     if (member === null) throw projectRefusal(`Unknown ${kind} ${id}`, 'bot/not-found')
+    if ((member.projectAgent || member.ephemeral) && member.projectId !== (project?.id ?? null)) throw projectRefusal('Scoped agent Project identity is immutable')
     if (project === null) delete member.projectId
     else member.projectId = project.id
     if (project !== null) project.updatedAt = Math.max(project.updatedAt, Date.now())
@@ -307,13 +308,15 @@ export function install(rt) {
           : rt.projectRole(project, { actor, actorId: projectActorId(actor), targetId: body.memberId, role: body.role })
         if (result.ok !== true) return { project, changed: false, reason: result.reason }
         const roles = setProjectRoles(project, result.roles)
+        rt.projectScheduler?.revalidate(project.id)
         await save()
         return { project, changed: true, roles }
       }
       case 'project-create': {
         // The caller is stamped as the owner; a member id from the body cannot mint a
         // Project someone else manages.
-        const project = createProject({ ...body, ...(rt.sharedProjectMode?.() ? { ownerUserIds: [] } : {}), ownerUserId: projectActorId(actor) ?? undefined })
+        if (rt.sharedProjectMode?.() && body.workDir) throw projectRefusal('Project working folders are provisioned by the operator')
+        const project = createProject({ ...body, ...(rt.sharedProjectMode?.() ? { workDir: null } : {}), ...(rt.sharedProjectMode?.() ? { ownerUserIds: [] } : {}), ownerUserId: projectActorId(actor) ?? undefined })
         // One assistant per Project (#1712). A Project must not fail because automation is off, so
         // a refusal here is recorded on the record and the Project is still created.
         if (rt.projectAssistant !== undefined && !rt.sharedProjectMode?.()) {

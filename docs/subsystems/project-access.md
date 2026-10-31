@@ -146,3 +146,11 @@ M4 adds agent/knowledge/credential routes with current Project access, own priva
 identity and live human delegation. Personal GitHub authority cannot come from Project
 Owner rank. Member/session revocation cancels agent chat capabilities while preserving
 admitted Project code work. [Agent contract](project-agents.md).
+
+### M5 workbench integration
+
+The [Project workbench](project-workbench.md) uses this domain through scoped endpoints.
+Queue admission rechecks current membership, preserves immutable Task/Run ownership and
+allocates worktrees only when quota permits. Explicit stop releases the existing single
+Run; orphan Workers retain capacity. Shared Project creation cannot supply filesystem cwd,
+and scoped agent/Worker identities cannot move to a different Project.

@@ -85,3 +85,10 @@ Revision defaults to `unknown`, so release builds must pass a clean checkout's S
 M2 extends the required test job with the actual unchanged-platform + DSH --shared-check
 probe, using the existing disposable Python venv and immutable platform checkout. It
 asserts a clean platform tree. Existing verification and generated-patch rules remain.
+
+M5 adds `npm run build:workbench` (also part of `build`), producing committed standalone
+JS/CSS assets included in the package. Root verify checks freshness. The optional shared
+entry runs `node core/src/host/workbench-gateway.js --upstream http://127.0.0.1:PORT
+--upstream-cookie-file /private/mode0600-file --port 3081`; only its URL is shared with
+members. The private upstream file must never be committed or placed in browser assets.
+See [Project workbench](project-workbench.md) for the security/deployment boundary.
