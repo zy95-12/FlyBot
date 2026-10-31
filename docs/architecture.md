@@ -109,3 +109,8 @@ M7.2 adds [execution resource capabilities](subsystems/project-resources.md) und
 ### M7.3 checkpoint — 2026-10-31
 
 M7.3 adds [temporary Harness workers](subsystems/project-harness.md) through Workflow lifecycle callbacks. Explicit resource/profile credentials, SDK thread ids and redacted event references remain separate from Project role memory and acceptance evidence.
+
+
+### M7.4 — 2026-10-31
+
+M7.4 [Owner runtime setup](subsystems/project-runtime-setup.md) adds bounded profile-scoped probes and resource-admin-authorized PTYs over existing authenticated HTTP; no WebSocket shell or control-plane mutation. Positive resource-side shutdown frames, not raw EOF alone, release SDK/terminal ownership.

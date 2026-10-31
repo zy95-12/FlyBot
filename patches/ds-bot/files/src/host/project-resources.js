@@ -27,12 +27,12 @@ export function createProjectResources(rt) {
     if (resource.type === 'docker' && (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,100}$/.test(resource.container ?? '') || !/^\d+(?::\d+)?$/.test(resource.user ?? ''))) throw failure('Docker resource needs an explicit container and numeric UID')
     return resource
   }
-  function list(projectId) {
+  function list(projectId, actor) {
     return Object.keys(resources()).flatMap(id => {
       try {
         const item = setting(projectId, id)
         const observation = ownEntry(state.projectResourceHealth ?? {}, id)
-        return [{ id, type: item.type, capacity: { configured: item.capacity, occupied: occupied(id) }, harnesses: item.harnesses ?? [],
+        return [{ id, type: item.type, canManage: Boolean(actor && item.adminMemberIds?.includes(actor.memberId)), capacity: { configured: item.capacity, occupied: occupied(id) }, harnesses: item.harnesses ?? [],
           harnessStatus: (item.harnesses ?? []).map(harness => ({ harness, ...(ownEntry(state.projectHarnessHealth ?? {}, `${projectId}:${id}:${harness}`) ?? { status: harness === 'flybot' ? 'native-host-provider' : 'unconfigured' }) })),
           health: observation ?? { status: 'unconfigured', reason: 'Environment has not been probed', at: null },
           metrics: { cpu: null, memory: null, basis: 'unavailable' }, platformInstanceId: item.platformInstanceId ?? null }]
@@ -52,7 +52,7 @@ export function createProjectResources(rt) {
     const available = candidates.filter(({ id, item }) => {
       const health = ownEntry(state.projectResourceHealth ?? {}, id)
       const auth = ownEntry(state.projectHarnessHealth ?? {}, `${projectId}:${id}:${harness}`)
-      return health?.status === 'ready' && (harness === 'flybot' || auth?.status === 'ready') && usage(id) < item.capacity
+      return health?.status === 'ready' && (harness === 'flybot' || request.purpose === 'probe' || auth?.status === 'ready') && usage(id) < item.capacity
     })
     if (!available.length) throw failure('Execution resource capacity or readiness is unavailable')
     available.sort((a, b) => usage(a.id) / a.item.capacity - usage(b.id) / b.item.capacity || a.id.localeCompare(b.id))
@@ -76,7 +76,7 @@ export function createProjectResources(rt) {
     }
     const selected = select(request)
     const lease = { id: `resource-lease-${randomUUID()}`, generation: 1, projectId: request.projectId, attemptId: request.attemptId, role: request.role,
-      sessionKey: request.sessionKey, resourceId: selected.id, harness: request.harness, principalId: rt.readProject(request.projectId).ownerUserId, runtimeUser: selected.item.type === 'docker' ? selected.item.user : `uid:${process.getuid?.() ?? 'unknown'}`,
+      sessionKey: request.sessionKey, purpose: request.purpose ?? 'execution', resourceId: selected.id, harness: request.harness, principalId: rt.readProject(request.projectId).ownerUserId, runtimeUser: selected.item.type === 'docker' ? selected.item.user : `uid:${process.getuid?.() ?? 'unknown'}`,
       status: 'reserved', createdAt: Date.now() }
     setEntry(leases(), lease.id, lease)
     await rt.save()

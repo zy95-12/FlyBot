@@ -31,3 +31,8 @@ M7.2 implementation uses operator-configured local/Docker capabilities and the e
 ### M7.3 checkpoint — 2026-10-31
 
 M7.3 connects temporary SDK workers through the existing Workflow lifecycle; explicit resource/principal profiles replace ambient login inheritance. Public Chief SDK turns use a host-validated typed action boundary with generic tools disabled; definition changes rotate backend bindings. Real authorized SDK acceptance remains separate from negative/contract tests.
+
+
+### M7.4 — 2026-10-31
+
+M7.4 chooses authenticated HTTP polling for the first resource terminal; every WebSocket upgrade is refused. Resource admin authority is explicit and separate from Project ownership. Profile secrets are saved with hidden input only on the granted target; native DSH requires its actual operator-registered profile. Real paid probes remain explicit/bounded.

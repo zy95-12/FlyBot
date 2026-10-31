@@ -419,3 +419,8 @@ The shared Project app is a new standalone bundle under `src/client/workbench`, 
 FlyBot's restricted gateway rather than embedded into the private Harness operator UI.
 It replaces task/Project navigation for shared users; details, race/privacy invariants and
 responsive behavior are specified in [Project workbench](project-workbench.md).
+
+
+### M7.4 — 2026-10-31
+
+M7.4 extends the separate Project workbench with Owner role Harness/model/resource-pool/Skill/memory forms, status probes and private line-input resource terminal. Generated workbench assets are rebuilt from source; legacy client.js is unchanged.

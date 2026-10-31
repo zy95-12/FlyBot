@@ -132,3 +132,8 @@ M7.2 project-resources includes executionResources and sanitized resourceLeases.
 ### M7.3 checkpoint — 2026-10-31
 
 M7.3 resources read model includes sanitized Harness worker status/pending questions. Event-log and cwd paths remain server-side. The gateway allowlists only scoped project-execution-input, not arbitrary SDK or filesystem commands.
+
+
+### M7.4 — 2026-10-31
+
+M7.4 Owner forms preserve existing persona/Skill/memory/defaults and offer multiple resource checkboxes. Each target shows independent Harness status and probes. Explicit resource admins can open a private line-input PTY; input is never a persisted form draft. HTTP uses existing Origin/Host guards and all WebSocket upgrades are refused.

@@ -169,3 +169,8 @@ M7.2 project-resource-environment-check requires current Project configure autho
 ### M7.3 checkpoint — 2026-10-31
 
 M7.3 project-execution-input revalidates current Task write authority, worker generation and waiting state; permission approvals additionally require configure authority. It cannot select another Project or arbitrary backend Session.
+
+
+### M7.4 — 2026-10-31
+
+M7.4 routes runtime-check and terminal open/poll/input/resize/close through existing live Project identity. Member removal closes matching terminals immediately; task execution authority remains separate. A terminal needs resource admin in addition to configure.

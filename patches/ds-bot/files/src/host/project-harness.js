@@ -1,8 +1,8 @@
 // Harness worker lifecycle plugs into the existing Workflow. It never accepts a Task.
 import { randomUUID } from 'node:crypto'
 import { createHash } from 'node:crypto'
-import { mkdir, appendFile } from 'node:fs/promises'
-import { isAbsolute, join, resolve, relative } from 'node:path'
+import { mkdir, appendFile, readFile } from 'node:fs/promises'
+import { isAbsolute, join, resolve, relative, dirname } from 'node:path'
 import { createInterface } from 'node:readline'
 import { ownEntry, setEntry } from './store.js'
 const refuse = message => Object.assign(new Error(message), { code: 'bot/harness' })
@@ -11,14 +11,29 @@ const VERSIONS = { codex: '0.166.0', 'claude-agent': '0.3.316' }
 export function createProjectHarness(rt) {
   const workers = () => (rt.state.projectHarnessWorkers ??= {})
   const active = new Map(), listeners = new Set()
-  function profile(projectId, resourceId, harness) {
+  async function profile(projectId, resourceId, harness, { forSetup = false } = {}) {
     const resource = rt.projectResources.setting(projectId, resourceId)
     const principalId = rt.readProject(projectId).ownerUserId
-    const selected = ownEntry(ownEntry(resource.profiles ?? {}, principalId) ?? {}, harness)
-    if (!selected || !isAbsolute(selected.home ?? '') || !isAbsolute(selected.configDir ?? '') || !selected.model) throw refuse('Resource Harness needs an explicitly authorized principal/profile and model')
-    const env = { PATH: '/usr/local/bin:/usr/bin:/bin', LANG: 'C.UTF-8', HOME: selected.home,
-      ...(harness === 'codex' ? { CODEX_HOME: selected.configDir } : { CLAUDE_CONFIG_DIR: selected.configDir, API_TIMEOUT_MS: '30000', CLAUDE_CODE_MAX_RETRIES: '1', CLAUDE_AGENT_SDK_CLIENT_APP: 'flybot' }) }
-    for (const [name, reference] of Object.entries(selected.envRefs ?? {})) {
+    const configured = ownEntry(ownEntry(resource.profiles ?? {}, principalId) ?? {}, harness)
+    const generated = isAbsolute(resource.profileRoot ?? '') ? { home: join(resource.profileRoot, sha(`${projectId}\n${principalId}`).slice(0, 24), harness), configDir: join(resource.profileRoot, sha(`${projectId}\n${principalId}`).slice(0, 24), harness, 'config') } : null
+    const selected = configured ?? (harness === 'flybot' ? null : generated)
+    if (!selected || !isAbsolute(selected.home ?? '') || !isAbsolute(selected.configDir ?? '')) throw refuse('Resource Harness needs an explicitly authorized principal/profile and model')
+    const env = { PATH: `${resource.type === 'local' ? dirname(resource.nodePath ?? process.execPath) + ':' : ''}/usr/local/bin:/usr/bin:/bin`, LANG: 'C.UTF-8', HOME: selected.home,
+      ...(harness === 'flybot' ? { DSH_HOME: selected.configDir } : harness === 'codex' ? { CODEX_HOME: selected.configDir } : { CLAUDE_CONFIG_DIR: selected.configDir, API_TIMEOUT_MS: '30000', CLAUDE_CODE_MAX_RETRIES: '1', CLAUDE_AGENT_SDK_CLIENT_APP: 'flybot' }) }
+    if (resource.type === 'local' && !forSetup) {
+      try {
+        const saved = JSON.parse(await readFile(join(selected.configDir, 'flybot-credentials.json'), 'utf8'))
+        const key = harness === 'codex' ? 'CODEX_API_KEY' : 'ANTHROPIC_API_KEY'
+        if (typeof saved[key] === 'string' && saved[key].length < 1000) env[key] = saved[key]
+      } catch (error) { if (error.code !== 'ENOENT') throw refuse('Saved Harness credential profile is invalid') }
+    }
+    if (resource.type === 'docker' && !forSetup) {
+      const result = await rt.projectResources.command(projectId, resourceId, { cwd: resource.root, argv: ['node', '-e', 'const fs=require("fs");const p=process.argv[1];if(!fs.existsSync(p)){console.log("{}")}else{if(fs.statSync(p).size>8192)throw Error("Profile credential exceeds limit");process.stdout.write(fs.readFileSync(p,"utf8"))}', join(selected.configDir, 'flybot-credentials.json')] })
+      const saved = JSON.parse(result.stdout)
+      const key = harness === 'codex' ? 'CODEX_API_KEY' : 'ANTHROPIC_API_KEY'
+      if (typeof saved[key] === 'string' && saved[key].length < 1000) env[key] = saved[key]
+    }
+    for (const [name, reference] of Object.entries(forSetup ? {} : selected.envRefs ?? {})) {
       if (!/^(?:OPENAI_API_KEY|CODEX_API_KEY|ANTHROPIC_API_KEY|ANTHROPIC_BASE_URL|ANTHROPIC_AUTH_TOKEN)$/.test(name) || typeof reference !== 'string' || !process.env[reference]) throw refuse('Explicit Harness credential reference is unavailable')
       env[name] = process.env[reference]
     }
@@ -39,7 +54,8 @@ export function createProjectHarness(rt) {
     const session = chief?.session ?? rt.projectDelivery.sessionFor(workspace)
     if (!session || session.execution.harness === 'flybot') return null
     if (!VERSIONS[session.execution.harness] || !session.resourceLease) throw refuse('SDK Harness requires an admitted resource lease')
-    const selected = profile(session.projectId, session.resourceLease.resourceId, session.execution.harness)
+    const selected = await profile(session.projectId, session.resourceLease.resourceId, session.execution.harness)
+    if (!selected.selected.model && !session.execution.model) throw refuse('SDK role requires an explicit model identifier')
     const workerPath = selected.resource.runtimeDir ? join(selected.resource.runtimeDir, 'src/host/project-harness-worker.mjs') : resolve(import.meta.dirname, 'project-harness-worker.mjs')
     if (selected.resource.type !== 'local') throw refuse('Remote SDK Workspaces require cross-resource transfer support')
     if (relative(selected.resource.root, workspace.path).startsWith('..')) throw refuse('SDK Workspace is outside the selected resource')
@@ -55,10 +71,10 @@ export function createProjectHarness(rt) {
     await mkdir(directory, { recursive: true, mode: 0o700 })
     row.eventLog = join(directory, `${row.role}-sdk.jsonl`)
     const process = rt.projectResources.startProcess(row.projectId, row.resourceId, { argv: ['node', workerPath], cwd: workspace.path })
-    const control = { process, chief, resumeSessionId: chief?.resumeSessionId, env: selected.env, profile: selected.selected, session, prompt: spec.prompt, outputs: [], closed: false, ready: false }
+    const control = { process, chief, resumeSessionId: chief?.resumeSessionId, env: selected.env, profile: { ...selected.selected, ...(session.execution.model ? { model: session.execution.model } : {}) }, session, prompt: spec.prompt, outputs: [], closed: false, ready: false }
     active.set(id, control)
     control.exit = new Promise(resolve => process.once('close', (code, signal) => { control.closed = true; row.exit = { code, signal }; resolve(row.exit) }))
-    process.once('error', () => { row.status = 'failed'; void report(row, false, 'SDK worker could not start') })
+    process.once('error', () => { control.spawnFailed = true; row.status = 'failed'; void report(row, false, 'SDK worker could not start') })
     // stderr can contain login material. Keep only a byte count, never persist raw text.
     process.stderr.on('data', data => { row.stderrBytes = (row.stderrBytes ?? 0) + data.length })
     let eventTail = Promise.resolve()
@@ -72,6 +88,7 @@ export function createProjectHarness(rt) {
         row.eventCount++
         await appendFile(row.eventLog, JSON.stringify(event) + '\n', { mode: 0o600 })
         row.lastEventHash = sha(JSON.stringify(event))
+        if (event.type === 'stopped') control.stoppedConfirmed = event.released === true
         if (event.type === 'ready') { control.ready = true; if (row.status === 'prepared') row.status = 'idle' }
         if (event.type === 'permission') { row.status = 'waiting-input'; row.pending = { id: event.id, kind: 'permission', request: event.request } }
         if (event.type === 'sdk-event') {
@@ -133,7 +150,7 @@ export function createProjectHarness(rt) {
     let timer
     const stopped = await Promise.race([control.exit.then(() => true), new Promise(resolve => { timer = setTimeout(() => resolve(false), 6000) })])
     clearTimeout(timer)
-    if (!stopped) { row.status = 'unreachable'; await rt.save(); throw refuse('SDK worker has not confirmed exit; capacity retained') }
+    if (!stopped || !control.stoppedConfirmed && !control.spawnFailed) { row.status = 'unreachable'; await rt.save(); throw refuse('SDK worker has not confirmed exit; capacity retained') }
     row.status = 'released'; row.releasedAt = Date.now(); active.delete(id)
     await rt.projectResources.release(row.leaseId, row.generation, { handle: id, exited: true })
     await rt.projectDelivery.releaseSession(id)
@@ -146,7 +163,7 @@ export function createProjectHarness(rt) {
       harness: definition.execution.harness, resourceIds: definition.execution.resourceIds, maxConcurrent: 1 })
     let workerId
     try {
-      const selected = profile(agent.projectId, lease.resourceId, definition.execution.harness)
+      const selected = await profile(agent.projectId, lease.resourceId, definition.execution.harness)
       if (selected.resource.type !== 'local') throw refuse('Remote Chief runtime requires resource transfer support')
       const cwd = join(selected.resource.root, 'chief-contexts', sha(agent.id).slice(0, 24))
       await mkdir(cwd, { recursive: true, mode: 0o700 })

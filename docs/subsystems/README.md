@@ -37,3 +37,8 @@ The core is three pages so that a change to the browser client, to the server, o
 ### M7.2 — 2026-10-31
 
 Fork M7 resource authorization, runtime transports, leases and verification are documented in [project-resources](project-resources.md).
+
+
+### M7.4 — 2026-10-31
+
+Fork M7 Owner runtime configuration, credential probes and private PTY protocol: [project-runtime-setup](project-runtime-setup.md).

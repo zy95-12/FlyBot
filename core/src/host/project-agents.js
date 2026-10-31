@@ -282,7 +282,7 @@ export function createProjectAgents(rt) {
         const execution = body.execution
         if (!execution || !['flybot', 'codex', 'claude-agent'].includes(execution.harness) || !Array.isArray(execution.resourceIds) || execution.resourceIds.length > 20 || execution.resourceIds.some(id => typeof id !== 'string' || !/^[A-Za-z0-9_-]{1,100}$/.test(id))) throw refuse('Invalid role execution reference')
         if (execution.maxConcurrent !== undefined && (!Number.isInteger(execution.maxConcurrent) || execution.maxConcurrent < 1 || execution.maxConcurrent > 64)) throw refuse('Invalid role concurrency')
-        next.execution = { harness: execution.harness, resourceIds: [...new Set(execution.resourceIds)], ...(execution.maxConcurrent ? { maxConcurrent: execution.maxConcurrent } : {}) }
+        next.execution = { harness: execution.harness, resourceIds: [...new Set(execution.resourceIds)], ...(execution.maxConcurrent ? { maxConcurrent: execution.maxConcurrent } : {}), ...(typeof execution.model === 'string' && execution.model.trim() ? { model: clean(execution.model, 120) } : {}) }
         rt.projectResources?.checkPool(projectId, next.execution)
       }
       Object.assign(role, next)

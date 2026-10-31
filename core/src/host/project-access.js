@@ -109,6 +109,7 @@ export function install(rt) {
     if (!actor?.memberId || !ownEntry(state.members, actor.memberId)) throw refusal('Sign in first')
     if (['project-credential-status', 'project-github-comment'].includes(endpoint)) return rt.projectCredentials.endpoint(endpoint, body, actor)
     if (['project-agents', 'project-agent-message', 'project-agent-history', 'project-agent-memory-write', 'project-role-memory-write', 'project-agent-definition', 'project-agent-proposal-apply', 'project-knowledge-write'].includes(endpoint)) return rt.projectAgents.endpoint(endpoint, body, actor)
+    if (['project-runtime-check', 'project-terminal-open', 'project-terminal-poll', 'project-terminal-input', 'project-terminal-resize', 'project-terminal-close'].includes(endpoint)) return rt.projectRuntimeSetup.endpoint(endpoint, body, actor)
     if (endpoint === 'project-execution-input') return rt.projectHarness.input(body, actor)
     if (endpoint === 'project-resource-environment-check') {
       rt.requireProjectAccess(actor, body.projectId, 'configure')
@@ -173,6 +174,7 @@ export function install(rt) {
       project.roles.members = (project.roles.members ?? []).filter(value => value !== memberId)
       for (const invitation of Object.values(invites())) if (invitation.projectId === id && invitation.createdBy === memberId && !invitation.usedAt) invitation.revokedAt = Date.now()
       rt.projectAgents?.revoke(id, memberId)
+      await rt.projectRuntimeSetup?.revoke(null, id, memberId)
       rt.projectScheduler?.revalidate(id)
       // Accepted project work continues under project authority; removal revokes new requests immediately.
       await rt.save()

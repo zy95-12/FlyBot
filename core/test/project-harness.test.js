@@ -16,7 +16,7 @@ const lines=createInterface({input:process.stdin});
 const write=value=>process.stdout.write(JSON.stringify(value)+'\\n');
 write({type:'ready'});
 lines.on('line',line=>{const m=JSON.parse(line);
- if(m.type==='stop')process.exit(0);
+ if(m.type==='stop'){write({type:'stopped',released:true});setTimeout(()=>process.exit(0),20);}
  if(m.type==='start') {
   write({type:'sdk-event',event:{type:'thread.started',thread_id:'bound-thread'}});
   write({type:'sdk-event',event:{type:'debug',value:m.settings.env.OPENAI_API_KEY}});

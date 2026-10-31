@@ -28,7 +28,7 @@ export async function runHarnessTurn(request, { emit, permission, signal, loadCo
     const stream = query({ prompt: request.prompt, options: {
       cwd: request.cwd, model: request.model, env: request.env, abortController: controller,
       settingSources: [], mcpServers: {}, persistSession: true,
-      ...(sessionId ? { resume: sessionId } : {}), maxTurns: 30, maxBudgetUsd: request.maxBudgetUsd ?? 1,
+      ...(sessionId ? { resume: sessionId } : {}), maxTurns: request.probe ? 1 : 30, maxBudgetUsd: request.maxBudgetUsd ?? 1,
       permissionMode: 'default',
       tools: request.noTools ? [] : request.readOnly ? ['Read', 'Glob', 'Grep', 'Bash'] : ['Read', 'Glob', 'Grep', 'Bash', 'Edit', 'Write'],
       hooks: request.noTools ? { PreToolUse: [{ hooks: [async () => ({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: 'Use FlyBot scoped action proposals only' } })] }] } : {},
