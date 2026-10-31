@@ -36,12 +36,14 @@ export function createProjectDomain(rt) {
     if (project.status !== 'active') throw refuse(`Project ${id} is archived`)
     return project
   }
-  const taskCandidates = task => {
+  const taskCandidates = (task, seen = new Set()) => {
+    if (seen.has(task)) return []
+    seen.add(task)
     const roomId = task.origin?.roomId ?? (task.kind === 'group' ? task.roomId : undefined)
     const room = roomId ? ownEntry(state.rooms, roomId) : undefined
     const bot = ownEntry(state.bots, task.ownerBotId)
     const parent = ownEntry(state.tasks, task.reworkOf ?? task.parentId)
-    return [...new Set([room?.projectId ?? bot?.projectId, parent?.projectId,
+    return [...new Set([room?.projectId ?? bot?.projectId, ...(parent ? Object.hasOwn(parent, 'projectId') ? [parent.projectId] : taskCandidates(parent, seen) : []),
       task.runId ? ownEntry(state.projectRuns, task.runId) : undefined].filter(id => typeof id === 'string' && id !== ''))].sort()
   }
   function migrateLegacy() {

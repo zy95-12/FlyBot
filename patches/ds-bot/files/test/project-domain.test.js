@@ -50,6 +50,7 @@ test('legacy task migration is durable and does not reinterpret later Bot bindin
   data.tasks.old = { id: 'old', ownerBotId: 'a', title: 'Old', status: 'working', createdAt: 1 }
   const { rt, home } = await start(t, data)
   assert.equal(rt.state.tasks.old.projectId, 'p1')
+  assert.equal(JSON.parse(readFileSync(join(home, 'state.json'), 'utf8')).tasks.old.projectId, 'p1')
   rt.bindProject({ kind: 'bot', id: 'a', projectId: 'p2' })
   await rt.save()
   assert.equal(JSON.parse(readFileSync(join(home, 'state.json'), 'utf8')).tasks.old.projectId, 'p1')
@@ -168,4 +169,17 @@ test('rework and subtasks inherit durable parent ownership after routing is rebo
   const rework = { id: 'rework', ownerBotId: 'a', reworkOf: parent.id }
   rt.projects.stampTask(rework)
   assert.equal(rework.projectId, 'p1')
+})
+
+
+test('legacy parent inheritance does not depend on JSON record order', async t => {
+  const data = seed()
+  data.tasks = {
+    child: { id: 'child', ownerBotId: 'missing', parentId: 'parent', status: 'working' },
+    parent: { id: 'parent', ownerBotId: 'a', status: 'working' },
+  }
+  const { rt } = await start(t, data)
+  assert.equal(rt.state.tasks.child.projectId, 'p1')
+  assert.equal(rt.state.tasks.parent.projectId, 'p1')
+  assert.equal(rt.projects.migrateLegacy(), false)
 })
