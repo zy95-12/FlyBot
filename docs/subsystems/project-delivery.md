@@ -260,3 +260,9 @@ clears only after the host validates safe workspace reuse.
 Tester handoff/complete with outputs.tests requests actual host verification.
 Local sandbox checks may be Not run; downstream admission still requires the real
 registered command to pass. Arbitrate/transfer does not claim completed tests.
+
+Transfer does not seal Developer changes. A receiving role gets an explicitly
+unverified workspace reference only on the same resource; a clean recipient
+checkout is not evidence that implementation is absent. Cross-resource drafts
+require sealing before they can be verified. Developer handoff requests sealing
+without asserting tests passed.

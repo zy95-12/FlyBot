@@ -19,9 +19,11 @@ test('Codex adapter binds explicit environment and Session, and turn completion 
   assert.equal(result.sessionId, 'thread-one')
   assert.equal(result.text, 'OUTPUT implementation: changed code')
   assert.deepEqual(observed[0].env, request.env)
-  assert.deepEqual(observed[0].configOverrides, ['mcp_servers={}', 'plugins={}', 'apps={_default={enabled=false}}'])
+  assert.deepEqual(observed[0].configOverrides.slice(0, 3), ['mcp_servers={}', 'plugins={}', 'apps={_default={enabled=false}}'])
   assert.equal(observed[0].config.features.skill_mcp_dependency_install, false)
-  assert.equal(observed[1].sandboxMode, 'workspace-write')
+  assert.equal(observed[0].config.permissions['flybot-role'].extends, ':workspace')
+  assert.equal(observed[0].config.features.network_proxy, true)
+  assert.deepEqual(observed[0].config.permissions['flybot-role'].network.domains, {})
   assert.equal(observed[1].approvalPolicy, 'never')
   assert.equal(result.accepted, undefined)
   assert.equal(events.length, 3)
@@ -74,6 +76,19 @@ test('only a developer turn passes host-selected Git writable roots to the offic
     const observed = [], roots = ['/registered/repo/.git/worktrees/task', '/registered/repo/.git/objects']
     await runHarnessTurn({ ...request, ...mode, writableRoots: roots }, { emit() {}, loadCodex: codex([{ type: 'thread.started', thread_id: 'git-probe' }, { type: 'turn.completed' }], options => observed.push(options)) })
     assert.deepEqual(observed[1].additionalDirectories, mode.readOnly || mode.noTools ? [] : roots)
-    assert.equal(observed[1].networkAccessEnabled, false)
+    if (mode.noTools) assert.equal(observed[1].networkAccessEnabled, false)
+    else { assert.equal(observed[1].networkAccessEnabled, undefined); assert.deepEqual(observed[0].config.permissions['flybot-role'].network.domains, {}); assert.equal(observed[0].config.permissions['flybot-role'].network.mode, 'limited') }
   }
+})
+
+test('Codex process IPC policy cannot be overridden into external access or writable review source', async () => {
+  const observed = []
+  await runHarnessTurn({ ...request, readOnly: true, config: { features: { network_proxy: false }, permissions: { 'flybot-role': { network: { mode: 'full', domains: { 'example.com': 'allow' } } } } } }, { emit() {}, loadCodex: codex([{ type: 'thread.started', thread_id: 'policy' }, { type: 'turn.completed' }], options => observed.push(options)) })
+  const config = observed[0].config, policy = config.permissions['flybot-role']
+  assert.equal(config.features.network_proxy, true); assert.equal(policy.extends, ':read-only')
+  assert.equal(policy.network.mode, 'limited'); assert.deepEqual(policy.network.domains, {})
+  assert.equal(policy.network.allow_local_binding, false); assert.equal(policy.network.dangerously_allow_all_unix_sockets, false)
+  assert.match(observed[0].configOverrides.at(-1), /permissions\.flybot-role=/)
+  assert.match(observed[0].configOverrides.at(-1), /":tmp"="write"/)
+  assert.equal(observed[1].sandboxMode, undefined, 'Legacy flags cannot override the named constrained profile')
 })

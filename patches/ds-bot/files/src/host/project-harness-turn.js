@@ -9,9 +9,19 @@ export async function runHarnessTurn(request, { emit, permission, signal, loadCo
     const connectorPolicy = { remote_plugin: false, skill_mcp_dependency_install: false }
     const chiefConfig = request.noTools ? { features: { ...connectorPolicy, shell_tool: false }, tools: { view_image: false }, apps: { _default: { enabled: false } },
       hooks: { PreToolUse: [{ matcher: '.*', hooks: [{ type: 'command', command: `node ${quote(denyScript)}` }] }] } } : { features: connectorPolicy }
-    const client = new Codex({ env: request.env, configOverrides: ['mcp_servers={}', 'plugins={}', 'apps={_default={enabled=false}}'], ...(request.baseUrl ? { baseUrl: request.baseUrl } : {}), config: { ...(request.config ?? {}), ...chiefConfig } })
-    const options = { workingDirectory: request.cwd, model: request.model, approvalPolicy: 'never',
-      sandboxMode: request.readOnly ? 'read-only' : 'workspace-write', additionalDirectories: !request.readOnly && !request.noTools ? request.writableRoots ?? [] : [], networkAccessEnabled: false, webSearchMode: 'disabled' }
+    // Raw network denial also denies Unix pipe lifecycle syscalls in CLI 0.166,
+    // breaking Node child_process despite a successful child exit. The limited
+    // proxy keeps an empty outbound allowlist while allowing local process IPC.
+    const roots = !request.readOnly && !request.noTools ? request.writableRoots ?? [] : []
+    const processPolicy = request.noTools ? {} : { default_permissions: 'flybot-role', features: { ...connectorPolicy, network_proxy: true },
+      permissions: { 'flybot-role': { extends: request.readOnly ? ':read-only' : ':workspace', filesystem: { ':tmp': 'write', ...Object.fromEntries(roots.map(path => [path, 'write'])) },
+        network: { enabled: true, mode: 'limited', domains: {}, unix_sockets: {}, allow_local_binding: false, allow_upstream_proxy: false, dangerously_allow_non_loopback_proxy: false, dangerously_allow_all_unix_sockets: false } } } }
+    const inlineToml = value => value && typeof value === 'object' ? '{' + Object.entries(value).map(([key, child]) => `${JSON.stringify(key)}=${inlineToml(child)}`).join(',') + '}' : JSON.stringify(value)
+    const rawPolicy = request.noTools ? [] : ['permissions.flybot-role=' + inlineToml(processPolicy.permissions['flybot-role'])]
+    const configPolicy = request.noTools ? {} : { ...processPolicy, permissions: { 'flybot-role': { extends: processPolicy.permissions['flybot-role'].extends, network: processPolicy.permissions['flybot-role'].network } } }
+    const client = new Codex({ env: request.env, configOverrides: ['mcp_servers={}', 'plugins={}', 'apps={_default={enabled=false}}', ...rawPolicy], ...(request.baseUrl ? { baseUrl: request.baseUrl } : {}), config: { ...(request.config ?? {}), ...chiefConfig, ...configPolicy } })
+    const options = { workingDirectory: request.cwd, model: request.model, approvalPolicy: 'never', additionalDirectories: roots, webSearchMode: 'disabled',
+      ...(request.noTools ? { sandboxMode: 'read-only', networkAccessEnabled: false } : {}) }
     const thread = sessionId ? client.resumeThread(sessionId, options) : client.startThread(options)
     const { events } = await thread.runStreamed(request.prompt, { signal })
     for await (const event of events) {

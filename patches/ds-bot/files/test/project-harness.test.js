@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createProjectResources } from '../src/host/project-resources.js'
-import { createProjectHarness } from '../src/host/project-harness.js'
+import { createProjectHarness, handoffFrame } from '../src/host/project-harness.js'
 
 async function fixture(t) {
   const root = await mkdtemp(join(tmpdir(), 'flybot-harness-contract-'))
@@ -92,4 +92,12 @@ test('missing SDK bridge is an environment failure with no inference or leaked r
   rt.config.projectResources.r.runtimeDir = join(rt.home, 'missing-runtime')
   await assert.rejects(harness.spawn({ executionProjectId: 'p', executionWorkDir: cwd, prompt: 'Must not be dispatched' }), /runtime exited before/)
   assert.equal(rt.projectResources.occupied('r'), 0)
+})
+
+test('a raw JSON handoff gains only its missing framing, preserving the actual model decision', () => {
+  const value = { action: 'arbitrate', reason: 'No sealed candidate is available', outputs: { tests: 'Not run' } }
+  assert.equal(handoffFrame(JSON.stringify(value), ['handoff']), 'OUTPUT handoff: ' + JSON.stringify(value))
+  assert.equal(handoffFrame('OUTPUT handoff: ' + JSON.stringify(value), ['handoff']), 'OUTPUT handoff: ' + JSON.stringify(value))
+  assert.equal(handoffFrame(JSON.stringify(value), ['tests']), JSON.stringify(value))
+  for (const text of ['Please decide for me', '{}', '{"action":"close","reason":"done"}', 'null']) assert.equal(handoffFrame(text, ['handoff']), text)
 })

@@ -49,3 +49,10 @@ explicit configuring human's current Project authority. Original DSH schedules
 provide cadence; a logical mapping supplies durable Project/Chief targeting and
 occurrence deduplication. Default configuration lives in JSON, not a framework
 clock. Supervisor-backed local restart proof does not weaken unknown-exit holds.
+
+Actual SDK sandbox debugging established that CLI raw network denial also denies
+Unix pipe lifecycle syscalls needed by Node. Preserve the external-access boundary
+with a mandatory limited proxy and an empty domain allowlist, plus named scoped
+filesystem permissions. Actual probe children run while proxied/direct outbound
+and outside-workspace writes fail. This changes process IPC handling, not provider,
+credentials, Project authority, public hosting or control-plane.

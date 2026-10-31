@@ -11,6 +11,14 @@ import { ownEntry, setEntry } from './store.js'
 const refuse = message => Object.assign(new Error(message), { code: 'bot/harness' })
 const sha = text => createHash('sha256').update(text).digest('hex')
 const VERSIONS = { codex: '0.166.0', 'claude-agent': '0.3.316' }
+export function handoffFrame(text, outputs) {
+  if (typeof text !== 'string' || outputs?.length !== 1 || outputs[0] !== 'handoff' || /(?:^|\n)OUTPUT handoff:/.test(text)) return text
+  try {
+    const value = JSON.parse(text.trim().replace(/^```(?:json)?\s*|\s*```$/g, ''))
+    if (!value || Array.isArray(value) || !['handoff', 'return', 'transfer', 'complete', 'arbitrate'].includes(value.action) || typeof value.reason !== 'string' || !value.reason.trim()) return text
+    return 'OUTPUT handoff: ' + JSON.stringify(value)
+  } catch { return text }
+}
 export function createProjectHarness(rt) {
   const workers = () => (rt.state.projectHarnessWorkers ??= {})
   const active = new Map(), listeners = new Set()
@@ -123,6 +131,9 @@ export function createProjectHarness(rt) {
         if (event.type === 'completed') {
           rt.projectResources.setting(row.projectId, row.resourceId)
           if (row.backendSessionId && row.backendSessionId !== event.sessionId) throw refuse('SDK result names another Session')
+          const rawText = event.text
+          event.text = handoffFrame(rawText, control.outputs)
+          if (event.text !== rawText) { row.rawResultHash = sha(rawText); row.outputFraming = 'json-handoff/v1' }
           row.backendSessionId = event.sessionId; session.backendSessionId = event.sessionId; row.usage = event.usage; row.resultHash = sha(event.text)
           if (control.outputs.every(name => new RegExp(`(?:^|\\n)OUTPUT ${name}:`).test(event.text))) {
             row.status = 'completed'

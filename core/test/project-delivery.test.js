@@ -591,3 +591,22 @@ test('Chief route resumes interrupted unsealed code only with confirmed worker r
   assert.notEqual(next, previous.id, 'Unknown capacity never permits reuse of the old working directory')
   assert.equal(f.rt.state.projectResourceLeases.lease.status, 'unreachable')
 })
+
+test('a transferred unsealed implementation is a labelled draft reference, not a missing or accepted candidate', async t => {
+  const f = await setup(t, undefined, { pool: true })
+  f.rt.projectPools.connect({ validate: () => ({ ok: true }) })
+  await f.start('draft-reference')
+  const attempt = f.attempt(), task = f.rt.state.tasks[f.task.id]
+  const defs = f.rt.projectAgents.deliveryDefinitions('p1').roles
+  const dev = defs.find(row => row.role === 'developer'), tester = defs.find(row => row.role === 'tester')
+  await f.rt.projectDelivery.preparePoolRole(task, { id: 'draft-dev', attemptId: attempt.id, generation: 1 }, dev)
+  const path = attempt.workspaces.developer.path
+  writeFileSync(join(path, 'code.mjs'), 'export const add = (a,b) => a+b;\n')
+  await f.rt.projectDelivery.preparePoolRole(task, { id: 'draft-test', attemptId: attempt.id, generation: 2 }, tester)
+  const facts = JSON.parse(attempt.roleSessions.tester.context.text.split('<untrusted-role-context>\n')[1].split('\n</untrusted-role-context>')[0]).projectFacts
+  assert.equal(facts.candidateSha, null)
+  assert.equal(facts.workingDraft.kind, 'unverified-workspace-reference')
+  assert.equal(facts.workingDraft.path, path)
+  assert.equal(attempt.evidence.implementation, undefined)
+  assert.notEqual(readFileSync(join(attempt.workspaces.tester.path, 'code.mjs'), 'utf8'), readFileSync(join(path, 'code.mjs'), 'utf8'))
+})

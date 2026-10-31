@@ -305,3 +305,19 @@ exited. Preserve the existing code on Chief route only when every recorded lease
 and worker is released, no native worker remains, cancellation was not requested
 and the registered workspace contains changes. Record a resumption with the old
 failure and Chief decision. Unknown exits never permit working-directory reuse.
+
+### 2026-11-01 — deny external network without breaking local process IPC (Seen 1×)
+
+Actual CLI sandbox probes and strace showed Node spawnSync returning EPERM even
+when Git exited 0: raw network denial also denied Unix setsockopt/shutdown/getsockname
+used by libuv pipes. Node 22 and 24 both reproduced. A named constrained filesystem
+profile plus the enabled limited proxy with an empty outbound allowlist restored
+Node/Git children; actual proxy requests were 403 blocked-by-allowlist, direct DNS
+failed and outside-workspace writes remained EROFS. Never call a Git grant alone
+a proven remedy, or switch to unrestricted filesystem/network access.
+
+Actual Tester correctly saw no candidate in its clean receiving checkout, but the
+unfinished Developer source still existed elsewhere. Pass a labelled draft
+reference with transfers; never equate clean recipient cwd with no implementation.
+A valid raw JSON decision lacking only OUTPUT framing must not leave an idle SDK
+Session waiting indefinitely; preserve its raw evidence and validate its meaning.

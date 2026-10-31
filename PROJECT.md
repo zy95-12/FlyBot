@@ -285,3 +285,8 @@ The original DSH 1800-second schedule actually fired at 2026-10-31T21:54:39.260Z
 after browser logout and multiple backend restarts; exactly one actual Codex
 Chief Run completed. This proves the persistent 30-minute wake, not just a
 shortened-clock fixture. Remaining shared delivery/browser acceptance is separate.
+
+A real SDK sandbox/strace probe identified Unix pipe syscall denial as the remaining
+Node/Git subprocess blocker. Command roles use a named filesystem profile and the
+limited network proxy with no allowed destinations; Chief remains tool-free. Actual
+probe children succeed while outbound requests and outside-workspace writes fail.
