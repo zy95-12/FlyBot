@@ -42,6 +42,21 @@ test('main keeps its run (no cancel), every other ref, queue branches included, 
   assert.match(text, /group: test-\$\{\{ github\.ref \}\}/)
 })
 
+test('M0 regression/runtime checks stay in the required test job', () => {
+  const required = job('test')
+  for (const command of ['npm run lint:demo', 'npm run test:demo', 'npm run test:demo:runtime']) {
+    assert.ok(required.includes(command), `${command} must remain under the tests-ok dependency`)
+  }
+})
+
+test('M0 platform check pins unchanged source and rejects platform working-tree writes', () => {
+  const required = job('test')
+  assert.match(required, /repository: zy95-12\/flybot-control-plane/)
+  assert.match(required, /ref: [a-f0-9]{40}/)
+  assert.ok(required.includes('dev/demo/control_plane.py --control-plane .demo-control-plane --check --port 0'))
+  assert.ok(required.includes('test -z "$(git -C .demo-control-plane status --porcelain)"'))
+})
+
 // live-e2e.yml (#811, #813): the gates that make a keyless run touch nothing. The preflight
 // decides and publishes `key=true|false`; the steps that read the secret and the six steps that
 // need it are gated on that output. The hole this closes is real: on #30, deleting one `if:`

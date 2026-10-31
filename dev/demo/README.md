@@ -25,13 +25,29 @@ two distinct member sessions, and the existing refusal of shared plugin writes.
 It does not weaken authorization to make a shared-workflow demo pass.
 
 On success the processes and temporary data are removed. On failure the same
-process cleanup runs and a private diagnostics directory is retained. `web.log`
+process cleanup runs and a private diagnostics directory is retained. Subprocess
+scratch and native-loader caches are confined to the fixture's own temporary tree.
+`web.log`
 contains the disposable DSH login credential: do not publish it. The JSON report
 contains no credentials; optionally set `M0_REPORT=/absolute/path/report.json` to
 save that report. It records the source SHA, dirty status, DSH version and checks.
 Run the command in the foreground and let it finish; retained failure data can be
 removed once diagnosed. This is a development fixture, not a sandbox against
 untrusted code or a production launcher.
+
+## Automatic regression coverage
+
+`npm run test:demo` runs the offline artifact and platform-entry guard cases.
+`npm run test:demo:runtime` starts real DSH and verifies actual code/tool effects and
+cleanup. Both and `lint:demo` run in `npm run verify` and the required CI test job.
+Python 3 is required for the entry guard cases. CI separately installs the existing
+platform's dependencies, runs the HTTP check against a pinned unchanged checkout,
+and refuses platform working-tree changes. It needs no model key or user-supplied
+GitHub token; checkout uses the job's existing read-only repository access.
+
+The artifact suite rejects constant-output code, missing files/exports, wrong cwd,
+false test success and fabricated results. A claimed completion message alone
+cannot satisfy the checker. Ownership: [demo-baseline](../../docs/subsystems/demo-baseline.md).
 
 ## Reuse the control plane
 

@@ -17,6 +17,9 @@ Tooling for setup checks, the architecture-docs gate and the container image (#3
 
 ## Fork development baseline
 
+The fixture and its automatic regression/runtime checks are owned by
+[demo-baseline](demo-baseline.md); install owns image provenance and Compose.
+
 `npm run demo:check` runs the isolated M0 fixture in `dev/demo/` against the pinned
 published DSH packages. It exercises real HTTP, bash, working directories and
 ephemeral lifecycle with a deterministic model; it records existing multi-member

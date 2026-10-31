@@ -13,6 +13,14 @@ Dated, short lessons from real FlyBot work. Agents read this **before coding**. 
 
 ## Open lessons
 
+### 2026-10-31 — Persist fork boundaries and verify effects independently
+
+- **Seen:** 1× (M0, fork #2 / PR #9).
+- **Trigger:** Project-first scope and the requirement to leave control-plane unchanged were recorded in chat/issues but not Project State; M0 checks were manual-only.
+- **Wrong:** inherited roadmap constraints stayed ambiguous. The smoke's single independent addition case let constant-five code pass; DSH scratch/native-loader directories also escaped the fixture's cleanup directory.
+- **Right:** update PROJECT, ROADMAP, dated decisions and subsystem ownership with implementation; wire tests into verify/CI. Check files/cwd and distinct expected outputs; set the child TMPDIR/TMP/TEMP inside the private fixture directory. Keep platform adapters in FlyBot and distinguish deterministic execution from real-model acceptance.
+
+
 ### 2026-10-24 — A stale base reverts merged work while the PR page stays green
 
 - **Seen:** 4× (#864, #876, #887; #907 re-uploaded an old copy of its branch twice, at `d6e143a8` and `b8b582bd`)

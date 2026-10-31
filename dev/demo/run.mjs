@@ -7,6 +7,7 @@ import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { mockModel } from './mock.mjs'
+import { verifyArtifact } from './artifact.mjs'
 
 const root = resolve(import.meta.dirname, '../..')
 const sleep = ms => new Promise(done => setTimeout(done, ms))
@@ -38,10 +39,12 @@ async function main() {
   const directory = realpathSync(mkdtempSync(join(tmpdir(), 'flybot-m0-')))
   const home = join(directory, 'data')
   const workspace = join(directory, 'workspace')
+  const scratch = join(directory, 'scratch')
   const profile = join(home, 'profiles/web')
   const modules = join(profile, 'node_modules')
   mkdirSync(modules, { recursive: true })
   mkdirSync(workspace)
+  mkdirSync(scratch)
   for (const entry of readdirSync(harness)) {
     if (entry.startsWith('.')) continue
     symlinkSync(join(harness, entry), join(modules, entry))
@@ -61,6 +64,7 @@ async function main() {
   const logPath = join(directory, 'web.log')
   const log = openSync(logPath, 'w', 0o600)
   const env = { ...process.env, HOME: directory, DSH_HOME: home,
+    TMPDIR: scratch, TMP: scratch, TEMP: scratch,
     DEEPSEEK_API_KEY: 'mock-key', DEEPSEEK_BASE_URL: `http://127.0.0.1:${model.address().port}/v1`,
     NODE_OPTIONS: `--import=${join(import.meta.dirname, 'resolve.mjs')}` }
   // External connector credentials are not needed in this transport check.
@@ -114,11 +118,7 @@ async function main() {
     assert.equal(ephemeral.hidden, true)
     assert.ok(ephemeral.ownerId, 'Ephemeral Bot has an owner')
     await waitFor(() => existsSync(join(teamWorkspace, 'proof.json')), 'real bash writes and test')
-    const proof = json(join(teamWorkspace, 'proof.json'))
-    assert.equal(proof.cwd, teamWorkspace)
-    assert.equal(proof.test, 'passed')
-    const { add } = await import(join(teamWorkspace, 'probe.mjs'))
-    assert.equal(add(7, -2), 5)
+    await verifyArtifact(teamWorkspace)
     await waitFor(() => !saved().bots[ephemeral.id], 'ephemeral Bot cleanup')
     const workflowSaved = json(join(home, 'bot/flybot-workflow/workflows.json'))
     assert.equal(workflowSaved.lanes[workflow.id].last.status, 'done')
@@ -126,7 +126,7 @@ async function main() {
     await api('update-bot', { id: worker.id, permission: 'danger-full-access' })
     await api('send', { sessionId: worker.id, text: 'Execute the M0 shell probe in the configured working folder.' })
     await waitFor(() => existsSync(join(workspace, 'proof.json')), 'explicit Bot cwd')
-    assert.equal(json(join(workspace, 'proof.json')).cwd, workspace)
+    await verifyArtifact(workspace)
     await waitFor(async () => Object.keys((await api('state')).activity ?? {}).length === 0, 'explicit Bot idle')
     await api('delete-bot', { id: worker.id })
     assert.ok(observations.some(row => row.toolRequested) && observations.some(row => row.toolResult), 'Tool call/result round trip')

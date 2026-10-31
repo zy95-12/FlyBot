@@ -5,10 +5,10 @@
     "L1": {
       "name": "commit",
       "trigger": "Push to a branch, a pull request, and every queue entry, through `.github/workflows/test.yml`.",
-      "guarantee": "The cheapest layer that can catch a defect: it must be deterministic and hermetic — no network, no model, no wall-clock or calendar dependence, no ordering between files.",
+      "guarantee": "The cheapest layer that can catch a defect: it must be deterministic and hermetic \u2014 no network, no model, no wall-clock or calendar dependence, no ordering between files.",
       "mustNot": "Reach the network, call a model, read the clock, or depend on a machine's home directory.",
       "budget": "The whole layer under 10 minutes on a cold runner. A suite that cannot fit is either split or moved up, not added.",
-      "command": "node .github/scripts/testing-layers.mjs --check && npm --prefix core test && npm --prefix plugins/social test && npm --prefix plugins/tree test && npm --prefix plugins/timeline test && npm --prefix plugins/workflow test && node --test \".github/scripts/*.test.mjs\" && npm run test:interop"
+      "command": "node .github/scripts/testing-layers.mjs --check && npm --prefix core test && npm --prefix plugins/social test && npm --prefix plugins/tree test && npm --prefix plugins/timeline test && npm --prefix plugins/workflow test && node --test \".github/scripts/*.test.mjs\" && npm run test:interop && npm run test:demo"
     },
     "L2": {
       "name": "merge",
@@ -105,7 +105,7 @@
       "paths": [
         "ds-bot/test/**"
       ],
-      "reason": "The pristine upstream checkout at the pinned version. FlyBot never edits or runs it directly — `core/` is `ds-bot/` plus the patches, and the `core` suite runs the patched copies."
+      "reason": "The pristine upstream checkout at the pinned version. FlyBot never edits or runs it directly \u2014 `core/` is `ds-bot/` plus the patches, and the `core` suite runs the patched copies."
     },
     {
       "id": "live-e2e-unit",
@@ -114,6 +114,25 @@
         "dev/live-e2e/test/**"
       ],
       "reason": "Offline unit tests for the live end-to-end harness (a fake adapter, no model). They run in the root `npm run verify` only; no CI gate runs them today. Moving them into L1 is a separate change, and the layer that does drive a real model is `live-e2e.yml`, whose row is below."
+    },
+    {
+      "id": "demo-contract",
+      "layer": "L1",
+      "paths": [
+        "dev/demo/test/artifact.test.mjs",
+        "dev/demo/test/control-plane-guards.test.mjs"
+      ],
+      "command": "npm run test:demo",
+      "note": "Offline file/evidence and platform-entry guards; Python 3 required. Run in verify and test.yml."
+    },
+    {
+      "id": "demo-runtime",
+      "layer": "L2",
+      "paths": [
+        "dev/demo/test/runtime.test.mjs"
+      ],
+      "command": "npm run test:demo:runtime",
+      "note": "Deterministic model transport over loopback with actual DSH tools/lifecycle; required test.yml job and local verify. Not real-model acceptance."
     }
   ],
   "workflows": [
@@ -133,7 +152,7 @@
       "layer": "L2",
       "gate": true,
       "runs": "merge_group (reports on pull_request)",
-      "role": "Re-reads `hold` and the newest conclusion at the entry's head, and fails the queue entry when either refuses it. On `pull_request` it also reports work `main` merged that the branch deletes (silent-revert, #914) — report only."
+      "role": "Re-reads `hold` and the newest conclusion at the entry's head, and fails the queue entry when either refuses it. On `pull_request` it also reports work `main` merged that the branch deletes (silent-revert, #914) \u2014 report only."
     },
     {
       "id": "enqueue-guard",
