@@ -9,7 +9,9 @@ For this fork, read current [PROJECT.md](PROJECT.md), [ROADMAP.md](ROADMAP.md) a
 Update repository memory, matching architecture docs and regression tests with behavior
 changes. Inherited upstream people/stages are historical; the fork user's instructions
 govern current scope. CI, review, secret-handling and deployment gates remain unchanged.
-The owner authorized M1–M6 sequential implementation, one PR per milestone. Read the
+The owner authorized M1–M7 sequential implementation, one PR per milestone/M7 sub-issue.
+M7 explicitly permits Codex SDK and Claude Agent SDK execution; inherited upstream
+SDK removal statements do not override this fork decision. Read the
 [M1 ownership contract](docs/subsystems/project-domain.md) before changing Task/Run/Project
 logic; routing changes must never reassign existing work. Shared workbench changes
 also follow [Project access](docs/subsystems/project-access.md): verify platform sessions

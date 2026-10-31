@@ -117,3 +117,8 @@ workspaces, Attempt elapsed time, real diff statistics and explicit failure/retu
 Board cards sort by the existing urgent/high/normal/low contract. Active or terminal Tasks
 cannot start a duplicate delivery from the UI, and requester input waits use the existing
 question-id-bound answer endpoint; approval waits retain their separate server gate.
+
+
+### Fork M7.1 — 2026-10-31
+
+M7.1 allows project-role-memory-write through the restricted gateway. This public-memory operation still requires live Project configure authorization. Resource/Harness settings UI and terminal access are tracked separately in M7.4.

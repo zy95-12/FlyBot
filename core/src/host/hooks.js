@@ -194,10 +194,12 @@ export function install(rt) {
     const executionProject = ephemeral === true && executionProjectId ? rt.projects?.requireActive(executionProjectId) : null
     const executionWorkspace = executionWorkDir ? rt.projectDelivery?.ownsWorkspace(executionProject?.id, executionWorkDir) : null
     if (executionWorkDir && !executionWorkspace) throw new Error('Unregistered Project execution Workspace')
+    const roleSession = executionWorkspace ? rt.projectDelivery?.sessionFor(executionWorkspace) : null
+    const assembledPrompt = roleSession ? `${instructions ?? ''}\n\n${roleSession.context.text}` : null
     const bot = await rt.createBot({
-      name, role, instructions, createdBy,
+      name, role, instructions: assembledPrompt ?? instructions, createdBy,
       ...(executionProject ? { ownerId: executionProject.ownerUserId, ...(executionWorkDir ? { workDir: executionWorkDir } : {}) } : {}),
-      ...(systemPrompt ? { systemPrompt } : {}),
+      ...(assembledPrompt || systemPrompt ? { systemPrompt: assembledPrompt ?? systemPrompt } : {}),
       ...(fields && Object.keys(fields).length > 0 ? { fields: { [plugin]: fields } } : {}),
       ...(typeof model === 'string' && model.trim() ? { model: model.trim() } : {}),
       ...(hidden === true || ephemeral === true ? { hidden: true } : {}),
@@ -218,6 +220,10 @@ export function install(rt) {
       }
     }
     if (record && (stepTools.length > 0 || caps.length > 0 || preset || executionProject)) await rt.save()
+    if (executionWorkspace) {
+      try { await rt.projectDelivery?.bindSession(executionWorkspace, { id: bot.id, sessionId: rt.chatOf(bot.id) }) }
+      catch (error) { await rt.deleteBot(bot.id); throw error }
+    }
     for (const [key, value] of Object.entries(fields ?? {})) fire('change', { botId: bot.id, plugin, key, value: clone(value), prev: undefined })
     return bot.id
   }
@@ -249,6 +255,7 @@ export function install(rt) {
       const remote = rt.botOf(id)?.remote
       const remoteChat = remote !== undefined
       const result = await deleteBot(id, ...rest)
+      await rt.projectDelivery?.releaseSession(id)
       if (!remoteChat) {
         fire('bot.removed', { ...last, botId: id, bot: last })
         // A hold naming this Bot as sender or target can no longer be spent (#52).

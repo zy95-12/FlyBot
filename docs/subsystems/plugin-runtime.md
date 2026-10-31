@@ -153,3 +153,8 @@ M4 extends tool masks to scoped Project agents: only project_agent_* remain avai
 while guards enforce the same current own-session/delegation/member policy even for
 agent-local tools that cannot be hidden. Other Bots do not inherit these capabilities.
 [Agent contract](project-agents.md) separates public/private context and external identity.
+
+
+### Fork M7.1 — 2026-10-31
+
+M7.1 inserts frozen role context at host Bot creation after graph prompt truncation. It binds a registered Workspace to one execution Session, and archives release after successful Bot deletion. Legacy plugin Bots without delivery snapshots retain their existing behavior.

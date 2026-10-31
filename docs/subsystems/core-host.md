@@ -846,3 +846,8 @@ is public only as a mode description; Project resources require the current acto
 Project Tasks retain history, scoped agent identities cannot be rebound, and repository
 filesystem capabilities are provisioned by operator/Project owner. See
 [Project workbench](project-workbench.md) for the restricted member entry and queue contract.
+
+
+### Fork M7.1 — 2026-10-31
+
+M7.1 adds public role memory/context snapshots and binds temporary delivery Sessions through registered Workspaces; see [Project agents](project-agents.md) and [delivery](project-delivery.md). New role-memory writes use the existing per-request authorization boundary.

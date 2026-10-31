@@ -92,3 +92,11 @@ allows a bounded 20-minute live run; key-free regression timeouts are unchanged.
 The real-provider run subsequently passed at `f126f8c`; [live acceptance](../live-acceptance.md)
 and the committed JSON record preserve source/evidence/timing and distinguish human-role
 browser automation from an independent human or repository review PASS.
+
+### M7.1 context probe
+
+The existing actual-DSH delivery probe explicitly publishes one memory per worker role
+and configures its reference. For the marked local fixture, the deterministic model checks
+its received system request contains published memory, repository instructions and context
+version before issuing shell work. The host also verifies three distinct bound Sessions
+reach released state. This validates real Harness transport/lifecycle, not real inference.

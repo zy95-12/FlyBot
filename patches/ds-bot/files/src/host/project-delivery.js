@@ -7,7 +7,7 @@ import { promisify } from 'node:util'
 import { ownEntry, setEntry } from './store.js'
 import { DELIVERY_ROLES, DELIVERY_VERSION, deliveryGraph } from './project-delivery-template.js'
 import { repositorySettings } from './project-repository-policy.js'
-import { skillInstructions } from './project-agent-skills.js'
+import { roleContext, contextHash } from './project-role-context.js'
 import { githubPublisher } from './project-github.js'
 
 const exec = promisify(execFile)
@@ -98,17 +98,24 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     task.deliveryAttemptId = attempt.id
     await rt.save() // Reserve idempotency and ownership before any filesystem effects.
     try {
+      const definitions = rt.projectAgents?.deliveryDefinitions(project.id)
+      if (definitions?.roles.some(role => role.role !== 'chief' && (role.execution?.harness !== 'flybot' || role.execution?.resourceIds?.length))) throw reject('Selected execution Harness/resource is not provisioned')
+      attempt.agentDefinitions = definitions
       await allocate(attempt, project, settings)
       if (attempt.cancelRequested) throw reject('Delivery was stopped')
       const model = settings.model ?? config.projectModel ?? await rt.defaultModel?.()
       if (typeof model !== 'string' || !model) throw reject('A served delivery model must be provisioned')
       const graph = deliveryGraph(model)
-      const definitions = rt.projectAgents?.deliveryDefinitions(project.id)
+      attempt.roleSessions = {}
+      const repository = await repositoryContext(project.id, attempt.baseSha)
       for (const node of graph.nodes) {
         const role = definitions?.roles.find(role => role.role === node.id)
-        if (!role) continue
-        node.model = role.model || model
-        node.prompt += '\n\nProject role persona:\n' + role.instructions + '\n\n' + skillInstructions(role.resolvedSkills)
+        const definition = role ?? { instructions: node.prompt, resolvedSkills: [], memory: [], execution: { harness: 'flybot', resourceIds: [] } }
+        node.model = definition.model || model
+        const context = roleContext({ projectId: project.id, role: node.id, revision: definitions?.revision ?? 0, definition, memory: definition.memory,
+          knowledge: ownEntry(state.projectKnowledge ?? {}, project.id) ?? [], requirement: attempt.requirement, feedback: attempt.feedback, repository })
+        attempt.roleSessions[node.id] = { id: `role-session-${randomUUID()}`, projectId: project.id, taskId: task.id, attemptId: attempt.id, role: node.id,
+          definitionRevision: definitions?.revision ?? 0, execution: structuredClone(definition.execution), context, status: 'prepared', generation: 1, createdAt: Date.now() }
       }
       attempt.agentDefinitions = definitions
       attempt.workflowDefinition = structuredClone(graph)
@@ -335,8 +342,45 @@ export function createProjectDelivery(rt, { publisher } = {}) {
       rt.taskDeliveryState?.(attempt.taskId, attempt.id, 'failed', attempt.failure.message)
     }
   }
+  async function repositoryContext(projectId, commit) {
+    const project = projectOf(projectId)
+    if (!ownEntry(config.projectRepositories ?? {}, project?.repository)) return []
+    const settings = settingsOf(project)
+    commit ??= await git(settings.path, ['rev-parse', 'HEAD'])
+    const rows = []
+    for (const name of ['AGENTS.md', 'PROJECT.md', 'ROADMAP.md', 'LESSONS.md']) {
+      const exists = await git(settings.path, ['ls-tree', '--name-only', commit, '--', name])
+      if (!exists) continue
+      const text = await git(settings.path, ['show', `${commit}:${name}`])
+      rows.push({ name, text: text.slice(0, 6000), truncated: text.length > 6000, totalCharacters: text.length, sha256: contextHash(text), commit })
+    }
+    return rows
+  }
+  function sessionFor(workspace) {
+    const attempt = ownEntry(attempts(), workspace?.attemptId)
+    if (!attempt || attempt.projectId !== workspace.projectId || attempt.workspaces[workspace.role]?.id !== workspace.id) throw reject('Foreign execution Workspace')
+    return attempt.roleSessions?.[workspace.role]
+  }
+  async function bindSession(workspace, bot) {
+    const session = sessionFor(workspace)
+    if (!session) return // Legacy v1 Attempts have no execution-session snapshot.
+    if (session.status === 'released') throw reject('Execution Session was released')
+    if (session.botId && (session.botId !== bot.id || session.sessionId !== bot.sessionId)) throw reject('Execution Session is already bound')
+    session.botId = bot.id
+    session.sessionId = bot.sessionId
+    session.status = 'bound'
+    await rt.save()
+  }
+  async function releaseSession(botId) {
+    for (const attempt of Object.values(attempts())) for (const session of Object.values(attempt.roleSessions ?? {})) {
+      if (session.botId !== botId || session.status === 'released') continue
+      session.status = 'released'
+      session.releasedAt = Date.now()
+      await rt.save()
+    }
+  }
   const ownsWorkspace = (projectId, path) => Object.values(state.projectWorkspaces ?? {}).find(workspace => workspace.projectId === projectId && workspace.path === path && workspace.kind === 'worktree' && workspace.status === 'allocated' && ongoing.has(ownEntry(attempts(), workspace.attemptId)?.status))
-  return { endpoint, context, recover, runReported, ownsWorkspace, gate: input => serialAttempt(current(input.taskId)?.id ?? input.taskId, () => gate(input)) }
+  return { endpoint, context, repositoryContext, bindSession, releaseSession, sessionFor, recover, runReported, ownsWorkspace, gate: input => serialAttempt(current(input.taskId)?.id ?? input.taskId, () => gate(input)) }
 }
 
 export function install(rt) {

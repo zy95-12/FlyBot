@@ -682,6 +682,7 @@ export function install(rt) {
         case 'project-agents':
         case 'project-agent-message':
         case 'project-agent-history':
+        case 'project-role-memory-write':
         case 'project-agent-memory-write':
         case 'project-agent-definition':
         case 'project-agent-proposal-apply':

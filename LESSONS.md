@@ -13,6 +13,22 @@ Dated, short lessons from real FlyBot work. Agents read this **before coding**. 
 
 ## Open lessons
 
+### 2026-10-31 — Pin the browser runner to the locked Playwright platform
+
+Seen 1×. GitHub ubuntu-latest moved to 26.04 while Playwright remains locked at 1.56.1;
+Chromium installation failed before browser checks ran. Pin the browser-bearing Test
+job to ubuntu-24.04 and keep every browser/required gate enabled. Test logs distinguish
+an unsupported installer platform from a passing or failing product browser scenario.
+
+
+### 2026-10-31 — Check context after the last prompt transformation
+
+Seen 1×. M7.1 inspection found Workflow graph sanitization caps node prompts at 4,000
+characters. Appending role memory there can silently hide it from the model. Snapshot
+bounded public context at admission, inject it at host Session creation after that cap,
+and assert actual DSH model requests contain published memory/repository instructions.
+
+
 ### 2026-10-31 — A Bot ID alone cannot authorize a private Project agent
 
 Seen 1×. M4 boundary review found a group/old Session could map to the same Bot while

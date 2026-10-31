@@ -9,6 +9,11 @@ export function deliveryReply({ body, result, tools }) {
   const tester = system.includes('Inspect the implementation in your assigned worktree')
   const reviewer = system.includes('Independently review the candidate diff')
   if (!developer && !tester && !reviewer) return undefined
+  if (JSON.stringify(body.messages).includes('M71_CONTEXT_CHECK')) {
+    assert.ok(system.includes('Published role memory marker'), 'Actual model request must include explicit role memory')
+    assert.ok(system.includes('Repository instructions marker'), 'Actual model request must include repository instructions')
+    assert.ok(system.includes('project-role-context'), 'Actual model request must include versioned assembled context')
+  }
   if (tools && !result) {
     const command = developer
       ? `node --input-type=module -e 'import {writeFileSync} from "node:fs"; writeFileSync("code.mjs","export const add = (a,b) => a+b;\\n"); console.log("implemented")'`
@@ -33,6 +38,7 @@ export function provisionDeliveryFixture(directory, githubRepository) {
   run(['config', 'user.email', 'fixture@localhost'])
   writeFileSync(join(directory, 'code.mjs'), 'export const add = (a,b) => a-b;\n')
   writeFileSync(join(directory, 'code.test.mjs'), "import assert from 'node:assert/strict'; import {add} from './code.mjs'; assert.equal(add(2,3),5); assert.equal(add(-7,2),-5); assert.equal(add(11,13),24);\n")
+  if (!githubRepository) writeFileSync(join(directory, 'AGENTS.md'), 'Repository instructions marker: verify addition in the assigned worktree.')
   run(['add', '.']); run(['commit', '-m', 'Delivery fixture base'])
 }
 
@@ -45,7 +51,11 @@ export async function checkDelivery({ api, call, saved, waitFor, repository, git
   const { project } = await ownerCall('project-create', { name: 'Delivery acceptance', repository: githubRepository ?? 'example/delivery-fixture' })
   const botId = saved().projects[project.id].chief.botId
   await ownerCall('project-agent-definition', { projectId: project.id, role: 'chief', model })
-  const task = await ownerCall('task-create', { botId, projectId: project.id, title: githubRepository ? '[Demo artifact M3] Fix addition in isolated worktrees' : 'Fix addition', criteria: githubRepository ? 'Addition must pass the provisioned cases. Integration artifact: deterministic model transport, no independent code-review PASS and no production deployment.' : 'add(2,3) must equal 5' })
+  for (const role of ['developer', 'tester', 'reviewer']) {
+    const { memory } = await ownerCall('project-role-memory-write', { projectId: project.id, role, text: 'Published role memory marker: record actual evidence', source: { kind: 'human', reference: 'runtime fixture publication' } })
+    await ownerCall('project-agent-definition', { projectId: project.id, role, memoryRefs: [memory.id] })
+  }
+  const task = await ownerCall('task-create', { botId, projectId: project.id, title: githubRepository ? '[Demo artifact M3] Fix addition in isolated worktrees' : 'Fix addition', criteria: githubRepository ? 'Addition must pass the provisioned cases. Integration artifact: deterministic model transport, no independent code-review PASS and no production deployment.' : 'add(2,3) must equal 5. M71_CONTEXT_CHECK' })
   const started = await ownerCall('project-task-run', { taskId: task.id, requestId: 'delivery-runtime-1' })
   assert.equal(started.attempt.status, 'running', started.attempt.failure?.message)
   const id = started.attempt.id
@@ -54,6 +64,10 @@ export async function checkDelivery({ api, call, saved, waitFor, repository, git
     return row && (row.status === 'failed' || row.status === 'waiting-acceptance') ? row : null
   }, 'delivery evidence/credential gate')
   assert.equal(attempt.evidence.tests.passed, true)
+  await waitFor(() => Object.values(saved().projectAttempts[id].roleSessions).every(row => row.status === 'released'), 'temporary role Session release')
+  const sessions = Object.values(saved().projectAttempts[id].roleSessions)
+  assert.equal(new Set(sessions.map(row => row.sessionId)).size, 3)
+  assert.ok(sessions.every(row => row.context.text.includes('Published role memory marker')))
   assert.equal(attempt.evidence.review.verdict, 'approve')
   assert.equal(attempt.evidence.tests.sha, attempt.evidence.review.sha)
   assert.equal(attempt.evidence.implementation.sha, attempt.candidateSha)
@@ -79,7 +93,7 @@ export async function checkDelivery({ api, call, saved, waitFor, repository, git
   const remaining = execFileSync('git', ['worktree', 'list', '--porcelain'], { cwd: repository, encoding: 'utf8' })
   assert.equal((remaining.match(/^worktree /gm) ?? []).length, 1)
   return { milestone: 'M3', runtime: 'actual DSH', model: 'deterministic mock',
-    checks: ['isolated role worktrees', 'actual code edit', 'independent configured tests', 'commit-specific reviewer output',
+    checks: ['model-visible role memory and repository context', 'temporary role Sessions released', 'isolated role worktrees', 'actual code edit', 'independent configured tests', 'commit-specific reviewer output',
       ...(githubRepository ? ['real GitHub PR head verified', 'authorized human acceptance'] : ['missing GitHub credential blocks publication/acceptance', 'duplicate start idempotent']), 'registered worktrees cleaned'],
     ...(githubRepository ? { pr: attempt.pr } : {}),
     notRun: ['real model', ...(!githubRepository ? ['real GitHub publication'] : []), 'browser acceptance'] }

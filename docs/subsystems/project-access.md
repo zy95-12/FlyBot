@@ -154,3 +154,8 @@ Queue admission rechecks current membership, preserves immutable Task/Run owners
 allocates worktrees only when quota permits. Explicit stop releases the existing single
 Run; orphan Workers retain capacity. Shared Project creation cannot supply filesystem cwd,
 and scoped agent/Worker identities cannot move to a different Project.
+
+
+### Fork M7.1 — 2026-10-31
+
+M7.1 routes project-role-memory-write through the existing shared gate; current Project configure permission is required. Role memory refs are checked against both Project and role, with no private-agent fallback.

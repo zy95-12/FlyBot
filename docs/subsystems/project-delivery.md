@@ -180,3 +180,21 @@ fix adds retry input data without changing saved role/graph definitions.
 [Real-provider acceptance](../live-acceptance.md) passed for actual role execution and GitHub
 artifact PR heads #18/#19, human-role browser return/follow-up/accept, immutable host test
 failure and retry. This is integrated M6 evidence, not a claim of independent PR review.
+
+
+## M7.1 execution-session snapshots
+
+New Attempts use `project-delivery/v2`; saved v1 graphs/evidence remain readable. Each
+Attempt has one `roleSessions[role]` descriptor with immutable Project/Task/Attempt,
+definition revision, execution refs, context version/hash and generation. The existing
+Workflow still owns spawning, pausing, dispatching and releasing Bots; no second scheduler
+or task state machine is added. Pause/resume retains the same bound Bot/Session. A new
+Attempt gets fresh descriptors and the existing explicit previous-failure/return feedback.
+
+The host validates the registered Workspace before inserting its assembled system prompt,
+binds the resulting Session once, rejects a conflicting/released binding and records
+release only after deletion succeeds. Failed deletion keeps existing Worker quota occupied.
+Necessary context/evidence survives temporary Bot removal. No raw temporary transcript
+is copied into persistent role memory. The normal runtime check verifies three distinct
+actual Sessions, model-visible published memory/repo instructions and confirmed release.
+SDK/resource allocation and cross-resource workspace transfer follow in M7.2–M7.5.
