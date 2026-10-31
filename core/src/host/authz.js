@@ -96,7 +96,12 @@ export function install(rt) {
   // single-human product behaves exactly as it always has.
   rt.authzEnforced = () => rt.sharedProjectMode?.() === true || Object.keys(state.authSessions || {}).length > 0
 
-  const botOwnedBy = (actor, botId) => typeof botId === 'string' && (state.bots || {})[botId]?.ownerId === actor.memberId
+  const botOwnedBy = (actor, botId) => {
+    const bot = typeof botId === 'string' ? state.bots?.[botId] : undefined
+    if (!bot || bot.ownerId !== actor.memberId) return false
+    if (bot.projectAgent && (bot.projectAgent.visibility === 'public' || bot.projectAgent.retired || !rt.projectCan(actor, bot.projectId))) return false
+    return true
+  }
 
   const roomOwnedBy = (actor, roomId) => {
     const room = (state.rooms || {})[String(roomId ?? '')]
@@ -194,7 +199,7 @@ export function install(rt) {
     }
     return {
       ...full,
-      bots: full.bots.filter(bot => bot.ownerId === actor.memberId || sharedBots.has(bot.id)),
+      bots: full.bots.filter(bot => (!bot.projectAgent || bot.projectAgent.visibility === 'private' && rt.projectCan(actor, bot.projectId)) && (bot.ownerId === actor.memberId || sharedBots.has(bot.id))),
       rooms,
       self: { memberId: actor.memberId, displayName: actor.displayName },
       questions: Object.fromEntries(Object.entries(bySession(full.questions)).filter(([id, question]) => questionFor(actor, id, question))),
@@ -208,7 +213,7 @@ export function install(rt) {
   }
   rt.ownedLive = (full, actor) => {
     if (!(rt.authzEnforced() && actor)) return full
-    const mine = id => (state.bots || {})[id]?.ownerId === actor.memberId
+    const mine = id => botOwnedBy(actor, id)
     const pick = obj => Object.fromEntries(Object.entries(obj ?? {}).filter(([id]) => mine(id)))
     return {
       activity: pick(full.activity),
@@ -234,7 +239,7 @@ export function install(rt) {
     const ep = String(endpoint ?? '')
 
     if (ep === 'platform-login') return rt.platformIdentityEnabled ? ALLOW : deny('bot/forbidden', 'Platform identity is not configured')
-    if (['project-task-run', 'project-task-detail', 'project-task-accept', 'project-task-reject', 'project-attempt-log', 'project-attempt-cleanup', 'project-members', 'project-invite', 'project-join', 'project-leave', 'project-member-remove', 'project-quota', 'project-workflow'].includes(ep) && !rt.sharedProjectMode?.()) return deny('bot/forbidden', 'Project workbench is not enabled')
+    if (['project-credential-status', 'project-github-comment', 'project-agents', 'project-agent-message', 'project-agent-history', 'project-agent-memory-write', 'project-agent-definition', 'project-agent-proposal-apply', 'project-knowledge-write', 'project-task-run', 'project-task-detail', 'project-task-accept', 'project-task-reject', 'project-attempt-log', 'project-attempt-cleanup', 'project-members', 'project-invite', 'project-join', 'project-leave', 'project-member-remove', 'project-quota', 'project-workflow'].includes(ep) && !rt.sharedProjectMode?.()) return deny('bot/forbidden', 'Project workbench is not enabled')
     if (rt.platformIdentityEnabled && ['auth-invite', 'auth-redeem', 'auth-remove-member'].includes(ep)) return deny('bot/platform-auth', 'Use control-plane account authentication')
     if (!actor) {
       if (NO_ACTOR_ALLOWED.has(ep)) return ALLOW
@@ -242,7 +247,9 @@ export function install(rt) {
     }
 
     if (rt.sharedProjectMode?.()) {
-      if (['project-task-run', 'project-task-detail', 'project-task-accept', 'project-task-reject', 'project-attempt-log', 'project-attempt-cleanup', 'project-members', 'project-invite', 'project-join', 'project-leave', 'project-member-remove', 'project-quota', 'project-workflow'].includes(ep)) return ALLOW
+      const agentSeats = [...(Array.isArray(body?.members) ? body.members : []), ...(Array.isArray(body?.add) ? body.add : []), ...(Array.isArray(body?.participants) ? body.participants.filter(row => row?.kind === 'bot').map(row => row.id) : [])]
+      if (['create-room', 'update-room'].includes(ep) && agentSeats.some(id => state.bots?.[id]?.projectAgent)) return deny('bot/forbidden', 'Project agents cannot join group chats')
+      if (['project-credential-status', 'project-github-comment', 'project-agents', 'project-agent-message', 'project-agent-history', 'project-agent-memory-write', 'project-agent-definition', 'project-agent-proposal-apply', 'project-knowledge-write', 'project-task-run', 'project-task-detail', 'project-task-accept', 'project-task-reject', 'project-attempt-log', 'project-attempt-cleanup', 'project-members', 'project-invite', 'project-join', 'project-leave', 'project-member-remove', 'project-quota', 'project-workflow'].includes(ep)) return ALLOW
       if (ep.startsWith('flybot/') && !['flybot/bots', 'flybot/changes', 'flybot/decide'].includes(ep)) return deny('bot/project-required', 'Use a Project-scoped endpoint')
       if (['workflows', 'workflow-save', 'usage'].includes(ep)) return deny('bot/project-required', 'Use a Project-scoped endpoint')
     }

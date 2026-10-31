@@ -55,3 +55,10 @@ test verifies role cwd, code edit, independent tests, commit-specific reviewer o
 missing-credential refusal and cleanup. --github-repo/--github-config-dir explicitly
 enable remote draft publication outside routine CI; artifact #12 is deterministic-model
 integration evidence, not independent Review or true-model acceptance. [Contract](project-delivery.md).
+
+## Fork M4 — 2026-10-31
+
+M4 adds --agents to actual DSH runtime verification: two private agent Sessions use
+scoped tools; private proposal publication and public Chief Task creation retain the
+requester; private memory and revoked old Session routes are checked. The required
+runtime suite runs this fixture alongside M0/M3; no true-model/personal-GitHub claim.

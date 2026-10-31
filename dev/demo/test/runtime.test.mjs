@@ -38,3 +38,19 @@ test('real DSH delivery uses isolated role cwd and refuses completion without a 
   assert.ok(report.notRun.includes('real model'))
   assert.deepEqual(readdirSync(directory), [])
 })
+
+test('real DSH Project agents keep private state separate and revoke old Session access', { timeout: 150_000 }, t => {
+  const directory = mkdtempSync(join(tmpdir(), 'flybot-agents-runtime-'))
+  t.after(() => rmSync(directory, { recursive: true, force: true }))
+  const result = spawnSync(process.execPath, [resolve(import.meta.dirname, '../run.mjs'), '--agents'], {
+    encoding: 'utf8', timeout: 140_000, env: { ...process.env, TMPDIR: directory, M0_REPORT: '' },
+  })
+  assert.equal(result.status, 0, result.stderr)
+  const report = JSON.parse(result.stdout)
+  assert.equal(report.milestone, 'M4')
+  assert.ok(report.checks.includes('scoped context tool execution'))
+  assert.ok(report.checks.includes('public Chief creates Task as requester'))
+  assert.ok(report.checks.includes('removed member old Session denied'))
+  assert.ok(report.notRun.includes('real model'))
+  assert.deepEqual(readdirSync(directory), [])
+})

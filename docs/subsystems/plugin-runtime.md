@@ -146,3 +146,10 @@ M3 types projects.deliveryGate and execution context (Attempt, immutable graph, 
 role cwd). executionWorkDir must name an allocated Project Workspace before Bot creation;
 Bot metadata retains Workspace/Attempt IDs. The host receives commit-gated node results
 and canonical Run reports. [Delivery contract](project-delivery.md).
+
+## Fork M4 — 2026-10-31
+
+M4 extends tool masks to scoped Project agents: only project_agent_* remain available,
+while guards enforce the same current own-session/delegation/member policy even for
+agent-local tools that cannot be hidden. Other Bots do not inherit these capabilities.
+[Agent contract](project-agents.md) separates public/private context and external identity.

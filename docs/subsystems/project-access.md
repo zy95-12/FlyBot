@@ -139,3 +139,10 @@ same current human membership policy. Fixed-template server creation does not de
 arbitrary configuration to a Member. Managed delivery graphs cannot be reset/edited;
 new retries use new Attempts. [Delivery contract](project-delivery.md) records the exact
 evidence gates, operator repository/GitHub provisioning and current validation limits.
+
+## Fork M4 — 2026-10-31
+
+M4 adds agent/knowledge/credential routes with current Project access, own private
+identity and live human delegation. Personal GitHub authority cannot come from Project
+Owner rank. Member/session revocation cancels agent chat capabilities while preserving
+admitted Project code work. [Agent contract](project-agents.md).

@@ -311,6 +311,7 @@ export function install(rt) {
       const bot = rt.botOf(id)
       return bot && !bot.remote
     })
+    if (members.some(id => rt.botOf(id)?.projectAgent)) throw new Error('Project agents cannot join group chats')
     if (members.length >= 2) checkMembers(members)
     else if (members.length + remotes.length < 2 || members.length === 0) checkMembers(members)
     const custom = cleanRoomName(roomName ?? '')
@@ -375,6 +376,7 @@ export function install(rt) {
     let members = Array.isArray(patch.members) ? [...new Set(patch.members)] : [...room.members]
     for (const member of patch.add ?? []) if (!members.includes(member)) members.push(member)
     members = members.filter(member => !(patch.remove ?? []).includes(member) && rt.botOf(member))
+    if (members.some(id => rt.botOf(id)?.projectAgent)) throw new Error('Project agents cannot join group chats')
     // #1764: only a patch that changes membership is judged by the two-Bot floor. A face-to-face
     // or inbound-share room's seats are synced, not patched, so its local list is not its membership.
     const changesMembers = patch.members !== undefined || patch.add !== undefined || patch.remove !== undefined

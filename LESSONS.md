@@ -13,6 +13,13 @@ Dated, short lessons from real FlyBot work. Agents read this **before coding**. 
 
 ## Open lessons
 
+### 2026-10-31 — A Bot ID alone cannot authorize a private Project agent
+
+Seen 1×. M4 boundary review found a group/old Session could map to the same Bot while
+its own private Session held a live delegation. Bind scoped tools to the exact current
+own Session, deny group seats centrally, and recheck the delegation after upstream auth.
+Regression cases also verify revoked membership/session and no credential fallback.
+
 ### 2026-10-31 — Execution worktrees must live outside DSH data
 
 Seen 1×. Actual M3 DSH startup refused worktrees beneath DSH_HOME/bot because they hold

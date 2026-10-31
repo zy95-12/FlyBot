@@ -123,3 +123,10 @@ M3 extends reference Workspaces to registered per-role worktrees; canonical Runs
 Attempt/Workflow/Workspace IDs, each immutable once bound. Project deletion refuses
 unfinished delivery Attempts. [Delivery contract](project-delivery.md) adds sealed-commit
 evidence and human acceptance without changing Project identity/migration invariants.
+
+## Fork M4 — 2026-10-31
+
+M4 private agent identities remain separate from shared Project records/Task evidence.
+Delete blocks new work before asynchronous retirement, clears private agent notes/logs
+and retains shared public discussion under the authorized Project tombstone. Legacy
+mode behavior remains separate. [Agent lifecycle](project-agents.md).

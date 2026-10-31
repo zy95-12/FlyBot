@@ -70,6 +70,18 @@ export function install(rt) {
     await rt.save()
     return { sessionToken: token, memberId, displayName: ownEntry(state.members, memberId).displayName }
   })
+  rt.validatePlatformActor = async actor => {
+    const session = ownEntry(state.authSessions ?? {}, actor?.sessionId)
+    const proof = session && proofs.get(session.id)
+    if (!session || session.revokedAt || session.memberId !== actor.memberId || !proof) return false
+    try {
+      const response = await request('/api/auth/session', { proof })
+      const user = validatedUser(response.data)
+      if (user.id !== proof.subject) return false
+      proofs.set(session.id, { ...proof, cookie: response.cookie, csrf: response.csrf })
+      return true
+    } catch { return false }
+  }
   const localAuthenticate = rt.authenticate
   rt.authenticate = async token => {
     const session = sessionOf(token)

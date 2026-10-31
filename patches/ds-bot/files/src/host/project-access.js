@@ -107,6 +107,8 @@ export function install(rt) {
   rt.projectAccessEndpoint = async (endpoint, body = {}, actor) => {
     if (!rt.sharedProjectMode()) return undefined
     if (!actor?.memberId || !ownEntry(state.members, actor.memberId)) throw refusal('Sign in first')
+    if (['project-credential-status', 'project-github-comment'].includes(endpoint)) return rt.projectCredentials.endpoint(endpoint, body, actor)
+    if (['project-agents', 'project-agent-message', 'project-agent-history', 'project-agent-memory-write', 'project-agent-definition', 'project-agent-proposal-apply', 'project-knowledge-write'].includes(endpoint)) return rt.projectAgents.endpoint(endpoint, body, actor)
     if (['project-task-run', 'project-task-detail', 'project-task-accept', 'project-task-reject', 'project-attempt-cleanup'].includes(endpoint)) return rt.projectDelivery.endpoint(endpoint, body, actor)
     if (endpoint === 'projects') return { projects: rt.listProjects().filter(project => rt.projectCan(actor, project.id)).map(project => safeProject(project, actor)) }
     if (endpoint === 'project-create') return undefined
@@ -155,6 +157,7 @@ export function install(rt) {
       project.roles.maintainers = (project.roles.maintainers ?? []).filter(value => value !== memberId)
       project.roles.members = (project.roles.members ?? []).filter(value => value !== memberId)
       for (const invitation of Object.values(invites())) if (invitation.projectId === id && invitation.createdBy === memberId && !invitation.usedAt) invitation.revokedAt = Date.now()
+      rt.projectAgents?.revoke(id, memberId)
       // Accepted project work continues under project authority; removal revokes new requests immediately.
       await rt.save()
       return { removed: true, activeRuns: activeRuns(id).length,

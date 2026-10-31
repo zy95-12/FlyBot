@@ -72,3 +72,5 @@ keep it to what a reader must act on.
 - [M2 shared Project access](2026-10-31-m2-shared-access.md) — owner-authorized implementation, separate review/merge.
 
 - [M3 sealed-commit delivery](2026-10-31-m3-code-delivery.md) — implementation authorized, true-model acceptance pending.
+
+- [M4 agent and credential scopes](2026-10-31-m4-agent-scopes.md) — owner-authorized implementation, separate review/acceptance.

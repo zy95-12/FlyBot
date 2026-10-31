@@ -897,6 +897,13 @@ export function install(rt) {
         stays = runNames.filter(name => !maskable.has(name))
       }
     }
+    // Project agents expose only their scoped capabilities. Guards enforce the same
+    // policy even for agent-local tools the global mask cannot hide.
+    const scopedNames = [...known].filter(name => bot.projectAgent ? !name.startsWith('project_agent_') : name.startsWith('project_agent_'))
+    let maskable
+    try { maskable = new Set((ctx.tools.schemas?.() ?? []).map(schema => schema.name)) } catch { maskable = new Set() }
+    deny.push(...scopedNames.filter(name => maskable.has(name)))
+    stays.push(...scopedNames.filter(name => !maskable.has(name)))
     deny = [...new Set(deny)].sort()
     const key = `${deny.join(',')}|${stays.join(',')}`
     if ((current?.key ?? '') === key) return

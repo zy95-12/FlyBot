@@ -826,3 +826,15 @@ M3 installs project-delivery around the existing Workflow service and invokes re
 on the first writable load. Tasks expose an internal Attempt-checked transition capability;
 provisioned code Tasks cannot use generic acceptance and Attempt-bearing Tasks are not
 pruned. Project deletion refuses active delivery attempts. [Delivery contract](project-delivery.md).
+
+## Fork M4 — 2026-10-31
+
+M4 installs Project agents/credential broker, fresh public Chief versus private pair
+identities, current own-Session/delegation tools and explicit private proposal publication.
+Authz/core views deny revoked or public-agent legacy Session routes; roster and participant
+paths refuse group seats for scoped agents. Project deletion retires agents and clears
+private state while preserving shared history. [Agent contract](project-agents.md).
+
+M4 delegated delivery also checks the exact active Project request before queuing a
+message, and scoped tools require that message/turn to have been observed. Cancellation
+removes only that exchange; a replacement delegation cannot inherit a queued old request.

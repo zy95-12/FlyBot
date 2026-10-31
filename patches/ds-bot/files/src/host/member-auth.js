@@ -138,6 +138,7 @@ export function install(rt) {
       const session = Object.values(state.authSessions).find(s => s.tokenHash === tokenHash)
       if (!session || session.revokedAt) return false
       session.revokedAt = Date.now()
+      rt.projectAgents?.revokeSession(session.id)
       await rt.save()
       return true
     })
@@ -149,6 +150,7 @@ export function install(rt) {
     for (const session of Object.values(state.authSessions)) {
       if (session.memberId === memberId && !session.revokedAt) {
         session.revokedAt = now
+        rt.projectAgents?.revokeSession(session.id)
         count += 1
       }
     }

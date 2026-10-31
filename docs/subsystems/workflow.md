@@ -150,3 +150,10 @@ role workdirs and requirement brief; stepResult calls the host delivery gate bef
 advancing an Attempt-backed node. A gate failure ends/releases the Run immediately.
 Run reports carry Workflow/Attempt/Workspace IDs. General workflows retain existing
 behavior. [Versioned delivery contract](project-delivery.md) owns artifacts and acceptance.
+
+## Fork M4 — 2026-10-31
+
+M4 role/model/persona/resolved skill revisions are fixed by the host on M3 delivery
+Attempts before graph creation. Worker dispatch remains this plugin; private/public
+chat delegation is a separate service and never changes a running Attempt snapshot.
+See [agents](project-agents.md) and [delivery](project-delivery.md).

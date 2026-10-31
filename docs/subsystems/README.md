@@ -27,3 +27,5 @@ The core is three pages so that a change to the browser client, to the server, o
 - [Project access](project-access.md) — M2 unchanged-platform identity adapter, membership, policy and Workflow gateway.
 
 - [Project delivery](project-delivery.md) — M3 versioned Attempts, worktrees, evidence, GitHub drafts and human acceptance.
+
+- [Project agents](project-agents.md) — M4 public/private identity, memory, delegation, skills and credential scopes.
