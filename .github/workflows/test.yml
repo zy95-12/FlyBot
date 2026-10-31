@@ -28,7 +28,7 @@ jobs:
   # The PR gate: one job (see #31). Its name is the required check on main: keep it exactly.
   # Windows, Node 22 and the next DSH run in the Compatibility workflow (nightly.yml).
   test:
-    name: ubuntu-24.04 · Node 24 · DSH 0.2.1-rc.2
+    name: ubuntu-latest · Node 24 · DSH 0.2.0-rc.2
     # Playwright 1.56.1 browser/dependency binaries support Ubuntu 24.04, not 26.04.
     runs-on: ubuntu-24.04
     timeout-minutes: 25
