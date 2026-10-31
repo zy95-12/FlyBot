@@ -243,3 +243,7 @@ Receiving role context includes current handoff and bounded candidate/test/revie
 facts. Before any sealed candidate exists, an explicit Chief rework pins the new
 Attempt to current repaired repository HEAD; the original base/evidence remain
 immutable. Candidate-backed rework keeps its original base and seeds that candidate.
+
+Host prompts distinguish SDK-local checks from the configured host verification:
+blocked loopback/private log paths are Not run, and a testing handoff requests the
+actual host command. Pre-candidate resume preserves uncommitted implementation.

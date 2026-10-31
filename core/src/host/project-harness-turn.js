@@ -11,7 +11,7 @@ export async function runHarnessTurn(request, { emit, permission, signal, loadCo
       hooks: { PreToolUse: [{ matcher: '.*', hooks: [{ type: 'command', command: `node ${quote(denyScript)}` }] }] } } : { features: connectorPolicy }
     const client = new Codex({ env: request.env, configOverrides: ['mcp_servers={}', 'plugins={}', 'apps={_default={enabled=false}}'], ...(request.baseUrl ? { baseUrl: request.baseUrl } : {}), config: { ...(request.config ?? {}), ...chiefConfig } })
     const options = { workingDirectory: request.cwd, model: request.model, approvalPolicy: 'never',
-      sandboxMode: request.readOnly ? 'read-only' : 'workspace-write', networkAccessEnabled: false, webSearchMode: 'disabled' }
+      sandboxMode: request.readOnly ? 'read-only' : 'workspace-write', additionalDirectories: !request.readOnly && !request.noTools ? request.writableRoots ?? [] : [], networkAccessEnabled: false, webSearchMode: 'disabled' }
     const thread = sessionId ? client.resumeThread(sessionId, options) : client.startThread(options)
     const { events } = await thread.runStreamed(request.prompt, { signal })
     for await (const event of events) {

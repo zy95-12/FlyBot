@@ -155,3 +155,7 @@ original scheduled wake after logout, editable pause/resume and actual Dev→Chi
 return on one Task. Dogfood exposed HTTP registration, release/reconcile race and
 failed-admission status defects; fixes remain in R6 PR #47 with regressions. R7
 completion and all remaining #41 acceptance are still pending.
+
+R6 actual persistent 30-minute wake and restart-preserved cadence passed on source
+59635b2. Shared issue #40 code delivery is still exercising SDK Git permissions
+and handoff preparation; final role-chain/browser acceptance remains incomplete.

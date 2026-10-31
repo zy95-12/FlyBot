@@ -149,3 +149,15 @@ test('a successful new handoff clears stale blocking UI facts while retaining th
   assert.equal(f.task.collaboration.history.at(-1).resolvedBlock.reason, 'Old failure')
   assert.equal(f.task.collaboration.history.at(-1).resolvedChiefQuestion.decisionId, 'old-question')
 })
+
+test('Chief route can resume pre-candidate work while explicit return requests a fresh Attempt', async () => {
+  for (const rework of [false, true]) {
+    const f = setup(); await f.admit(); await f.claim()
+    f.rt.state.projectAttempts = { attempt: { id: 'attempt', status: 'running' } }
+    f.rt.projectChiefControl = { requireJobActor() {}, validateActor: async () => true }
+    let force
+    f.adapter.rework = async input => { force = input.force; return 'attempt' }
+    await f.pool.chiefRoute({ taskId: 'task', targetBotId: 'p:developer', expectedGeneration: f.task.collaboration.generation, reason: 'Host preparation repaired', decisionId: 'resume-' + rework, rework }, { memberId: 'owner' })
+    assert.equal(force, rework)
+  }
+})

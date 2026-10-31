@@ -6,6 +6,7 @@ import { isAbsolute, join, resolve, relative, dirname } from 'node:path'
 import { createInterface } from 'node:readline'
 import { verifyRolePolicy, roleExecutionPrompt } from './project-role-policy.js'
 import { fileDigest } from './project-resource-workspaces.js'
+import { gitWritableRoots } from './project-git-sandbox.js'
 import { ownEntry, setEntry } from './store.js'
 const refuse = message => Object.assign(new Error(message), { code: 'bot/harness' })
 const sha = text => createHash('sha256').update(text).digest('hex')
@@ -176,8 +177,10 @@ export function createProjectHarness(rt) {
     control.outputs = (step.outputs ?? []).map(port => port.name)
     const prompt = `${roleExecutionPrompt(control.prompt, control.session)}\n\nTask ${step.taskId}: ${step.brief}\nInputs: ${JSON.stringify(step.inputs ?? {})}\nFinish with OUTPUT <name>: <value> for ${control.outputs.join(', ')}.`
     row.status = 'running'
+    const workspace = rt.state.projectAttempts?.[row.attemptId]?.workspaces?.[row.role]
+    const writableRoots = row.role === 'developer' && row.harness === 'codex' && rt.projectResources.setting(row.projectId, row.resourceId).type === 'local' && workspace?.path === row.cwd ? await gitWritableRoots({ cwd: row.cwd, repository: workspace.repository, developer: true }) : []
     control.process.stdin.write(JSON.stringify({ type: 'start', settings: { harness: row.harness, cwd: row.cwd, sessionId: control.resumeSessionId, noTools: row.role === 'chief', model: control.profile.model, env: control.env,
-      ...(control.profile.baseUrl ? { baseUrl: control.profile.baseUrl } : {}), readOnly: row.role !== 'developer', maxBudgetUsd: control.profile.maxBudgetUsd ?? 1 }, prompt }) + '\n')
+      ...(control.profile.baseUrl ? { baseUrl: control.profile.baseUrl } : {}), readOnly: row.role !== 'developer', writableRoots, maxBudgetUsd: control.profile.maxBudgetUsd ?? 1 }, prompt }) + '\n')
     control.timer = setTimeout(() => { row.status = 'failed'; failAsync(row, 'SDK execution timeout') }, Math.max(1000, Math.min(rt.config.projectExecutionTimeoutMs ?? 120_000, 7_200_000)))
     control.timer.unref?.()
     await rt.save()
@@ -195,8 +198,8 @@ export function createProjectHarness(rt) {
     const stopped = await Promise.race([control.exit.then(() => true), new Promise(resolve => { timer = setTimeout(() => resolve(false), 6000) })])
     clearTimeout(timer)
     if (!stopped || !control.stoppedConfirmed && !control.spawnFailed) { row.status = 'unreachable'; await rt.save(); throw refuse('SDK worker has not confirmed exit; capacity retained') }
-    row.status = 'released'; row.releasedAt = Date.now(); active.delete(id)
-    await rt.projectResources.release(row.leaseId, row.generation, { handle: id, exited: true })
+    row.status = 'released'; row.releasedAt = Date.now(); row.releaseProof = { kind: 'sdk-stop-ack-and-process-exit', workerId: id, generation: row.generation, at: row.releasedAt }; active.delete(id)
+    await rt.projectResources.release(row.leaseId, row.generation, { handle: id, exited: true, proof: row.releaseProof })
     await rt.projectDelivery.releaseSession(id)
     await rt.save()
     return true

@@ -91,3 +91,7 @@ live long-running worker. No lease is released solely on a model judgement.
 Snapshots expose bind-before-external-start registration proof: an Attempt with
 no lease, worker, Session, Workspace or claim worker handle never allocated execution.
 Any such record makes allocation recorded/unknown; missing PID is never this proof.
+
+Chief distinguishes route/resume from explicit return/rework and receives actual
+SDK stop-ack/process-exit proof. A matching historical released SDK record is
+trusted host exit evidence, unlike a terminal Task or absent PID.

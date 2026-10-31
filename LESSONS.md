@@ -291,3 +291,11 @@ Chief correctly held a legacy interrupted claim when its snapshot omitted whethe
 that Attempt had ever allocated execution. Expose the bind-before-start host
 registration proof (with all lease/worker/session/workspace counts), not a missing
 PID inference. Any registered/unknown record prevents the never-allocated claim.
+
+### 2026-11-01 — SDK worktree writes need the registered Git index (Seen 1×)
+
+Real Dev produced source/tests but sandboxed Git could not stage new canonical
+files: a local worktree stores its index outside cwd. Select only that registered
+worktree Git directory and the repository object store as Codex writable roots.
+Shared refs/config and network remain outside the grant. Loopback/private host
+verification remains a host testing operation; report sandbox Not run honestly.

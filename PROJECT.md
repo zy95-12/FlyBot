@@ -274,3 +274,14 @@ resume and restoration to 30 minutes. R7 actual Dev requested Chief arbitration;
 Chief returned the same Task to Dev with a fresh Attempt. This exposed a concurrent
 resource-release reconciliation race, fixed with a red/green regression. Actual
 full R7 delivery and persistent 30-minute/restart acceptance remain in progress.
+
+R7 dogfood also exposed sandbox Git-index and host-test boundary failures. Scoped
+Codex writable roots support canonical generation; Chief route may resume a
+running pre-candidate Attempt without discarding uncommitted work. Explicit
+return or interrupted/candidate-backed work still creates a fresh Attempt. SDK
+release records carry actual stop-ack/process-exit proof, not terminal Task inference.
+
+The original DSH 1800-second schedule actually fired at 2026-10-31T21:54:39.260Z
+after browser logout and multiple backend restarts; exactly one actual Codex
+Chief Run completed. This proves the persistent 30-minute wake, not just a
+shortened-clock fixture. Remaining shared delivery/browser acceptance is separate.

@@ -68,3 +68,12 @@ test('SDK Chief disables runtime tools and connectors before proposing host-scop
   assert.equal(observed[0].config.hooks.PreToolUse[0].hooks[0].type, 'command')
   assert.equal(observed[1].sandboxMode, 'read-only')
 })
+
+test('only a developer turn passes host-selected Git writable roots to the official SDK', async () => {
+  for (const mode of [{}, { readOnly: true }, { noTools: true }]) {
+    const observed = [], roots = ['/registered/repo/.git/worktrees/task', '/registered/repo/.git/objects']
+    await runHarnessTurn({ ...request, ...mode, writableRoots: roots }, { emit() {}, loadCodex: codex([{ type: 'thread.started', thread_id: 'git-probe' }, { type: 'turn.completed' }], options => observed.push(options)) })
+    assert.deepEqual(observed[1].additionalDirectories, mode.readOnly || mode.noTools ? [] : roots)
+    assert.equal(observed[1].networkAccessEnabled, false)
+  }
+})

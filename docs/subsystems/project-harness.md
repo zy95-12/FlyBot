@@ -1,6 +1,8 @@
 ---
 subsystem: project-harness
 owned_paths:
+  - core/src/host/project-git-sandbox.js
+  - core/test/project-git-sandbox.test.js
   - core/src/host/project-harness.js
   - core/src/host/project-harness-turn.js
   - core/src/host/project-harness-worker.mjs
@@ -139,3 +141,10 @@ Repair R6: Chief coordination results seal and hash SDK event logs with Run,
 lease generation and carrier evidence. Event timestamps support heartbeat
 inspection. Credential redaction uses token boundaries so Task UUIDs survive.
 Current worker-controller lookup supports conservative resource reconciliation.
+
+Local Codex developers receive host-derived writable roots for their registered
+Git worktree directory and common object store, so staging new canonical files
+works without access to shared refs/config. Reviewer/Tester/Chief get no extra
+writable roots; network remains disabled. The pinned SDK supports
+additionalDirectories (`--add-dir`); see [sandbox boundaries](https://learn.chatgpt.com/docs/sandboxing).
+Actual SDK stop acknowledgement plus process exit is persisted as release proof.

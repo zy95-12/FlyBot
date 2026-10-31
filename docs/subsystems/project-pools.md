@@ -90,3 +90,7 @@ results against failed receipts are stale, not idempotent successful decisions.
 
 A successful new handoff clears stale active block/question fields and archives
 them on its receipt, preserving audit without reporting repaired work as blocked.
+
+Chief route to Dev may resume a running pre-candidate Attempt in its existing
+workspace after a preparation fix. Explicit return, interrupted Attempts and
+candidate-backed rework create a new Attempt, retaining prior evidence.
