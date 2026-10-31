@@ -303,6 +303,12 @@ export function install(rt) {
       switch (endpoint) {
         case 'auth-mode':
         case 'workbench-state':
+        case 'project-runtime-check':
+        case 'project-terminal-open':
+        case 'project-terminal-poll':
+        case 'project-terminal-input':
+        case 'project-terminal-resize':
+        case 'project-terminal-close':
         case 'project-execution-input':
         case 'project-resource-environment-check':
         case 'project-resources':

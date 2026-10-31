@@ -861,3 +861,8 @@ M7.2 registers resource capabilities before delivery, preserves unknown leases a
 ### M7.3 checkpoint — 2026-10-31
 
 M7.3 registers explicit-profile SDK worker execution and a current-authority project-execution-input endpoint. Unknown SDK exits retain leases; native fallback remains the existing Bot path. SDK Chief uses the stable public identity and a temporary worker with runtime tools disabled; host actions recheck current delegation.
+
+
+### M7.4 — 2026-10-31
+
+M7.4 registers runtime-setup/profile/PTY modules and scoped endpoints. Current session + Project configure + explicit resource-admin grant protect setup shells; session/member revocation closes only matching terminals. Resource-side worker stop confirmation strengthens lease release.

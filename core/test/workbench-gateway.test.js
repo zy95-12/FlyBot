@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { createServer } from 'node:http'
+import { createServer, request as httpRequest } from 'node:http'
 import { once } from 'node:events'
 import { test } from 'node:test'
 import { createWorkbenchGateway } from '../src/host/workbench-gateway.js'
@@ -54,5 +54,17 @@ test('gateway cannot be configured as an arbitrary upstream proxy', () => {
 test('shared gateway cannot bootstrap an unauthenticated owner invitation', async t => {
   const { post, seen } = await fixture(t)
   assert.equal((await post('auth-invite')).status, 403)
+  assert.equal(seen.length, 0)
+})
+
+
+test('terminal gateway rejects cross-origin HTTP and every WebSocket upgrade without proxying owner credentials', async t => {
+  const { base, post, seen } = await fixture(t)
+  assert.equal((await post('project-terminal-open', { origin: 'https://attacker.invalid' })).status, 403)
+  const status = await new Promise((resolve, reject) => {
+    const request = httpRequest(base + '/terminal?token=must-not-be-used', { headers: { connection: 'Upgrade', upgrade: 'websocket', origin: 'https://attacker.invalid' } }, response => { response.resume(); resolve(response.statusCode) })
+    request.on('error', reject); request.end()
+  })
+  assert.equal(status, 403)
   assert.equal(seen.length, 0)
 })

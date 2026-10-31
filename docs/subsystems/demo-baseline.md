@@ -110,3 +110,8 @@ M7.2 adds the explicitly invoked node dev/demo/resources.mjs test-host probe. It
 ### M7.3 checkpoint — 2026-10-31
 
 M7.3 adds an opt-in node dev/demo/harnesses.mjs negative probe using actual installed official SDKs, isolated empty profiles and unreachable loopback providers. It confirms refusal of successful completion, never authenticated inference; raw logs/credentials are not published.
+
+
+### M7.4 — 2026-10-31
+
+M7.4 adds dev/demo/runtime-setup.mjs: opt-in actual UID1000 Docker PTY/profile/cleanup probe with no paid provider. Unit integration uses real local Python PTYs and a hidden dummy credential, verifies no screen/audit leak and kills interactive background jobs. Browser/authenticated SDK acceptance remains separate.

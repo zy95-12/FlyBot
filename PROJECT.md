@@ -196,3 +196,8 @@ M7.2 adds operator-granted local/Docker execution resources, safe environment ob
 ### M7.3 checkpoint — 2026-10-31
 
 M7.3 work in progress adds pinned official Codex/Claude Agent SDK temporary worker adapters through the existing Workflow seam, explicit per-resource/principal profiles, streamed evidence and exit-confirmed resource release. Chief SDK actions now use a host-validated scoped JSON bridge; cross-resource dispatch remains pending; no full real-SDK acceptance is claimed.
+
+
+### M7.4 — 2026-10-31
+
+M7.4 adds Owner role/persona/Skills/memory/Harness/model/multiple-resource configuration, bounded connection checks and explicitly granted private target-resource PTYs. Credentials stay in private profiles; generated profiles separate Project/principal/Harness. Actual local and new Docker PTYs, hidden setup, current-session revocation and background cleanup are tested. Real authenticated three-Harness acceptance remains pending dedicated credential/profile selection.

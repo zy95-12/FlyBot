@@ -24,6 +24,47 @@
     let bootstrap, mode, selected = "", tab = "board", taskId = "", detail, resources, agents, members, history, taskDetail, workflowState;
     let epoch = 0, controller, error = "", notice = "", timer, disposed = false, busy = false;
     const drafts = /* @__PURE__ */ new Map();
+    let runtimeTerminal, terminalTimer, terminalPolling = false;
+    async function closeTerminal() {
+      const terminal = runtimeTerminal;
+      runtimeTerminal = null;
+      win.clearInterval(terminalTimer);
+      if (terminal) await api.call("project-terminal-close", { terminalId: terminal.terminalId }).catch(() => {
+      });
+    }
+    async function openTerminal(resourceId, harness, role) {
+      await closeTerminal();
+      const projectId = selected, captured = epoch;
+      const opened = await scoped("project-terminal-open", { resourceId, harness, role });
+      if (captured !== epoch || projectId !== selected || disposed) {
+        await api.call("project-terminal-close", { terminalId: opened.terminalId });
+        return;
+      }
+      runtimeTerminal = { ...opened, projectId, screen: "", seq: 0 };
+      terminalTimer = win.setInterval(async () => {
+        if (!runtimeTerminal || terminalPolling) return;
+        const terminal = runtimeTerminal;
+        terminalPolling = true;
+        try {
+          const value = await api.call("project-terminal-poll", { terminalId: terminal.terminalId, since: terminal.seq });
+          if (terminal !== runtimeTerminal) return;
+          terminal.seq = value.seq;
+          terminal.screen = (terminal.screen + (value.output ?? []).map((row) => row.text).join("")).slice(-6e4);
+          terminal.closed = value.closed;
+          if (value.closed) win.clearInterval(terminalTimer);
+          render();
+        } catch {
+          if (terminal === runtimeTerminal) {
+            await closeTerminal();
+            error = "Configuration terminal ended or access was revoked";
+            render();
+          }
+        } finally {
+          terminalPolling = false;
+        }
+      }, 500);
+      render();
+    }
     const el = (tag, text, cls) => {
       const node = doc.createElement(tag);
       if (text != null) node.textContent = String(text);
@@ -62,7 +103,27 @@
     function form(name, fields, submit, label = "Save") {
       const node = el("form"), key = `${selected}:${tab}:${name}`;
       const saved = drafts.get(key) ?? {};
-      for (const [field, title, type = "text", options] of fields) {
+      for (const [field, title, type = "text", options, initial] of fields) {
+        if (type === "checkboxes") {
+          const group = el("fieldset");
+          group.append(el("legend", title));
+          for (const option of options ?? []) {
+            const wrapper2 = el("label", option, "choice"), input2 = el("input");
+            input2.type = "checkbox";
+            input2.name = field;
+            input2.value = option;
+            input2.checked = (saved[field] ?? initial ?? []).includes(option);
+            input2.oninput = () => {
+              const values = drafts.get(key) ?? {};
+              values[field] = [...group.querySelectorAll("input:checked")].map((row) => row.value);
+              drafts.set(key, values);
+            };
+            wrapper2.prepend(input2);
+            group.append(wrapper2);
+          }
+          node.append(group);
+          continue;
+        }
         const wrapper = el("label", title);
         const input = el(options ? "select" : type === "textarea" ? "textarea" : "input");
         if (options) for (const option of options) {
@@ -74,7 +135,7 @@
         input.setAttribute("aria-label", title);
         input.name = field;
         input.id = `${name}-${field}`;
-        input.value = saved[field] ?? (options?.[0] ?? "");
+        input.value = saved[field] ?? initial ?? (options?.[0] ?? "");
         input.required = type !== "optional" && !options;
         if (type === "optional") input.type = "text";
         input.oninput = () => {
@@ -90,7 +151,8 @@
       node.lastChild.type = "submit";
       node.onsubmit = (event) => {
         event.preventDefault();
-        const values = Object.fromEntries(new win.FormData(node));
+        const data = new win.FormData(node), values = Object.fromEntries(data);
+        for (const [field, , type] of fields) if (type === "checkboxes") values[field] = data.getAll(field);
         void act(async () => {
           await submit(values);
           drafts.delete(key);
@@ -146,6 +208,7 @@
       }
     }
     function changeRoute() {
+      void closeTerminal();
       const match = win.location.hash.match(/^#\/projects\/([^/]+)\/(board|tasks|members|bots|resources|private)(?:\/([^/]+))?$/);
       try {
         selected = match ? decodeURIComponent(match[1]) : "";
@@ -242,7 +305,35 @@
       } else {
         for (const role of agents.definitions.roles) {
           const card = box(role.role, el("p", `Model: ${role.model ?? "Project default"} · revision ${role.revision ?? agents.definitions.revision}`), el("p", role.instructions));
-          if (detail.permissions.configure) card.append(form(`role-${role.role}`, [["instructions", "Instructions", "textarea"], ["model", "Model identifier", "optional"]], (values) => scoped("project-agent-definition", { role: role.role, ...values })));
+          if (detail.permissions.configure) {
+            card.append(el("p", "Saving checks each selected resource with one bounded connection probe; a configured provider may charge for the small inference. Running Sessions retain their saved revision."));
+            const available = (resources.executionResources ?? []).map((row) => row.id);
+            card.append(form(`role-${role.role}`, [
+              ["instructions", "Instructions", "textarea", null, role.instructions],
+              ["model", "Native model identifier", "optional", null, role.model ?? ""],
+              ["skills", "Skills (comma separated)", "optional", null, (role.skills ?? []).join(", ")],
+              ["memoryRefs", "Published role memory IDs", "optional", null, (role.memoryRefs ?? []).join(", ")],
+              ["harness", "Execution Harness", "text", ["flybot", "codex", "claude-agent"], role.execution?.harness ?? "flybot"],
+              ["sdkModel", "SDK model identifier", "optional", null, role.execution?.model ?? ""],
+              ["resourceIds", "Candidate execution resources", "checkboxes", available, role.execution?.resourceIds ?? []],
+              ["maxConcurrent", "Concurrent Sessions for this role", "number", null, role.execution?.maxConcurrent ?? 1]
+            ], async (values) => {
+              const split = (text) => text.split(",").map((value) => value.trim()).filter(Boolean);
+              await scoped("project-agent-definition", {
+                role: role.role,
+                instructions: values.instructions,
+                model: values.model,
+                skills: split(values.skills),
+                memoryRefs: split(values.memoryRefs),
+                execution: { harness: values.harness, model: values.sdkModel, resourceIds: values.resourceIds, maxConcurrent: Number(values.maxConcurrent) }
+              });
+              await Promise.allSettled(values.resourceIds.map((resourceId) => scoped("project-runtime-check", { resourceId, harness: values.harness, role: role.role })));
+            }));
+            card.append(form(`role-memory-${role.role}`, [["text", "Publish verified role memory", "textarea"], ["reference", "Source / evidence reference"]], async (values) => {
+              const saved = await scoped("project-role-memory-write", { role: role.role, text: values.text, source: { kind: "human", reference: values.reference } });
+              await scoped("project-agent-definition", { role: role.role, memoryRefs: [...role.memoryRefs ?? [], saved.memory.id] });
+            }, "Publish and attach memory"));
+          }
           node.append(card);
         }
         node.append(box("Shared knowledge", ...agents.knowledge.map((row) => el("p", row.text))));
@@ -252,6 +343,21 @@
     function resourcesPanel() {
       const node = box("Execution resources", el("p", `Concurrency ${resources.activeSlots}/${resources.quota.maxConcurrent}. Repository ${resources.repository.configured ? "provisioned" : "not provisioned by operator"}.`));
       if (detail.permissions.configure) node.append(form("quota", [["maxConcurrent", "Concurrent Runs (1–32)", "number"]], (values) => scoped("project-quota", { maxConcurrent: Number(values.maxConcurrent) })));
+      for (const resource of resources.executionResources ?? []) {
+        const row = box(resource.id, el("p", `${resource.type} · slots ${resource.capacity.occupied}/${resource.capacity.configured} · environment ${resource.health.status}`));
+        for (const status of resource.harnessStatus ?? []) {
+          row.append(el("p", `${status.harness}: ${status.status}${status.reason ? ` · ${status.reason}` : ""}${status.at ? ` · checked ${new Date(status.at).toLocaleTimeString()}` : ""}`));
+          if (detail.permissions.configure) row.append(button(`Check ${status.harness} connection`, () => act(() => scoped("project-runtime-check", { resourceId: resource.id, harness: status.harness })), busy));
+          if (resource.canManage && detail.permissions.configure) row.append(button(`Open ${status.harness} configuration terminal`, () => act(() => openTerminal(resource.id, status.harness)), busy));
+        }
+        node.append(row);
+      }
+      for (const worker of resources.harnessWorkers ?? []) {
+        const row = box(`${worker.role} · ${worker.harness}`, el("p", `${worker.status} · ${worker.resourceId} · ${worker.backendSessionId ?? "Session pending"}`));
+        if (worker.pending?.kind === "permission" && detail.permissions.configure) row.append(json(worker.pending.request), button("Allow requested action", () => act(() => scoped("project-execution-input", { workerId: worker.id, generation: worker.generation, requestId: worker.pending.id, allow: true })), busy), button("Deny requested action", () => act(() => scoped("project-execution-input", { workerId: worker.id, generation: worker.generation, requestId: worker.pending.id, allow: false })), busy));
+        else if (worker.pending) row.append(el("p", worker.pending.text), form(`execution-${worker.id}`, [["text", "Continue the same execution Session", "textarea"]], (values) => scoped("project-execution-input", { workerId: worker.id, generation: worker.generation, text: values.text })));
+        node.append(row);
+      }
       for (const entry of resources.queue) {
         const row = box(`Queued Task ${entry.taskId}`, el("p", `${entry.status} · ${entry.reason ?? ""}`));
         if (["waiting", "blocked"].includes(entry.status) && (detail.permissions.configure || entry.memberId === bootstrap.self.memberId)) row.append(button("Cancel queue request", () => act(() => scoped("project-queue-cancel", { queueId: entry.id })), busy));
@@ -261,6 +367,7 @@
       return node;
     }
     function render() {
+      const terminalInputValue = doc.getElementById("runtime-terminal-input")?.value ?? "";
       if (disposed) return;
       const active = doc.activeElement, focus = active?.id, start2 = active?.selectionStart, end = active?.selectionEnd;
       root.replaceChildren();
@@ -290,6 +397,7 @@
         sidebar.append(button("All Projects", () => {
           win.location.hash = "";
         }), button("Sign out", () => act(async () => {
+          await closeTerminal();
           await api.call("auth-revoke");
           api.setToken("");
           drafts.clear();
@@ -320,6 +428,33 @@
         main.prepend(alert);
       }
       if (notice) main.prepend(box("Result", el("pre", notice)));
+      if (runtimeTerminal?.projectId === selected) {
+        const terminal = runtimeTerminal;
+        const screen = el("pre", terminal.screen.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, ""), "terminal-screen");
+        const pane = box(`${terminal.resourceId} · ${terminal.harness} private configuration`, el("p", terminal.instructions), screen);
+        if (!terminal.closed) {
+          const input = el("input");
+          input.id = "runtime-terminal-input";
+          input.type = "password";
+          input.value = terminalInputValue;
+          input.autocomplete = "off";
+          input.setAttribute("aria-label", "Private terminal input (not saved)");
+          const send = () => {
+            const text = input.value;
+            input.value = "";
+            void api.call("project-terminal-input", { terminalId: terminal.terminalId, text: text + "\n" }).catch(() => closeTerminal());
+          };
+          input.onkeydown = (event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              send();
+            }
+          };
+          pane.append(input, button("Send to terminal", send), button("Interrupt", () => api.call("project-terminal-input", { terminalId: terminal.terminalId, text: "" })));
+        }
+        pane.append(button("Close and recheck configuration", () => act(closeTerminal)));
+        main.append(pane);
+      }
       shell.append(sidebar, main);
       root.append(shell);
       if (focus) {
@@ -350,6 +485,7 @@
     render();
     void start();
     return { refresh, dispose() {
+      void closeTerminal();
       disposed = true;
       ++epoch;
       controller?.abort();

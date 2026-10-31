@@ -90,3 +90,27 @@ test('Task detail exposes failure evidence and answers only the current requeste
   form.dispatchEvent(new dom.window.Event('submit', { cancelable: true })); await tick()
   assert.deepEqual(calls.find(row => row.endpoint === 'task-answer-input').payload, { projectId: 'a', id: 'task-a', questionId: 'question-2', answer: 'Use structured errors' })
 })
+
+test('Owner role form preserves persona, supports checked resource pools and probes the saved Harness', async t => {
+  const { dom, root, calls } = fixture(t, endpoint => {
+    if (endpoint === 'project-detail') return { project: { id: 'a', name: 'Alpha', role: 'owner' }, permissions: { configure: true, create: true }, tasks: [] }
+    if (endpoint === 'project-resources') return { metrics: { acceptedTasks: 0, duration: { medianMs: null } }, activeSlots: 0, quota: { maxConcurrent: 2 }, repository: { configured: true }, queue: [], executionResources: [{ id: 'local' }, { id: 'isolated' }] }
+    if (endpoint === 'project-agents') return { public: { botId: 'chief' }, definitions: { revision: 3, roles: [{ role: 'developer', instructions: 'Preserve this persona', skills: ['code-change'], memoryRefs: ['published-memory'], execution: { harness: 'flybot', resourceIds: ['local'] } }] }, privateMemory: [], proposals: [], knowledge: [] }
+    return undefined
+  })
+  await tick(); dom.window.location.hash = '/projects/a/bots'; await tick(); await tick()
+  const form = root.querySelector('#role-developer-instructions').form
+  assert.equal(form.elements.instructions.value, 'Preserve this persona')
+  assert.equal(form.querySelector('input[value="local"]').checked, true)
+  form.querySelector('input[value="isolated"]').checked = true
+  form.elements.harness.value = 'codex'; form.elements.sdkModel.value = 'explicit-model'
+  form.dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }))
+  await tick(); await tick()
+  const saved = calls.find(row => row.endpoint === 'project-agent-definition').payload
+  assert.equal(saved.instructions, 'Preserve this persona')
+  assert.deepEqual(saved.execution.resourceIds, ['local', 'isolated'])
+  assert.equal(saved.execution.harness, 'codex')
+  assert.equal(saved.execution.model, 'explicit-model')
+  assert.deepEqual(saved.memoryRefs, ['published-memory'])
+  assert.deepEqual(calls.filter(row => row.endpoint === 'project-runtime-check').map(row => row.payload.resourceId), ['local', 'isolated'])
+})

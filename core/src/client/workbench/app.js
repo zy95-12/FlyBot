@@ -4,6 +4,33 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
   let bootstrap, mode, selected = '', tab = 'board', taskId = '', detail, resources, agents, members, history, taskDetail, workflowState
   let epoch = 0, controller, error = '', notice = '', timer, disposed = false, busy = false
   const drafts = new Map()
+  let runtimeTerminal, terminalTimer, terminalPolling = false
+  async function closeTerminal() {
+    const terminal = runtimeTerminal; runtimeTerminal = null; win.clearInterval(terminalTimer)
+    if (terminal) await api.call('project-terminal-close', { terminalId: terminal.terminalId }).catch(() => {}) // Revoked sessions may already have closed the server PTY.
+  }
+  async function openTerminal(resourceId, harness, role) {
+    await closeTerminal()
+    const projectId = selected, captured = epoch
+    const opened = await scoped('project-terminal-open', { resourceId, harness, role })
+    if (captured !== epoch || projectId !== selected || disposed) { await api.call('project-terminal-close', { terminalId: opened.terminalId }); return }
+    runtimeTerminal = { ...opened, projectId, screen: '', seq: 0 }
+    terminalTimer = win.setInterval(async () => {
+      if (!runtimeTerminal || terminalPolling) return
+      const terminal = runtimeTerminal; terminalPolling = true
+      try {
+        const value = await api.call('project-terminal-poll', { terminalId: terminal.terminalId, since: terminal.seq })
+        if (terminal !== runtimeTerminal) return
+        terminal.seq = value.seq
+        terminal.screen = (terminal.screen + (value.output ?? []).map(row => row.text).join('')).slice(-60000)
+        terminal.closed = value.closed
+        if (value.closed) win.clearInterval(terminalTimer)
+        render()
+      } catch { if (terminal === runtimeTerminal) { await closeTerminal(); error = 'Configuration terminal ended or access was revoked'; render() } }
+      finally { terminalPolling = false }
+    }, 500)
+    render()
+  }
   const el = (tag, text, cls) => { const node = doc.createElement(tag); if (text != null) node.textContent = String(text); if (cls) node.className = cls; return node }
   const button = (text, action, disabled = false) => { const node = el('button', text); node.type = 'button'; node.disabled = disabled; node.onclick = action; return node }
   const link = (text, url, allowLoopback = false) => { const node = el('a', text); try { const parsed = new URL(url); if (parsed.protocol === 'https:' || allowLoopback && parsed.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(parsed.hostname)) { node.href = parsed.href; node.target = '_blank'; node.rel = 'noopener noreferrer' } } catch { /* Invalid external evidence URL remains plain text. */ } return node }
@@ -13,20 +40,30 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
   function form(name, fields, submit, label = 'Save') {
     const node = el('form'), key = `${selected}:${tab}:${name}`
     const saved = drafts.get(key) ?? {}
-    for (const [field, title, type = 'text', options] of fields) {
+    for (const [field, title, type = 'text', options, initial] of fields) {
+      if (type === 'checkboxes') {
+        const group = el('fieldset'); group.append(el('legend', title))
+        for (const option of options ?? []) {
+          const wrapper = el('label', option, 'choice'), input = el('input')
+          input.type = 'checkbox'; input.name = field; input.value = option; input.checked = (saved[field] ?? initial ?? []).includes(option)
+          input.oninput = () => { const values = drafts.get(key) ?? {}; values[field] = [...group.querySelectorAll('input:checked')].map(row => row.value); drafts.set(key, values) }
+          wrapper.prepend(input); group.append(wrapper)
+        }
+        node.append(group); continue
+      }
       const wrapper = el('label', title)
       const input = el(options ? 'select' : type === 'textarea' ? 'textarea' : 'input')
       if (options) for (const option of options) { const row = el('option', option || 'No repository'); row.value = option; input.append(row) }
       else if (type !== 'textarea') input.type = type
       input.setAttribute('aria-label', title)
-      input.name = field; input.id = `${name}-${field}`; input.value = saved[field] ?? (options?.[0] ?? ''); input.required = type !== 'optional' && !options
+      input.name = field; input.id = `${name}-${field}`; input.value = saved[field] ?? initial ?? (options?.[0] ?? ''); input.required = type !== 'optional' && !options
       if (type === 'optional') input.type = 'text'
       input.oninput = () => { const values = drafts.get(key) ?? {}; values[field] = input.value; drafts.set(key, values) }
       wrapper.append(input); node.append(wrapper)
     }
     node.append(button(label, () => {}, busy))
     node.lastChild.type = 'submit'
-    node.onsubmit = event => { event.preventDefault(); const values = Object.fromEntries(new win.FormData(node)); void act(async () => { await submit(values); drafts.delete(key) }) }
+    node.onsubmit = event => { event.preventDefault(); const data = new win.FormData(node), values = Object.fromEntries(data); for (const [field, , type] of fields) if (type === 'checkboxes') values[field] = data.getAll(field); void act(async () => { await submit(values); drafts.delete(key) }) }
     return node
   }
   async function act(action) {
@@ -63,6 +100,7 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
     }
   }
   function changeRoute() {
+    void closeTerminal()
     const match = win.location.hash.match(/^#\/projects\/([^/]+)\/(board|tasks|members|bots|resources|private)(?:\/([^/]+))?$/)
     try { selected = match ? decodeURIComponent(match[1]) : ''; tab = match?.[2] ?? 'board'; taskId = match?.[3] ? decodeURIComponent(match[3]) : '' } catch { selected = ''; tab = 'board'; taskId = '' }
     ++epoch; controller?.abort(); detail = resources = agents = members = history = taskDetail = workflowState = null; error = ''; notice = ''
@@ -139,7 +177,27 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
     } else {
       for (const role of agents.definitions.roles) {
         const card = box(role.role, el('p', `Model: ${role.model ?? 'Project default'} · revision ${role.revision ?? agents.definitions.revision}`), el('p', role.instructions))
-        if (detail.permissions.configure) card.append(form(`role-${role.role}`, [['instructions', 'Instructions', 'textarea'], ['model', 'Model identifier', 'optional']], values => scoped('project-agent-definition', { role: role.role, ...values })))
+        if (detail.permissions.configure) {
+          card.append(el('p', 'Saving checks each selected resource with one bounded connection probe; a configured provider may charge for the small inference. Running Sessions retain their saved revision.'))
+          const available = (resources.executionResources ?? []).map(row => row.id)
+          card.append(form(`role-${role.role}`, [
+            ['instructions', 'Instructions', 'textarea', null, role.instructions], ['model', 'Native model identifier', 'optional', null, role.model ?? ''],
+            ['skills', 'Skills (comma separated)', 'optional', null, (role.skills ?? []).join(', ')], ['memoryRefs', 'Published role memory IDs', 'optional', null, (role.memoryRefs ?? []).join(', ')],
+            ['harness', 'Execution Harness', 'text', ['flybot', 'codex', 'claude-agent'], role.execution?.harness ?? 'flybot'],
+            ['sdkModel', 'SDK model identifier', 'optional', null, role.execution?.model ?? ''],
+            ['resourceIds', 'Candidate execution resources', 'checkboxes', available, role.execution?.resourceIds ?? []],
+            ['maxConcurrent', 'Concurrent Sessions for this role', 'number', null, role.execution?.maxConcurrent ?? 1],
+          ], async values => {
+            const split = text => text.split(',').map(value => value.trim()).filter(Boolean)
+            await scoped('project-agent-definition', { role: role.role, instructions: values.instructions, model: values.model, skills: split(values.skills), memoryRefs: split(values.memoryRefs),
+              execution: { harness: values.harness, model: values.sdkModel, resourceIds: values.resourceIds, maxConcurrent: Number(values.maxConcurrent) } })
+            await Promise.allSettled(values.resourceIds.map(resourceId => scoped('project-runtime-check', { resourceId, harness: values.harness, role: role.role })))
+          }))
+          card.append(form(`role-memory-${role.role}`, [['text', 'Publish verified role memory', 'textarea'], ['reference', 'Source / evidence reference']], async values => {
+            const saved = await scoped('project-role-memory-write', { role: role.role, text: values.text, source: { kind: 'human', reference: values.reference } })
+            await scoped('project-agent-definition', { role: role.role, memoryRefs: [...(role.memoryRefs ?? []), saved.memory.id] })
+          }, 'Publish and attach memory'))
+        }
         node.append(card)
       }
       node.append(box('Shared knowledge', ...agents.knowledge.map(row => el('p', row.text))))
@@ -149,6 +207,21 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
   function resourcesPanel() {
     const node = box('Execution resources', el('p', `Concurrency ${resources.activeSlots}/${resources.quota.maxConcurrent}. Repository ${resources.repository.configured ? 'provisioned' : 'not provisioned by operator'}.`))
     if (detail.permissions.configure) node.append(form('quota', [['maxConcurrent', 'Concurrent Runs (1–32)', 'number']], values => scoped('project-quota', { maxConcurrent: Number(values.maxConcurrent) })))
+    for (const resource of resources.executionResources ?? []) {
+      const row = box(resource.id, el('p', `${resource.type} · slots ${resource.capacity.occupied}/${resource.capacity.configured} · environment ${resource.health.status}`))
+      for (const status of resource.harnessStatus ?? []) {
+        row.append(el('p', `${status.harness}: ${status.status}${status.reason ? ` · ${status.reason}` : ''}${status.at ? ` · checked ${new Date(status.at).toLocaleTimeString()}` : ''}`))
+        if (detail.permissions.configure) row.append(button(`Check ${status.harness} connection`, () => act(() => scoped('project-runtime-check', { resourceId: resource.id, harness: status.harness })), busy))
+        if (resource.canManage && detail.permissions.configure) row.append(button(`Open ${status.harness} configuration terminal`, () => act(() => openTerminal(resource.id, status.harness)), busy))
+      }
+      node.append(row)
+    }
+    for (const worker of resources.harnessWorkers ?? []) {
+      const row = box(`${worker.role} · ${worker.harness}`, el('p', `${worker.status} · ${worker.resourceId} · ${worker.backendSessionId ?? 'Session pending'}`))
+      if (worker.pending?.kind === 'permission' && detail.permissions.configure) row.append(json(worker.pending.request), button('Allow requested action', () => act(() => scoped('project-execution-input', { workerId: worker.id, generation: worker.generation, requestId: worker.pending.id, allow: true })), busy), button('Deny requested action', () => act(() => scoped('project-execution-input', { workerId: worker.id, generation: worker.generation, requestId: worker.pending.id, allow: false })), busy))
+      else if (worker.pending) row.append(el('p', worker.pending.text), form(`execution-${worker.id}`, [['text', 'Continue the same execution Session', 'textarea']], values => scoped('project-execution-input', { workerId: worker.id, generation: worker.generation, text: values.text })))
+      node.append(row)
+    }
     for (const entry of resources.queue) {
       const row = box(`Queued Task ${entry.taskId}`, el('p', `${entry.status} · ${entry.reason ?? ''}`))
       if (['waiting', 'blocked'].includes(entry.status) && (detail.permissions.configure || entry.memberId === bootstrap.self.memberId)) row.append(button('Cancel queue request', () => act(() => scoped('project-queue-cancel', { queueId: entry.id })), busy))
@@ -158,6 +231,7 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
     return node
   }
   function render() {
+    const terminalInputValue = doc.getElementById('runtime-terminal-input')?.value ?? ''
     if (disposed) return
     const active = doc.activeElement, focus = active?.id, start = active?.selectionStart, end = active?.selectionEnd
     root.replaceChildren()
@@ -172,7 +246,7 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
       for (const project of bootstrap.projects) { const option = el('option', project.name); option.value = project.id; option.selected = project.id === selected; picker.append(option) }
       picker.onchange = () => route(picker.value); sidebar.append(picker)
       for (const [key, title] of [['board', 'Task board'], ['members', 'Members'], ['bots', 'Public Bots'], ['resources', 'Resources'], ['private', 'My Project agent']]) sidebar.append(button(title, () => route(selected, key), !selected))
-      sidebar.append(button('All Projects', () => { win.location.hash = '' }), button('Sign out', () => act(async () => { await api.call('auth-revoke'); api.setToken(''); drafts.clear(); notice = ''; bootstrap = null; selected = ''; ++epoch; detail = resources = agents = members = history = taskDetail = workflowState = null })))
+      sidebar.append(button('All Projects', () => { win.location.hash = '' }), button('Sign out', () => act(async () => { await closeTerminal(); await api.call('auth-revoke'); api.setToken(''); drafts.clear(); notice = ''; bootstrap = null; selected = ''; ++epoch; detail = resources = agents = members = history = taskDetail = workflowState = null })))
       if (!selected) {
         main.append(el('h1', 'Projects'), ...bootstrap.projects.map(project => box(project.name, el('p', `${project.role} · ${project.status}`), button('Open Project', () => route(project.id)))))
         main.append(box('New Project', form('project', [['name', 'Project name'], ['repository', 'Provisioned repository', 'text', ['', ...bootstrap.repositories]]], async values => { const result = await api.call('project-create', values); route(result.project.id) }, 'Create Project')), box('Join shared Project', form('join', [['token', 'Project invitation']], async values => { const result = await api.call('project-join', values); route(result.project.id) }, 'Join')))
@@ -184,6 +258,18 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
     if (mode?.panelUrl) sidebar.append(link('Control-plane account panel', mode.panelUrl, true))
     if (error) { const alert = el('p', error, 'error'); alert.setAttribute('role', 'alert'); main.prepend(alert) }
     if (notice) main.prepend(box('Result', el('pre', notice)))
+    if (runtimeTerminal?.projectId === selected) {
+      const terminal = runtimeTerminal
+      const screen = el('pre', terminal.screen.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, ''), 'terminal-screen')
+      const pane = box(`${terminal.resourceId} · ${terminal.harness} private configuration`, el('p', terminal.instructions), screen)
+      if (!terminal.closed) {
+        const input = el('input'); input.id = 'runtime-terminal-input'; input.type = 'password'; input.value = terminalInputValue; input.autocomplete = 'off'; input.setAttribute('aria-label', 'Private terminal input (not saved)')
+        const send = () => { const text = input.value; input.value = ''; void api.call('project-terminal-input', { terminalId: terminal.terminalId, text: text + '\n' }).catch(() => closeTerminal()) }
+        input.onkeydown = event => { if (event.key === 'Enter') { event.preventDefault(); send() } }
+        pane.append(input, button('Send to terminal', send), button('Interrupt', () => api.call('project-terminal-input', { terminalId: terminal.terminalId, text: '\x03' })))
+      }
+      pane.append(button('Close and recheck configuration', () => act(closeTerminal))); main.append(pane)
+    }
     shell.append(sidebar, main); root.append(shell)
     if (focus) { const target = doc.getElementById(focus); if (target) { target.focus(); if (typeof start === 'number' && target.setSelectionRange && !['number', 'email'].includes(target.type)) target.setSelectionRange(start, end) } }
   }
@@ -195,5 +281,5 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
   }
   win.addEventListener('hashchange', changeRoute)
   render(); void start()
-  return { refresh, dispose() { disposed = true; ++epoch; controller?.abort(); win.clearInterval(timer); win.removeEventListener('hashchange', changeRoute); root.replaceChildren(); drafts.clear() } }
+  return { refresh, dispose() { void closeTerminal(); disposed = true; ++epoch; controller?.abort(); win.clearInterval(timer); win.removeEventListener('hashchange', changeRoute); root.replaceChildren(); drafts.clear() } }
 }

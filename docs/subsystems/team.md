@@ -265,3 +265,8 @@ Owner-scoped access (#49) tests in `core/test/authz.test.js`: cross-owner denial
 **Task lifecycle (#54)** has tests in `core/test/tasks.test.js`: the happy path (open → claimed → working → result-ready → accepted, then stale), wrong-member accept/claim/cancel forbidden, accept-before-result and post-terminal moves stale, held-send block → owner approve resumes, owner reject cancels, a named hold blocks only that working task (an untagged hold does not cancel every sibling), `result-ready` survives prune, responsible-Bot deletion fails the task, restart persistence, corrupt `state.tasks` resets, and a grantee may create a task on a granted child but not on an ungranted sibling.
 
 The routing-matrix rows above remain untested because the behavior is not shipped. When enforcement work starts (#48+), each row becomes a test first, per [fail-without-change](../code-standards.md): same-owner delegation allowed (a), Chief-to-Chief allowed (b), cross-owner specialist denied (c), team-admin vs private-owner denied (d), forwarded approval rejected (e). Each must fail on the unbroken tip before implementation lands.
+
+
+### M7.4 — 2026-10-31
+
+M7.4 human session revocation immediately closes its resource setup terminals through projectRuntimeSetup.revoke, including bulk member-session revocation. This does not cancel unrelated admitted Task workers or grant a Project Owner host-shell rights.

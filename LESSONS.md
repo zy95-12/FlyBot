@@ -179,3 +179,8 @@ Seen 1× (2026-10-31, M7.2): a terminal Task/Run does not prove an external work
 ### M7.3 checkpoint — 2026-10-31
 
 Seen 1× (2026-10-31, M7.3): SDK turn-completed does not mean required outputs, committed code or delivery acceptance. Keep backend Session ids and required OUTPUT checks separate; truncated streams fail, questions remain waiting-input, and only confirmed worker exit releases capacity.
+
+
+### M7.4 — 2026-10-31
+
+Seen 1× (2026-10-31, M7.4): printing a hidden-input prompt before disabling OS echo lets immediate input leak to the PTY screen; suppress echo before the prompt, and test the actual screen. The same test found the clean setup PATH selected old system Node: use the execution runtime Node path in both SDK and setup terminal.

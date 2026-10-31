@@ -215,3 +215,8 @@ M7.2 validates role resource references against operator grants before saving co
 ### M7.3 checkpoint — 2026-10-31
 
 M7.3 temporary workers may select Codex/Claude Agent SDK with an admitted resource lease and explicit principal profile. Public Chief may use either SDK with generic runtime tools disabled and a bounded typed action proposal; the host rechecks current human/Project authority before creating Tasks or runs.
+
+
+### M7.4 — 2026-10-31
+
+M7.4 role execution adds an explicit SDK model alongside native served model; Owner UI edits multiple resource IDs, bounded concurrency and published memory refs. Saving checks each resource but cannot mutate already frozen contexts.

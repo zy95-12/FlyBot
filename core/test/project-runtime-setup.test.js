@@ -1,0 +1,106 @@
+import assert from 'node:assert/strict'
+import { test } from 'node:test'
+import { mkdtemp, readFile, stat, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
+import { createProjectResources } from '../src/host/project-resources.js'
+import { createProjectHarness } from '../src/host/project-harness.js'
+import { createProjectRuntimeSetup } from '../src/host/project-runtime-setup.js'
+const owner = { memberId: 'owner', sessionId: 's' }
+const wait = ms => new Promise(resolve => setTimeout(resolve, ms))
+async function fixture(t) {
+  const root = await mkdtemp(join(tmpdir(), 'flybot-private-pty-'))
+  const rt = { home: root, state: { bots: {}, authSessions: { s: { id: 's', memberId: 'owner' } } }, config: { projectResources: {
+    local: { type: 'local', root, profileRoot: join(root, 'profiles'), capacity: 2, allowedProjectOwnerIds: ['owner'], adminMemberIds: ['owner'], harnesses: ['codex'], runtimeDir: resolve(import.meta.dirname, '..') },
+  } }, save: async () => {}, readProject: () => ({ id: 'p', ownerUserId: 'owner' }),
+    projectAgents: { deliveryDefinitions: () => ({ roles: [] }) },
+    requireProjectAccess(actor, projectId) { if (actor.memberId !== 'owner' || projectId !== 'p') throw new Error('Project access denied'); return rt.readProject() } }
+  rt.projectResources = createProjectResources(rt); rt.projectHarness = createProjectHarness(rt)
+  const setup = createProjectRuntimeSetup(rt)
+  t.after(async () => { await setup.dispose(); await rm(root, { recursive: true, force: true }) })
+  return { rt, setup, root, body: { projectId: 'p', resourceId: 'local', harness: 'codex' } }
+}
+async function screen(setup, id, match) {
+  for (let n = 0; n < 80; n++) {
+    const value = await setup.endpoint('project-terminal-poll', { terminalId: id }, owner)
+    const output = value.output.map(row => row.text).join('')
+    if (match.test(output)) return output
+    await wait(25)
+  }
+  throw new Error('Actual PTY output did not match')
+}
+
+test('configuration terminal uses a real PTY/profile and retains no raw input/screen in persistent audit', async t => {
+  const { setup, rt, body } = await fixture(t)
+  const opened = await setup.endpoint('project-terminal-open', body, owner)
+  await setup.endpoint('project-terminal-input', { terminalId: opened.terminalId, text: "test -t 0 && printf 'REAL_%s\\n' PTY_OK\n" }, owner)
+  assert.match(await screen(setup, opened.terminalId, /REAL_PTY_OK/), /REAL_PTY_OK/)
+  await setup.endpoint('project-terminal-resize', { terminalId: opened.terminalId, rows: 30, cols: 100 }, owner)
+  const closed = await setup.endpoint('project-terminal-close', { terminalId: opened.terminalId }, owner)
+  assert.equal(closed.released, true)
+  const audit = rt.state.projectTerminalAudit[opened.terminalId]
+  assert.equal(audit.released, true)
+  assert.equal(JSON.stringify(audit).includes('REAL_PTY_OK'), false)
+  assert.equal(audit.text, undefined)
+})
+
+test('terminal requires an explicit resource admin grant and binds one authenticated Session', async t => {
+  const { setup, rt, body } = await fixture(t)
+  await assert.rejects(setup.endpoint('project-terminal-open', body, { memberId: 'member', sessionId: 'm' }), /denied/)
+  rt.config.projectResources.local.adminMemberIds = []
+  await assert.rejects(setup.endpoint('project-terminal-open', body, owner), /administration/)
+  rt.config.projectResources.local.adminMemberIds = ['owner']
+  const opened = await setup.endpoint('project-terminal-open', body, owner)
+  await assert.rejects(setup.endpoint('project-terminal-poll', { terminalId: opened.terminalId }, { ...owner, sessionId: 'another' }), /another authenticated/)
+  rt.state.authSessions.s.revokedAt = Date.now()
+  await assert.rejects(setup.endpoint('project-terminal-poll', { terminalId: opened.terminalId }, owner), /revoked/)
+  assert.equal(rt.state.projectTerminalAudit[opened.terminalId].released, true)
+})
+
+test('resource environment success cannot become authentication success without an SDK model/profile', async t => {
+  const { setup, rt, body } = await fixture(t)
+  const result = await setup.check(body, owner)
+  assert.equal(rt.state.projectResourceHealth.local.status, 'ready')
+  assert.equal(result.status, 'unconfigured')
+  assert.equal(result.principalId, 'owner')
+  assert.equal(result.harness, 'codex')
+})
+
+
+test('hidden PTY credential setup stores only the selected private profile and never echoes the key', async t => {
+  const { setup, rt, body } = await fixture(t)
+  const opened = await setup.endpoint('project-terminal-open', body, owner)
+  const selected = await rt.projectHarness.profile('p', 'local', 'codex', { forSetup: true })
+  const helper = resolve(import.meta.dirname, '../src/host/project-profile-auth.mjs')
+  await setup.endpoint('project-terminal-input', { terminalId: opened.terminalId, text: `node '${helper}'\n` }, owner)
+  await screen(setup, opened.terminalId, /API key \(hidden input\)/)
+  const secret = 'unit-only-secret-never-echoed'
+  await setup.endpoint('project-terminal-input', { terminalId: opened.terminalId, text: secret + '\n' }, owner)
+  const output = await screen(setup, opened.terminalId, /Saved to this authorized resource/)
+  assert.equal(output.includes(secret), false)
+  const path = join(selected.selected.configDir, 'flybot-credentials.json')
+  assert.equal(JSON.parse(await readFile(path, 'utf8')).CODEX_API_KEY, secret)
+  assert.equal((await stat(path)).mode & 0o777, 0o600)
+  assert.equal((await rt.projectHarness.profile('p', 'local', 'codex')).env.CODEX_API_KEY, secret)
+  assert.equal(JSON.stringify(rt.state).includes(secret), false)
+  await setup.endpoint('project-terminal-close', { terminalId: opened.terminalId }, owner)
+})
+
+test('closing a resource terminal also stops its interactive background jobs', async t => {
+  const { setup, body, root } = await fixture(t)
+  const opened = await setup.endpoint('project-terminal-open', body, owner)
+  const pidPath = join(root, 'owned-child.pid')
+  await setup.endpoint('project-terminal-input', { terminalId: opened.terminalId, text: `node -e 'setInterval(()=>{},1000)' & echo $! > '${pidPath}'\n` }, owner)
+  let pid
+  for (let n = 0; n < 80; n++) { try { pid = Number(await readFile(pidPath, 'utf8')); if (pid) break } catch { /* Wait for the actual shell to write its own child PID. */ } await wait(25) }
+  assert.ok(pid > 1)
+  process.kill(pid, 0)
+  await setup.endpoint('project-terminal-close', { terminalId: opened.terminalId }, owner)
+  let running = true
+  for (let n = 0; n < 40; n++) {
+    try { const status = await readFile(`/proc/${pid}/stat`, 'utf8'); running = !/^\S+ \(.+\) Z /.test(status) } catch (error) { if (!['ENOENT', 'ESRCH'].includes(error.code)) throw error; running = false }
+    if (!running) break
+    await wait(25)
+  }
+  assert.equal(running, false, 'The owned PTY job must not remain running after close')
+})

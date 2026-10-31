@@ -97,3 +97,8 @@ official SDKs with empty isolated profiles/unreachable loopback providers and co
 successful completion. These are negative/transport tests, not paid authenticated inference.
 The three real-provider and mixed-role checks belong to the explicit M7 acceptance run;
 missing credentials must remain Not run, not replaced with mocks.
+
+
+### M7.4 — 2026-10-31
+
+M7.4 profiles may be explicitly provisioned or generated under profileRoot per Project/principal/Harness, with private credential files or envRefs. SDK roles can set their own model. Controlled shutdown must settle SDK work and emit stopped before exit/lease release. Native setup needs its actual explicit DSH profile.

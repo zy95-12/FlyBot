@@ -139,6 +139,7 @@ export function install(rt) {
       if (!session || session.revokedAt) return false
       session.revokedAt = Date.now()
       rt.projectAgents?.revokeSession(session.id)
+      await rt.projectRuntimeSetup?.revoke(session.id)
       await rt.save()
       return true
     })
@@ -151,6 +152,7 @@ export function install(rt) {
       if (session.memberId === memberId && !session.revokedAt) {
         session.revokedAt = now
         rt.projectAgents?.revokeSession(session.id)
+        await rt.projectRuntimeSetup?.revoke(session.id)
         count += 1
       }
     }

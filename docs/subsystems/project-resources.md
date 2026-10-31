@@ -94,3 +94,8 @@ It does not claim mixed-resource FlyBot Task/SDK acceptance; that belongs to M7.
 ### M7.3 checkpoint — 2026-10-31
 
 M7.3 adds startProcess for host-selected Node workers in explicit local/Docker targets. Current SDK dispatch refuses remote Workspaces until M7.5 implements transfer; runtime environment and authentication observations remain distinct.
+
+
+### M7.4 — 2026-10-31
+
+M7.4 separates adminMemberIds from Project-owner use grants; safe list canManage is derived per current human. Probe-only leases may check authentication without assuming it first; capacity still applies. Profile roots/runtime paths remain operator settings, never browser-selected paths.
