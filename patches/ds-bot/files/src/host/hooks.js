@@ -185,16 +185,18 @@ export function install(rt) {
     return ids
   }
 
-  async function create({ name, systemPrompt, fields, role, instructions, createdBy, cappedBy, plugin = SHARED, hidden, ephemeral, model, tools, permission, executionProjectId } = {}) {
+  async function create({ name, systemPrompt, fields, role, instructions, createdBy, cappedBy, plugin = SHARED, hidden, ephemeral, model, tools, permission, executionProjectId, executionWorkDir } = {}) {
     checkName('plugin', plugin)
     await rt.load()
     const stepTools = ephemeral === true ? cleanStepTools(tools) : []
     const caps = ephemeral === true ? cleanCappedBy(cappedBy) : []
     const preset = ephemeral === true ? String(permission ?? '').trim() : ''
     const executionProject = ephemeral === true && executionProjectId ? rt.projects?.requireActive(executionProjectId) : null
+    const executionWorkspace = executionWorkDir ? rt.projectDelivery?.ownsWorkspace(executionProject?.id, executionWorkDir) : null
+    if (executionWorkDir && !executionWorkspace) throw new Error('Unregistered Project execution Workspace')
     const bot = await rt.createBot({
       name, role, instructions, createdBy,
-      ...(executionProject ? { ownerId: executionProject.ownerUserId } : {}),
+      ...(executionProject ? { ownerId: executionProject.ownerUserId, ...(executionWorkDir ? { workDir: executionWorkDir } : {}) } : {}),
       ...(systemPrompt ? { systemPrompt } : {}),
       ...(fields && Object.keys(fields).length > 0 ? { fields: { [plugin]: fields } } : {}),
       ...(typeof model === 'string' && model.trim() ? { model: model.trim() } : {}),
@@ -204,6 +206,7 @@ export function install(rt) {
     })
     const record = rt.botOf(bot.id)
     if (record && executionProject) record.projectId = executionProject.id
+    if (record && executionWorkspace) { record.workspaceId = executionWorkspace.id; record.attemptId = executionWorkspace.attemptId }
     if (record && stepTools.length > 0) record.stepTools = stepTools
     if (record && caps.length > 0) record.cappedBy = caps
     if (record && preset) {
@@ -1360,6 +1363,7 @@ export function install(rt) {
     // from an assign and a run bound from Settings cannot disagree.
     projects: {
       shared() { return rt.sharedProjectMode?.() === true },
+      deliveryGate(input) { return rt.projectDelivery?.gate(input) },
       read(id) {
         return typeof rt.readProject === "function" ? rt.readProject(String(id ?? '')) ?? undefined : undefined
       },
@@ -1367,7 +1371,9 @@ export function install(rt) {
         return ownEntry(rt.state.projectExecutions ?? {}, String(id ?? ''))
       },
       context(taskId, projectId) {
-        return rt.projects?.executionContext(String(taskId ?? ''), projectId)
+        const result = rt.projects?.executionContext(String(taskId ?? ''), projectId)
+        const execution = rt.projectDelivery?.context(String(taskId ?? ''))
+        return result ? { ...result, ...(execution ? { execution } : {}) } : undefined
       },
       async bindRun(runId, projectId, details = {}) {
         if (typeof rt.bindProject !== "function") return undefined

@@ -13,6 +13,13 @@ Dated, short lessons from real FlyBot work. Agents read this **before coding**. 
 
 ## Open lessons
 
+### 2026-10-31 — Execution worktrees must live outside DSH data
+
+Seen 1×. Actual M3 DSH startup refused worktrees beneath DSH_HOME/bot because they hold
+Harness data. Allocate a registered root outside the data directory and pass each role
+its explicit cwd. Keep cleanup intent before Git effects, and validate the owned root
+before removing a worktree. Actual DSH and cleanup-boundary regressions guard this.
+
 ### 2026-10-31 — Scope alternate reads and Task detachment as well as writes
 
 Seen 1×. M2 tests reproduced unscoped plugin reads and explicit-null Task detachment

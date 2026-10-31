@@ -134,13 +134,18 @@ export function createProjectDomain(rt) {
     const workspace = details.workspaceId ? ownEntry(state.projectWorkspaces, details.workspaceId) : undefined
     if (details.workspaceId && (!workspace || workspace.projectId !== projectId)) throw refuse('Run and Workspace must belong to the same Project')
     if (!existing) requireActive(projectId)
+    if (existing?.attemptId && details.attemptId && existing.attemptId !== details.attemptId) throw refuse('Run Attempt is immutable')
+    if (existing?.workflowId && details.workflowId && existing.workflowId !== details.workflowId) throw refuse('Run Workflow is immutable')
     if (existing?.taskId && details.taskId && existing.taskId !== details.taskId) throw refuse('Run Task is immutable')
     if (existing?.workspaceId && details.workspaceId && existing.workspaceId !== details.workspaceId) throw refuse('Run Workspace is immutable')
     const run = { ...existing, id, projectId,
       ...(details.taskId ? { taskId: details.taskId } : {}),
       ...(details.workspaceId ? { workspaceId: details.workspaceId } : {}),
+      ...(details.workflowId ? { workflowId: details.workflowId } : {}),
+      ...(details.attemptId ? { attemptId: details.attemptId } : {}),
       status: details.status ?? existing?.status ?? 'recorded', updatedAt: Date.now() }
     setEntry(state.projectExecutions, id, run)
+    rt.projectDelivery?.runReported(run)
     return run
   }
   function createWorkspace(body) {
@@ -152,6 +157,7 @@ export function createProjectDomain(rt) {
     return workspace
   }
   function assertDeletable(id) {
+    if (Object.values(state.projectAttempts ?? {}).some(attempt => attempt.projectId === id && ['preparing', 'running', 'waiting-acceptance'].includes(attempt.status))) throw refuse('Project has unfinished delivery Attempts')
     if (Object.values(state.tasks).some(task => task?.projectId === id && !terminal.has(task.status))) throw refuse('Project has unfinished Tasks')
     if (Object.values(state.projectExecutions).some(run => run.projectId === id && activeRun.has(run.status))) throw refuse('Project has active Runs')
   }

@@ -819,3 +819,10 @@ M2 installs platform-identity/project-access between member-auth and authz. Shar
 retain current membership on every read/write/accept path, including null detachment.
 Project service dispatches membership policy before native handlers. The opt-in path
 uses the [Project access contract](project-access.md); legacy mode remains covered.
+
+## Fork M3 — 2026-10-31
+
+M3 installs project-delivery around the existing Workflow service and invokes recovery
+on the first writable load. Tasks expose an internal Attempt-checked transition capability;
+provisioned code Tasks cannot use generic acceptance and Attempt-bearing Tasks are not
+pruned. Project deletion refuses active delivery attempts. [Delivery contract](project-delivery.md).

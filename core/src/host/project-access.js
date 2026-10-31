@@ -64,6 +64,9 @@ export function install(rt) {
     const snapshot = await rt.flybotEndpoint('workflow/state', {}, { actor })
     const item = body.workflowId ? snapshot.workflows?.find(row => row.id === body.workflowId) : null
     if (!['state', 'templates', 'create'].includes(operation) && (!item || item.projectId !== id)) throw refusal('Workflow belongs to another Project')
+    const delivery = item && Object.values(state.projectAttempts ?? {}).find(attempt => attempt.workflowId === item.id)
+    if (delivery && ['graph', 'concurrency', 'set-model', 'step-timeout', 'delete', 'reset'].includes(operation)) throw refusal('Delivery Workflow snapshots are immutable; start a new Attempt')
+    if (delivery && operation === 'assign' && (!['preparing', 'running'].includes(delivery.status) || ownEntry(state.tasks, delivery.taskId)?.deliveryAttemptId !== delivery.id)) throw refusal('Delivery needs a new Attempt')
     if (body.runId && ![...(item?.runs ?? []), item?.run].some(run => run?.id === body.runId && run.projectId === id)) throw refusal('Run belongs to another Project')
     if (['create', 'graph'].includes(operation) && Array.isArray(body.nodes) && body.nodes.some(node => node.tools?.length)) throw refusal('Project connector credentials are not configured')
     let payload = { ...body, projectId: id, callerBotId: project.chief?.botId, authoredBy: project.chief?.botId }
@@ -104,6 +107,7 @@ export function install(rt) {
   rt.projectAccessEndpoint = async (endpoint, body = {}, actor) => {
     if (!rt.sharedProjectMode()) return undefined
     if (!actor?.memberId || !ownEntry(state.members, actor.memberId)) throw refusal('Sign in first')
+    if (['project-task-run', 'project-task-detail', 'project-task-accept', 'project-task-reject', 'project-attempt-cleanup'].includes(endpoint)) return rt.projectDelivery.endpoint(endpoint, body, actor)
     if (endpoint === 'projects') return { projects: rt.listProjects().filter(project => rt.projectCan(actor, project.id)).map(project => safeProject(project, actor)) }
     if (endpoint === 'project-create') return undefined
     if (endpoint === 'project-join') {

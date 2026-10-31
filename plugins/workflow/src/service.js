@@ -193,7 +193,7 @@ export function createWorkflowService({
   dir, persist = true, now = () => Date.now(), bots = () => [], readOnly = () => false, warn = () => {}, tasksWired = false, spawn, release, dispatch,
   // #1856: the host's Project seam. `readProject(id)` answers the record or null; `bindRun(runId,
   // projectId)` binds a run at creation. A host without either leaves the run unbound.
-  readProject, bindRun, projectContext, readRun,
+  readProject, bindRun, projectContext, readRun, deliveryGate,
   setTimer = (fn, ms) => setTimeout(fn, ms), clearTimer = handle => clearTimeout(handle),
 } = {}) {
   const file = dir ? join(dir, FILE) : null
@@ -323,7 +323,7 @@ export function createWorkflowService({
         for (const run of [...(lane.active ?? []), lane.last].filter(Boolean)) {
           if (!run.projectId) continue
           try {
-            const result = bindRun(run.id, run.projectId, { status: run.status })
+            const result = bindRun(run.id, run.projectId, { status: run.status, workflowId: run.workflowId, attemptId: run.task?.execution?.attemptId })
             result?.catch?.(error => warnOnce(`project-report:${run.id}`, `flybot-workflow: run report failed: ${error.message}`))
           } catch (error) {
             warnOnce(`project-report:${run.id}`, `flybot-workflow: run report failed: ${error.message}`)
@@ -906,7 +906,7 @@ export function createWorkflowService({
     const onError = error => warnOnce(`project-refused:${run.id}`, `flybot-workflow: run ${run.id} was refused Project ${projectId}: ${String(error?.message ?? error).slice(0, 200)}`)
     try {
       const context = projectContext?.(task.id, projectId)
-      const bound = bindRun(run.id, projectId, { taskId: context?.taskId, status: run.status })
+      const bound = bindRun(run.id, projectId, { taskId: context?.taskId, status: run.status, workflowId: item.id, attemptId: run.task?.execution?.attemptId, workspaceId: context?.execution?.workspaceId })
       if (bound && typeof bound.then === 'function') bound.catch(onError)
     } catch (error) {
       onError(error)
@@ -939,7 +939,14 @@ export function createWorkflowService({
 
   function prepareProject(task, item) {
     const context = projectContext?.(task.id, Object.hasOwn(task, 'projectId') ? task.projectId : item.projectId)
-    if (context) task.projectId = context.projectId
+    if (context) {
+      task.projectId = context.projectId
+      if (context.execution) {
+        if (context.execution.workflowId !== item.id) throw new Error('Task has a different active delivery Workflow')
+        task.execution = context.execution
+        task.brief = context.execution.brief
+      }
+    }
   }
 
   function beginRun(item, task, ephemeral) {
@@ -987,6 +994,7 @@ export function createWorkflowService({
           callerBotId: task.callerBotId,
           authorBotId: item.authoredBy,
           projectId: task.projectId,
+          execution: task.execution,
         })
       } catch (error) {
         await releaseAll(error.spawned ?? [], release, warn)
@@ -1386,16 +1394,24 @@ export function createWorkflowService({
         }
         return value
       }
-      const saved = this.advance({
-        workflowId: found.item.id,
-        runId: found.run.id,
-        nodeId: found.nodeId,
-        outcome: body.ok === false ? 'failed' : 'done',
-        text,
-        outputs: parsed.outputs,
-      })
-      if (saved && typeof saved.then === 'function') return saved.then(note)
-      return note(saved)
+      const advance = (outcome = body.ok === false ? 'failed' : 'done', failure) => {
+        const saved = this.advance({ workflowId: found.item.id, runId: found.run.id, nodeId: found.nodeId,
+          outcome, text: failure ?? text, outputs: parsed.outputs })
+        return saved && typeof saved.then === 'function' ? saved.then(note) : note(saved)
+      }
+      if (typeof deliveryGate === 'function' && found.run.task?.execution) {
+        return Promise.resolve().then(() => deliveryGate({ taskId: found.run.task.id, workflowId: found.item.id,
+          runId: found.run.id, nodeId: found.nodeId, outputs: parsed.outputs, ok: body.ok !== false }))
+          .then(() => advance(), error => hostSerial(async () => {
+            endRun(found.item, found.run, { code: 'delivery-evidence', text: String(error.message ?? error) })
+            storeRun(found.item.id, found.run)
+            await releaseRun(found.item.id, found.run)
+            await drainAll()
+            write()
+            return present()
+          }))
+      }
+      return advance()
     },
     ownsBot(botId) {
       return findEphemeral(botId) !== null

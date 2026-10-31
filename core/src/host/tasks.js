@@ -280,9 +280,34 @@ export function install(rt) {
     record(task, actor, extra)
   }
 
+  // Internal evidence-gated execution transition; no HTTP body can call this capability.
+  rt.taskDeliveryState = (taskId, attemptId, status, reason, actor = null) => {
+    const task = ownEntry(state.tasks, taskId)
+    const attempt = ownEntry(state.projectAttempts ?? {}, attemptId)
+    if (!task || !attempt || task.deliveryAttemptId !== attemptId || attempt.taskId !== taskId || attempt.projectId !== task.projectId) throw forbidden('Delivery transition ownership mismatch')
+    if (task.status === 'cancelled' || task.status === 'accepted') return false
+    if (status === 'working') {
+      if (task.status === 'failed') { task.status = 'open'; record(task, actor, { by: 'new delivery Attempt', attemptId }) }
+      if (task.status === 'open') transition(task, 'claimed', actor, { attemptId })
+      if (task.status !== 'working') transition(task, 'working', actor, { attemptId })
+    } else if (status === 'failed') {
+      if (task.status === 'result-ready') transition(task, 'working', actor, { attemptId })
+      if (task.status !== 'failed') transition(task, 'failed', actor, { attemptId, why: reason })
+    } else if (status === 'result-ready') {
+      if (attempt.status !== 'waiting-acceptance' || !attempt.pr) throw forbidden('Delivery evidence is not ready')
+      transition(task, status, actor, { attemptId })
+      task.result = { kind: 'summary', summary: reason, links: [attempt.pr.url] }
+    } else if (status === 'accepted') {
+      if (attempt.status !== 'accepted') throw forbidden('Delivery has not been accepted')
+      transition(task, status, actor, { attemptId })
+      task.progress = 100
+    } else throw invalid('Unknown delivery transition')
+    return true
+  }
+
   const prune = () => {
     const all = Object.values(store())
-    const droppable = all.filter(task => !PROTECTED.has(task.status)).sort((a, b) => a.updatedAt - b.updatedAt)
+    const droppable = all.filter(task => !task.deliveryAttemptId && !PROTECTED.has(task.status)).sort((a, b) => a.updatedAt - b.updatedAt)
     for (const task of droppable.slice(0, Math.max(0, all.length - KEPT))) delete store()[task.id]
   }
   // A board write is what makes unfinished work visible. The driver wakes an idle
@@ -365,6 +390,7 @@ export function install(rt) {
     if (column === 'not-started') throw stale('a task that is in progress or done cannot move back to not started')
     const target = column === 'in-progress' ? 'working' : 'accepted'
     const from = WALK.indexOf(task.status)
+    if ((task.deliveryAttemptId || rt.taskNeedsDelivery?.(task)) && target === 'accepted') throw forbidden('Use commit-specific Project delivery acceptance')
     const goal = WALK.indexOf(target)
     if (from < 0 || goal < 0 || from > goal) throw stale(`a task that is ${task.status} cannot become ${column}`)
     const extra = by ? { by } : undefined
@@ -1399,6 +1425,8 @@ export function install(rt) {
       if (endpoint === 'task-create' && body.column === 'done') rt.requireProjectAccess(actor, body.projectId ?? botRecord(body.botId)?.projectId, 'accept')
     }
 
+    const deliveryTask = find(body.id)
+    if (deliveryTask && (deliveryTask.deliveryAttemptId || rt.taskNeedsDelivery?.(deliveryTask)) && ['task-accept-result', 'task-send-back'].includes(endpoint)) throw forbidden('Use commit-specific Project delivery acceptance')
     switch (endpoint) {
       case 'tasks': {
         const botId = body.botId ? String(body.botId) : ''

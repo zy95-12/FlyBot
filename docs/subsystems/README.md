@@ -25,3 +25,5 @@ The core is three pages so that a change to the browser client, to the server, o
 - [Project domain](project-domain.md) — fork M1 ownership, migration, lifecycle and API contract.
 
 - [Project access](project-access.md) — M2 unchanged-platform identity adapter, membership, policy and Workflow gateway.
+
+- [Project delivery](project-delivery.md) — M3 versioned Attempts, worktrees, evidence, GitHub drafts and human acceptance.

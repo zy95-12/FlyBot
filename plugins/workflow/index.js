@@ -45,6 +45,7 @@ export function apply(ctx, config = {}) {
           const id = await fb.bot.create({
             name,
             ...(spec.executionProjectId ? { executionProjectId: spec.executionProjectId } : {}),
+            ...(spec.executionWorkDir ? { executionWorkDir: spec.executionWorkDir } : {}),
             role: spec.role || '',
             instructions: prompt,
             systemPrompt: prompt,
@@ -100,6 +101,7 @@ export function apply(ctx, config = {}) {
     // #1856: the host owns the Project record and the run binding; a host without the seam answers
     // undefined and the service leaves the run unbound.
     readProject: id => fb.projects?.read?.(id),
+    deliveryGate: input => fb.projects?.deliveryGate?.(input),
     readRun: id => fb.projects?.readRun?.(id),
     projectContext: (taskId, projectId) => fb.projects?.context?.(taskId, projectId),
     bindRun: (runId, projectId, details) => fb.projects?.bindRun?.(runId, projectId, details),
