@@ -62,7 +62,14 @@ The general stop/retry/permission/queue/hash mechanisms already have key-free co
 
 ## Evidence
 
-The report dev/demo/evidence/m7-2026-10-31.json records the actual source SHA, dependencies,
+The report dev/demo/evidence/m7-2026-11-01.json records the actual source SHA, dependencies,
 commands and Ran/Not run after validation. Original M6 live evidence remains separate.
 No repository Reviewer PASS, production deployment, automatic merge or exact running-session
 cross-host recovery is claimed. Core is canonical; generated patches and docs accompany each PR.
+
+The recorded executable source passed local full verify, 86 focused regressions and the
+actual browser/resource/PTY/Git probes. PRs #26–29 passed their Test workflow. The final
+PR CI exposed a queue fixture race: terminal Attempt status preceded worker release.
+The fixture now waits for confirmed Bot/lease release, and its actual DSH regression
+passed locally; CI for that follow-up is pending at report creation. Product cleanup
+guards remain unchanged. Do not treat this checkpoint as authenticated SDK acceptance.

@@ -1,0 +1,229 @@
+{
+  "recordedAt": "2026-11-01T00:31:20+08:00",
+  "repository": "zy95-12/FlyBot",
+  "executableSource": {
+    "sha": "10a82c2be61dd1cb63afd7d65d4d4f75e690d546",
+    "dirty": false
+  },
+  "followupSource": {
+    "sha": "4d065bad580cd445c30afea55b85e4a7ce1cefb7",
+    "scope": "Test synchronization and long-term memory only; executable source unchanged"
+  },
+  "dependencies": {
+    "codexSdk": "0.166.0",
+    "claudeAgentSdk": "0.3.316",
+    "dsh": "0.2.1-rc.2"
+  },
+  "validation": {
+    "fullVerify": {
+      "command": "TZ=UTC ARCH_DOCS_BASE=origin/main npm run verify",
+      "result": "passed",
+      "source": "10a82c2be61dd1cb63afd7d65d4d4f75e690d546",
+      "environment": "new disposable flybot:m0-test-tools container, Node 24, normal node user"
+    },
+    "focusedRegressions": {
+      "result": "passed",
+      "tests": 86,
+      "source": "10a82c2be61dd1cb63afd7d65d4d4f75e690d546"
+    },
+    "queueFollowup": {
+      "command": "node --test --test-name-pattern='delivery queue' dev/demo/test/runtime.test.mjs",
+      "result": "passed",
+      "tests": 1,
+      "reason": "CI exposed terminal Attempt status preceding asynchronous worker release; await confirmed Bot/lease release without weakening product cleanup guard"
+    },
+    "browser": {
+      "milestone": "M6",
+      "platform": "unchanged control-plane",
+      "runtime": "actual DSH + Chromium + restricted gateway",
+      "model": "deterministic mock",
+      "checks": [
+        "Owner role Harness and checked resource configuration through UI",
+        "actual private resource PTY through browser",
+        "Member terminal access refused",
+        "closed browser terminal confirms release without raw audit",
+        "unconfigured SDK remains unavailable after bounded probe",
+        "two platform logins through browser",
+        "Project creation and one-use join through UI",
+        "private Project notes isolated",
+        "public Chief tool creates shared Task",
+        "real Developer/Tester/Reviewer worktrees",
+        "independent test evidence at matching commit",
+        "missing credential refuses publication/acceptance",
+        "refresh preserves one Attempt",
+        "browser retry preserves history",
+        "390px layout",
+        "owner cookie absent in both browsers",
+        "raw Harness API denied",
+        "revocation clears stale page",
+        "logout clears member credential"
+      ],
+      "notRun": [
+        "real model",
+        "real GitHub publication in this browser run",
+        "production deployment"
+      ],
+      "source": "10a82c2be61dd1cb63afd7d65d4d4f75e690d546",
+      "dirty": false
+    },
+    "resources": {
+      "runtime": "actual local Node + isolated Docker Node",
+      "image": "flybot:m0-test-tools",
+      "evidence": [
+        {
+          "resourceId": "container",
+          "hostname": "c4c111a92324",
+          "cwd": "/tmp",
+          "uid": 1000
+        },
+        {
+          "resourceId": "local",
+          "hostname": "iZ0xi75wonputw97q2f6ifZ",
+          "cwd": "/tmp/flybot-m7-resources-9jdYiR",
+          "uid": 0
+        }
+      ],
+      "checks": [
+        "pool distributes separate reservations",
+        "distinct hostnames and filesystems",
+        "full pool refuses admission",
+        "confirmed release admits next reservation"
+      ],
+      "notRun": [
+        "SDK authentication",
+        "cross-resource FlyBot Task delivery"
+      ]
+    },
+    "terminal": {
+      "transport": "actual Docker Python PTY + browser API contract",
+      "runtimeUid": 1000,
+      "target": "new owned Docker resource",
+      "checks": [
+        "explicit resource admin grant",
+        "same configured profile/UID",
+        "actual target Node command",
+        "confirmed PTY cleanup",
+        "audit metadata excludes raw screen"
+      ],
+      "notRun": [
+        "browser UI",
+        "authenticated SDK inference"
+      ]
+    },
+    "handoffs": {
+      "runtime": "actual Docker Git/Node + independent host Git/Node",
+      "baseSha": "b07a58d5e07a4721e1289e399a55a3fbfe704f1b",
+      "candidateSha": "6b419b0321b02c56ee3243eb04d65b37bda06f87",
+      "candidateTransfer": {
+        "sha256": "7a9e5c3c8d3f1f8812d863a668049b7a68d3304e96e3189a08d5921fe253c18f",
+        "resourceId": "isolated",
+        "commit": "6b419b0321b02c56ee3243eb04d65b37bda06f87",
+        "at": 1793463878816
+      },
+      "checks": [
+        "remote role base checkout",
+        "remote candidate sealed and imported to host",
+        "reviewer same exact SHA",
+        "independent host tests at sealed SHA",
+        "reference worktree unchanged",
+        "corrupted bundle refused",
+        "owned remote/local workspaces cleaned"
+      ],
+      "notRun": [
+        "real SDK inference",
+        "browser flow",
+        "GitHub publication"
+      ]
+    },
+    "officialSdkNegativeProbes": {
+      "results": [
+        {
+          "harness": "codex",
+          "sdkInvoked": true,
+          "events": 6,
+          "result": "refused completion without configured authorization/provider"
+        },
+        {
+          "harness": "claude-agent",
+          "sdkInvoked": true,
+          "events": 3,
+          "result": "refused completion without configured authorization/provider"
+        }
+      ],
+      "notRun": [
+        "real provider",
+        "paid inference",
+        "authenticated code changes"
+      ]
+    }
+  },
+  "ci": [
+    {
+      "pr": 26,
+      "run": 41218015527,
+      "result": "success"
+    },
+    {
+      "pr": 27,
+      "run": 41218052502,
+      "result": "success"
+    },
+    {
+      "pr": 28,
+      "run": 41218054271,
+      "result": "success"
+    },
+    {
+      "pr": 29,
+      "run": 41218055696,
+      "result": "success"
+    },
+    {
+      "pr": 30,
+      "run": 41219444629,
+      "result": "failed",
+      "reason": "Real queue regression requested cleanup before asynchronous worker release. Follow-up test-only correction passed locally; new-head CI pending."
+    }
+  ],
+  "notRun": [
+    "Positive authenticated Codex and Claude Agent SDK inference/code/Chief turns; dedicated authorized resource profiles not configured",
+    "Browser setup terminal to authenticated-ready to real task on same resource, with profile isolation",
+    "Real mixed three-Harness/two-resource delivery to GitHub PR, requested extra tests, new commit and exact-SHA re-review/human acceptance",
+    "Authenticated forced-failure/retry/restart acceptance"
+  ],
+  "boundaries": {
+    "controlPlaneModified": false,
+    "productionDeployed": false,
+    "prsMerged": false,
+    "ambientCodexCredentialsUsed": false,
+    "sdkCredentialsIncluded": false,
+    "acceptanceComplete": false
+  },
+  "prs": [
+    {
+      "number": 26,
+      "url": "https://github.com/zy95-12/FlyBot/pull/26",
+      "draft": false
+    },
+    {
+      "number": 27,
+      "url": "https://github.com/zy95-12/FlyBot/pull/27",
+      "draft": false
+    },
+    {
+      "number": 28,
+      "url": "https://github.com/zy95-12/FlyBot/pull/28",
+      "draft": true
+    },
+    {
+      "number": 29,
+      "url": "https://github.com/zy95-12/FlyBot/pull/29",
+      "draft": true
+    },
+    {
+      "number": 30,
+      "url": "https://github.com/zy95-12/FlyBot/pull/30",
+      "draft": true
+    }
+  ]
+}
