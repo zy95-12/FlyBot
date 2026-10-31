@@ -198,3 +198,7 @@ A real SDK readiness reply proves inference only. Validate the full scoped Chief
 actual worktree changes, immutable host tests, exact-SHA Review/PR, requested-test rework
 and confirmed worker release. The Codex-only run passed without native mock requests;
 record its exact source and distinguish scripted owner acceptance from human review.
+
+### 2026-11-01 — preflight the actual deployed delivery configuration
+
+Seen 1×: the shared service omitted allowedPaths. Login, SDK code smoke and an independent verify passed, but actual Project execution failed after consuming Dev inference. Validate required repository policy before admission, share metadata readiness with the UI, and distinguish missing configuration, out-of-scope changes and no code change. Prove the configured Project path, not only an isolated SDK primitive.

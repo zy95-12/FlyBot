@@ -8,7 +8,7 @@ function fixture() {
   const project = { id: 'p1', repository: 'example/repo', ownerUserId: 'owner-1', status: 'active', quota: { maxConcurrent: 1 } }
   const state = { projects: { p1: project }, bots: {}, tasks: { one: { id: 'one', projectId: 'p1', requesterId: 'bob', status: 'open' }, two: { id: 'two', projectId: 'p1', requesterId: 'bob', status: 'open' } }, projectAttempts: {}, projectExecutions: {} }
   let member = true, count = 0
-  const rt = { state, config: { projectRepositories: { 'example/repo': { path: '/provisioned/repo', testCommand: ['node', '--test'] } } },
+  const rt = { state, config: { projectRepositories: { 'example/repo': { path: '/provisioned/repo', testCommand: ['node', '--test'], allowedPaths: ['core'] } } },
     readOnly: () => undefined, sharedProjectMode: () => true, flybotIsRead: () => true, warn() {}, save: async () => {},
     listProjects: () => [project], readProject: () => project,
     projectCan: actor => actor.memberId === 'owner-1' || member && actor.memberId === 'bob',
@@ -21,7 +21,7 @@ function fixture() {
       return { attempt }
     } },
   }
-  return { rt, project, state, scheduler: createProjectScheduler(rt), revoke: () => { member = false } }
+  return { rt, project, state, scheduler: createProjectScheduler(rt, { preflight: async () => repositorySettings(rt, project) }), revoke: () => { member = false } }
 }
 
 test('Project quota really queues without allocating another Attempt and drains after release', async () => {
@@ -103,4 +103,16 @@ test('resource capacity uses the existing durable queue and SDK leases keep Proj
   assert.equal(scheduler.slots('p1'), 1)
   state.projectResourceLeases.sdk.status = 'released'
   assert.equal(scheduler.slots('p1'), 0)
+})
+
+test('a waiting request with invalidated provisioning is blocked before allocation', async () => {
+  const { scheduler, rt, state } = fixture()
+  await scheduler.request({ taskId: 'one', requestId: 'first' }, { memberId: 'bob' })
+  const queued = await scheduler.request({ taskId: 'two', requestId: 'next' }, { memberId: 'bob' })
+  state.projectAttempts['attempt-1'].status = 'failed'; state.projectExecutions['attempt-1'].status = 'failed'
+  delete rt.config.projectRepositories['example/repo'].allowedPaths
+  await scheduler.drain()
+  assert.equal(state.projectQueue[queued.queue.id].status, 'blocked')
+  assert.match(state.projectQueue[queued.queue.id].reason, /allowedPaths/)
+  assert.equal(Object.keys(state.projectAttempts).length, 1)
 })

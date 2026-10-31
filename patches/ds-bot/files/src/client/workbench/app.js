@@ -121,6 +121,7 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
     if (task.target?.href) node.append(link('Source Issue / PR', task.target.href))
     if (task.status === 'blocked') node.append(box('Waiting for input / approval', json({ waitingFor: task.waitingFor, input: task.inputRequest, approvalId: task.approvalId })))
     if (task.waitingFor === 'input' && task.requesterId === bootstrap.self.memberId && !task.approvalId && !task.inputApprovalIds?.length) node.append(form('answer', [['answer', 'Answer current question', 'textarea']], values => scoped('task-answer-input', { id: task.id, questionId: task.inputRequest.id, ...values }), 'Answer'))
+    if (!resources.repository.configured && resources.repository.reason) node.append(box('Repository execution blocked', el('p', resources.repository.reason)))
     const activeAttempt = taskDetail.attempts.some(attempt => ['preparing', 'running', 'waiting-acceptance'].includes(attempt.status))
     node.append(button('Run / retry', () => act(() => scoped('project-task-run', { taskId: task.id, requestId: win.crypto.randomUUID() })), !canWrite || !resources.repository.configured || activeAttempt || ['accepted', 'cancelled'].includes(task.status) || busy))
     for (const attempt of taskDetail.attempts) {
@@ -207,6 +208,7 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
   }
   function resourcesPanel() {
     const node = box('Execution resources', el('p', `Concurrency ${resources.activeSlots}/${resources.quota.maxConcurrent}. Repository ${resources.repository.configured ? 'provisioned' : 'not provisioned by operator'}.`))
+    if (resources.repository.reason) node.append(el('p', resources.repository.reason))
     if (detail.permissions.configure) node.append(form('quota', [['maxConcurrent', 'Concurrent Runs (1–32)', 'number']], values => scoped('project-quota', { maxConcurrent: Number(values.maxConcurrent) })))
     for (const resource of resources.executionResources ?? []) {
       const row = box(resource.id, el('p', `${resource.type} · slots ${resource.capacity.occupied}/${resource.capacity.configured} · environment ${resource.health.status}`))

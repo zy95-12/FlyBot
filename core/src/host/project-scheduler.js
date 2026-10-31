@@ -1,11 +1,11 @@
 // Persisted Project admission queue. The existing Workflow service still dispatches Runs.
 import { createHash, randomUUID } from 'node:crypto'
 import { ownEntry, setEntry } from './store.js'
-import { repositorySettings } from './project-repository-policy.js'
+import { preflightRepository } from './project-repository-policy.js'
 const ACTIVE = new Set(['queued', 'running', 'working', 'paused', 'legacy'])
 const error = message => Object.assign(new Error(message), { code: 'bot/invalid' })
 
-export function createProjectScheduler(rt) {
+export function createProjectScheduler(rt, { preflight = preflightRepository } = {}) {
   const { state } = rt
   const entries = () => (state.projectQueue ??= {})
   let recovered = false
@@ -44,7 +44,7 @@ export function createProjectScheduler(rt) {
     if (!task?.projectId) throw error('Unknown Project Task')
     const project = rt.requireProjectAccess(actor, task.projectId, 'create')
     rt.requireProjectAccess(actor, project.id, 'task-write', task)
-    repositorySettings(rt, project)
+    await preflight(rt, project)
     if (typeof body.requestId !== 'string' || !/^[A-Za-z0-9_-]{1,100}$/.test(body.requestId)) throw error('A run needs a stable requestId')
     const requestKey = createHash('sha256').update(`${project.id}\n${task.id}\n${body.requestId}`).digest('hex')
     const prior = Object.values(state.projectAttempts ?? {}).find(attempt => attempt.requestKey === requestKey)
@@ -70,6 +70,8 @@ export function createProjectScheduler(rt) {
       const project = rt.readProject(entry.projectId)
       if (!project || project.status !== 'active') { entry.status = 'blocked'; entry.reason = 'Project is archived or unavailable'; changed = true; continue }
       if (slots(project.id) >= quota(project)) continue
+      try { await preflight(rt, project) }
+      catch (failure) { entry.status = 'blocked'; entry.reason = failure.message; entry.updatedAt = Date.now(); changed = true; continue }
       const blocked = resourceBlock(project.id)
       if (blocked) { entry.reason = blocked; changed = true; continue }
       entry.status = 'starting'

@@ -12,6 +12,7 @@ owned_paths:
   - core/test/workbench-client.test.js
   - core/test/workbench-gateway.test.js
   - core/test/project-scheduler.test.js
+  - core/test/project-repository-policy.test.js
 ---
 
 # Project workbench (fork M5)
@@ -142,3 +143,9 @@ M7.4 Owner forms preserve existing persona/Skill/memory/defaults and offer multi
 ### M7.5 — 2026-10-31
 
 M7.5 real browser integration exercises Owner role Harness/resource edits and private PTY, refuses Member terminal access and preserves accurate unconfigured SDK status. Runtime/terminal/input channel wiring is corrected and directly tested. Attempt UI reads only scoped sealed execution logs. Full positive paid mixed-resource acceptance remains pending profiles.
+
+## R1 repository capability preflight
+
+Repository configuration requires a nonempty relative path allowlist and valid argv. New admission and queue drain check the actual Git root/HEAD, test executable, declared testDependencies and writable workspace/artifact parents before allocation. The workbench uses the same metadata preflight (briefly cached for polling); every admission bypasses that cache. A blocked repository reports a safe field/reason rather than a false configured flag or silent disabled button. Readiness explicitly says tests are not run; it does not execute operator commands or model probes. Fixing provisioning does not mutate previous failed Attempts; a blocked queue request can be retried with a fresh request id.
+
+Operators may run `node scripts/check-project-provisioning.mjs CONFIG.json OWNER/REPO OWNER_ID` against an explicit JSON object containing the same `home`, `dshHome` and `config` used by their service. It checks metadata only and never prints configuration contents or credentials. Include `allowedPaths` in the actual repository capability; use concrete repository-relative files/directories, never a filesystem-wide wildcard. If the test wrapper prepares dependencies per worktree, declare prerequisite paths only when they must already exist in the operator repository.
