@@ -43,7 +43,8 @@ real-model PR delivery. The JSON report records source SHA, dirty flag, checks a
 Optional `FLYBOT_DEMO_ARTIFACTS=/private/absolute/directory` saves desktop/mobile screenshots
 of the Task board; it records no trace/HAR or storage snapshot. Standard `npm run verify`
 includes four actual DSH probes (including real queue/drain/removal), offline guards and
-UI/domain tests. CI additionally runs this browser command with pinned Playwright.
+UI/domain tests. CI additionally runs this browser command with pinned Playwright and real terminal lifecycle
+checks for both ready-state shutdown and interruption during startup.
 
 ## Interactive demo
 
@@ -57,7 +58,9 @@ Enter Alice and Bob passwords privately at startup (12+ characters). Open the pr
 `alice@example.com` and `bob@example.com`. The existing platform panel URL is also printed.
 The Harness owner login/cookie stays private. Default model transport is visibly marked
 as a deterministic fixture. Terminal Ctrl-C closes the owned runtime/gateway/platform and
-removes temporary data. Failure retains only that run's private diagnostic directory;
+removes temporary data. The Python supervisor gives Node time to release its owned DSH
+process rather than killing it on KeyboardInterrupt; startup interruption uses the same
+cleanup path. Failure retains only that run's private diagnostic directory;
 never publish `web.log` or the private profile. This is a local launcher, not deployment.
 
 For actual model and draft GitHub delivery, have the operator supply existing

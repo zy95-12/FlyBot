@@ -65,6 +65,8 @@ jobs:
           npm ci --prefix dev/demo/browser --no-fund --no-audit
           node dev/demo/browser/node_modules/playwright/cli.js install --with-deps chromium
           FLYBOT_DEMO_PYTHON="$RUNNER_TEMP/flybot-demo-python/bin/python" npm run test:demo:browser
+          "$RUNNER_TEMP/flybot-demo-python/bin/python" dev/demo/serve_check.py --control-plane .demo-control-plane
+          "$RUNNER_TEMP/flybot-demo-python/bin/python" dev/demo/serve_check.py --control-plane .demo-control-plane --early-stop
           test -z "$(git -C .demo-control-plane status --porcelain)"
 
   # Each peer plugin (plugins/<name>) on its own: lint and its suite against core/ and the DSH

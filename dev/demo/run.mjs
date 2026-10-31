@@ -16,6 +16,7 @@ import { checkShared } from './shared.mjs'
 import { verifyArtifact } from './artifact.mjs'
 
 const root = resolve(import.meta.dirname, '../..')
+const shutdown = new AbortController()
 const sleep = ms => new Promise(done => setTimeout(done, ms))
 const json = path => JSON.parse(readFileSync(path, 'utf8'))
 
@@ -31,6 +32,7 @@ async function freePort() {
 async function waitFor(read, label, milliseconds = 90_000) {
   const end = Date.now() + milliseconds
   while (Date.now() < end) {
+    if (shutdown.signal.aborted) throw new Error('Demo stopped')
     const value = await read()
     if (value) return value
     await sleep(200)
@@ -44,6 +46,8 @@ async function main() {
   const realModel = process.argv.includes('--real-model')
   const workbench = process.argv.includes('--workbench') || serve
   if (realModel && (!serve || !process.env.DEEPSEEK_API_KEY || !process.env.DEEPSEEK_BASE_URL)) throw new Error('Real-model demo requires --workbench-serve and explicit DEEPSEEK_API_KEY/DEEPSEEK_BASE_URL environment configuration')
+  const requestStop = () => shutdown.abort()
+  if (serve) { process.on('SIGINT', requestStop); process.on('SIGTERM', requestStop) }
   const queue = process.argv.includes('--queue')
   const delivery = process.argv.includes('--delivery') || queue || workbench
   const githubRepository = process.argv.includes('--github-repo') ? process.argv[process.argv.indexOf('--github-repo') + 1] : undefined
@@ -131,7 +135,7 @@ async function main() {
     }
     if (serve) {
       if (!shared) throw new Error('Workbench serving requires --shared credentials on stdin')
-      await serveWorkbench({ port, cookie, platformOrigin: shared.origin, realModel })
+      await serveWorkbench({ port, cookie, platformOrigin: shared.origin, realModel, signal: shutdown.signal })
       return
     }
     if (workbench) {
@@ -220,9 +224,11 @@ async function main() {
     console.log(JSON.stringify(report, null, 2))
     if (process.env.M0_REPORT) writeFileSync(resolve(process.env.M0_REPORT), JSON.stringify(report, null, 2) + '\n', { mode: 0o600 })
   } catch (error) {
-    keep = true
-    console.error(`M0 failed: ${error.message}\nPrivate diagnostics retained at ${directory}; do not publish web.log.`)
-    process.exitCode = 1
+    if (!serve || !shutdown.signal.aborted) {
+      keep = true
+      console.error(`M0 failed: ${error.message}\nPrivate diagnostics retained at ${directory}; do not publish web.log.`)
+      process.exitCode = 1
+    }
   } finally {
     if (child.pid && child.exitCode === null) {
       stop('SIGTERM')
@@ -232,6 +238,7 @@ async function main() {
     model.closeAllConnections()
     await new Promise(done => model.close(done))
     if (!keep) rmSync(directory, { recursive: true, force: true })
+    if (serve) { process.off('SIGINT', requestStop); process.off('SIGTERM', requestStop) }
   }
 }
 

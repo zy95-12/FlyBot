@@ -132,3 +132,10 @@ Project delivery. The actual shared browser did not, exposing Workflow's `no-sen
 dependency. Resolve the dispatch sender from the durable Task Project's Chief and fail
 if missing, never borrow an unrelated private main. Keep a fresh two-account browser
 regression; DOM/API tests alone do not prove clean startup integration.
+
+## 2026-10-31 — terminal supervision must await owned runtime cleanup (Seen 1×)
+
+Python subprocess.run kills a child when KeyboardInterrupt unwinds, which can cut off
+Node's DSH/data cleanup. The M6 foreground launcher uses an owned process session and
+explicit graceful termination/wait. Node keeps shutdown handlers active during cleanup.
+Test both ready-state Ctrl-C and interruption during startup with actual temporary data.

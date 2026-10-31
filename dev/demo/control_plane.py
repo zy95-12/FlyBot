@@ -10,6 +10,7 @@ import json
 import os
 from pathlib import Path
 import secrets
+import signal
 import socket
 import subprocess
 import sys
@@ -62,8 +63,20 @@ def check(base, shared=False, workbench=False, serve=False, runtime_args=None):
         command += ['--workbench-serve'] if serve else ['--workbench'] if workbench else []
         command += runtime_args or []
         if serve:
-            result = subprocess.run(command, input=json.dumps(credentials), text=True)
-            if result.returncode:
+            # Keep the runner outside the terminal's process group. subprocess.run
+            # kills its child on KeyboardInterrupt before Node can release DSH/data.
+            process = subprocess.Popen(command, stdin=subprocess.PIPE, text=True, start_new_session=True)
+            try:
+                process.communicate(input=json.dumps(credentials))
+            except KeyboardInterrupt:
+                process.send_signal(signal.SIGTERM)
+                try:
+                    process.wait(timeout=15)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait()
+                    raise RuntimeError('Demo runner did not stop gracefully; inspect private diagnostics') from None
+            if process.returncode:
                 raise RuntimeError('Shared demo stopped with an error')
             return {'demo': 'stopped and cleaned'}
         result = subprocess.run(command,

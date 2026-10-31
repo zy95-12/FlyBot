@@ -75,3 +75,8 @@ verify retains the four key-free actual DSH probes and offline entry guards. Bro
 acceptance requires explicit platform/Python/browser installations; it is not silently
 skipped or replaced by DOM fixtures. Passwords enter the DSH runner via stdin; no browser
 trace/HAR, cookies or model credentials are emitted. Failure diagnostics stay private.
+
+Terminal lifecycle is covered by `serve_check.py`: it privately enters random passwords,
+logs in through the real gateway, sends Ctrl-C after readiness and separately during
+startup, and asserts the owned temporary tree is empty. The supervisor waits for Node's
+graceful cleanup; it does not use subprocess.run's immediate kill-on-KeyboardInterrupt.
