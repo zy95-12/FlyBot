@@ -37,8 +37,9 @@ claims and preserves unknown worker/resource evidence; it does not fabricate exi
 ## Decisions and evidence
 
 The actual worker receives Task content, policy, evidence and logical Bot choices.
-It returns one `OUTPUT handoff:` JSON decision: handoff, return, complete or
-arbitrate. Direct handoff/return names a target and bounded reason; complete and
+It returns one `OUTPUT handoff:` JSON decision: handoff, return, transfer, complete or
+arbitrate. Transfer routes without claiming completed role evidence. Repeated role
+Sessions keep distinct immutable SDK logs and archive previous evidence. Direct handoff/return names a target and bounded reason; complete and
 arbitrate enter Chief's pending pool, never close the Task. No static graph chooses
 the next Bot. Ordinary next-role routing needs no Chief approval.
 
@@ -60,6 +61,6 @@ JSON approve grants merge/release or final Task-close permission.
 
 Chief inbox/arbitration and configurable inspection schedules are completed in R6;
 conversation-only bridging is integrated in R4. R3's SDK contract-process scenario
-covers Dev → Reviewer → Dev → Tester → Reviewer → Chief using a single execution
+covers Dev → Reviewer → Dev → Reviewer → Tester → Reviewer → Chief using a single execution
 resource, distinct Sessions, two Attempts and one Task. This is deterministic
 protocol evidence, not real Codex or persistent-service acceptance.

@@ -469,10 +469,10 @@ const code=readFileSync('code.mjs','utf8');let decision;
 if(!m.settings.readOnly){
 const rework=code.includes('stage-one');writeFileSync('code.mjs',rework?'export const add=(a,b)=>a+b;\\n':'export const add=(a,b)=>a+b; // stage-one\\n');
 if(rework)writeFileSync('code.test.mjs',readFileSync('code.test.mjs','utf8')+'assert.equal(add(-4.5,0),-4.5);\\n');
-decision={action:'handoff',to:rework?'p1:tester':'p1:reviewer',reason:rework?'Regression added; run tests':'Review before testing',outputs:{implementation:'Fixed addition'}};
+decision={action:'handoff',to:'p1:reviewer',reason:rework?'Regression added; run tests':'Review before testing',outputs:{implementation:'Fixed addition'}};
 }else if(m.prompt.includes('(project-role-policy/v1, reviewer)')){
 if(code.includes('stage-one'))decision={action:'return',to:'p1:developer',reason:'Add fractional negative-zero regression before further verification'};
-else decision={action:'complete',reason:'Candidate matches criteria; request Chief judgement',outputs:{review:JSON.stringify({commit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),verdict:'approve',summary:'Inspected exact candidate and regression'})}};
+else if(!m.prompt.includes('\"passed\":true'))decision={action:'transfer',to:'p1:tester',reason:'Run tests before final review'};\nelse decision={action:'complete',reason:'Candidate matches criteria; request Chief judgement',outputs:{review:JSON.stringify({commit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),verdict:'approve',summary:'Inspected exact candidate and regression'})}};
 }else decision={action:'handoff',to:'p1:reviewer',reason:'Host tests should verify this candidate',outputs:{tests:'Inspected regression'}};
 write({type:'sdk-event',event:{type:'thread.started',thread_id:'pool-'+process.pid}});write({type:'completed',sessionId:'pool-'+process.pid,text:'OUTPUT handoff: '+JSON.stringify(decision),usage:{input_tokens:1}});
 });`)
@@ -492,13 +492,16 @@ write({type:'sdk-event',event:{type:'thread.started',thread_id:'pool-'+process.p
     await new Promise(resolve => setTimeout(resolve, 20))
   }
   assert.equal(rt.state.tasks[fixture.task.id].collaboration.status, 'arbitration', JSON.stringify(rt.state.tasks[fixture.task.id].collaboration.block))
-  assert.deepEqual(rt.state.tasks[fixture.task.id].collaboration.history.map(row => row.to), ['p1:developer', 'p1:reviewer', 'p1:developer', 'p1:tester', 'p1:reviewer', 'p1:chief'])
+  assert.deepEqual(rt.state.tasks[fixture.task.id].collaboration.history.map(row => row.to), ['p1:developer', 'p1:reviewer', 'p1:developer', 'p1:reviewer', 'p1:tester', 'p1:reviewer', 'p1:chief'])
   assert.equal(Object.values(rt.state.projectAttempts).length, 2)
   assert.equal(Object.values(rt.state.tasks).filter(row => row.projectId === 'p1').length, 1)
   assert.equal(rt.projectResources.occupied('one'), 0)
   assert.equal(Object.values(rt.state.projectAttempts)[0].status, 'returned')
   assert.equal(fixture.attempt().evidence.tests.passed, true)
-  assert.equal(fixture.attempt().status, 'waiting-acceptance')
+  const reviewLogs = Object.values(rt.state.projectHarnessWorkers).filter(row => row.role === 'reviewer').map(row => row.sealedLog)
+  assert.equal(new Set(reviewLogs).size, 3, 'Revisited role Sessions must retain distinct immutable SDK logs')
+  assert.equal(fixture.attempt().roleSessionHistory.length, 1)
+  assert.equal(fixture.attempt().status, 'waiting-acceptance', JSON.stringify(rt.state.tasks[fixture.task.id].collaboration.history.at(-1)))
   assert.equal(fixture.workflow.state().workflows.filter(row => row.projectId === 'p1').length, 0)
   await assert.rejects(rt.projectEndpoint('project-task-accept', { attemptId: fixture.attempt().id }, alice), /Chief arbitration/)
 })

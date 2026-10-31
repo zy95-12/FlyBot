@@ -95,3 +95,11 @@ test('late native or SDK results stay on the original run surface after restart'
   assert.equal(f.task.collaboration.status, 'blocked')
   assert.equal(f.task.collaboration.history.length, 1)
 })
+
+test('transfer can route an uncompleted role directly without claiming candidate evidence', async () => {
+  const f = setup(); await f.admit(); const claim = await f.claim()
+  await f.pool.decide('task', claim, { action: 'transfer', to: 'p:reviewer', reason: 'Need design review before implementation' })
+  assert.equal(f.completed.length, 0)
+  assert.equal(f.task.collaboration.botId, 'p:reviewer')
+  assert.equal(f.task.collaboration.history[0].decision.action, 'transfer')
+})

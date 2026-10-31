@@ -92,7 +92,7 @@ export function createProjectPools(rt) {
     }
     const claim = current(task, token)
     const action = decision?.action, reason = reasonOf(decision?.reason)
-    if (!['handoff', 'return', 'complete', 'arbitrate'].includes(action)) throw refuse('Bot must hand off, return or request Chief judgement')
+    if (!['handoff', 'return', 'transfer', 'complete', 'arbitrate'].includes(action)) throw refuse('Bot must hand off, return, transfer or request Chief judgement')
     const role = targetOf(task.projectId, claim.botId).role
     const next = ['complete', 'arbitrate'].includes(action) ? definitions(task.projectId).roles.find(row => row.role === 'chief') : targetOf(task.projectId, decision.to)
     if (!next) throw refuse('Chief is not configured')

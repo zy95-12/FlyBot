@@ -18,7 +18,9 @@ Dated, short lessons from real FlyBot work. Agents read this **before coding**. 
 Seen 1×. Pool dispatch must not reserve all downstream roles, replace a returned
 Task or accept a retired worker result as fresh work. Keep stable Task identity,
 version each claim/Attempt, retain unknown leases, and consume retired replies on
-the original run surface. Enforce the existing validator with trusted evidence;
+the original run surface. Revisited roles need per-Session sealed logs and archived
+previous evidence; the old one-result-per-role guard otherwise rejects valid
+follow-up review as a duplicate. Enforce the existing validator with trusted evidence;
 model-supplied green checks or PASS text cannot satisfy admission.
 
 
