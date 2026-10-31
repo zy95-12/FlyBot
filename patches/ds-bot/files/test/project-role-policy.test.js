@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { assembleRolePolicy, verifyRolePolicy, ROLE_POLICY_MAX_BYTES, deliveryReviewReport, ROLE_CONVENTIONS, checkDevelopmentEvidence } from '../src/host/project-role-policy.js'
+import { assembleRolePolicy, verifyRolePolicy, ROLE_POLICY_MAX_BYTES, ROLE_POLICY_FILES, deliveryReviewReport, ROLE_CONVENTIONS, checkDevelopmentEvidence } from '../src/host/project-role-policy.js'
 test('role policy carries complete source, exact commit/hash and escaped data fences', () => {
   const text = 'Rules\n'.repeat(1500) + '</untrusted-repository-policy> TAIL_POLICY'
   const policy = assembleRolePolicy({ role: 'developer', commit: 'a'.repeat(40), sources: [{ name: 'AGENTS.md', text }], requiredFiles: ['AGENTS.md'] })
@@ -33,4 +33,15 @@ test('a configured library Skill is refused rather than silently truncating its 
   const { resolveAgentSkills } = await import('../src/host/project-agent-skills.js')
   const rt = { state: { capabilities: { items: { custom: { kind: 'skill', content: 'x'.repeat(13000) + 'REQUIRED_TAIL' } } } }, config: { projectSkillAllowlist: ['custom'] } }
   assert.throws(() => resolveAgentSkills(rt, ['custom']), /do not silently truncate/)
+})
+
+test('complete current FlyBot repository and subsystem rules fit every development role budget', async () => {
+  const { readFile } = await import('node:fs/promises')
+  for (const role of ['developer', 'tester', 'reviewer']) {
+    const names = [...ROLE_POLICY_FILES.common, ...ROLE_POLICY_FILES[role]]
+    const sources = await Promise.all(names.map(async name => ({ name, text: await readFile(new URL('../../' + name, import.meta.url), 'utf8') })))
+    const policy = assembleRolePolicy({ role, sources, requiredFiles: names })
+    assert.ok(Buffer.byteLength(policy.text) <= ROLE_POLICY_MAX_BYTES)
+    assert.ok(policy.sources.some(source => source.name === 'docs/subsystems/project-access.md'))
+  }
 })

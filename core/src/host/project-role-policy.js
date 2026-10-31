@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto'
 export const ROLE_POLICY_VERSION = 'project-role-policy/v1'
 export const ROLE_POLICY_MAX_BYTES = 384_000
 export const ROLE_POLICY_FILES = Object.freeze({
-  common: ['AGENTS.md', 'PROJECT.md', 'ROADMAP.md', 'LESSONS.md', 'CONTRIBUTING.md', 'docs/code-standards.md', 'decisions/2026-10-31-project-first-fork.md', 'decisions/2026-11-01-collaboration-repair.md'],
+  common: ['AGENTS.md', 'PROJECT.md', 'ROADMAP.md', 'LESSONS.md', 'CONTRIBUTING.md', 'docs/code-standards.md', 'docs/subsystems/project-domain.md', 'docs/subsystems/project-access.md', 'docs/subsystems/project-delivery.md', 'docs/subsystems/project-agents.md', 'docs/subsystems/project-harness.md', 'docs/subsystems/project-resources.md', 'docs/subsystems/project-resource-workspaces.md', 'decisions/2026-10-31-project-first-fork.md', 'decisions/2026-11-01-collaboration-repair.md'],
   developer: ['.claude/skills/fix-issue/SKILL.md'],
   tester: ['docs/testing-layers.md'],
   reviewer: ['.claude/skills/review-pr/SKILL.md'],
