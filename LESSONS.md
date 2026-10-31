@@ -270,3 +270,11 @@ forwarding with current member credentials and retain raw-owner API refusal.
 The same live HTTP probe then caught a second missing registration: channel.js
 needed explicit dispatcher cases. Gateway forwarding and direct service tests
 alone cannot prove end-to-end reachability; cover the actual authenticated route.
+
+### 2026-11-01 — supervisor reconciliation must fence concurrent release (Seen 1×)
+
+During real issue #40, Dev and Chief exited correctly but the next Dev queued:
+reconcile had captured an active lease, awaited supervisor metadata, then marked
+the now-released lease unreachable. Recheck terminal lease status after the await
+and skip currently controlled workers before supervisor I/O. A concurrent
+release/reconcile regression reproduces this race; never edit live status by hand.

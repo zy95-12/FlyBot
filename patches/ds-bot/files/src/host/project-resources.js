@@ -137,7 +137,11 @@ export function createProjectResources(rt) {
   async function reconcile() {
     let changed = false
     for (const lease of Object.values(leases()).filter(active)) {
-      if (lease.processScope && await priorScopeExited(lease.processScope)) {
+      if (lease.processScope?.hostPid === process.pid && (lease.worker?.kind === 'native' || lease.worker?.kind === 'sdk' && rt.projectHarness?.hasController(lease.worker.handle) || lease.worker?.kind === 'native-turn' && rt.projectAgents?.hasExchange(lease.worker.handle))) continue
+      const priorExited = lease.processScope && await priorScopeExited(lease.processScope)
+      // The supervisor read yields: a confirmed concurrent release is final.
+      if (!active(lease)) continue
+      if (priorExited) {
         requireBinding(lease.projectId, lease)
         if (lease.worker?.kind === 'native' && ownEntry(rt.state.bots ?? {}, lease.worker.botId)) {
           const bot = rt.state.bots[lease.worker.botId]

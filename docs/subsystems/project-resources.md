@@ -118,3 +118,7 @@ Repair R6 captures verified local supervisor scope before external execution.
 Only confirmed exit or a proven prior systemd control-group invocation exit
 releases capacity; missing PID and unknown supervisor evidence do not. Actual
 Chief jobs count against resource capacity while avoiding delivery quota deadlock.
+
+Live dogfood regression: supervisor inspection yields to release callbacks.
+Reconciliation rechecks terminal status afterward and cannot resurrect a confirmed
+released lease. Current owned controllers avoid unnecessary supervisor I/O.

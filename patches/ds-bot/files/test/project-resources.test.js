@@ -108,3 +108,13 @@ test('unconfigured SDK roles block admission before workspace or worker allocati
   const { resources } = fixture()
   assert.throws(() => resources.plan('p1', { roles: [{ role: 'developer', execution: { harness: 'codex', resourceIds: [] } }] }), /no authorized execution resource pool/)
 })
+
+test('reconciliation cannot resurrect a concurrently confirmed released SDK lease', async () => {
+  const { rt, resources } = fixture()
+  const lease = await resources.reserve({ projectId: 'p1', attemptId: 'a', role: 'developer', sessionKey: 'release-race', harness: 'flybot', resourceIds: ['local'] })
+  await resources.markStarted(lease.id, lease.generation, { kind: 'sdk', handle: 'confirmed-worker' })
+  rt.state.projectResourceLeases[lease.id].processScope = { kind: 'unmanaged-process', hostPid: process.pid }
+  await Promise.all([resources.release(lease.id, lease.generation, { handle: 'confirmed-worker', exited: true }), resources.reconcile()])
+  assert.equal(rt.state.projectResourceLeases[lease.id].status, 'released')
+  assert.equal(resources.occupied('local'), 0)
+})

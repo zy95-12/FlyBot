@@ -267,3 +267,10 @@ authority and generation fences apply to each effect. Unknown process exits reta
 capacity; a verified systemd invocation boundary permits local restart recovery.
 Deterministic protocol tests return incomplete coverage to Dev then close the same
 Task after a fresh Attempt. Real shared-service Codex/timer acceptance remains #41.
+
+Real shared-service R6 probes passed an actual Codex Chief ordinary inquiry with
+zero Tasks and an original DSH 60-second wake after browser logout, then pause/
+resume and restoration to 30 minutes. R7 actual Dev requested Chief arbitration;
+Chief returned the same Task to Dev with a fresh Attempt. This exposed a concurrent
+resource-release reconciliation race, fixed with a red/green regression. Actual
+full R7 delivery and persistent 30-minute/restart acceptance remain in progress.
