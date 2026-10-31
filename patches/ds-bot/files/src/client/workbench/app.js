@@ -19,7 +19,7 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
       if (options) for (const option of options) { const row = el('option', option || 'No repository'); row.value = option; input.append(row) }
       else if (type !== 'textarea') input.type = type
       input.setAttribute('aria-label', title)
-      input.name = field; input.id = `${name}-${field}`; input.value = saved[field] ?? ''; input.required = type !== 'optional' && !options
+      input.name = field; input.id = `${name}-${field}`; input.value = saved[field] ?? (options?.[0] ?? ''); input.required = type !== 'optional' && !options
       if (type === 'optional') input.type = 'text'
       input.oninput = () => { const values = drafts.get(key) ?? {}; values[field] = input.value; drafts.set(key, values) }
       wrapper.append(input); node.append(wrapper)
@@ -73,15 +73,23 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
     const run = (workflowState?.workflows ?? []).flatMap(row => row.runs ?? []).find(row => row.task?.id === task.id)
     const phase = Object.entries(run?.nodeStatus ?? {}).filter(([, status]) => status === 'running').map(([role]) => role).join(', ')
     const queued = resources.queue.some(row => row.taskId === task.id && row.status === 'waiting')
-    node.append(button(task.title, () => route(selected, 'tasks', task.id)), el('small', `${task.status} · ${phase || (queued ? 'waiting for quota' : task.requesterId)}`))
+    node.append(button(task.title, () => route(selected, 'tasks', task.id)), el('small', `${task.priority ?? 'normal'} · ${task.status} · ${phase || (queued ? 'waiting for quota' : task.requesterId)}`))
     return node
   }
   function attemptsPanel() {
     const task = taskDetail.task, canWrite = detail.permissions.configure || task.requesterId === bootstrap.self.memberId
-    const node = box(task.title, el('p', task.criteria ?? 'No acceptance criteria'))
-    node.append(button('Run / retry', () => act(() => scoped('project-task-run', { taskId: task.id, requestId: win.crypto.randomUUID() })), !canWrite || !resources.repository.configured || busy))
+    const node = box(task.title, el('p', task.criteria ?? 'No acceptance criteria'), el('p', task.note ?? 'No additional context'), el('p', `Priority: ${task.priority ?? 'normal'} · status: ${task.status}`))
+    if (Number.isFinite(task.createdAt)) node.append(el('p', `Task age: ${Math.max(0, Math.round((Date.now() - task.createdAt) / 60000))} min, including waiting`))
+    if (task.target?.href) node.append(link('Source Issue / PR', task.target.href))
+    if (task.status === 'blocked') node.append(box('Waiting for input / approval', json({ waitingFor: task.waitingFor, input: task.inputRequest, approvalId: task.approvalId })))
+    if (task.waitingFor === 'input' && task.requesterId === bootstrap.self.memberId && !task.approvalId && !task.inputApprovalIds?.length) node.append(form('answer', [['answer', 'Answer current question', 'textarea']], values => scoped('task-answer-input', { id: task.id, questionId: task.inputRequest.id, ...values }), 'Answer'))
+    const activeAttempt = taskDetail.attempts.some(attempt => ['preparing', 'running', 'waiting-acceptance'].includes(attempt.status))
+    node.append(button('Run / retry', () => act(() => scoped('project-task-run', { taskId: task.id, requestId: win.crypto.randomUUID() })), !canWrite || !resources.repository.configured || activeAttempt || ['accepted', 'cancelled'].includes(task.status) || busy))
     for (const attempt of taskDetail.attempts) {
       const card = box(`Attempt · ${attempt.status}`, el('code', attempt.id), el('p', attempt.candidateSha ?? 'No candidate commit'), json(attempt.evidence ?? {}))
+      if (attempt.failure?.message) card.append(box('Failure / requested changes', el('p', attempt.failure.message)))
+      const ended = attempt.acceptedAt ?? attempt.failure?.at
+      card.append(el('p', `Attempt elapsed: ${Math.max(0, Math.round(((ended ?? Date.now()) - attempt.createdAt) / 1000))} sec (includes preparation and waiting)`))
       const workflow = workflowState?.workflows?.find(row => row.id === attempt.workflowId)
       const run = [...(workflow?.runs ?? []), workflow?.run].find(row => row?.id === attempt.runId)
       card.append(box('Role progress and workspaces', json({ roles: run?.nodeStatus ?? {}, workspaces: attempt.workspaces, models: attempt.agentDefinitions?.roles?.map(row => ({ role: row.role, model: row.model })) ?? [] })))
@@ -104,9 +112,9 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
     node.append(stats, el('p', 'Delivery duration: Task creation to human acceptance, including queue and human wait.'))
     const columns = el('div', null, 'columns')
     const groups = [['Open', task => !['working', 'result-ready', 'accepted', 'cancelled', 'failed'].includes(task.status)], ['In progress', task => ['working', 'result-ready'].includes(task.status)], ['Completed', task => ['accepted', 'cancelled', 'failed'].includes(task.status)]]
-    for (const [label, predicate] of groups) columns.append(box(label, ...(detail.tasks ?? []).filter(predicate).map(taskPanel)))
+    for (const [label, predicate] of groups) columns.append(box(label, ...(detail.tasks ?? []).filter(predicate).sort((a, b) => ['urgent', 'high', 'normal', 'low'].indexOf(a.priority ?? 'normal') - ['urgent', 'high', 'normal', 'low'].indexOf(b.priority ?? 'normal')).map(taskPanel)))
     node.append(columns)
-    if (detail.permissions.create) node.append(box('Create Task', form('task', [['title', 'Requirement'], ['criteria', 'Acceptance criteria', 'textarea'], ['note', 'Context', 'optional']], values => scoped('task-create', { ...values, botId: agents.public.botId }), 'Create Task')))
+    if (detail.permissions.create) node.append(box('Create Task', form('task', [['title', 'Requirement'], ['criteria', 'Acceptance criteria', 'textarea'], ['note', 'Context', 'optional'], ['priority', 'Priority', 'text', ['normal', 'high', 'urgent', 'low']], ['target', 'Source Issue / PR (optional)', 'optional']], values => scoped('task-create', { ...values, botId: agents.public.botId }), 'Create Task')))
     return node
   }
   function membersPanel() {

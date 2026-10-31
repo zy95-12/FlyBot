@@ -40,7 +40,7 @@ test('Project board renders untrusted titles as text and Member cannot manage ot
   form.querySelector('[name=criteria]').value = 'Reject bad input'
   form.dispatchEvent(new dom.window.Event('submit', { cancelable: true }))
   await tick()
-  assert.deepEqual(calls.find(row => row.endpoint === 'task-create').payload, { projectId: 'a', title: 'Add parser', criteria: 'Reject bad input', note: '', botId: 'chief-a' })
+  assert.deepEqual(calls.find(row => row.endpoint === 'task-create').payload, { projectId: 'a', title: 'Add parser', criteria: 'Reject bad input', note: '', priority: 'normal', target: '', botId: 'chief-a' })
   dom.window.location.hash = '/projects/a/members'; await tick()
   assert.ok(![...root.querySelectorAll('button')].some(node => ['Remove', 'Make Maintainer'].includes(node.textContent)))
 })

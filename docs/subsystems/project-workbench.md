@@ -111,3 +111,9 @@ The UI identifies deterministic demo transport, provides explicit accessible for
 and workspaces. Browser tests await route-specific content before interacting with a
 similarly named form in the next view. See [shared demo acceptance](../shared-demo.md)
 for reproducible commands, evidence matrix and pending live-model acceptance.
+
+The Task view shows priority, source Issue/PR, context/criteria, age, current role/Worker
+workspaces, Attempt elapsed time, real diff statistics and explicit failure/return reasons.
+Board cards sort by the existing urgent/high/normal/low contract. Active or terminal Tasks
+cannot start a duplicate delivery from the UI, and requester input waits use the existing
+question-id-bound answer endpoint; approval waits retain their separate server gate.

@@ -165,3 +165,7 @@ old Attempt/evidence, retry uses a new workspace/Attempt, and only that Attempt'
 verified commit can be accepted. The test uses the explicitly injected publisher fixture;
 real GitHub and real-model acceptance are recorded independently. Actual shared browser
 execution now uses the Project Chief sender without private `state` bootstrap.
+
+Candidate implementation evidence also stores git's actual base→candidate diff statistics
+and changed paths. The UI can show a change summary without fabricating one from a model's
+completion sentence; old Attempts without this optional field retain their original evidence.

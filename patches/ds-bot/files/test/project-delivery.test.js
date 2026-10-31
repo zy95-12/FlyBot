@@ -236,6 +236,7 @@ test('human return preserves old evidence and retry can only accept its own newl
   await fixture.start('before-return')
   await complete(fixture)
   const old = structuredClone(fixture.attempt())
+  assert.match(old.evidence.implementation.diffStat, /code\.mjs/)
   for (const nodeId of ['developer', 'tester', 'reviewer']) fixture.workflow.advance({ workflowId: old.workflowId, runId: old.runId, nodeId, outcome: 'done' })
   await assert.rejects(fixture.rt.projectEndpoint('project-task-reject', { attemptId: old.id, reason: 'Add negative cases' }, bob), /denied/)
   await fixture.rt.projectEndpoint('project-task-reject', { attemptId: old.id, reason: 'Add negative cases' }, alice)

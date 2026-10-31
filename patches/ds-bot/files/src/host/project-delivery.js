@@ -149,7 +149,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     }
     attempt.candidateSha = await git(path, ['rev-parse', 'HEAD'])
     if (attempt.candidateSha === attempt.baseSha) throw reject('Developer produced no code change')
-    attempt.evidence.implementation = { sha: attempt.candidateSha, paths: names, at: Date.now() }
+    attempt.evidence.implementation = { sha: attempt.candidateSha, paths: names, diffStat: await git(path, ['diff', '--stat', attempt.baseSha, attempt.candidateSha]), at: Date.now() }
     for (const role of ['tester', 'reviewer']) {
       await git(attempt.workspaces[role].path, ['reset', '--hard', attempt.candidateSha])
       await git(attempt.workspaces[role].path, ['clean', '-ffdx'])
