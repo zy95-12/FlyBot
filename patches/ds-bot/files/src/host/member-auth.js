@@ -168,7 +168,10 @@ export function install(rt) {
       if (lastOwner(members)) return { ok: false, error: 'last_owner' }
       const bots = Object.values(rt.state.bots || {})
       if (bots.some(b => b.ownerId === memberId)) return { ok: false, error: 'has_bots' }
+      const projectProblem = rt.projects?.memberRemovalProblem(memberId)
+      if (projectProblem) return { ok: false, error: projectProblem }
       await revokeMemberSessionsNow(memberId)
+      rt.projects?.removeMembership(memberId)
       delete members[memberId]
       await rt.save()
       return { ok: true }

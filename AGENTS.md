@@ -9,6 +9,9 @@ For this fork, read current [PROJECT.md](PROJECT.md), [ROADMAP.md](ROADMAP.md) a
 Update repository memory, matching architecture docs and regression tests with behavior
 changes. Inherited upstream people/stages are historical; the fork user's instructions
 govern current scope. CI, review, secret-handling and deployment gates remain unchanged.
+The owner authorized M1–M6 sequential implementation, one PR per milestone. Read the
+[M1 ownership contract](docs/subsystems/project-domain.md) before changing Task/Run/Project
+logic; routing changes must never reassign existing work.
 
 
 1. Read [LESSONS.md](LESSONS.md) (open lessons are constraints).

@@ -13,6 +13,13 @@ Dated, short lessons from real FlyBot work. Agents read this **before coding**. 
 
 ## Open lessons
 
+### 2026-10-31 — Routing bindings cannot own historical work
+
+Seen 1×. A regression test reproduced Task attribution changing with Bot rebinding.
+Stamp direct projectId once, preserve explicit null and migration candidates, and import
+legacy plugin links explicitly. Never repair identity as a side effect of reading a board.
+Rebind/restart and ambiguous-run tests guard the M1 fix.
+
 ### 2026-10-31 — Persist fork boundaries and verify effects independently
 
 - **Seen:** 1× (M0, fork #2 / PR #9).

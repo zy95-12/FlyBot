@@ -125,3 +125,10 @@ FlyBot's plugin API surface on top of the patched core: host hooks, client slots
 - `flybot.bot.send` refuses text over 20,000 characters (`MAX_SEND_TEXT`, `src/host/hooks.js`), and since #1895 that bound counts code points through `codePoints` in `src/host/text.js`, so an emoji is one character and the refusal counts what a reader sees.
 - A remote sender's line that reaches a local Bot's own chat through `flybot.bot.send` stamps that Bot's `friendLineAt` in the roster (its row turns unread in a window where the chat is not open) and marks the sender's first line `remote.firstContact` (#420, `src/host/delivery.js`). A refused send stamps nothing. Covered by `core/test/flybot.test.js`.
 - The approval card queue (`FlyBotApprovals`) runs all its hooks on every render, before its empty-queue early return: a hook after it makes React throw when the first hold arrives and no card ever draws (#254; `core/test/overlay-approvals.test.js`).
+
+## Fork M1 — 2026-10-31
+
+M1 types and exposes projects.read/readRun/context/bindRun. Context derives Project
+from the durable Task; bindRun accepts optional task/workspace/status metadata and
+refuses foreign references. The host retains canonical execution ownership/history.
+[Project contract](project-domain.md) defines the scope; shared authorization is M2.

@@ -34,3 +34,9 @@ real HTTP against unchanged pinned platform source. Layers are in `docs/testing-
 
 Changes update this doc and regression cases, plus Project State/decisions when scope
 changes. [Install](install.md) owns OCI/Compose; core-host/workflow own runtime features.
+
+## Fork M1 — 2026-10-31
+
+M1 extends the actual DSH runtime probe: create a Project Task, rebind its Bot, check
+the original Project board, execute the Workflow and assert both plugin/host direct
+projectId plus the terminal Run report. This runs via test:demo:runtime and verify.

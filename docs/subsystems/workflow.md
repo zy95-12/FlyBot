@@ -127,3 +127,11 @@ A workflow record carries `projectId`. `saveGraph` is the only writer: a non-emp
 - The Settings page names the Project on every sidebar row (a workflow with none reads `Unassigned`, zh 未归属), offers one Project filter above the list (`All Projects` plus each Project plus the unassigned rows), and carries a Project picker in the graph editor; the picker saves through the same `workflow/graph` call that carries the nodes and edges, and an empty choice sends `null`. The picker is fed by the host `projects` endpoint, so it lists what the core store holds and never a second copy.
 
 A run is bound at creation, through `fb.projects.bindRun(runId, projectId)` — the seam beside `fb.tasks.onProjectProvider`. `assign()` resolves the Project once (the call's own `projectId` wins over the workflow's) and carries it with the task, so a parked run binds when it actually starts. The binding goes through the host's `bindProject({ kind: 'run', … })`, the same path the `project-bind` endpoint uses, so the Project board and Settings cannot disagree. An unknown Project, or a host without the seam, leaves the run unbound and logs once; it never stops the run from starting.
+
+## Fork M1 — 2026-10-31
+
+M1 snapshots projectId on Runs and compact history, independent of later graph
+bindings, imports known legacy host ownership, checks host execution context before
+spawn, and reports canonical terminal status. Missing context on older hosts preserves
+legacy behavior. project-domain.test.js covers graph rebind/restart and refused spawn;
+[Project contract](project-domain.md) records crash/reporting limitations.
