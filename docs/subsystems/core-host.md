@@ -890,3 +890,6 @@ Repair R6 adds internal original-schedule create/catalog/update/pause/resume/ret
 operations for logical Project targets, plus durable Chief/schedule state recovery.
 The existing generic work pump dispatches due deliveries without a Chief cadence.
 See [Chief control](project-chief-control.md) for authority and restart invariants.
+
+Repair HTTP integration: register the pool/query/GitHub/delegation/Chief/schedule
+APIs in the concrete channel dispatcher, with Project rights checked downstream.

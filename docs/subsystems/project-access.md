@@ -199,3 +199,6 @@ falling back to another browser or credential. See [delegation contract](project
 Repair R6 Chief job actors must validate a private active-job token, current
 configured policy revision and configuring human's current account/Project rights.
 A Chief role name alone grants no access. New control endpoints remain Project scoped.
+
+Authenticated HTTP route regressions cover every R3–R6 collaboration endpoint
+and reject a nonmember at the real Project boundary, beyond direct service tests.

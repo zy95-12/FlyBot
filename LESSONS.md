@@ -266,3 +266,7 @@ continuations, and verify the actual native runtime as well as fake schedule hoo
 Real shared-service Chief configuration returned HTTP 403: host endpoints were
 registered but the gateway allowlist still lacked R3–R6 APIs. Exercise actual HTTP
 forwarding with current member credentials and retain raw-owner API refusal.
+
+The same live HTTP probe then caught a second missing registration: channel.js
+needed explicit dispatcher cases. Gateway forwarding and direct service tests
+alone cannot prove end-to-end reachability; cover the actual authenticated route.

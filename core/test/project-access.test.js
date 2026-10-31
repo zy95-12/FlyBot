@@ -156,3 +156,20 @@ test('runtime, terminal and execution-input HTTP endpoints reach Project authori
     assert.equal(result.value.routedProjectEndpoint, endpoint, endpoint)
   }
 })
+
+test('repair pool, query, delegation and Chief endpoints reach the actual HTTP Project dispatcher', async t => {
+  const rt = await setup(t)
+  rt.authenticate = async () => alice
+  const prior = rt.projectEndpoint
+  rt.projectEndpoint = async endpoint => ({ routedProjectEndpoint: endpoint })
+  for (const endpoint of ['project-task-pools', 'project-chief-question', 'project-github-read', 'project-agent-mode', 'project-chief-state', 'project-chief-configure', 'project-chief-inspect', 'project-scheduled-task']) {
+    const result = await rt.testHttp(endpoint)
+    assert.equal(result.ok, true, endpoint)
+    assert.equal(result.value.routedProjectEndpoint, endpoint)
+  }
+  rt.projectEndpoint = prior
+  rt.authenticate = async () => outsider
+  const denied = await rt.testHttp('project-chief-state')
+  assert.equal(denied.ok, false)
+  assert.equal(denied.error.code, 'bot/forbidden')
+})
