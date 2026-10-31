@@ -54,7 +54,7 @@ export function createProjectResources(rt) {
     checkPool(projectId, { resourceIds })
     const usage = id => occupied(id) + pending.filter(row => row.resourceId === id).length
     if (maxConcurrent && [...Object.values(leases()).filter(active), ...pending].filter(row => row.projectId === projectId && row.role === role).length >= maxConcurrent) throw failure('Role capacity is full')
-    const candidates = resourceIds.map(id => ({ id, item: setting(projectId, id) })).filter(({ item }) => !item.disabled && item.harnesses?.includes(harness))
+    const candidates = resourceIds.map(id => ({ id, item: setting(projectId, id) })).filter(({ item }) => !item.disabled && item.harnesses?.includes(harness) && (harness !== 'flybot' || item.type === 'local'))
     if (!candidates.length) throw failure('No compatible execution resource in the selected pool')
     const available = candidates.filter(({ id, item }) => {
       const health = ownEntry(state.projectResourceHealth ?? {}, id)

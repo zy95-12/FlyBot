@@ -96,3 +96,10 @@ test('resource commands and worker processes use the same explicit Node executab
   await once(child, 'close')
   assert.equal(output, 'configured-runtime')
 })
+
+test('native Harness candidate pools exclude Docker even when its operator capability list is wrong', async () => {
+  const { rt, resources } = fixture()
+  rt.config.projectResources.isolated.harnesses.push('flybot')
+  const lease = await resources.reserve({ projectId: 'p1', attemptId: 'a', role: 'tester', sessionKey: 'native-compatible', harness: 'flybot', resourceIds: ['isolated', 'local'] })
+  assert.equal(lease.resourceId, 'local')
+})

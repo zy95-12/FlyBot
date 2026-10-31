@@ -108,3 +108,6 @@ M7.5 captures resource physical binding hashes per lease and adds host-only boun
 Version probes, command adapters, worker startup and private setup profiles now select the
 same explicit nodePath (or the running host Node for local resources). Runtime paths are
 absolute operator settings; tests cover executable paths containing spaces without a shell.
+Native Harness compatibility also requires a local transport, even if an operator mistakenly
+advertises native capability on Docker. Local and remote Git gates both validate their
+captured resource binding before acting; a physical target change cannot retarget evidence.

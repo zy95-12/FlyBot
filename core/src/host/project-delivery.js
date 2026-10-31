@@ -31,7 +31,10 @@ export function createProjectDelivery(rt, { publisher } = {}) {
   const root = resolve(config.projectWorkspaceRoot ?? join(dirname(rt.dshHome), 'flybot-workspaces'))
   const artifacts = resolve(rt.home, 'project-artifacts')
   const resourceWorkspaces = createResourceWorkspaces(rt, { hostGit: git, artifacts })
-  const workspaceGit = (workspace, args) => workspace.kind === 'resource-clone' ? resourceWorkspaces.git(workspace, args) : git(workspace.path, args)
+  const workspaceGit = (workspace, args) => {
+    if (workspace.resourceLease) rt.projectResources.requireBinding(workspace.projectId, workspace.resourceLease)
+    return workspace.kind === 'resource-clone' ? resourceWorkspaces.git(workspace, args) : git(workspace.path, args)
+  }
   let recovered = false
   let tail = Promise.resolve()
   const serial = fn => { const result = tail.then(fn, fn); tail = result.then(() => {}, () => {}); return result }

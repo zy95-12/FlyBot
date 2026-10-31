@@ -14,13 +14,13 @@ let created = false
 try {
   docker(['run', '-d', '--name', name, '--user', 'node', '--entrypoint', 'node', image, '-e', 'setInterval(()=>{},1000)']); created = true
   const rt = { state: { bots: {} }, config: { projectResources: {
-    local: { type: 'local', root: directory, capacity: 1, allowedProjectOwnerIds: ['owner'], harnesses: ['flybot'] },
-    container: { type: 'docker', container: name, user: '1000:1000', root: '/tmp', capacity: 1, allowedProjectOwnerIds: ['owner'], harnesses: ['flybot'] },
+    local: { type: 'local', root: directory, capacity: 1, allowedProjectOwnerIds: ['owner'], harnesses: ['codex'] },
+    container: { type: 'docker', container: name, user: '1000:1000', root: '/tmp', capacity: 1, allowedProjectOwnerIds: ['owner'], harnesses: ['codex'] },
   } }, readProject: () => ({ id: 'p', ownerUserId: 'owner' }), save: async () => {} }
   const resources = createProjectResources(rt)
   assert.equal((await resources.probe('p', 'local')).status, 'ready')
   assert.equal((await resources.probe('p', 'container')).status, 'ready')
-  const request = { projectId: 'p', role: 'developer', harness: 'flybot', resourceIds: ['local', 'container'] }
+  const request = { projectId: 'p', role: 'developer', harness: 'codex', purpose: 'probe', resourceIds: ['local', 'container'] }
   const first = await resources.reserve({ ...request, attemptId: 'one', sessionKey: 'one' })
   const second = await resources.reserve({ ...request, attemptId: 'two', sessionKey: 'two' })
   assert.notEqual(first.resourceId, second.resourceId)
