@@ -33,8 +33,12 @@ test('apply registers listeners, tools, and effects in a fixed order', (t) => {
   const { ctx, stop, applyResult } = start()
   t.after(stop)
   assert.equal(applyResult, undefined)
+  assert.equal(ctx.registeredTools.has('project_agent_context'), false, 'legacy mode does not expose workbench tools')
   assert.deepEqual(ctx.calls, [
     'effect ds-bot: state lock',
+    // Project scope guard stays installed even if the workbench is later disabled.
+    'on session/event',
+    'tools guard',
     'on llm/adapters-updated',
     'on session/event',
     'on session/event',
