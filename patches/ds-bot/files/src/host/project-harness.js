@@ -63,7 +63,7 @@ export function createProjectHarness(rt) {
     const id = `sdk-worker-${randomUUID()}`
     const row = { id, projectId: session.projectId, taskId: session.taskId, attemptId: session.attemptId, role: session.role, sessionKey: session.id,
       resourceId: session.resourceLease.resourceId, leaseId: session.resourceLease.id, generation: session.resourceLease.generation,
-      harness: session.execution.harness, sdkVersion: VERSIONS[session.execution.harness], principalId: selected.principalId,
+      harness: session.execution.harness, sdkVersion: null, expectedSdkVersion: VERSIONS[session.execution.harness], principalId: selected.principalId,
       cwd: workspace.path, status: 'prepared', createdAt: Date.now(), eventCount: 0 }
     setEntry(workers(), id, row)
     if (chief) await rt.projectResources.markStarted(row.leaseId, row.generation, { kind: 'sdk', handle: id })
@@ -74,8 +74,11 @@ export function createProjectHarness(rt) {
     const process = rt.projectResources.startProcess(row.projectId, row.resourceId, { argv: ['node', workerPath], cwd: workspace.path })
     const control = { process, chief, resumeSessionId: chief?.resumeSessionId, env: selected.env, profile: { ...selected.selected, ...(session.execution.model ? { model: session.execution.model } : {}) }, session, prompt: spec.prompt, outputs: [], closed: false, ready: false }
     active.set(id, control)
-    control.exit = new Promise(resolve => process.once('close', (code, signal) => { control.closed = true; row.exit = { code, signal }; resolve(row.exit) }))
-    process.once('error', () => { control.spawnFailed = true; row.status = 'failed'; void report(row, false, 'SDK worker could not start') })
+    let readyResolve, readyReject
+    control.handshake = new Promise((resolve, reject) => { readyResolve = resolve; readyReject = reject })
+    control.exit = new Promise(resolve => process.once('close', (code, signal) => { control.closed = true; row.exit = { code, signal }; if (!control.readyObserved) { control.spawnFailed = true; readyReject(refuse('SDK resource runtime exited before its handshake')) } resolve(row.exit) }))
+    process.stdin.on('error', () => { if (active.get(id) === control && !['released', 'stopping'].includes(row.status)) { row.status = 'failed'; failAsync(row, 'SDK worker input channel closed') } })
+    process.once('error', () => { control.spawnFailed = true; readyReject(refuse('SDK resource runtime could not start')); row.status = 'failed'; failAsync(row, 'SDK worker could not start') })
     // stderr can contain login material. Keep only a byte count, never persist raw text.
     process.stderr.on('data', data => { row.stderrBytes = (row.stderrBytes ?? 0) + data.length })
     let eventTail = Promise.resolve()
@@ -85,6 +88,12 @@ export function createProjectHarness(rt) {
       // fenced stop acknowledgement immediately, so shutdown cannot wait on itself.
       try {
         const signal = JSON.parse(line), lease = ownEntry(rt.state.projectResourceLeases ?? {}, row.leaseId)
+        if (signal.type === 'ready' && active.get(id) === control) {
+          control.readyObserved = true
+          control.observedSdkVersion = /^\d+\.\d+\.\d+(?:-[A-Za-z0-9.]+)?$/.test(signal.sdk?.[row.harness] ?? '') ? signal.sdk[row.harness] : null
+          if (signal.sdk?.[row.harness] !== VERSIONS[row.harness]) readyReject(refuse('SDK version on selected resource is missing or incompatible'))
+          else { row.sdkVersion = signal.sdk[row.harness]; readyResolve() }
+        }
         if (signal.type === 'stopped' && signal.released === true && active.get(id) === control && lease?.generation === row.generation) control.stoppedConfirmed = true
       } catch { /* The serialized protocol handler below owns malformed-frame errors. */ }
       eventTail = eventTail.then(async () => {
@@ -121,14 +130,24 @@ export function createProjectHarness(rt) {
         }
         if (event.type === 'failure') { row.status = 'failed'; await report(row, false, event.reason) }
         await rt.save()
-      }).catch(error => { row.status = 'failed'; void report(row, false, error.code === 'bot/harness' ? error.message : 'SDK event protocol failed') })
+      }).catch(error => { row.status = 'failed'; failAsync(row, error.code === 'bot/harness' ? error.message : 'SDK event protocol failed') })
     })
     void control.exit.then(async () => {
       if (!['completed', 'released', 'stopping', 'failed'].includes(row.status)) { row.status = 'failed'; await report(row, false, 'SDK stream terminated before a validated completion') }
     }).catch(error => rt.warn('SDK exit handling failed: %s', error.message))
+    let handshakeTimer
+    try { await Promise.race([control.handshake, new Promise((_resolve, reject) => { handshakeTimer = setTimeout(() => reject(refuse('SDK runtime handshake timed out')), 5000) })]) }
+    catch (error) {
+      row.failure = { reason: error.message, at: Date.now() }
+      rt.state.projectHarnessHealth ??= {}
+      setEntry(rt.state.projectHarnessHealth, `${row.projectId}:${row.resourceId}:${row.harness}`, { status: 'environmentError', reason: error.message, sdkVersion: control.observedSdkVersion ?? null, expectedSdkVersion: VERSIONS[row.harness], principalId: row.principalId, at: Date.now(), resourceId: row.resourceId, harness: row.harness })
+      await release(id); throw error
+    }
+    finally { clearTimeout(handshakeTimer) }
     await rt.save()
     return id
   }
+  function failAsync(row, text) { void report(row, false, text).catch(error => rt.warn('SDK result routing failed: %s', error.code ?? 'unknown')) }
   async function report(row, ok, text) {
     const control = active.get(row.id)
     if (!control || control.reported) return
@@ -152,7 +171,7 @@ export function createProjectHarness(rt) {
     row.status = 'running'
     control.process.stdin.write(JSON.stringify({ type: 'start', settings: { harness: row.harness, cwd: row.cwd, sessionId: control.resumeSessionId, noTools: row.role === 'chief', model: control.profile.model, env: control.env,
       ...(control.profile.baseUrl ? { baseUrl: control.profile.baseUrl } : {}), readOnly: row.role !== 'developer', maxBudgetUsd: control.profile.maxBudgetUsd ?? 1 }, prompt }) + '\n')
-    control.timer = setTimeout(() => { row.status = 'failed'; void report(row, false, 'SDK execution timeout') }, 120_000)
+    control.timer = setTimeout(() => { row.status = 'failed'; failAsync(row, 'SDK execution timeout') }, 120_000)
     control.timer.unref?.()
     await rt.save()
     return { ok: true }

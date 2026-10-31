@@ -23,7 +23,7 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
         if (terminal !== runtimeTerminal) return
         terminal.seq = value.seq
         terminal.screen = (terminal.screen + (value.output ?? []).map(row => row.text).join('')).slice(-60000)
-        terminal.closed = value.closed
+        terminal.closed = value.closed; terminal.reason = value.reason
         if (value.closed) win.clearInterval(terminalTimer)
         render()
       } catch { if (terminal === runtimeTerminal) { await closeTerminal(); error = 'Configuration terminal ended or access was revoked'; render() } }
@@ -211,7 +211,7 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
     for (const resource of resources.executionResources ?? []) {
       const row = box(resource.id, el('p', `${resource.type} · slots ${resource.capacity.occupied}/${resource.capacity.configured} · environment ${resource.health.status}`))
       for (const status of resource.harnessStatus ?? []) {
-        row.append(el('p', `${status.harness}: ${status.status}${status.reason ? ` · ${status.reason}` : ''}${status.at ? ` · checked ${new Date(status.at).toLocaleTimeString()}` : ''}`))
+        row.append(el('p', `${status.harness}: ${status.status}${status.sdkVersion ? ` · SDK ${status.sdkVersion}` : status.harness === 'flybot' ? '' : ' · SDK not detected'}${status.reason ? ` · ${status.reason}` : ''}${status.at ? ` · checked ${new Date(status.at).toLocaleTimeString()}` : ''}`))
         if (detail.permissions.configure) row.append(button(`Check ${status.harness} connection`, () => act(() => scoped('project-runtime-check', { resourceId: resource.id, harness: status.harness })), busy))
         if (resource.canManage && detail.permissions.configure) row.append(button(`Open ${status.harness} configuration terminal`, () => act(() => openTerminal(resource.id, status.harness)), busy))
       }
@@ -263,6 +263,7 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
       const terminal = runtimeTerminal
       const screen = el('pre', terminal.screen.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, ''), 'terminal-screen')
       const pane = box(`${terminal.resourceId} · ${terminal.harness} private configuration`, el('p', terminal.instructions), screen)
+      if (terminal.closed) pane.append(el('p', terminal.reason ?? 'Configuration terminal ended'))
       if (!terminal.closed) {
         const input = el('input'); input.id = 'runtime-terminal-input'; input.type = 'password'; input.value = terminalInputValue; input.autocomplete = 'off'; input.setAttribute('aria-label', 'Private terminal input (not saved)')
         const send = () => { const text = input.value; input.value = ''; void api.call('project-terminal-input', { terminalId: terminal.terminalId, text: text + '\n' }).catch(() => closeTerminal()) }

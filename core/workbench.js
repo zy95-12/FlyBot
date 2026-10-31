@@ -51,6 +51,7 @@
           terminal.seq = value.seq;
           terminal.screen = (terminal.screen + (value.output ?? []).map((row) => row.text).join("")).slice(-6e4);
           terminal.closed = value.closed;
+          terminal.reason = value.reason;
           if (value.closed) win.clearInterval(terminalTimer);
           render();
         } catch {
@@ -349,7 +350,7 @@
       for (const resource of resources.executionResources ?? []) {
         const row = box(resource.id, el("p", `${resource.type} · slots ${resource.capacity.occupied}/${resource.capacity.configured} · environment ${resource.health.status}`));
         for (const status of resource.harnessStatus ?? []) {
-          row.append(el("p", `${status.harness}: ${status.status}${status.reason ? ` · ${status.reason}` : ""}${status.at ? ` · checked ${new Date(status.at).toLocaleTimeString()}` : ""}`));
+          row.append(el("p", `${status.harness}: ${status.status}${status.sdkVersion ? ` · SDK ${status.sdkVersion}` : status.harness === "flybot" ? "" : " · SDK not detected"}${status.reason ? ` · ${status.reason}` : ""}${status.at ? ` · checked ${new Date(status.at).toLocaleTimeString()}` : ""}`));
           if (detail.permissions.configure) row.append(button(`Check ${status.harness} connection`, () => act(() => scoped("project-runtime-check", { resourceId: resource.id, harness: status.harness })), busy));
           if (resource.canManage && detail.permissions.configure) row.append(button(`Open ${status.harness} configuration terminal`, () => act(() => openTerminal(resource.id, status.harness)), busy));
         }
@@ -435,6 +436,7 @@
         const terminal = runtimeTerminal;
         const screen = el("pre", terminal.screen.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, ""), "terminal-screen");
         const pane = box(`${terminal.resourceId} · ${terminal.harness} private configuration`, el("p", terminal.instructions), screen);
+        if (terminal.closed) pane.append(el("p", terminal.reason ?? "Configuration terminal ended"));
         if (!terminal.closed) {
           const input = el("input");
           input.id = "runtime-terminal-input";

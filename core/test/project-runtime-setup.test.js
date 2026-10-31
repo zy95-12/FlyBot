@@ -104,3 +104,24 @@ test('closing a resource terminal also stops its interactive background jobs', a
   }
   assert.equal(running, false, 'The owned PTY job must not remain running after close')
 })
+
+test('a missing target PTY bridge ends as an environment error rather than a live terminal', async t => {
+  const { setup, rt, body, root } = await fixture(t)
+  rt.config.projectResources.local.runtimeDir = join(root, 'missing-runtime')
+  const opened = await setup.endpoint('project-terminal-open', body, owner)
+  let ended = false
+  for (let n = 0; n < 40; n++) { const view = await setup.endpoint('project-terminal-poll', { terminalId: opened.terminalId }, owner); if (view.closed) { ended = true; break } await wait(25) }
+  assert.equal(ended, true)
+  const result = await setup.endpoint('project-terminal-input', { terminalId: opened.terminalId, text: 'must not be dispatched\n' }, owner)
+  assert.equal(result.closed, true)
+})
+
+test('missing SDK bridge cannot consume probe capacity or imply authentication readiness', async t => {
+  const { setup, rt, body, root } = await fixture(t)
+  rt.config.projectResources.local.runtimeDir = join(root, 'missing-sdk-runtime')
+  rt.projectAgents.deliveryDefinitions = () => ({ roles: [{ role: 'developer', execution: { harness: 'codex', model: 'contract-model' } }] })
+  const result = await setup.check(body, owner)
+  assert.equal(result.status, 'environmentError')
+  assert.equal(result.sdkVersion, null)
+  assert.equal(rt.projectResources.occupied('local'), 0)
+})

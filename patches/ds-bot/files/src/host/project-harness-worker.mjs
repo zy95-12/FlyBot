@@ -1,6 +1,9 @@
 // Resource-side JSONL worker. No credentials in command arguments or persistent stdin logs.
 import { createInterface } from 'node:readline'
 import { randomUUID } from 'node:crypto'
+import { readFileSync, existsSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { runHarnessTurn } from './project-harness-turn.js'
 const input = createInterface({ input: process.stdin, crlfDelay: Infinity })
 const write = value => process.stdout.write(JSON.stringify(value) + '\n')
@@ -41,4 +44,15 @@ async function shutdown() {
   input.close(); process.stdin.pause(); setTimeout(() => process.exit(0), 50)
 }
 input.on('close', () => { void shutdown() })
-write({ type: 'ready', pid: process.pid, sdk: { codex: '0.166.0', 'claude-agent': '0.3.316' } })
+function sdkVersion(name) {
+  try {
+    let directory = dirname(fileURLToPath(import.meta.resolve(name)))
+    for (let n = 0; n < 5; n++) {
+      const path = join(directory, 'package.json')
+      if (existsSync(path)) { const data = JSON.parse(readFileSync(path, 'utf8')); if (data.name === name) return data.version }
+      directory = dirname(directory)
+    }
+  } catch { /* Missing SDK is an explicit failed handshake, not a simulated version. */ }
+  return null
+}
+write({ type: 'ready', pid: process.pid, sdk: { codex: sdkVersion('@openai/codex-sdk'), 'claude-agent': sdkVersion('@anthropic-ai/claude-agent-sdk') } })

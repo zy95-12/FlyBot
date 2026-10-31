@@ -111,3 +111,5 @@ absolute operator settings; tests cover executable paths containing spaces witho
 Native Harness compatibility also requires a local transport, even if an operator mistakenly
 advertises native capability on Docker. Local and remote Git gates both validate their
 captured resource binding before acting; a physical target change cannot retarget evidence.
+An SDK role without any selected authorized resource pool remains queued before allocation;
+it cannot consume an Attempt/workspace merely because the default Project quota is free.

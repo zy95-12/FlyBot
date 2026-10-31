@@ -111,3 +111,8 @@ All Codex roles clear ambient MCP/plugin/app registries and disable automatic pl
 installation, not only Chief. An authorized model profile supplies inference identity;
 it does not implicitly delegate extra connector tools or personal GitHub credentials.
 Claude workers retain explicit tools, empty MCP servers and disabled settings inheritance.
+Resource workers now report installed SDK package versions before receiving Task input or
+credentials; parent dispatch waits for the selected pinned version. Missing/incompatible
+bridges fail closed, invalidate that resource's readiness and release only a demonstrably
+unstarted or acknowledged-stopped worker. Broken stdin channels are contained as execution
+errors. Tests cover missing bridges, mismatched versions and the complete callback path.

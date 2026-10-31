@@ -14,7 +14,7 @@ async function fixture(t) {
 import {createInterface} from 'node:readline';
 const lines=createInterface({input:process.stdin});
 const write=value=>process.stdout.write(JSON.stringify(value)+'\\n');
-write({type:'ready'});
+write({type:'ready',sdk:{codex:'0.166.0','claude-agent':'0.3.316'}});
 lines.on('line',line=>{const m=JSON.parse(line);
  if(m.type==='stop'){write({type:'stopped',released:true});setTimeout(()=>process.exit(0),20);}
  if(m.type==='start') {
@@ -72,5 +72,22 @@ test('Workflow result callback can await the same SDK worker release without blo
   await harness.dispatch({ botId: id, taskId: 't', brief: 'Frozen requirement', outputs: [{ name: 'implementation' }] })
   await completed
   assert.equal(rt.state.projectHarnessWorkers[id].status, 'released')
+  assert.equal(rt.projectResources.occupied('r'), 0)
+})
+
+test('resource SDK version handshake fails before task dispatch and releases the unstarted worker', async t => {
+  const { rt, harness, cwd } = await fixture(t)
+  const path = join(rt.config.projectResources.r.runtimeDir, 'src/host/project-harness-worker.mjs')
+  const source = await readFile(path, 'utf8')
+  await writeFile(path, source.replace("codex:'0.166.0'", "codex:'0.0.0'"))
+  await assert.rejects(harness.spawn({ executionProjectId: 'p', executionWorkDir: cwd, prompt: 'Must not be dispatched' }), /version.*missing or incompatible/)
+  assert.equal(rt.projectResources.occupied('r'), 0)
+  assert.ok(Object.values(rt.state.projectHarnessWorkers).every(row => row.status === 'released'))
+})
+
+test('missing SDK bridge is an environment failure with no inference or leaked reservation', async t => {
+  const { rt, harness, cwd } = await fixture(t)
+  rt.config.projectResources.r.runtimeDir = join(rt.home, 'missing-runtime')
+  await assert.rejects(harness.spawn({ executionProjectId: 'p', executionWorkDir: cwd, prompt: 'Must not be dispatched' }), /runtime exited before/)
   assert.equal(rt.projectResources.occupied('r'), 0)
 })

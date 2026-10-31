@@ -349,7 +349,7 @@ test('existing Workflow executes three SDK contract workers through seal/test/re
   mkdirSync(join(runtimeDir, 'src/host'), { recursive: true })
   writeFileSync(join(runtimeDir, 'src/host/project-harness-worker.mjs'), `
 import {createInterface} from 'node:readline';import{writeFileSync}from'node:fs';import{execFileSync}from'node:child_process';
-const write=v=>process.stdout.write(JSON.stringify(v)+'\\n');write({type:'ready'});
+const write=v=>process.stdout.write(JSON.stringify(v)+'\\n');write({type:'ready',sdk:{codex:'0.166.0','claude-agent':'0.3.316'}});
 createInterface({input:process.stdin}).on('line',line=>{const m=JSON.parse(line);
 if(m.type==='stop'){write({type:'stopped',released:true});setTimeout(()=>process.exit(0),20);return;}
 if(m.type!=='start')return;

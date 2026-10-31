@@ -25,36 +25,44 @@ export function createProjectRuntimeSetup(rt) {
     if (!model) return { status: 'unconfigured', reason: 'Set an explicit SDK model on this role/profile' }
     const id = `probe-${randomUUID()}`, cwd = join(resource.root, 'connection-probes', id)
     const lease = await rt.projectResources.reserve({ projectId: project.id, attemptId: id, sessionKey: id, role: 'probe', harness: body.harness, resourceIds: [body.resourceId], purpose: 'probe' })
-    let child, exited = false, stopped = false, completion = false, authError = false
+    let child, exited = false, stopped = false, completion = false, authError = false, observedSdkVersion = null, readyObserved = false, startupFailed = false
     try {
       await rt.projectResources.command(project.id, body.resourceId, { cwd: resource.root, argv: ['mkdir', '-p', cwd] })
       await rt.projectResources.command(project.id, body.resourceId, { cwd, argv: ['git', 'init', '-q'] })
       const runtime = resource.runtimeDir ?? resolve(import.meta.dirname, '../..')
       child = rt.projectResources.startProcess(project.id, body.resourceId, { cwd, argv: ['node', join(runtime, 'src/host/project-harness-worker.mjs')] })
       await rt.projectResources.markStarted(lease.id, lease.generation, { kind: 'sdk', handle: id })
-      const closed = new Promise(resolve => child.once('close', () => { exited = true; resolve() }))
-      child.once('error', () => {}) // The exit/readiness check below reports a bounded environment error.
+      const closed = new Promise(resolve => child.once('close', () => { exited = true; if (!readyObserved) startupFailed = true; resolve() }))
+      child.stdin.on('error', () => {}) // Missing/closed runtimes report an environment error below, never crash the host.
+      child.once('error', () => { startupFailed = true }) // The exit/readiness check below reports a bounded environment error.
       child.stderr.resume() // Raw SDK stderr may contain credential material; never persist or relay it.
-      let finish
+      let finish, handshake
+      const ready = new Promise(resolve => { handshake = resolve })
       const finished = new Promise(resolve => { finish = resolve })
       const lines = createInterface({ input: child.stdout })
       lines.on('line', line => {
         try {
           const event = JSON.parse(line)
+          if (event.type === 'ready') { readyObserved = true; const version = event.sdk?.[body.harness]; observedSdkVersion = /^\d+\.\d+\.\d+(?:-[A-Za-z0-9.]+)?$/.test(version ?? '') ? version : null; handshake() }
           if (event.type === 'stopped') stopped = event.released === true
           if (event.type === 'completed') { completion = true; finish() }
           if (event.type === 'failure') finish()
           if (/401|403|api.key|authentication|unauthorized|login required/i.test(line)) authError = true
         } catch { /* Malformed probe output is not successful authentication. */ }
       })
+      await Promise.race([ready, closed, delay(5000)])
+      if (observedSdkVersion !== rt.projectHarness.versions[body.harness]) {
+        if (!exited) { child.stdin.end(JSON.stringify({ type: 'stop' }) + '\n'); await Promise.race([closed, delay(6000)]) }
+        return { status: 'environmentError', reason: 'SDK on this resource is missing or incompatible with this FlyBot runtime', sdkVersion: observedSdkVersion }
+      }
       child.stdin.write(JSON.stringify({ type: 'start', settings: { harness: body.harness, env: selected.env, cwd, model, probe: true, noTools: true, readOnly: true, maxBudgetUsd: 0.01,
         ...(selected.selected.baseUrl ? { baseUrl: selected.selected.baseUrl } : {}) }, prompt: 'Reply ready. Do not use tools.' }) + '\n')
       await Promise.race([finished, closed, delay(10_000)])
       if (!exited) { child.stdin.end(JSON.stringify({ type: 'stop' }) + '\n'); await Promise.race([closed, delay(6000)]) }
-      return { status: completion && exited && stopped ? 'ready' : authError ? 'authRequired' : 'environmentError', reason: completion && exited && stopped ? 'Minimal SDK inference completed; this is not task execution' : authError ? 'SDK authentication is required or was rejected' : 'SDK/runtime probe did not complete within its bound', model }
+      return { status: completion && exited && stopped ? 'ready' : authError ? 'authRequired' : 'environmentError', reason: completion && exited && stopped ? 'Minimal SDK inference completed; this is not task execution' : authError ? 'SDK authentication is required or was rejected' : 'SDK/runtime probe did not complete within its bound', model, sdkVersion: observedSdkVersion }
     } finally {
-      await rt.projectResources.release(lease.id, lease.generation, ...(child ? [{ handle: id, exited: exited && stopped }] : []))
-      if (exited && stopped || !child) await rt.projectResources.command(project.id, body.resourceId, { cwd: resource.root, argv: ['rm', '-rf', '--', cwd] }).catch(() => {}) // Owned probe directory only; failed cleanup is not auth success.
+      await rt.projectResources.release(lease.id, lease.generation, ...(child ? [{ handle: id, exited: exited && (stopped || startupFailed) }] : []))
+      if (exited && (stopped || startupFailed) || !child) await rt.projectResources.command(project.id, body.resourceId, { cwd: resource.root, argv: ['rm', '-rf', '--', cwd] }).catch(() => {}) // Owned probe directory only; failed cleanup is not auth success.
     }
   }
   async function check(body, actor) {
@@ -81,14 +89,14 @@ export function createProjectRuntimeSetup(rt) {
         try { result = await probeSDK(body, project, resource) }
         catch (failure) { result = { status: failure.code === 'bot/resource' ? 'unreachable' : failure.code === 'bot/harness' ? 'unconfigured' : 'environmentError', reason: failure.code === 'bot/resource' ? 'Resource capacity or environment is unavailable' : 'Explicit SDK profile, model or runtime configuration is incomplete' } }
       }
-      const row = { ...result, at: Date.now(), principalId: project.ownerUserId, sdkVersion: rt.projectHarness.versions[body.harness] ?? null, resourceId: body.resourceId, harness: body.harness }
+      const row = { ...result, at: Date.now(), principalId: project.ownerUserId, sdkVersion: result.sdkVersion ?? null, expectedSdkVersion: rt.projectHarness.versions[body.harness] ?? null, resourceId: body.resourceId, harness: body.harness }
       setEntry(rt.state.projectHarnessHealth, key, row); await rt.save(); rt.projectScheduler?.wake(); return structuredClone(row)
     })().finally(() => checks.delete(key))
     checks.set(key, promise); return promise
   }
   async function close(terminal, reason) {
     if (terminal.closed) return
-    terminal.process.stdin.end(JSON.stringify({ type: 'close' }) + '\n')
+    if (!terminal.processExited) terminal.process.stdin.end(JSON.stringify({ type: 'close' }) + '\n')
     await Promise.race([terminal.exited, delay(3000)])
     if (!terminal.released) { terminal.process.kill('SIGTERM'); await Promise.race([terminal.exited, delay(1000)]) }
     terminal.closed = true; terminal.output = []
@@ -107,7 +115,8 @@ export function createProjectRuntimeSetup(rt) {
     const terminal = { id: `terminal-${randomUUID()}`, actor: { ...actor }, target: { projectId: project.id, resourceId: body.resourceId, harness: body.harness, role: body.role }, process,
       output: [], seq: 0, createdAt: Date.now(), lastSeen: Date.now(), expiresAt: Date.now() + 10 * 60_000, released: false }
     terminal.exited = new Promise(resolve => process.once('close', () => { terminal.processExited = true; resolve() }))
-    process.once('error', () => { terminal.closed = true })
+    process.stdin.on('error', () => { terminal.processInputEnded = true })
+    process.once('error', () => { terminal.processInputEnded = true })
     process.stderr.resume()
     createInterface({ input: process.stdout }).on('line', line => {
       try {
@@ -142,7 +151,7 @@ export function createProjectRuntimeSetup(rt) {
     if (endpoint === 'project-terminal-open') return open(body, actor)
     const terminal = await access(body, actor)
     if (endpoint === 'project-terminal-close') { await close(terminal, 'owner-close'); return { closed: true, released: terminal.released } }
-    if (terminal.closed || terminal.released) return { closed: true, output: [], seq: terminal.seq }
+    if (terminal.closed || terminal.released || terminal.processExited || terminal.processInputEnded) return { closed: true, output: [], seq: terminal.seq, reason: terminal.closed ? 'Configuration terminal closed' : 'Target terminal runtime ended; check the resource environment before reconnecting' }
     if (endpoint === 'project-terminal-input') {
       if (typeof body.text !== 'string' || body.text.length > 8192) throw refuse('Invalid terminal input')
       terminal.process.stdin.write(JSON.stringify({ type: 'input', data: Buffer.from(body.text).toString('base64') }) + '\n'); return { sent: true }

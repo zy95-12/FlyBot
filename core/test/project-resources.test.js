@@ -103,3 +103,8 @@ test('native Harness candidate pools exclude Docker even when its operator capab
   const lease = await resources.reserve({ projectId: 'p1', attemptId: 'a', role: 'tester', sessionKey: 'native-compatible', harness: 'flybot', resourceIds: ['isolated', 'local'] })
   assert.equal(lease.resourceId, 'local')
 })
+
+test('unconfigured SDK roles block admission before workspace or worker allocation', () => {
+  const { resources } = fixture()
+  assert.throws(() => resources.plan('p1', { roles: [{ role: 'developer', execution: { harness: 'codex', resourceIds: [] } }] }), /no authorized execution resource pool/)
+})

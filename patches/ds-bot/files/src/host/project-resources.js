@@ -68,6 +68,7 @@ export function createProjectResources(rt) {
   function plan(projectId, definitions) {
     const pending = []
     for (const role of definitions?.roles ?? []) {
+      if (role.role !== 'chief' && role.execution?.harness && role.execution.harness !== 'flybot' && !role.execution.resourceIds?.length) throw failure('SDK role has no authorized execution resource pool')
       if (role.role === 'chief' || !role.execution?.resourceIds?.length) continue
       const execution = role.execution
       const selected = select({ projectId, role: role.role, harness: execution.harness, resourceIds: execution.resourceIds, maxConcurrent: execution.maxConcurrent }, pending)
