@@ -1401,6 +1401,7 @@ export function install(rt) {
               if (!attempt) return []
               return [
                 ...(attempt.evidence.implementation ? [{ kind: 'implementation', sha: attempt.evidence.implementation.sha }] : []),
+                ...(attempt.evidence.review ? [{ kind: 'review', sha: attempt.evidence.review.sha, verdict: attempt.evidence.review.verdict }] : []),
                 ...(attempt.evidence.tests ? [{ kind: 'host-tests', sha: attempt.evidence.tests.sha, passed: attempt.evidence.tests.passed, sha256: attempt.evidence.tests.sha256 }] : []),
                 ...(attempt.pr ? [{ pr: attempt.pr.number, sha: attempt.pr.sha, checks: 'unknown' }] : []),
               ]

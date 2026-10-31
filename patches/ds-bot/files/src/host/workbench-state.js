@@ -22,7 +22,7 @@ export function taskExecutionStatus(state, task) {
   let phase = task.status === 'accepted' ? 'accepted' : task.status === 'cancelled' ? 'cancelled' : 'published'
   if (['accepted', 'cancelled'].includes(task.status)) return { taskId: task.id, publication: 'published', phase, botId: collaboration?.botId ?? null, reason: null }
   if (queued) phase = 'queued'
-  else if (collaboration?.status === 'arbitration') phase = 'awaiting-chief'
+  else if (['arbitration', 'chief-working'].includes(collaboration?.status)) phase = 'awaiting-chief'
   else if (collaboration?.status === 'blocked') phase = 'blocked'
   else if (collaboration?.status === 'queued') phase = 'queued'
   else if (collaboration?.status === 'claimed') phase = sdk?.status === 'running' || activeNative ? 'running' : sdk?.status === 'waiting-input' ? 'awaiting-input' : 'starting'
@@ -59,6 +59,7 @@ export function install(rt) {
       harnessWorkers: Object.values(rt.state.projectHarnessWorkers ?? {}).filter(row => row.projectId === id && (row.visibility !== 'private' || row.memberId === actor.memberId)).map(({ eventLog: _log, sealedLog: _sealedLog, cwd: _cwd, ...row }) => structuredClone(row)),
       executionResources: rt.projectResources?.list(id, actor) ?? [],
       resourceLeases: Object.values(rt.state.projectResourceLeases ?? {}).filter(row => row.projectId === id).map(({ worker: _worker, ...row }) => structuredClone(row)),
+      chief: rt.projectChiefControl?.view(id, actor) ?? null,
       taskExecution: Object.values(rt.state.tasks).filter(task => task.projectId === id).map(task => taskExecutionStatus(rt.state, task)),
       repository, host, metrics: deliveryMetrics(rt.state, id), platformInstance: rt.platformInstance ? await rt.platformInstance(actor).catch(() => null) : null }
   }

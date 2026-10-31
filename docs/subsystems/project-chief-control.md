@@ -1,0 +1,77 @@
+---
+subsystem: project-chief-control
+owned_paths:
+  - core/src/host/project-chief-control.js
+  - core/src/host/project-chief-schedule.json
+  - core/src/host/project-scheduled-tasks.js
+  - core/src/host/project-process-proof.js
+  - core/test/project-chief-control.test.js
+  - core/test/project-scheduled-tasks.test.js
+  - core/test/project-process-proof.test.js
+---
+
+# Chief arbitration and original scheduled tasks
+
+Repair #39 reuses Task, Attempt, Run, resident Chief, temporary Harness execution
+and resource leases. A configuring human explicitly enables arbitration with
+`project-chief-configure`. The current human account and Project configure rights
+are checked again for each job/effect. Chief cannot authorize itself. Policy revision,
+carrier generation, Task generation, Attempt and candidate SHA fence late results.
+`project-chief-state` reports policy, schedule and actual coordination Runs;
+`project-chief-inspect` requests an idempotent inspection with a requestId.
+
+Completion/uncertainty handoffs enter Chief's pool. The actual native or SDK Chief
+receives the complete pinned role policy and an evidence snapshot, then proposes
+bounded close/route/return/request-tests/needs-human/continue decisions. Normal
+role handoffs still go directly to the next pool. Chief closure requires explicit
+criteria evidence and the existing host candidate/test/review/PR-head gates.
+Explicit acceptance requirements are checked at closure, not used to prevent Chief
+from receiving incomplete work. Release claims without trusted proof cannot close.
+A candidate recommendation is not a signed forge Reviewer PASS or merge permission.
+Every decision records the initiating human, Chief executor, snapshot and applied
+or rejected status. A failed Chief run blocks completion rather than inventing success.
+Returns preserve Task identity and create a fresh Attempt when code must change.
+
+## Scheduling
+
+`project-chief-schedule.json` is the editable template: every 1800 seconds by
+default, with prompt, enabled state and anomaly thresholds. Enabling the Project
+configuration creates an **original DSH schedule**, not another timer engine.
+The logical scheduled-task ledger maps a stable Project/Chief target to the actual
+DSH record, supports edit/pause/resume and remaps that single record when its
+carrier changes. Paused/resumed records may have a different native ID while
+retaining their logical ID and history. A persisted creation intent reconciles an
+unambiguous original record after a crash; ambiguous matches block duplication.
+
+Only trusted schedule-source inbox envelopes with the mapped ID, current prompt
+and normalized occurrence are consumed. Occurrences deduplicate durably. Mixed
+batches preserve unmanaged messages; clock-only remnants cannot start a second
+model turn. The existing generic work pump dispatches already-due deliveries;
+it never computes a Chief-specific 30-minute cadence. Native inbox delivery and
+actual Chief job completion are recorded separately. No schedule is installed
+merely by loading this module or reading the template.
+
+Inspection computes repeated handoffs without verified evidence progress, long
+execution/wait and missing SDK heartbeat from persisted host facts. Message/status
+churn is not artifact progress. All thresholds and inspection content/cadence are
+configuration. Coordination does not consume a delivery-task quota slot, but its
+actual execution still requires physical resource capacity.
+
+## Restart and process proof
+
+Interrupted work is never assumed successful or automatically freed on missing PID.
+Local workers record the actual systemd invocation and control group only when
+supervisor metadata matches the running process and KillMode=control-group.
+A changed invocation under the same boot/unit/group proves the old scope exited;
+unknown, unmanaged, remote or different-boot scopes retain occupancy. Confirmed
+exit permits recovery of the same Task's interrupted Chief receipt. Sealed SDK
+logs bind actual worker, lease generation, carrier and Run before effects.
+
+## Evidence boundaries
+
+Deterministic native/backend and SDK protocol-child tests cover two Attempts of
+one Task: Chief returns missing test coverage, Dev repairs, Tester/Reviewer hand
+off, Chief closes. They also cover stale authority/carrier/generation, rejected
+closure, timer mapping, pause/resume, deduplication and conservative process proof.
+These fixtures are not actual Codex, original live DSH timer delivery, browser
+acceptance or shared-service restart evidence; those remain issue #41 acceptance.

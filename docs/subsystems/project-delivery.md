@@ -231,3 +231,10 @@ existing candidate tests and human acceptance remain mandatory.
 
 
 Repair R3 (#36): New shared deliveries default to per-Bot pools with lazy single-role allocation and versioned Attempts. Fixed DAG requires `projectDispatch: workflow`; historical Attempts are unchanged. Returns to Dev create a successor Attempt seeded from the prior candidate. Chief arbitration is required before final acceptance. See [pool contract](project-pools.md).
+
+Repair R6: Chief acceptance applies existing candidate/test/review/PR-head gates,
+explicit Task requirements and actual Run/SDK evidence; it records Chief executor
+and current human authority. Non-code decisions need hashed outputs; release
+claims without trusted release evidence cannot close. Rework preserves Task and
+prior Attempt evidence. Host testTimeoutMs now honors configured positive values
+up to 1800000 ms instead of silently reducing a 600000-ms budget to 300000.

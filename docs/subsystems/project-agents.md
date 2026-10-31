@@ -287,3 +287,9 @@ mode. Full scoped human operations are exposed through `project_agent_action`
 with current Project checks and audit. SDK Chief may reference `$lastTask` only
 for the immediately preceding host-created Task; a proposal cannot be run.
 See [delegation contract](project-delegations.md).
+
+Repair R6: resident Chief runs bounded arbitration jobs through native or actual
+SDK execution with complete pinned policy. Private tokens bind current Run and
+policy revision; native job prompts restore after completion and new human turns
+replace both instruction fields. Stale persisted inputs cannot reuse a revoked
+delegation. Coordination jobs cannot authorize themselves or create arbitrary Tasks.

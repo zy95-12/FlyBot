@@ -13,10 +13,10 @@ export function createProjectScheduler(rt, { preflight = preflightRepository } =
   const serial = fn => { const result = tail.then(fn, fn); tail = result.then(() => {}, () => {}); return result }
   function slots(projectId) {
     const keys = new Set()
-    for (const run of Object.values(state.projectExecutions ?? {})) if (run.projectId === projectId && ACTIVE.has(run.status)) keys.add(run.attemptId ?? run.id)
+    for (const run of Object.values(state.projectExecutions ?? {})) if (run.projectId === projectId && run.kind !== 'chief-control' && ACTIVE.has(run.status)) keys.add(run.attemptId ?? run.id)
     for (const attempt of Object.values(state.projectAttempts ?? {})) if (attempt.projectId === projectId && ['preparing', 'running'].includes(attempt.status)) keys.add(attempt.id)
     for (const bot of Object.values(state.bots)) if (bot.projectId === projectId && bot.ephemeral && bot.attemptId) keys.add(bot.attemptId)
-    for (const lease of Object.values(state.projectResourceLeases ?? {})) if (lease.projectId === projectId && lease.status !== 'released' && lease.attemptId) keys.add(lease.attemptId)
+    for (const lease of Object.values(state.projectResourceLeases ?? {})) if (lease.projectId === projectId && lease.role !== 'chief' && lease.status !== 'released' && lease.attemptId) keys.add(lease.attemptId)
     return keys.size
   }
   const quota = project => project.quota?.maxConcurrent ?? 2
@@ -110,7 +110,7 @@ export function createProjectScheduler(rt, { preflight = preflightRepository } =
     }
     return changed
   }
-  const wake = () => { void serial(drain).then(() => rt.projectPools?.pump()).catch(failure => rt.warn('Project queue: %s', failure.message)) }
+  const wake = () => { void Promise.resolve(rt.projectResources?.reconcile?.()).then(() => serial(drain)).then(() => rt.projectPools?.pump()).then(() => rt.projectScheduledTasks?.pump()).then(() => rt.projectChiefControl?.pump()).catch(failure => rt.warn('Project queue: %s', failure.message)) }
   return { request: (body, actor) => serial(() => request(body, actor)), cancel: (body, actor) => serial(() => cancel(body, actor)),
     slots, revalidate, recover, drain: () => serial(drain), wake }
 }

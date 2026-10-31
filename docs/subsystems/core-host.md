@@ -885,3 +885,8 @@ Repair R5 (#38): Runtime installs persistent delegation before Project
 agents and wraps Project authorization with synchronous grant/generation checks.
 Platform checks run through a fixed operator command with no inherited credentials.
 See [delegation contract](project-delegations.md).
+
+Repair R6 adds internal original-schedule create/catalog/update/pause/resume/retarget
+operations for logical Project targets, plus durable Chief/schedule state recovery.
+The existing generic work pump dispatches due deliveries without a Chief cadence.
+See [Chief control](project-chief-control.md) for authority and restart invariants.

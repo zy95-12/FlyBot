@@ -240,3 +240,16 @@ record its exact source and distinguish scripted owner acceptance from human rev
 ### 2026-11-01 — preflight the actual deployed delivery configuration
 
 Seen 1×: the shared service omitted allowedPaths. Login, SDK code smoke and an independent verify passed, but actual Project execution failed after consuming Dev inference. Validate required repository policy before admission, share metadata readiness with the UI, and distinguish missing configuration, out-of-scope changes and no code change. Prove the configured Project path, not only an isolated SDK primitive.
+
+### 2026-11-01 — credential masking must preserve Task identifiers (Seen 1×)
+
+An unanchored `sk-...` secret pattern matched inside `task-UUID`, corrupting actual
+Chief routing JSON. Match credential tokens at a word boundary and test both a
+credential-shaped token and unchanged Task IDs through saved Harness events.
+
+### 2026-11-01 — restart recovery needs supervisor scope evidence (Seen 1×)
+
+A missing PID or terminal Task status does not prove external work exited. Record
+the actual supervisor invocation/control group before starting execution. Only a
+verified manager boundary with control-group termination can release old local
+capacity; unknown/remote/different-boot evidence remains held.

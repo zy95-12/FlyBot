@@ -195,3 +195,7 @@ current account and Project. Watch actors carry a bound grant/generation checked
 at every Project boundary. Membership removal revokes grants and stops affected
 claims. Scoped GitHub and runtime setup accept validated persistent actors, without
 falling back to another browser or credential. See [delegation contract](project-delegations.md).
+
+Repair R6 Chief job actors must validate a private active-job token, current
+configured policy revision and configuring human's current account/Project rights.
+A Chief role name alone grants no access. New control endpoints remain Project scoped.

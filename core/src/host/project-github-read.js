@@ -40,7 +40,7 @@ export function createProjectGithubRead(rt, { identity = resolveGithubIdentity, 
     else {
       const pr = await get(`/pulls/${number}`)
       if (!/^[a-f0-9]{40}$/.test(pr.head?.sha ?? '')) throw refuse('GitHub did not return a full candidate SHA')
-      data = { ...summary(pr), sha: pr.head.sha, base: pr.base?.ref, draft: pr.draft, merged: pr.merged }
+      data = { ...summary(pr), sha: pr.head.sha, base: pr.base?.ref, draft: pr.draft, merged: pr.merged, hold: (pr.labels ?? []).some(label => label.name === 'hold') }
       if (operation === 'checks') {
         const checks = await get(`/commits/${pr.head.sha}/check-runs?per_page=20`)
         data.checks = (checks.check_runs ?? []).slice(0, 20).map(row => ({ name: row.name, status: row.status, conclusion: row.conclusion, url: row.html_url }))

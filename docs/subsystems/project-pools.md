@@ -76,3 +76,9 @@ initiating human account outside the browser when the operator principal checker
 is configured; otherwise only a live initiating platform session suffices.
 Revocation fences the claim before worker shutdown; unknown exits retain capacity.
 See [delegation contract](project-delegations.md).
+
+Repair R6: Chief admission no longer demands final completion evidence. Chief
+claims its receipt, validates closure through existing gates or routes/returns
+with an explicit reason. Confirmed worker exit precedes intervention; unknown
+capacity remains held. Failed host verification offers the same Task to Chief.
+See [Chief control](project-chief-control.md).

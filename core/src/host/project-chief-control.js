@@ -1,0 +1,200 @@
+// Chief arbitration uses existing Tasks, Runs, Sessions and resource leases.
+import { randomUUID, createHash } from 'node:crypto'
+import { readFileSync } from 'node:fs'
+import { captureProcessScope, priorScopeExited } from './project-process-proof.js'
+import { fileDigest } from './project-resource-workspaces.js'
+import { ownEntry, setEntry } from './store.js'
+const template = JSON.parse(readFileSync(new URL('./project-chief-schedule.json', import.meta.url), 'utf8'))
+const refuse = message => Object.assign(new Error(message), { code: 'bot/chief' })
+const digest = value => createHash('sha256').update(JSON.stringify(value)).digest('hex')
+const terminal = new Set(['accepted', 'cancelled'])
+export function progressFingerprint(attempt) {
+  return digest({ candidate: attempt?.candidateSha ?? null, tests: attempt?.evidence?.tests ? { sha: attempt.evidence.tests.sha, passed: attempt.evidence.tests.passed, hash: attempt.evidence.tests.sha256 } : null,
+    review: attempt?.evidence?.review ? { sha: attempt.evidence.review.sha, verdict: attempt.evidence.review.verdict } : null })
+}
+export function inspectionFacts(state, task, thresholds, now = Date.now()) {
+  const c = task.collaboration, attempt = state.projectAttempts?.[task.deliveryAttemptId], fingerprint = progressFingerprint(attempt)
+  let checkpoint = 0, previous = digest([])
+  for (const [index, receipt] of (c?.history ?? []).entries()) {
+    const evidence = digest(receipt.evidence ?? [])
+    if (evidence !== previous) { checkpoint = index + 1; previous = evidence }
+  }
+  const handoffs = (c?.history.length ?? 0) - checkpoint
+  const worker = c?.claim?.workerId ? state.projectHarnessWorkers?.[c.claim.workerId] : null
+  const reasons = []
+  if (handoffs >= thresholds.maxHandoffsWithoutProgress) reasons.push('Repeated handoffs without verified artifact/test/review progress')
+  if (c?.claim?.status === 'active' && now - c.claim.createdAt > thresholds.longExecutionMs) reasons.push('Execution exceeds the configured duration threshold')
+  if (worker?.status === 'running' && now - (worker.lastEventAt ?? worker.createdAt) > thresholds.missingHeartbeatMs) reasons.push('Execution heartbeat is missing')
+  if (['queued', 'arbitration', 'blocked'].includes(c?.status) && now - (c.history.at(-1)?.createdAt ?? task.updatedAt) > thresholds.longWaitMs) reasons.push('Task wait exceeds the configured duration threshold')
+  return { taskId: task.id, fingerprint, handoffsWithoutProgress: handoffs, reasons, observedAt: now, checkpoint }
+}
+export function createProjectChiefControl(rt) {
+  const policies = () => (rt.state.projectChiefPolicies ??= {})
+  const active = new Map(), waiters = new Map()
+  let pumping = false
+  const policyOf = id => ownEntry(policies(), id)
+  function requireJobActor(actor, projectId) {
+    const job = active.get(actor?.chiefJobId), policy = policyOf(projectId)
+    if (rt.readOnly?.() || !job || job.token !== actor.chiefToken || job.run.projectId !== projectId || job.run.initiatedBy !== actor.memberId || job.run.status !== 'running' || !policy?.enabled || policy.revision !== job.run.policyRevision || policy.authorityMemberId !== actor.memberId) throw refuse('Chief job authority is missing, revoked or stale')
+    return job
+  }
+  async function validateActor(actor) {
+    const run = ownEntry(rt.state.projectExecutions ?? {}, actor?.chiefJobId)
+    requireJobActor(actor, run?.projectId)
+    await rt.projectDelegations.background(actor.memberId)
+    requireJobActor(actor, run.projectId)
+    rt.requireProjectAccess(actor, run.projectId, 'configure')
+    return true
+  }
+  function view(projectId, actor) {
+    rt.requireProjectAccess(actor, projectId)
+    const policy = policyOf(projectId), logical = policy?.scheduleId ? rt.state.projectScheduledTasks?.[policy.scheduleId] : null
+    return { policy: structuredClone(policy ?? { enabled: false }), template: structuredClone(template), schedule: logical ? { id: logical.id, enabled: logical.enabled, status: logical.status, config: structuredClone(logical.config), deliveries: Object.values(logical.deliveries).slice(-5).map(row => structuredClone(row)) } : null, runs: Object.values(rt.state.projectExecutions ?? {}).filter(run => run.projectId === projectId && run.kind === 'chief-control').slice(-30).map(({ capability: _capability, ...row }) => structuredClone(row)) }
+  }
+  async function configure(body, actor) {
+    rt.requireProjectAccess(actor, body.projectId, 'configure')
+    if (actor.chiefJobId) throw refuse('Chief cannot grant or change its own arbitration authority')
+    if (body.enabled !== false) await rt.projectDelegations.background(actor.memberId)
+    const previous = policyOf(body.projectId)
+    const inspection = { ...structuredClone(template), ...structuredClone(previous?.inspection ?? {}), ...structuredClone(body.inspection ?? {}), thresholds: { ...template.thresholds, ...(body.inspection?.thresholds ?? previous?.inspection?.thresholds ?? {}) } }
+    for (const value of Object.values(inspection.thresholds)) if (!Number.isSafeInteger(value) || value < 1) throw refuse('Chief inspection thresholds must be positive integers')
+    const policy = { projectId: body.projectId, enabled: body.enabled !== false, authorityMemberId: actor.memberId, authorizedBy: actor.memberId, revision: (previous?.revision ?? 0) + 1, inspection, updatedAt: Date.now() }
+    if (previous?.scheduleId || policy.enabled) {
+      const scheduled = await rt.projectScheduledTasks.save({ projectId: body.projectId, ...(previous?.scheduleId ? { id: previous.scheduleId } : {}), target: { kind: 'project-chief', projectId: body.projectId }, rebindAuthority: true, ...inspection, enabled: policy.enabled && inspection.enabled !== false }, actor)
+      policy.scheduleId = scheduled.id
+    }
+    setEntry(policies(), body.projectId, policy); await rt.save()
+    return view(body.projectId, actor)
+  }
+  async function request(projectId, kind, source, taskId) {
+    const policy = policyOf(projectId)
+    if (!policy?.enabled) throw refuse('Chief arbitration authority has not been configured')
+    const sourceKey = digest({ projectId, kind, source, taskId })
+    const prior = Object.values(rt.state.projectExecutions ?? {}).find(run => run.kind === 'chief-control' && run.sourceKey === sourceKey)
+    if (prior) return prior
+    const id = `chief-run-${randomUUID()}`
+    rt.bindProject({ kind: 'run', id, projectId, ...(taskId ? { taskId } : {}), status: 'queued' })
+    const run = ownEntry(rt.state.projectExecutions, id)
+    Object.assign(run, { kind: 'chief-control', purpose: kind, sourceKey, source: structuredClone(source), initiatedBy: policy.authorityMemberId, policyRevision: policy.revision, createdAt: Date.now() })
+    await rt.save()
+    return run
+  }
+  async function scheduled({ row, delivery }) {
+    const run = await request(row.projectId, 'inspection', { scheduleId: row.id, occurrenceId: delivery.id, prompt: row.config.prompt })
+    if (run.status === 'done') return
+    return new Promise((resolve, reject) => { waiters.set(run.id, { resolve, reject }); void pump() })
+  }
+  function snapshot(run) {
+    const tasks = Object.values(rt.state.tasks).filter(task => task.projectId === run.projectId && !terminal.has(task.status) && (run.taskId || run.source?.blockedTaskId ? task.id === (run.taskId ?? run.source.blockedTaskId) : true)).slice(0, 30)
+    return tasks.map(task => {
+      const attempt = rt.state.projectAttempts?.[task.deliveryAttemptId]
+      const facts = inspectionFacts(rt.state, task, policyOf(run.projectId).inspection.thresholds)
+      return { taskId: task.id, title: task.title, criteria: task.criteria ?? '', projectTaskKind: task.projectTaskKind ?? 'code', status: task.status,
+        generation: task.collaboration?.generation ?? 0, destination: task.collaboration?.botId ?? null, attemptId: attempt?.id ?? null, candidateSha: attempt?.candidateSha ?? null,
+        evidence: { implementation: attempt?.evidence.implementation ? { sha: attempt.evidence.implementation.sha, paths: attempt.evidence.implementation.paths } : null,
+          tests: attempt?.evidence.tests ? { sha: attempt.evidence.tests.sha, passed: attempt.evidence.tests.passed, sha256: attempt.evidence.tests.sha256, command: attempt.evidence.tests.command } : null,
+          review: attempt?.evidence.review ? { sha: attempt.evidence.review.sha, verdict: attempt.evidence.review.verdict, summary: attempt.evidence.review.summary, repositoryVerdict: attempt.evidence.review.report?.repositoryVerdict ?? 'INC' } : null,
+          outputs: attempt?.evidence.developer?.outputs ?? null, pr: attempt?.pr ? { number: attempt.pr.number, sha: attempt.pr.sha, url: attempt.pr.url } : null }, inspection: facts }
+    })
+  }
+  async function applyDecision(job, decision) {
+    const { run, actor } = job
+    await validateActor(actor)
+    const task = ownEntry(rt.state.tasks, decision?.taskId), saved = job.snapshot.find(row => row.taskId === decision?.taskId)
+    if (!task || task.projectId !== run.projectId || !saved || terminal.has(task.status)) throw refuse('Chief decision names an unavailable Task')
+    if ((task.collaboration?.generation ?? 0) !== saved.generation || task.deliveryAttemptId !== saved.attemptId && (task.deliveryAttemptId ?? null) !== saved.attemptId || (rt.state.projectAttempts?.[task.deliveryAttemptId]?.candidateSha ?? null) !== saved.candidateSha) throw refuse('Task progressed after the Chief snapshot; decision is stale')
+    const reason = typeof decision.reason === 'string' ? decision.reason.trim() : ''
+    if (!reason || reason.length > 4000 || !['close', 'route', 'return', 'request-tests', 'needs-human', 'continue'].includes(decision.action)) throw refuse('Chief decision needs a supported action and bounded reason')
+    const audit = { id: `chief-decision-${randomUUID()}`, runId: run.id, projectId: run.projectId, taskId: task.id, initiatedBy: run.initiatedBy, executorRole: 'chief', action: decision.action, reason, snapshotSha256: run.snapshotSha256, candidateSha: saved.candidateSha, criteria: structuredClone(decision.criteria ?? []), status: 'requested', at: Date.now() }
+    rt.state.projectChiefDecisions ??= {}; setEntry(rt.state.projectChiefDecisions, audit.id, audit)
+    if (decision.action === 'continue') {
+      if (run.purpose === 'arbitration' && task.collaboration) { task.collaboration.status = 'blocked'; task.collaboration.block = { reason: `Chief deferred completion: ${reason}`, chiefDecisionId: audit.id, at: Date.now() } }
+      task.chiefObservations = { fingerprint: saved.inspection.fingerprint, handoffCount: task.collaboration?.history.length ?? 0, lastDecisionId: audit.id, at: Date.now() }
+    } else if (decision.action === 'needs-human') {
+      if (task.collaboration) { task.collaboration.status = 'blocked'; task.collaboration.block = { reason, chiefDecisionId: audit.id, at: Date.now() } }
+      task.chiefQuestion = { decisionId: audit.id, reason, at: Date.now() }
+    } else if (decision.action === 'close') {
+      if (!Array.isArray(decision.criteria) || !decision.criteria.length || decision.criteria.some(row => row?.passed !== true || typeof row.criterion !== 'string' || !row.criterion.trim() || typeof row.evidence !== 'string' || !row.evidence.trim())) throw refuse('Chief closure needs explicit acceptance-criteria evidence')
+      await rt.projectDelivery.chiefAccept({ taskId: task.id, expectedSha: saved.candidateSha, decision: audit }, actor)
+      if (task.collaboration) { if (task.collaboration.claim?.chiefRunId !== run.id) task.collaboration.claim = { id: `chief-final-${audit.id}`, botId: `${task.projectId}:chief`, chiefRunId: run.id, generation: task.collaboration.generation, executionEvidence: job.executionEvidence, workerId: job.executionEvidence?.workerId ?? `native-chief-job-${run.id}` }; task.collaboration.status = 'closed'; if (task.collaboration.claim) task.collaboration.claim.status = 'completed'; const receipt = task.collaboration.history.find(row => row.id === task.collaboration.currentHandoffId); if (receipt) { receipt.status = 'completed'; receipt.finishedAt = Date.now(); receipt.chiefDecisionId = audit.id; receipt.execution = structuredClone(task.collaboration.claim ?? { chiefRunId: run.id }) } ++task.collaboration.generation }
+    } else {
+      const target = decision.action === 'request-tests' ? `${run.projectId}:tester` : decision.targetBotId
+      if (typeof target !== 'string') throw refuse('Chief routing needs an explicit logical Bot')
+      await rt.projectPools.chiefRoute({ taskId: task.id, targetBotId: target, expectedGeneration: saved.generation, reason, decisionId: audit.id }, actor)
+    }
+    audit.status = 'applied'; audit.finishedAt = Date.now(); await rt.save()
+    return audit
+  }
+  async function completed(job, result) {
+    const { run } = job
+    try {
+      if (!result.ok) throw refuse('Chief execution did not complete; inspect its resource evidence')
+      await validateActor(job.actor)
+      const execution = result.executionEvidence, carrier = rt.state.projectAgents?.[`public-${run.projectId}`]
+      if (!execution || execution.chiefRunId !== run.id || execution.carrierGeneration !== carrier?.carrierGeneration) throw refuse('Chief carrier changed or execution evidence is missing')
+      if (execution.kind === 'sdk-chief') {
+        const worker = rt.state.projectHarnessWorkers?.[execution.workerId], lease = rt.state.projectResourceLeases?.[worker?.leaseId]
+        if (!worker || worker.chiefRunId !== run.id || worker.generation !== execution.generation || lease?.generation !== execution.generation || worker.sealedLog !== execution.log || await fileDigest(execution.log) !== execution.sha256) throw refuse('Chief SDK execution evidence is missing, stale or changed')
+        rt.projectResources.requireBinding(run.projectId, lease)
+      } else if (execution.kind !== 'native-chief' || execution.botId !== carrier.botId || execution.sessionId !== carrier.sessionId) throw refuse('Chief native execution Session changed')
+      const parsed = JSON.parse(String(result.text).replace(/^```(?:json)?\s*|\s*```$/g, ''))
+      if (typeof parsed.summary !== 'string' || !Array.isArray(parsed.decisions) || parsed.decisions.length > 30) throw refuse('Chief returned an invalid arbitration response')
+      if (run.taskId) { const task = rt.state.tasks[run.taskId]; if (task.collaboration?.claim?.chiefRunId === run.id) { task.collaboration.claim.workerId = execution.workerId ?? `native-chief-job-${run.id}`; task.collaboration.claim.executionEvidence = execution } }
+      job.executionEvidence = execution
+      const results = []
+      for (const decision of parsed.decisions) results.push(await applyDecision(job, decision))
+      if (run.taskId && !parsed.decisions.some(row => row.taskId === run.taskId)) {
+        const task = ownEntry(rt.state.tasks, run.taskId)
+        if (task?.collaboration) { task.collaboration.status = 'blocked'; if (task.collaboration.claim?.chiefRunId === run.id) task.collaboration.claim.status = 'waiting-human'; task.collaboration.block = { reason: 'Chief needs clarification before deciding completion', at: Date.now() } }
+      }
+      run.status = 'done'; run.summary = parsed.summary.slice(0, 8000); run.decisionIds = results.map(row => row.id); run.executionEvidence = result.executionEvidence ?? null
+      waiters.get(run.id)?.resolve()
+    } catch (error) {
+      run.status = 'failed'; run.failure = String(error.message).slice(0, 1000)
+      for (const audit of Object.values(rt.state.projectChiefDecisions ?? {})) if (audit.runId === run.id && audit.status === 'requested') { audit.status = 'rejected'; audit.failure = run.failure; audit.finishedAt = Date.now() }
+      if (run.taskId) { const task = ownEntry(rt.state.tasks, run.taskId); if (task?.collaboration && !terminal.has(task.status)) { task.collaboration.status = 'blocked'; if (task.collaboration.claim?.chiefRunId === run.id) task.collaboration.claim.status = 'failed'; task.collaboration.block = { reason: run.failure, at: Date.now() } } }
+      waiters.get(run.id)?.reject(error)
+    } finally { run.finishedAt = Date.now(); active.delete(run.id); waiters.delete(run.id); await rt.save() }
+  }
+  async function pump() {
+    if (pumping || rt.readOnly?.()) return
+    pumping = true
+    try {
+      for (const run of Object.values(rt.state.projectExecutions ?? {}).filter(row => row.kind === 'chief-control' && row.status === 'interrupted' && row.taskId)) {
+        const task = rt.state.tasks[run.taskId], policy = policyOf(run.projectId)
+        if (!policy?.enabled || task?.collaboration?.claim?.chiefRunId !== run.id || task.collaboration.claim.status !== 'interrupted') continue
+        const worker = rt.state.projectHarnessWorkers?.[run.workerId]
+        if (worker?.status !== 'released' && !await priorScopeExited(run.processScope)) continue
+        try { await rt.projectPools.retryChief(task.id, { memberId: policy.authorityMemberId }); run.recovery = { status: 'requeued', at: Date.now() }; await rt.save() } catch (error) { run.recovery = { status: 'blocked', reason: error.message, at: Date.now() } }
+      }
+      for (const task of Object.values(rt.state.tasks)) if (task.collaboration?.status === 'arbitration' && !terminal.has(task.status) && policyOf(task.projectId)?.enabled) await request(task.projectId, 'arbitration', { handoffId: task.collaboration.currentHandoffId }, task.id)
+      for (const run of Object.values(rt.state.projectExecutions ?? {}).filter(row => row.kind === 'chief-control' && row.status === 'queued')) {
+        if ([...active.values()].some(job => job.run.projectId === run.projectId) || rt.projectAgents.chiefBusy(run.projectId)) continue
+        const policy = policyOf(run.projectId)
+        if (!policy?.enabled || policy.revision !== run.policyRevision) { run.status = 'cancelled'; waiters.get(run.id)?.reject(refuse('Chief policy changed before execution')); waiters.delete(run.id); await rt.save(); continue }
+        const actor = { memberId: policy.authorityMemberId, chiefJobId: run.id, chiefToken: randomUUID() }
+        const job = { run, actor, token: actor.chiefToken, snapshot: [] }
+        run.status = 'running'; run.startedAt = Date.now(); active.set(run.id, job); await rt.save()
+        try {
+          await validateActor(actor)
+          run.processScope = await captureProcessScope()
+          if (run.taskId) await rt.projectPools.chiefClaim(run.taskId, actor)
+          job.snapshot = snapshot(run); run.snapshotSha256 = digest(job.snapshot); await rt.save()
+          const prompt = `You are the resident Project Chief, performing ${run.purpose}. Return ONLY JSON {"summary":"actual assessment","decisions":[{"taskId":"...","action":"close|route|return|request-tests|needs-human|continue","targetBotId":"logical Bot when routing","reason":"specific judgement","criteria":[{"criterion":"acceptance item","passed":true,"evidence":"actual acceptance evidence"}]}]}. A conversation/turn completion is not Task completion. Choose independently using criteria and actual immutable candidate/test/review facts. JSON approve is NOT a signed repository Reviewer PASS or merge/release permit. Do not close missing or stale evidence. Use needs-human when requirements/authority are unclear. Normal downstream handoffs do not need your approval. ${run.source?.prompt ?? policy.inspection.prompt}`
+          const workerId = await rt.projectAgents.startChiefJob({ projectId: run.projectId, actor, runId: run.id, prompt, projectFacts: { tasks: job.snapshot }, onResult: result => completed(job, result) })
+          run.workerId = workerId; await rt.save()
+        } catch (error) { await completed(job, { ok: false, text: String(error.message) }) }
+      }
+    } finally { pumping = false }
+  }
+  function recover() {
+    let changed = false
+    for (const run of Object.values(rt.state.projectExecutions ?? {})) if (run.kind === 'chief-control' && run.status === 'running') { run.status = 'interrupted'; run.failure = 'Host restarted before Chief result was validated'; changed = true }
+    return changed
+  }
+  return { configure, view, request, scheduled, pump, recover, requireJobActor, validateActor, applyDecision, template: structuredClone(template) }
+}
+export function install(rt) {
+  rt.projectChiefControl = createProjectChiefControl(rt)
+  rt.projectScheduledTasks.register('project-chief', { resolve: async (target, actor) => rt.projectAgents.ensurePublic(target.projectId, actor), run: work => rt.projectChiefControl.scheduled(work) })
+}

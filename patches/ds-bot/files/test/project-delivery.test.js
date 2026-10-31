@@ -505,3 +505,49 @@ write({type:'sdk-event',event:{type:'thread.started',thread_id:'pool-'+process.p
   assert.equal(fixture.workflow.state().workflows.filter(row => row.projectId === 'p1').length, 0)
   await assert.rejects(rt.projectEndpoint('project-task-accept', { attemptId: fixture.attempt().id }, alice), /Chief arbitration/)
 })
+
+test('a Chief SDK contract process returns incomplete coverage then closes the same Task after a fresh Attempt', async t => {
+  const fixture = await setup(t, undefined, { sdkContract: true, pool: true })
+  const { rt, directory } = fixture, runtimeDir = join(directory, 'chief-contract-runtime')
+  mkdirSync(join(runtimeDir, 'src/host'), { recursive: true })
+  writeFileSync(join(runtimeDir, 'src/host/project-harness-worker.mjs'), `
+import{createInterface}from'node:readline';import{writeFileSync,readFileSync}from'node:fs';import{execFileSync}from'node:child_process';
+const write=v=>process.stdout.write(JSON.stringify(v)+'\\n');write({type:'ready',sdk:{codex:'0.166.0'}});
+createInterface({input:process.stdin}).on('line',line=>{const m=JSON.parse(line);if(m.type==='stop'){write({type:'stopped',released:true});setTimeout(()=>process.exit(0),20);return;}if(m.type!=='start')return;
+let text;if(m.settings.noTools){const context=JSON.parse(m.prompt.split('<untrusted-role-context>\\n')[1].split('\\n</untrusted-role-context>')[0]);const missing=!context.projectFacts.tasks[0].evidence.implementation.paths.includes('code.test.mjs');text=JSON.stringify({summary:'Chief checked exact candidate and requested fractional regression before closure',decisions:[{taskId:${JSON.stringify(fixture.task.id)},action:missing?'return':'close',targetBotId:'p1:developer',reason:missing?'Add the explicit fractional regression required by acceptance criteria':'Requested code fix and draft delivery evidence are complete',criteria:[{criterion:context.projectFacts.tasks[0].criteria,passed:true,evidence:'Matching host test SHA, sealed SDK review and open candidate PR'}]}]});}
+else if(!m.settings.readOnly){if(readFileSync('code.mjs','utf8').includes('a+b'))writeFileSync('code.test.mjs',readFileSync('code.test.mjs','utf8')+'assert.equal(add(-4.5,1.5),-3);\\n');writeFileSync('code.mjs','export const add=(a,b)=>a+b;\\n');text='OUTPUT handoff: '+JSON.stringify({action:'handoff',to:'p1:tester',reason:'Implementation ready for tests',outputs:{implementation:'Fixed addition'}});}
+else if(m.prompt.includes('(project-role-policy/v1, reviewer)')){text='OUTPUT handoff: '+JSON.stringify({action:'complete',reason:'Request Chief final judgement',outputs:{review:JSON.stringify({commit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),verdict:'approve',summary:'Reviewed exact candidate'})}});}
+else text='OUTPUT handoff: '+JSON.stringify({action:'handoff',to:'p1:reviewer',reason:'Configured tests will verify candidate',outputs:{tests:'Inspect actual host result'}});
+write({type:'sdk-event',event:{type:'thread.started',thread_id:'chief-contract-'+process.pid}});write({type:'completed',sessionId:'chief-contract-'+process.pid,text,usage:{input_tokens:1}});
+});`)
+  rt.config.projectResources = { one: { type: 'local', root: directory, runtimeDir, capacity: 1, allowedProjectOwnerIds: ['owner-1'], harnesses: ['codex'], profiles: { 'owner-1': { codex: { home: join(directory, 'chief-sdk-home'), configDir: join(directory, 'chief-sdk-config'), model: 'contract-model' } } } } }
+  rt.state.projectResourceHealth = { one: { status: 'ready', at: Date.now() } }; rt.state.projectHarnessHealth = { 'p1:one:codex': { status: 'ready' } }
+  for (const role of ['chief', 'developer', 'tester', 'reviewer']) await rt.projectEndpoint('project-agent-definition', { projectId: 'p1', role, execution: { harness: 'codex', resourceIds: ['one'] } }, alice)
+  rt.state.projectAgents ??= {}
+  rt.state.projectAgents['public-p1'] = { id: 'public-p1', projectId: 'p1', visibility: 'public', memberId: null, botId: 'a', sessionId: 'a', carrierGeneration: 1 }
+  rt.state.bots.a.projectAgent = { id: 'public-p1', visibility: 'public', memberId: null }; rt.readProject('p1').chief = { botId: 'a', sessionId: 'a' }
+  await rt.projectEndpoint('project-chief-configure', { projectId: 'p1', enabled: true, inspection: { enabled: false } }, alice)
+  rt.state.tasks[fixture.task.id].criteria += '; include an explicit fractional regression test'
+  await fixture.start('chief-final-accept')
+  for (let n = 0; n < 500; n++) {
+    await rt.projectPools.pump(); await rt.projectChiefControl.pump()
+    const task = rt.state.tasks[fixture.task.id]
+    if (task.status === 'accepted' && rt.projectResources.occupied('one') === 0 || task.collaboration.status === 'blocked') break
+    await new Promise(resolve => setTimeout(resolve, 20))
+  }
+  const task = rt.state.tasks[fixture.task.id], chiefRuns = Object.values(rt.state.projectExecutions).filter(run => run.kind === 'chief-control')
+  assert.equal(task.status, 'accepted', JSON.stringify({ block: task.collaboration.block, chiefRuns }))
+  assert.equal(fixture.attempt().status, 'accepted')
+  assert.equal(task.collaboration.status, 'closed')
+  assert.equal(task.collaboration.history.at(-1).status, 'completed')
+  assert.ok(fixture.attempt().acceptedViaChief)
+  assert.equal(rt.projectResources.occupied('one'), 0)
+  assert.equal(chiefRuns.length, 2)
+  assert.equal(Object.values(rt.state.projectAttempts).length, 2)
+  assert.ok(chiefRuns.every(run => run.status === 'done'))
+  assert.equal(chiefRuns[0].executionEvidence.kind, 'sdk-chief')
+  assert.equal(chiefRuns[0].executionEvidence.chiefRunId, chiefRuns[0].id)
+  assert.ok(rt.state.bots.a, 'Logical Chief remains resident after its SDK turn ends')
+  assert.equal(rt.readProject('p1').kind, undefined, 'Run metadata must not be written onto the Project returned by bindProject')
+  assert.equal(Object.values(rt.state.tasks).length, 1)
+})

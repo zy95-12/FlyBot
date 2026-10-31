@@ -169,3 +169,7 @@ Repair R2 (#35): Project native worker creation assembles the complete pinned ro
 
 
 Repair R3 (#36): The trusted Workflow namespace connects its lifecycle and pure admission validator to Project pools. New native/SDK pool results are consumed before legacy Workflow routing; retired worker results stay on their original surface. No other plugin receives this binding authority. See [pool contract](project-pools.md).
+
+Repair R6: scoped host tools expose Chief control only through current Project
+authority. Managed native schedule envelopes are consumed before ordinary agent
+turn admission, preventing an extra uncontrolled Chief turn on the same delivery.

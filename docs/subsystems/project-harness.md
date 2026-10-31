@@ -134,3 +134,8 @@ requester in workbench responses. See [conversation routing](project-agents.md).
 Repair R5 (#38): SDK Chief action results support `$lastTask` only
 after actual Task creation; private proposals never qualify. Existing SDK execution
 and repository gates are unaffected by user watch mode. See [delegation contract](project-delegations.md).
+
+Repair R6: Chief coordination results seal and hash SDK event logs with Run,
+lease generation and carrier evidence. Event timestamps support heartbeat
+inspection. Credential redaction uses token boundaries so Task UUIDs survive.
+Current worker-controller lookup supports conservative resource reconciliation.

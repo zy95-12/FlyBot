@@ -259,3 +259,11 @@ supply fresh account status through a FlyBot-owned read-only operator helper,
 without storing browser cookies or admin credentials. Regression tests cover
 logout, restart, current rights, revocation, forged status evidence and fresh WAL
 reads. Shared-service provisioning and real-model acceptance are still pending.
+
+R6 (#39) adds evidence-gated Chief arbitration, audited intervention and configurable
+inspection on original DSH scheduled tasks. The JSON template defaults to 30 minutes;
+content, cadence, thresholds and pause/enable are editable. Current configured human
+authority and generation fences apply to each effect. Unknown process exits retain
+capacity; a verified systemd invocation boundary permits local restart recovery.
+Deterministic protocol tests return incomplete coverage to Dev then close the same
+Task after a fresh Attempt. Real shared-service Codex/timer acceptance remains #41.

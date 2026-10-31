@@ -28,3 +28,6 @@ model narrative. A model action or prose is not evidence that a read or write ra
 Repair R5 (#38): Watch reads validate their current persistent
 actor instead of requiring a browser cookie. Personal credential selection remains
 exactly human/Project scoped. See [delegation contract](project-delegations.md).
+
+Repair R6 allows bound Chief coordination actors to read current Project facts
+through the same scoped repository broker and current authority validation.

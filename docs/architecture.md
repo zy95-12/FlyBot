@@ -119,3 +119,7 @@ M7.4 [Owner runtime setup](subsystems/project-runtime-setup.md) adds bounded pro
 ### M7.5 — 2026-10-31
 
 M7.5 adds [resource workspaces](subsystems/project-resource-workspaces.md): bounded SHA-scoped Git bundles, remote role clones, imported host publication and independent host verification. SDK completion artifacts bind Session/resource/generation/context/hash; every gate/acceptance rechecks them. New Attempts are delivery/v3; old snapshots remain intact. [Current acceptance](m7-acceptance.md) explicitly separates actual resource/browser checks from missing authenticated three-Harness acceptance.
+
+Repair R6: [Chief control](subsystems/project-chief-control.md) composes existing
+Task pools, Runs, Harnesses and original DSH schedules. Logical schedule mappings
+retain durable Project/Chief targets; completion decisions remain host validated.

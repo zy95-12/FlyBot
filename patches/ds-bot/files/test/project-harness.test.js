@@ -19,7 +19,7 @@ lines.on('line',line=>{const m=JSON.parse(line);
  if(m.type==='stop'){write({type:'stopped',released:true});setTimeout(()=>process.exit(0),20);}
  if(m.type==='start') {
   write({type:'sdk-event',event:{type:'thread.started',thread_id:'bound-thread'}});
-  write({type:'sdk-event',event:{type:'debug',value:m.settings.env.OPENAI_API_KEY}});
+  write({type:'sdk-event',event:{type:'debug',value:m.settings.env.OPENAI_API_KEY,taskId:'task-1234567890abcdef',unknownCredential:'sk-unitsecret123456789012345'}});
   write({type:'completed',sessionId:'bound-thread',text:'OUTPUT implementation: actual contract worker output',usage:{input_tokens:1}});
  }
 });`)
@@ -47,6 +47,8 @@ test('SDK process contract preserves evidence, redacts credentials and confirms 
   assert.equal(row.backendSessionId, 'bound-thread')
   const evidence = await readFile(row.eventLog, 'utf8')
   assert.match(evidence, /REDACTED/)
+  assert.match(evidence, /task-1234567890abcdef/, 'Task IDs must survive credential redaction')
+  assert.equal(evidence.includes('sk-unitsecret123456789012345'), false)
   assert.equal(evidence.includes(process.env.FLYBOT_TEST_HARNESS_SECRET), false)
   assert.equal(rt.projectResources.occupied('r'), 1)
   await harness.release(id)

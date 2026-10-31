@@ -168,3 +168,8 @@ and allows its human to change or revoke it. Safe mode still requires Task
 publication approval. Watch mode uses current human rights with no extra
 agent-only confirmation; grant/account/role revocation remains effective.
 See [delegation contract](project-delegations.md).
+
+Repair R6 exposes Chief configuration in the scoped workbench: editable schedule
+prompt/cadence, enable/pause, thresholds, inspect-now and recent actual Runs.
+The resource response includes minimal Chief state without an additional gateway
+call. This does not replace issue #40 native rich multi-Bot UI restoration.

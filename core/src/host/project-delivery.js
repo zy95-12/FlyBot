@@ -226,7 +226,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     let passed = false
     let output = ''
     try {
-      const result = await exec(command, args, { cwd: path, env: cleanEnv(), timeout: Math.min(settings.testTimeoutMs ?? 120_000, 300_000), maxBuffer: 1024 * 1024 })
+      const result = await exec(command, args, { cwd: path, env: cleanEnv(), timeout: Math.min(settings.testTimeoutMs ?? 120_000, 1_800_000), maxBuffer: 1024 * 1024 })
       passed = true
       output = result.stdout + result.stderr
     } catch (error) { output = String(error.stdout ?? '') + String(error.stderr ?? '') + '\nTest process failed or exceeded its limit' }
@@ -326,7 +326,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     attempt.status = 'accepted'
     attempt.acceptedBy = actor.memberId
     attempt.acceptedAt = Date.now()
-    rt.taskDeliveryState?.(attempt.taskId, attempt.id, 'accepted', 'Human accepted commit-specific evidence', actor)
+    rt.taskDeliveryState?.(attempt.taskId, attempt.id, 'accepted', actor.chiefJobId ? 'Chief accepted commit-specific evidence under delegated human authority' : 'Human accepted commit-specific evidence', actor)
     await rt.save()
     return { attempt: view(attempt) }
   }
@@ -471,7 +471,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     rt.taskDeliveryState?.(task.id, attempt.id, 'working', `${definition.name} claimed the Task`)
     rt.bindProject({ kind: 'run', id: attempt.runId, projectId: project.id, taskId: task.id, attemptId: attempt.id, status: 'running' })
     await rt.save()
-    const prompt = `Read your assigned Task and role policy. Choose to work, return or transfer based on the actual requirements. You may go directly to another logical Bot without Chief approval. Only Chief can judge overall completion. Never close the Task yourself.\nLogical Bots: ${JSON.stringify(rt.projectAgents.deliveryDefinitions(project.id).roles.map(row => ({ id: row.id, role: row.role })))}\nFinish with OUTPUT handoff: a single-line JSON object {"action":"handoff|return|transfer|complete|arbitrate","to":"logical Bot id when handing off or returning","reason":"specific reason","outputs":{}}. For completed developer work include outputs.implementation, tester work outputs.tests; review outputs.review must be a JSON string with the exact commit, verdict and summary. Use transfer to route without claiming your role work is complete. Choose the next Bot based on evidence; no fixed order is required. Missing evidence or uncertainty should request Chief judgement.\nTask kind: ${task.collaboration.kind}`
+    const prompt = `The host already allocated this registered worktree at the pinned base SHA. Do not switch to main, create another worktree, publish a PR, change credentials or edit outside this worktree. The host seals and publishes the candidate. Permitted repository paths: ${JSON.stringify(settings.allowedPaths)}. Configured verification argv: ${JSON.stringify(settings.testCommand)}. Read your assigned Task and role policy. Choose to work, return or transfer based on the actual requirements. You may go directly to another logical Bot without Chief approval. Only Chief can judge overall completion. Never close the Task yourself.\nLogical Bots: ${JSON.stringify(rt.projectAgents.deliveryDefinitions(project.id).roles.map(row => ({ id: row.id, role: row.role })))}\nFinish with OUTPUT handoff: a single-line JSON object {"action":"handoff|return|transfer|complete|arbitrate","to":"logical Bot id when handing off or returning","reason":"specific reason","outputs":{}}. For completed developer work include outputs.implementation, tester work outputs.tests; review outputs.review must be a JSON string with the exact commit, verdict and summary. Use transfer to route without claiming your role work is complete. Choose the next Bot based on evidence; no fixed order is required. Missing evidence or uncertainty should request Chief judgement.\nTask kind: ${task.collaboration.kind}`
     return { nodeId: role, name: definition.name, role: definition.name, prompt, model: definition.model || settings.model, tools: [], executionProjectId: project.id, executionWorkDir: workspace.path }
   }
   async function completePoolRole({ task, claim, role, outputs }) {
@@ -480,18 +480,57 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     for (const [name, policy] of Object.entries(attempt.rolePolicies)) verifyRolePolicy(policy, attempt.roleSessions[name]?.context.sources.policy?.sha256)
     await verifyExecution(attempt, role)
     if (task.collaboration.kind !== 'code') {
-      attempt.evidence[role] = { outputs: structuredClone(outputs), at: Date.now(), policySha256: attempt.rolePolicies[role].sha256 }
+      attempt.evidence[role] = { outputs: structuredClone(outputs), sha256: hash(JSON.stringify(outputs)), at: Date.now(), policySha256: attempt.rolePolicies[role].sha256 }
     } else if (role === 'developer') await seal(attempt)
     else if (role === 'tester') await testCandidate(attempt)
     else if (role === 'reviewer') await review(attempt, outputs)
     await rt.save()
   }
-  async function reworkPool({ task, claim, reason }) {
+  async function chiefAccept({ taskId, expectedSha, decision }, actor) {
+    const task = taskOf(taskId), attempt = ownEntry(attempts(), task?.deliveryAttemptId)
+    if (!task || !attempt || attempt.projectId !== task.projectId) throw reject('Chief completion has no current Attempt')
+    rt.projectChiefControl.requireJobActor(actor, task.projectId)
+    rt.requireProjectAccess(actor, task.projectId, 'accept')
+    if ((attempt.candidateSha ?? null) !== expectedSha) throw reject('Chief candidate changed')
+    if (task.title !== attempt.requirement.title || (task.criteria ?? '') !== attempt.requirement.criteria) throw reject('Requirements changed; Chief evidence is stale')
+    if (task.projectTaskKind === 'release') throw reject('Release proof is not configured; Chief cannot claim a completed release')
+    const gateEvidence = []
+    for (const requirement of task.acceptance?.requires ?? []) if (Number.isSafeInteger(requirement.pr)) {
+      const details = await rt.projectGithubRead({ projectId: task.projectId, operation: requirement.checks === 'tests-ok' ? 'checks' : 'pull', number: requirement.pr }, actor)
+      gateEvidence.push({ pr: requirement.pr, hold: details.data.hold === true, checks: (requirement.pr !== attempt.pr?.number || details.data.sha === attempt.candidateSha) && details.data.checks?.some(row => row.name === 'tests-ok' && row.status === 'completed' && row.conclusion === 'success') ? 'tests-ok' : 'unknown', sha: details.data.sha })
+    }
+    await rt.projectPools.validateClosure(task.id, actor, gateEvidence)
+    const prior = attempt.chiefDecision
+    attempt.chiefDecision = { id: decision.id, verdict: 'approve', by: 'chief', authorizedBy: actor.memberId, runId: actor.chiefJobId, candidateSha: expectedSha, at: Date.now() }
+    try {
+      if (task.projectTaskKind === 'decision') {
+        const outputs = Object.values(attempt.evidence).filter(row => row?.outputs)
+        if (!outputs.length || outputs.some(row => row.sha256 !== hash(JSON.stringify(row.outputs)))) throw reject('Decision output evidence is missing or changed')
+        for (const role of Object.keys(attempt.evidence.execution ?? {})) await verifyExecution(attempt, role)
+        attempt.status = 'waiting-acceptance'
+        rt.taskDeliveryState(task.id, attempt.id, 'result-ready', decision.reason, actor)
+        attempt.status = 'accepted'; attempt.acceptedBy = actor.memberId; attempt.acceptedAt = Date.now(); attempt.acceptedViaChief = decision.id
+        task.completedBy = { kind: 'chief', authorizedBy: actor.memberId, decisionId: decision.id, runId: actor.chiefJobId }
+        rt.taskDeliveryState(task.id, attempt.id, 'accepted', decision.reason, actor)
+        rt.bindProject({ kind: 'run', id: attempt.runId, projectId: task.projectId, taskId: task.id, attemptId: attempt.id, status: 'done' })
+        await rt.save(); return { attempt: view(attempt) }
+      }
+      if (attempt.status !== 'waiting-acceptance') throw reject('Code Task is missing completed candidate/test/review evidence')
+      for (const [role, policy] of Object.entries(attempt.rolePolicies ?? {})) verifyRolePolicy(policy, attempt.roleSessions[role]?.context.sources.policy?.sha256)
+      rt.bindProject({ kind: 'run', id: attempt.runId, projectId: task.projectId, taskId: task.id, attemptId: attempt.id, status: 'done' })
+      const accepted = await accept({ attemptId: attempt.id }, actor)
+      attempt.acceptedViaChief = decision.id; if (task.result) task.result.summary = `Chief confirmed: ${decision.reason}`; task.completedBy = { kind: 'chief', authorizedBy: actor.memberId, decisionId: decision.id, runId: actor.chiefJobId }; await rt.save(); return accepted
+    } catch (error) { attempt.chiefDecision = prior; throw error }
+  }
+  async function reworkPool({ task, claim, reason, force = false }) {
     const previous = ownEntry(attempts(), claim.attemptId)
-    if (!previous?.candidateSha) return previous.id
+    if (!previous) throw reject('Chief rework has no original Attempt')
+    if (!force && !previous.candidateSha) return previous.id
     const id = `attempt-${randomUUID()}`
-    previous.status = 'returned'; previous.returned = { at: Date.now(), by: claim.botId, reason }
+    if (['running', 'waiting-acceptance'].includes(previous.status)) previous.status = 'returned'
+    previous.returned = { at: Date.now(), by: claim.botId, reason }
     const next = { id, protocol: previous.protocol, projectId: previous.projectId, taskId: task.id, requestKey: hash(`${task.projectId}\n${task.id}\n${claim.id}`), workflowVersion: previous.workflowVersion, status: 'running', initiatedBy: previous.initiatedBy, executionOwnerId: previous.executionOwnerId, baseSha: previous.baseSha, seedSha: previous.candidateSha, requirement: structuredClone(previous.requirement), feedback: { previousAttemptId: previous.id, kind: 'bot-return', reason, candidateSha: previous.candidateSha }, agentDefinitions: rt.projectAgents.deliveryDefinitions(task.projectId), roleSessions: {}, rolePolicies: {}, resourceLeases: {}, workspaces: {}, evidence: {}, createdAt: Date.now(), updatedAt: Date.now(), runId: `pool-run-${randomUUID()}` }
+    previous.supersededBy = id
     setEntry(attempts(), id, next); task.deliveryAttemptId = id
     rt.bindProject({ kind: 'run', id: previous.runId, projectId: task.projectId, taskId: task.id, attemptId: previous.id, status: 'failed' })
     rt.bindProject({ kind: 'run', id: next.runId, projectId: task.projectId, taskId: task.id, attemptId: id, status: 'queued' })
@@ -502,6 +541,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
   async function repositoryRolePolicy(projectId, commit, role) {
     const project = projectOf(projectId)
     const settings = settingsOf(project)
+    commit ??= await git(settings.path, ['rev-parse', 'HEAD'])
     const configured = settings.rolePolicySources?.[role]
     const names = configured ?? [...ROLE_POLICY_FILES.common, ...ROLE_POLICY_FILES[role]]
     if (!Array.isArray(names) || names.length > 40 || names.some(name => typeof name !== 'string' || name.startsWith('/') || name.includes('..') || /[\\\r\n\0]/.test(name))) throw reject('Role policy source list is invalid')
@@ -560,7 +600,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     }
   }
   const ownsWorkspace = (projectId, path) => Object.values(state.projectWorkspaces ?? {}).find(workspace => workspace.projectId === projectId && workspace.path === path && DELIVERY_ROLES.includes(workspace.role) && ['worktree', 'resource-clone'].includes(workspace.kind) && workspace.status === 'allocated' && ongoing.has(ownEntry(attempts(), workspace.attemptId)?.status))
-  return { endpoint, context, preparePoolRole, completePoolRole, reworkPool, recordExecution, repositoryContext, repositoryRolePolicy, bindSession, releaseSession, sessionFor, recover, runReported, ownsWorkspace, gate: input => serialAttempt(current(input.taskId)?.id ?? input.taskId, () => gate(input)) }
+  return { endpoint, context, preparePoolRole, completePoolRole, chiefAccept, reworkPool, recordExecution, repositoryContext, repositoryRolePolicy, bindSession, releaseSession, sessionFor, recover, runReported, ownsWorkspace, gate: input => serialAttempt(current(input.taskId)?.id ?? input.taskId, () => gate(input)) }
 }
 
 export function install(rt) {

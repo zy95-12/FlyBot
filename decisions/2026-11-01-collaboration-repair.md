@@ -42,3 +42,10 @@ configured FlyBot-owned read-only principal projection in the SQLite deployment;
 no broad admin credential or control-plane source change is introduced.
 
 Written-by: Codex
+
+R6 stacks on R5 `5ce90bf89bb192ac445c2afa14eec6c3456ca829`. Chief receives
+completion/uncertainty and proposes bounded evidence-gated effects using the
+explicit configuring human's current Project authority. Original DSH schedules
+provide cadence; a logical mapping supplies durable Project/Chief targeting and
+occurrence deduplication. Default configuration lives in JSON, not a framework
+clock. Supervisor-backed local restart proof does not weaken unknown-exit holds.
