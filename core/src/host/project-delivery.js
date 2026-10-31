@@ -1,12 +1,12 @@
 // Delivery coordinates artifacts/worktrees around the existing Workflow service.
 import { execFile } from 'node:child_process'
 import { createHash, randomUUID } from 'node:crypto'
-import { mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, realpath, rm, writeFile, lstat } from 'node:fs/promises'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { promisify } from 'node:util'
 import { ownEntry, setEntry } from './store.js'
 import { DELIVERY_ROLES, DELIVERY_VERSION, deliveryGraph } from './project-delivery-template.js'
-import { repositorySettings } from './project-repository-policy.js'
+import { repositorySettings, preflightRepository } from './project-repository-policy.js'
 import { createResourceWorkspaces, fileDigest } from './project-resource-workspaces.js'
 import { roleContext, contextHash } from './project-role-context.js'
 import { githubPublisher } from './project-github.js'
@@ -104,7 +104,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     if (prior) return { attempt: view(prior), already: true }
     if (Object.values(attempts()).some(attempt => attempt.taskId === task.id && (ongoing.has(attempt.status) || attempt.status === 'waiting-acceptance'))) throw reject('Task already has an active Attempt')
     if (task.status === 'accepted' || task.status === 'cancelled') throw reject('Terminal Task cannot start a delivery')
-    const settings = settingsOf(project)
+    const settings = await preflightRepository(rt, project)
     const previous = current(task.id)
     const feedback = previous?.failure ? { previousAttemptId: previous.id, kind: previous.returned ? 'human-return' : 'execution-failure', reason: previous.failure.message, candidateSha: previous.candidateSha ?? null } : null
     const at = Date.now()
@@ -173,6 +173,12 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     const settings = settingsOf(projectOf(attempt.projectId))
     const workspace = attempt.workspaces.developer
     const names = [...(await workspaceGit(workspace, ['diff', '--name-only', attempt.baseSha])).split('\n'), ...(await workspaceGit(workspace, ['ls-files', '--others', '--exclude-standard'])).split('\n')].filter(Boolean)
+    if (!names.length) throw reject('Developer produced no code change')
+    for (const name of names) {
+      const path = resolve(workspace.path, name)
+      const info = await lstat(path).catch(error => { if (error.code === 'ENOENT') return null; throw error })
+      if (info?.isSymbolicLink() && !inside(workspace.path, await realpath(path))) throw reject('Code changes contain a symbolic link outside the allocated workspace')
+    }
     const roots = settings.allowedPaths
     if (!Array.isArray(roots) || !roots.length || roots.some(value => typeof value !== 'string' || value.startsWith('/') || value.includes('..')) || names.some(name => !roots.some(prefix => name === prefix || name.startsWith(prefix.endsWith('/') ? prefix : `${prefix}/`)))) throw reject('Code changes exceed the provisioned repository paths')
     await workspaceGit(workspace, ['reset', '--soft', attempt.baseSha]) // Seal one final commit; do not transfer intermediate worker history.

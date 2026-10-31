@@ -380,3 +380,35 @@ write({type:'completed',sessionId:'contract-'+process.pid,text,usage:{input_toke
   assert.equal(attempt.status, 'accepted')
   await rt.projectEndpoint('project-attempt-cleanup', { attemptId: attempt.id }, alice)
 })
+
+test('repository preflight rejects a missing path allowlist before any execution allocation', async t => {
+  const fixture = await setup(t)
+  delete fixture.rt.config.projectRepositories['example/demo'].allowedPaths
+  await assert.rejects(fixture.start('missing-allowlist'), /allowedPaths/)
+  assert.equal(Object.keys(fixture.rt.state.projectAttempts ?? {}).length, 0)
+  assert.equal(Object.keys(fixture.rt.state.projectWorkspaces ?? {}).length, 0)
+  assert.equal(Object.keys(fixture.rt.state.projectResourceLeases ?? {}).length, 0)
+  assert.equal(fixture.rt.state.tasks[fixture.task.id].status, 'open')
+})
+
+test('repository preflight rejects an unavailable test runtime before model execution', async t => {
+  const fixture = await setup(t)
+  fixture.rt.config.projectRepositories['example/demo'].testCommand = ['/missing/flybot-test-runtime']
+  await assert.rejects(fixture.start('missing-runtime'), /testCommand/)
+  assert.equal(Object.keys(fixture.rt.state.projectAttempts ?? {}).length, 0)
+  assert.equal(Object.keys(fixture.rt.state.projectWorkspaces ?? {}).length, 0)
+})
+
+test('candidate seal distinguishes no change and refuses a changed symbolic link leaving its workspace', async t => {
+  const fixture = await setup(t)
+  await fixture.start('no-change')
+  await assert.rejects(fixture.gate('developer'), /no code change/)
+  const symlink = await setup(t)
+  await symlink.start('symlink')
+  const file = join(symlink.attempt().workspaces.developer.path, 'code.mjs')
+  const fs = await import('node:fs')
+  fs.rmSync(file); fs.symlinkSync(join(symlink.repository, 'outside'), file)
+  fs.writeFileSync(join(symlink.repository, 'outside'), 'private outside file')
+  await assert.rejects(symlink.gate('developer'), /symbolic link outside/)
+  assert.equal(fixture.published.length, 0)
+})

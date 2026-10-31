@@ -138,3 +138,7 @@ keep the broader mixed-Harness/two-resource criteria explicitly outstanding.
 Codex-only local demonstration: passed at `73161f3`; real artifact PR #31 returned,
 #32 re-tested/re-reviewed and script-accepted at its exact SHA. No merge/deployment.
 Broader Claude/mixed-resource/browser-auth/restart checks remain separate future work.
+
+## Owner-authorized collaboration repairs — 2026-11-01
+
+[Tracking #33](https://github.com/zy95-12/FlyBot/issues/33): #34 repository preflight → #35 role contracts → #36 per-Bot pools/handoff → #37 ordinary Chief queries → #38 safe/watch delegation → #39 Chief arbitration/configurable schedules → #40 native UI/multi-Bot reuse → #41 actual shared-service acceptance. Component/UI inventory may proceed alongside its foundations; each implementation has its own PR and tested evidence. Public hosting is deferred. A 30-minute Chief inspection is a configurable scheduled-task default, never framework logic. R1 implementation is under verification; the rest is planned, not delivered.

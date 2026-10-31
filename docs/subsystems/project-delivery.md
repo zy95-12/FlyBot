@@ -213,3 +213,7 @@ M7.3 temporary role Session binding records native Bot or SDK worker handles. SD
 ### M7.5 — 2026-10-31
 
 M7.5 new Attempts use project-delivery/v3. Remote resource-clone roles import the same sealed candidate through bounded hash-verified Git bundles; host publication never receives a remote cwd or sends credentials there. Any remote role gets a separate host-verifier worktree for configured independent tests. SDK event evidence is sealed and rechecked before subsequent gates/acceptance. Cleanup refuses orphan Bots/unknown leases. See [resource workspace contract](project-resource-workspaces.md).
+
+## R1 admission and candidate failures
+
+The repository preflight now runs before creating an Attempt/worktree/lease. Missing or malformed allowedPaths is a provisioning failure, not evidence that a worker wrote outside its workspace. Optional testDependencies names readable repository-relative prerequisites; metadata checks never install or execute them. testTimeoutMs must be a positive integer and retains the existing 300-second execution ceiling. Candidate sealing separately refuses no final code change, actual path-list violations and changed symbolic links that resolve outside the allocated workspace. Historical Attempt/graph versions are unchanged.
