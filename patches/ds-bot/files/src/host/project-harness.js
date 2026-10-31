@@ -173,7 +173,7 @@ export function createProjectHarness(rt) {
     row.status = 'running'
     control.process.stdin.write(JSON.stringify({ type: 'start', settings: { harness: row.harness, cwd: row.cwd, sessionId: control.resumeSessionId, noTools: row.role === 'chief', model: control.profile.model, env: control.env,
       ...(control.profile.baseUrl ? { baseUrl: control.profile.baseUrl } : {}), readOnly: row.role !== 'developer', maxBudgetUsd: control.profile.maxBudgetUsd ?? 1 }, prompt }) + '\n')
-    control.timer = setTimeout(() => { row.status = 'failed'; failAsync(row, 'SDK execution timeout') }, 120_000)
+    control.timer = setTimeout(() => { row.status = 'failed'; failAsync(row, 'SDK execution timeout') }, Math.max(1000, Math.min(rt.config.projectExecutionTimeoutMs ?? 120_000, 7_200_000)))
     control.timer.unref?.()
     await rt.save()
     return { ok: true }

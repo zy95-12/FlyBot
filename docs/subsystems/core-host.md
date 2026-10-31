@@ -871,3 +871,6 @@ M7.4 registers runtime-setup/profile/PTY modules and scoped endpoints. Current s
 ### M7.5 — 2026-10-31
 
 M7.5 correctly routes runtime/terminal/input HTTP cases to Project authorization, rather than resource read models. Resource workspaces verify bundle hashes/commits, SDK logs are sealed before existing Workflow gates and cleanup rejects unconfirmed native/SDK workers. Native Chief local resource occupancy ends with its turn while identity persists.
+
+
+Repair R3 (#36): Runtime installs Project Bot pools before the admission scheduler. Store recovery fences interrupted claims alongside Attempt/resource recovery, preserving history and unknown exits. See [pool contract](project-pools.md).

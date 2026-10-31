@@ -179,3 +179,6 @@ M7.4 routes runtime-check and terminal open/poll/input/resize/close through exis
 ### M7.5 — 2026-10-31
 
 M7.5 adds actual HTTP-channel routing regression for environment/runtime/terminal/input endpoints. They must call projectEndpoint and its live configure/admin/Task guards, not workbenchEndpoint read models. The two-account browser reproduces Member terminal denial and actual Owner PTY operations.
+
+
+Repair R3 (#36): `project-task-pools {projectId}` returns current Project-member-visible queues per logical Bot. Claim and execution results revalidate the initiating human against current Task/Project authority; role names are not authorization. Task completion in pool mode requires Chief arbitration. See [pool contract](project-pools.md).

@@ -1380,6 +1380,37 @@ export function install(rt) {
       shared() { return rt.sharedProjectMode?.() === true },
       deliveryGate(input) { return rt.projectDelivery?.gate(input) },
       execution: {
+        connectPools(lifecycle, validate) {
+          if (plugin !== 'flybot-workflow') return () => {}
+          return rt.projectPools.connect({
+            validate,
+            ready({ task, definition }) {
+              try { rt.projectResources.plan(task.projectId, { roles: [definition] }); return true } catch { return false }
+            },
+            async execute({ task, claim, definition }) { return lifecycle.spawn(await rt.projectDelivery.preparePoolRole(task, claim, definition)) },
+            async dispatch({ task, claim, workerId }) {
+              const result = await lifecycle.dispatch({ botId: workerId, taskId: task.id, brief: `${task.title}\n${task.criteria ?? ''}\n${task.note ?? ''}`, inputs: { handoff: task.collaboration.history.at(-1), evidence: rt.state.projectAttempts[claim.attemptId].evidence }, outputs: [{ name: 'handoff', required: true }] })
+              if (result?.ok === false) throw new Error(result.code ?? 'Pool dispatch failed')
+            },
+            async release(id) {
+              await lifecycle.release(id)
+              return !rt.botOf(id) && (!rt.state.projectHarnessWorkers?.[id] || rt.state.projectHarnessWorkers[id].status === 'released')
+            },
+            evidence({ attemptId }) {
+              const attempt = rt.state.projectAttempts?.[attemptId]
+              if (!attempt) return []
+              return [
+                ...(attempt.evidence.implementation ? [{ kind: 'implementation', sha: attempt.evidence.implementation.sha }] : []),
+                ...(attempt.evidence.tests ? [{ kind: 'host-tests', sha: attempt.evidence.tests.sha, passed: attempt.evidence.tests.passed, sha256: attempt.evidence.tests.sha256 }] : []),
+                ...(attempt.pr ? [{ pr: attempt.pr.number, sha: attempt.pr.sha, checks: 'unknown' }] : []),
+              ]
+            },
+            complete: input => rt.projectDelivery.completePoolRole(input),
+            rework: input => rt.projectDelivery.reworkPool(input),
+          })
+        },
+        poolOwns(id) { return plugin === 'flybot-workflow' && rt.projectPools.owns(id) },
+        poolResult(row) { return plugin === 'flybot-workflow' ? rt.projectPools.result(row) : false },
         spawn(spec) { return plugin === 'flybot-workflow' ? rt.projectHarness?.spawn(spec) : null },
         dispatch(step) { return plugin === 'flybot-workflow' ? rt.projectHarness?.dispatch(step) : null },
         release(id) { return plugin === 'flybot-workflow' ? rt.projectHarness?.release(id) : false },

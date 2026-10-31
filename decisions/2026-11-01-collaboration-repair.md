@@ -20,4 +20,11 @@ forge review. After backend repairs, the owner authorizes assigning subsequent
 fixes through the real FlyBot service to exercise role handoffs and Chief fallback.
 This is distinct from authorizing merges or deferring failed acceptance.
 
+R3 stacks on R2 `a1bf2ad899c164d5604c047595391f7563059a97`. New Project
+deliveries use per-Bot pools by default and reuse existing Task, Attempt, Run,
+Workspace, Session, resource leases and Workflow lifecycle/validator. Static DAG
+execution remains explicit opt-in. No framework Chief inspection timer is added.
+R4 supplies conversation bridging and R6 supplies Chief arbitration/schedules;
+real-service acceptance remains required after those dependencies.
+
 Written-by: Codex

@@ -1,3 +1,4 @@
+import { validateHandoff } from './src/pool-contract.js'
 // @flybot/workflow host plugin. Stores workflow graphs and runs under
 // $DSH_HOME/bot/flybot-workflow and answers the chat surface on workflow/*.
 import { randomBytes } from 'node:crypto'
@@ -118,7 +119,8 @@ export function apply(ctx, config = {}) {
   })
   void service.reap?.().catch(error => fb.warn?.('flybot-workflow: reap failed: %s', error))
   const offs = [
-    fb.projects?.execution?.onResult?.(result => service.stepResult(result)) ?? (() => {}),
+    fb.projects?.execution?.connectPools?.(lifecycle, validateHandoff) ?? (() => {}),
+    fb.projects?.execution?.onResult?.(async result => { if (!await fb.projects?.execution?.poolResult?.(result)) return service.stepResult(result) }) ?? (() => {}),
     fb.api.handle('workflow/state', () => service.state(), { read: true }),
     fb.api.handle('workflow/create', body => service.create(body)),
     fb.api.handle('workflow/rename', body => service.rename(body)),
@@ -168,13 +170,14 @@ export function apply(ctx, config = {}) {
         const from = typeof msg.from === 'string' ? msg.from : ''
         if (msg.role !== 'reply' || !from) return undefined
         // Check if this bot is owned by a workflow run
-        const owned = service.ownsBot(from)
+        const pooled = fb.projects?.execution?.poolOwns?.(from) === true
+        const owned = pooled || service.ownsBot(from)
         if (owned !== true) return undefined
         const text = String(msg.text ?? '')
         const failed = /could not answer your message|model call failed/i.test(text)
         // The reply advances the run only. It must not land in a persistent Bot chat (e.g. Chief).
         try {
-          await Promise.resolve(service.stepResult({ botId: from, text, ok: !failed }))
+          await Promise.resolve(pooled ? fb.projects.execution.poolResult({ botId: from, text, ok: !failed }) : service.stepResult({ botId: from, text, ok: !failed }))
         } catch (error) {
           fb.warn?.('flybot-workflow: step result failed: %s', error)
         }

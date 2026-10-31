@@ -47,3 +47,5 @@ Fork M7 Owner runtime configuration, credential probes and private PTY protocol:
 ### M7.5 — 2026-10-31
 
 Fork M7 local/Docker Git handoff, candidate and sealed SDK evidence: [project-resource-workspaces](project-resource-workspaces.md).
+
+Project per-Bot handoff and claim lifecycle: [project-pools](project-pools.md).

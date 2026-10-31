@@ -115,6 +115,10 @@ export function install(rt) {
       rt.requireProjectAccess(actor, body.projectId, 'configure')
       return rt.projectResources.probe(body.projectId, body.resourceId)
     }
+    if (endpoint === 'project-task-pools') {
+      rt.requireProjectAccess(actor, body.projectId)
+      return { pools: rt.projectAgents.deliveryDefinitions(body.projectId).roles.map(role => ({ botId: role.id, role: role.role, tasks: rt.projectPools.available(body.projectId, role.id, actor) })) }
+    }
     if (endpoint === 'project-task-run') return rt.projectScheduler.request(body, actor)
     if (endpoint === 'project-queue-cancel') return rt.projectScheduler.cancel(body, actor)
     if (['project-attempt-stop', 'project-attempt-log', 'project-task-run', 'project-task-detail', 'project-task-accept', 'project-task-reject', 'project-attempt-cleanup'].includes(endpoint)) return rt.projectDelivery.endpoint(endpoint, body, actor)

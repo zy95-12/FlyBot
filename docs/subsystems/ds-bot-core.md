@@ -122,3 +122,6 @@ that page has a command behind it.
 ### M7.3 checkpoint — 2026-10-31
 
 M7.3 core package pins official Codex SDK 0.166.0 and Claude Agent SDK 0.3.316. SDK imports are lazy within explicitly configured worker execution; native DSH remains supported. Generated patches include dependency/lock and new host modules.
+
+
+Repair R3 (#36): The extension types include the trusted Workflow pool adapter and result-routing seam; canonical source and generated patches move together. See [pool contract](project-pools.md).

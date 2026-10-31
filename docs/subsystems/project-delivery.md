@@ -228,3 +228,6 @@ Gate verification rejects changed bundles. FlyBot code candidates must include
 repository memory, regression tests and architecture changes. Review evidence
 distinguishes a candidate recommendation from a signed repository Reviewer PASS;
 existing candidate tests and human acceptance remain mandatory.
+
+
+Repair R3 (#36): New shared deliveries default to per-Bot pools with lazy single-role allocation and versioned Attempts. Fixed DAG requires `projectDispatch: workflow`; historical Attempts are unchanged. Returns to Dev create a successor Attempt seeded from the prior candidate. Chief arbitration is required before final acceptance. See [pool contract](project-pools.md).
