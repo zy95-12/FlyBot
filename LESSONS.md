@@ -169,3 +169,8 @@ The 40-character Bot name limit removed the member suffix from long Project agen
 so a second member could not open the shared view. Put the logical identity digest first
 and keep the total name within the host limit. Reproduce with real-length Project ids and
 the host's truncation/uniqueness contract, not short unit-test ids.
+
+
+### M7.2 — 2026-10-31
+
+Seen 1× (2026-10-31, M7.2): a terminal Task/Run does not prove an external worker exited. Keep SDK/stopping/unreachable resource leases in Project occupancy, and release only with the bound worker handle and confirmed exit. Restart reconciliation must never silently free unknown processes.

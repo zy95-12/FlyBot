@@ -11,6 +11,7 @@ import * as projectScheduler from './src/host/project-scheduler.js'
 import * as workbenchState from './src/host/workbench-state.js'
 import * as projectCredentials from './src/host/project-credentials.js'
 import * as projectAgents from './src/host/project-agents.js'
+import * as projectResources from './src/host/project-resources.js'
 import * as projectDelivery from './src/host/project-delivery.js'
 import * as projectAccess from './src/host/project-access.js'
 import * as authz from './src/host/authz.js'
@@ -68,7 +69,7 @@ export const inject = ['llm', 'tools', 'systemPrompt', 'sessionController', 'ses
 // the functions other modules call; they call them through `rt` at run time, never during
 // install. Listeners run and tools are listed in registration order, so this order holds:
 // usage meters model requests after every listener that rewrites them.
-const MODULES = [diagnostics, store, harness, memberAuth, platformIdentity, projectAccess, projectDelivery, projectAgents, projectCredentials, projectScheduler, workbenchState, authz, models, permissions, turns, busyAck, steeringInterrupt, delivery, roster, folders, agents, prompt, timeContext, tools, decisions, projectState, meetings, chatIndex, groups, roomMembership, reach, tasks, projectBoard, taskDrive, approvals, resume, memory, parts, images, secrets, connectors, connectorAccess, capabilities, schedules, projectAssistant, projectChief, projectTeam, automationDefault, browser, usage, update, dshUpdate, hooks, remoteChat, workflowStore, channel]
+const MODULES = [diagnostics, store, harness, memberAuth, platformIdentity, projectAccess, projectResources, projectDelivery, projectAgents, projectCredentials, projectScheduler, workbenchState, authz, models, permissions, turns, busyAck, steeringInterrupt, delivery, roster, folders, agents, prompt, timeContext, tools, decisions, projectState, meetings, chatIndex, groups, roomMembership, reach, tasks, projectBoard, taskDrive, approvals, resume, memory, parts, images, secrets, connectors, connectorAccess, capabilities, schedules, projectAssistant, projectChief, projectTeam, automationDefault, browser, usage, update, dshUpdate, hooks, remoteChat, workflowStore, channel]
 
 export function apply(ctx, config = {}) {
   const rt = createRuntime(ctx, config)

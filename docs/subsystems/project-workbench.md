@@ -122,3 +122,8 @@ question-id-bound answer endpoint; approval waits retain their separate server g
 ### Fork M7.1 — 2026-10-31
 
 M7.1 allows project-role-memory-write through the restricted gateway. This public-memory operation still requires live Project configure authorization. Resource/Harness settings UI and terminal access are tracked separately in M7.4.
+
+
+### M7.2 — 2026-10-31
+
+M7.2 project-resources includes executionResources and sanitized resourceLeases. Connection targets, roots and worker handles remain server-side. Resource/role capacity blocks the existing queue before Attempt/worktree creation; unknown external workers keep Project slots occupied.

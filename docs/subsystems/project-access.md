@@ -159,3 +159,8 @@ and scoped agent/Worker identities cannot move to a different Project.
 ### Fork M7.1 — 2026-10-31
 
 M7.1 routes project-role-memory-write through the existing shared gate; current Project configure permission is required. Role memory refs are checked against both Project and role, with no private-agent fallback.
+
+
+### M7.2 — 2026-10-31
+
+M7.2 project-resource-environment-check requires current Project configure authority and an operator resource grant. This is a fixed bounded runtime probe, not arbitrary command execution; it does not establish SDK authentication.

@@ -32,3 +32,8 @@ The core is three pages so that a change to the browser client, to the server, o
 
 - [Project workbench](project-workbench.md) — M5 restricted shared entry, Project UI,
   durable quota admission and actual resource/acceptance metrics.
+
+
+### M7.2 — 2026-10-31
+
+Fork M7 resource authorization, runtime transports, leases and verification are documented in [project-resources](project-resources.md).

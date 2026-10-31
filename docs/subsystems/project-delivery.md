@@ -198,3 +198,8 @@ Necessary context/evidence survives temporary Bot removal. No raw temporary tran
 is copied into persistent role memory. The normal runtime check verifies three distinct
 actual Sessions, model-visible published memory/repo instructions and confirmed release.
 SDK/resource allocation and cross-resource workspace transfer follow in M7.2–M7.5.
+
+
+### M7.2 — 2026-10-31
+
+M7.2 reserves configured role resource leases before workspace allocation, binds native workers to the existing Session descriptor and confirms release after deletion. Native selected resources must be local and contain the registered worktree root; cross-resource Git transfer follows M7.5.

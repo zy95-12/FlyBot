@@ -205,3 +205,8 @@ PROJECT, ROADMAP and LESSONS are read from Git at an explicit commit, each cappe
 JSON fenced with angle brackets escaped. Public inputs are task data, never permissions.
 The host inserts the snapshot after the Workflow graph's 4,000-character prompt boundary;
 actual DSH runtime assertions check the model request contains memory and repo content.
+
+
+### M7.2 — 2026-10-31
+
+M7.2 validates role resource references against operator grants before saving configuration. Optional maxConcurrent limits the configured role pool; new settings do not mutate saved Attempt/Session snapshots.

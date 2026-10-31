@@ -84,3 +84,23 @@ test('metrics state its rolling window and use actual acceptance samples for mea
   assert.equal(metrics.duration.medianMs, 2000)
   assert.equal(deliveryMetrics(state, 'empty', now).duration.meanMs, null)
 })
+
+test('resource capacity uses the existing durable queue and SDK leases keep Project slots occupied', async () => {
+  const { rt, state, scheduler } = fixture()
+  let full = true
+  rt.projectResources = { plan() { if (full) throw new Error('Resource capacity is full') } }
+  const queued = await scheduler.request({ taskId: 'one', requestId: 'resource-limited' }, { memberId: 'bob' })
+  assert.equal(queued.queue.status, 'waiting')
+  assert.equal(Object.keys(state.projectAttempts).length, 0)
+  await scheduler.drain()
+  assert.equal(state.projectQueue[queued.queue.id].status, 'waiting')
+  full = false
+  await scheduler.drain()
+  assert.equal(state.projectQueue[queued.queue.id].status, 'started')
+  state.projectAttempts['attempt-1'].status = 'failed'
+  state.projectExecutions['attempt-1'].status = 'failed'
+  state.projectResourceLeases = { sdk: { projectId: 'p1', attemptId: 'attempt-1', status: 'unreachable' } }
+  assert.equal(scheduler.slots('p1'), 1)
+  state.projectResourceLeases.sdk.status = 'released'
+  assert.equal(scheduler.slots('p1'), 0)
+})

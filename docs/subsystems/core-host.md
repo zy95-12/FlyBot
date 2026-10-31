@@ -851,3 +851,8 @@ filesystem capabilities are provisioned by operator/Project owner. See
 ### Fork M7.1 — 2026-10-31
 
 M7.1 adds public role memory/context snapshots and binds temporary delivery Sessions through registered Workspaces; see [Project agents](project-agents.md) and [delivery](project-delivery.md). New role-memory writes use the existing per-request authorization boundary.
+
+
+### M7.2 — 2026-10-31
+
+M7.2 registers resource capabilities before delivery, preserves unknown leases at startup and exposes only safe metadata. Resource leases share existing admission and retain capacity across terminal Runs/restart; see [resource contract](project-resources.md).
