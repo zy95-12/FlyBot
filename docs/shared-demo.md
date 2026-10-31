@@ -105,11 +105,11 @@ typing the same name. Model/connector credentials never enter another member's a
 | Four actual DSH probes | real shell/cwd/code/tests, scoped agent tools, credential refusal, queue/drain/revocation and cleanup | Deterministic model |
 | Two real platform accounts + Chromium | actual shared entry, UI flows, actual role execution, refresh/retry/mobile/revoke | Deterministic model; no GitHub publication in this run |
 | Existing M3 draft artifact PR #12 | real Git/GitHub publication, SHA matching and runtime human acceptance | Deterministic model; no independent repository review PASS |
-| Full manual flow with configured provider | real model → tests/Review → draft PR → human return/retry/accept | Pending available model configuration and observed acceptance |
+| Full manual flow with configured provider | real model → tests/Review → draft PR → human return/retry/accept | Passed integrated at `f126f8c`; see [live evidence](live-acceptance.md) |
 
-Do not close M3/M6 acceptance issues or call the real-model demo accepted until that last
-row has a source SHA, Project/Task/Attempt ids, candidate/PR SHA, logs and observed human
-outcome. CPU/RSS shown in the app measure the shared process; absent per-Project/GPU metrics
+The last row now has a source SHA, Project/Task/Attempt ids, matching candidate/PR SHA,
+log hashes and an observed automated human-role outcome in the [acceptance record](live-acceptance.md).
+Issues/implementation merges remain governed by review and CI. CPU/RSS shown in the app measure the shared process; absent per-Project/GPU metrics
 stay unavailable. No production deployment, untrusted-code sandbox, multi-host pool,
 auto-merge or exact crash continuation is claimed.
 

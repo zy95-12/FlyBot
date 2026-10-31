@@ -169,3 +169,7 @@ proposals remain private and still require separate human publication.
 Carrier names place a digest of the logical identity before a short Project label, keeping
 uniqueness within the host's 40-code-unit limit. Long equal Project names cannot truncate
 away the human/Project discriminator; replacing a carrier preserves the logical identity.
+
+The integrated [real-provider acceptance](../live-acceptance.md) confirms actual models read
+their own JSON context, acknowledge private notes and create one shared Task as the current
+human. It exposed and verifies the truncation/serialization/idempotence fixes above.

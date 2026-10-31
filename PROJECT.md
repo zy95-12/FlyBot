@@ -165,10 +165,16 @@ decisions, concluded as [docs/governance.md](docs/governance.md) requires and re
   Chromium/DSH/platform runner and foreground demo launcher, plus the Project Chief
   dispatch fix found through that fresh entry. See [shared demo](docs/shared-demo.md) and
   [M6 decision](decisions/2026-10-31-m6-shared-demo.md). True-model full delivery acceptance
-  remains pending model configuration; deterministic runtime/browser evidence is separate.
+  subsequently passed; see the [live acceptance record](docs/live-acceptance.md). Earlier deterministic evidence remains separately labeled.
 
 - The owner supplied an official DeepSeek credential for live validation. Official model
-  catalog and a real inference call succeeded; live browser/GitHub acceptance is in progress.
+  catalog, inference and full live browser/GitHub acceptance passed at `f126f8c`.
   Credentials are process-only and are never repository memory. Integration fixes include
   model-visible JSON tool results, same-request Task/proposal deduplication, bounded unique
   carrier names, and propagation of human-return feedback into retry snapshots.
+
+- Real-provider acceptance completed with two platform accounts, real role worktrees,
+  independent host tests/Review and GitHub artifact PRs #18/#19, browser return/follow-up/accept,
+  failing tests/retry/queue/revocation and cleanup. [Evidence](docs/live-acceptance.md) and
+  [owner decision](decisions/2026-10-31-real-provider-acceptance.md). Implementation PR #16
+  contains the integration fixes and regressions; review/CI/merge remain separate.

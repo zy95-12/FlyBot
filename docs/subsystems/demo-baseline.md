@@ -88,3 +88,7 @@ returns a candidate through Alice's UI, checks new tests/commit and PR SHA on re
 accepts through Alice's UI. A second operator fixture forces host-test failure and checks
 retry/queue/revocation. No mock-model request is permitted in this mode. The CLI supervisor
 allows a bounded 20-minute live run; key-free regression timeouts are unchanged.
+
+The real-provider run subsequently passed at `f126f8c`; [live acceptance](../live-acceptance.md)
+and the committed JSON record preserve source/evidence/timing and distinguish human-role
+browser automation from an independent human or repository review PASS.

@@ -176,3 +176,7 @@ candidate SHA as task data. Human-return metadata remains on the old Attempt; a 
 request does not rewrite its evidence. The new worktree still starts from the configured
 base, so the model must implement the current requirements plus supplied feedback. This
 fix adds retry input data without changing saved role/graph definitions.
+
+[Real-provider acceptance](../live-acceptance.md) passed for actual role execution and GitHub
+artifact PR heads #18/#19, human-role browser return/follow-up/accept, immutable host test
+failure and retry. This is integrated M6 evidence, not a claim of independent PR review.
