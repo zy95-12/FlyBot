@@ -33,6 +33,21 @@ export function createProjectPools(rt) {
     if (task.collaboration.claim !== claim || claim.status !== 'active' || claim.generation !== token.generation) throw refuse('Claim was revoked during authority validation')
     return claim
   }
+  async function checkAdmission(task, { from, to, attemptId, requestId, purpose }) {
+    if (!adapter) throw refuse('Handoff execution adapter is unavailable')
+    const c = task.collaboration, target = targetOf(task.projectId, to)
+    const fromRole = from ? targetOf(task.projectId, from).role : ''
+    // A privileged, audited Chief decision resolves a routing loop. Keep global
+    // usage/history, but bound autonomous repetitions after that intervention.
+    const epoch = c.history.findLastIndex(row => row.purpose === 'chief-intervention')
+    const cycles = purpose === 'chief-intervention' ? 0 : c.history.slice(epoch + 1).filter(row => row.from === from && row.to === to).length
+    const trustedEvidence = await adapter.evidence?.({ task, attemptId }) ?? []
+    const acceptance = target.role === 'chief' ? undefined : task.poolAcceptance?.[target.role]
+    const handoff = { card: task.id, fromRole, toRole: target.role, attempt: cycles, owner: c.initiatedBy, acceptance, evidence: trustedEvidence, idempotencyKey: requestId }
+    const checked = adapter.validate(handoff, { roles: definitions(task.projectId).roles.map(row => row.role), pools: Object.fromEntries(definitions(task.projectId).roles.map(row => [row.role, { workers: 1 }])), execOwner: c.initiatedBy, seen: c.history.map(row => row.requestId), cycleMax: rt.config.projectHandoff?.cycleMax ?? 3, quota: rt.config.projectHandoff?.quota ?? {}, used: c.usage ?? {} })
+    if (!checked.ok) throw refuse(`Handoff refused (${checked.code}): ${checked.reason}`)
+    return { fromRole, trustedEvidence }
+  }
   async function offer(task, { from, to, reason, requestId, attemptId, evidence = [], purpose = 'work', expectedGeneration }) {
     if (!adapter) throw refuse('Handoff execution adapter is unavailable')
     reason = reasonOf(reason)
@@ -44,13 +59,7 @@ export function createProjectPools(rt) {
       return clone(duplicate)
     }
     await authority(task)
-    const fromRole = from ? targetOf(task.projectId, from).role : ''
-    const cycles = c.history.filter(row => row.from === from && row.to === to).length
-    const trustedEvidence = await adapter.evidence?.({ task, attemptId }) ?? []
-    const acceptance = target.role === 'chief' ? undefined : task.poolAcceptance?.[target.role]
-    const handoff = { card: task.id, fromRole, toRole: target.role, attempt: cycles, owner: c.initiatedBy, acceptance, evidence: trustedEvidence, idempotencyKey: requestId }
-    const checked = adapter.validate(handoff, { roles: definitions(task.projectId).roles.map(row => row.role), pools: Object.fromEntries(definitions(task.projectId).roles.map(row => [row.role, { workers: 1 }])), execOwner: c.initiatedBy, seen: c.history.map(row => row.requestId), cycleMax: rt.config.projectHandoff?.cycleMax ?? 3, quota: rt.config.projectHandoff?.quota ?? {}, used: c.usage ?? {} })
-    if (!checked.ok) throw refuse(`Handoff refused (${checked.code}): ${checked.reason}`)
+    const { fromRole, trustedEvidence } = await checkAdmission(task, { from, to, attemptId, requestId, purpose })
     if (expectedGeneration !== undefined && c.generation !== expectedGeneration) throw refuse('Claim generation changed before handoff admission')
     const row = { id: `handoff-${randomUUID()}`, version: POOL_PROTOCOL, policyVersion: 'project-role-policy/v1', definitionRevision: definitions(task.projectId).revision, projectId: task.projectId, taskId: task.id, attemptId, initiatedBy: c.initiatedBy, from, to, reason, requestId, purpose, evidence: clone(trustedEvidence), claims: clone(evidence), requirements: { title: task.title, criteria: task.criteria ?? '' }, status: 'pending', generation: ++c.generation, createdAt: Date.now() }
     c.history.push(row); c.botId = to; c.status = target.role === 'chief' ? 'arbitration' : 'queued'; c.currentHandoffId = row.id; delete c.claim
@@ -239,6 +248,10 @@ export function createProjectPools(rt) {
     if (!c || c.generation !== body.expectedGeneration) throw refuse('Chief routing snapshot is stale')
     const target = targetOf(task.projectId, body.targetBotId)
     if (target.role === 'chief') throw refuse('Chief must decide a concrete next role or request human clarification')
+    reasonOf(body.reason)
+    await authority(task)
+    await checkAdmission(task, { from: `${task.projectId}:chief`, to: target.id, attemptId: c.attemptId, requestId: body.decisionId, purpose: 'chief-intervention' })
+    if (c.generation !== body.expectedGeneration) throw refuse('Chief routing snapshot is stale')
     const oldClaim = c.claim
     ++c.generation
     if (oldClaim) oldClaim.status = 'intervened'
@@ -249,14 +262,18 @@ export function createProjectPools(rt) {
       oldClaim.exitConfirmed = stopped
       if (!stopped) { c.status = 'blocked'; c.block = { reason: 'Chief intervention is waiting for confirmed worker exit', decisionId: body.decisionId, at: Date.now() }; await rt.save(); throw refuse(c.block.reason) }
     }
-    await rt.projectChiefControl.validateActor(actor)
-    const currentReceipt = c.history.find(row => row.id === c.currentHandoffId)
-    if (currentReceipt) { currentReceipt.status = 'intervened'; currentReceipt.finishedAt = Date.now(); if (oldClaim) currentReceipt.execution = clone(oldClaim); currentReceipt.chiefDecisionId = body.decisionId }
-    c.initiatedBy = actor.memberId; c.sourceSessionId = null
-    const previous = rt.state.projectAttempts?.[c.attemptId]
-    if (target.role === 'developer') c.attemptId = await adapter.rework({ task, claim: oldClaim ?? { attemptId: c.attemptId, id: body.decisionId, botId: `${task.projectId}:chief` }, reason: body.reason, force: body.rework !== false, decisionId: body.decisionId })
-    else if (previous && previous.status !== 'running') throw refuse('Interrupted delivery must return to Developer in a new Attempt')
-    return offer(task, { from: `${task.projectId}:chief`, to: target.id, reason: body.reason, requestId: body.decisionId, attemptId: c.attemptId, purpose: 'chief-intervention' })
+    try {
+      await rt.projectChiefControl.validateActor(actor)
+      const currentReceipt = c.history.find(row => row.id === c.currentHandoffId)
+      if (currentReceipt) { currentReceipt.status = 'intervened'; currentReceipt.finishedAt = Date.now(); if (oldClaim) currentReceipt.execution = clone(oldClaim); currentReceipt.chiefDecisionId = body.decisionId }
+      c.initiatedBy = actor.memberId; c.sourceSessionId = null
+      const previous = rt.state.projectAttempts?.[c.attemptId]
+      if (target.role === 'developer') c.attemptId = await adapter.rework({ task, claim: oldClaim ?? { attemptId: c.attemptId, id: body.decisionId, botId: `${task.projectId}:chief` }, reason: body.reason, force: body.rework !== false, decisionId: body.decisionId })
+      else if (previous && previous.status !== 'running') throw refuse('Interrupted delivery must return to Developer in a new Attempt')
+      return await offer(task, { from: `${task.projectId}:chief`, to: target.id, reason: body.reason, requestId: body.decisionId, attemptId: c.attemptId, purpose: 'chief-intervention' })
+    } catch (error) {
+      c.status = 'blocked'; c.block = { reason: String(error.message), decisionId: body.decisionId, at: Date.now() }; await rt.save(); throw error
+    }
   }
   function recover() {
     if (recovered || rt.readOnly?.()) return false

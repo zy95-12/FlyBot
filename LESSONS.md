@@ -321,3 +321,11 @@ unfinished Developer source still existed elsewhere. Pass a labelled draft
 reference with transfers; never equate clean recipient cwd with no implementation.
 A valid raw JSON decision lacking only OUTPUT framing must not leave an idle SDK
 Session waiting indefinitely; preserve its raw evidence and validate its meaning.
+
+### 2026-11-01 — Chief recovery must be admitted before changing execution (Seen 1×)
+
+Real Chief recovery prepared a new Run before a lifetime handoff counter refused it,
+leaving the Task stopping and its Attempt running. Check routing admission before
+fencing or rework. Audited Chief intervention starts a new bounded autonomous epoch,
+retaining lifetime history and global quotas; it cannot bypass evidence or authority.
+Failures after fencing need an explicit block and decision ID, never indefinite stopping.

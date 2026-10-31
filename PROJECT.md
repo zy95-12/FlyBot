@@ -290,3 +290,8 @@ A real SDK sandbox/strace probe identified Unix pipe syscall denial as the remai
 Node/Git subprocess blocker. Command roles use a named filesystem profile and the
 limited network proxy with no allowed destinations; Chief remains tool-free. Actual
 probe children succeed while outbound requests and outside-workspace writes fail.
+
+Chief recovery found a lifetime edge-budget refusal after several real environment
+repairs. Audited Chief intervention now begins a fresh bounded autonomous routing
+epoch while preserving full history and global quotas. Admission is checked before
+claim fencing or Attempt preparation; later preparation failure is explicitly blocked.

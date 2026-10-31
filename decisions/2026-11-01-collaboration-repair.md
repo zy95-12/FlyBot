@@ -56,3 +56,8 @@ with a mandatory limited proxy and an empty domain allowlist, plus named scoped
 filesystem permissions. Actual probe children run while proxied/direct outbound
 and outside-workspace writes fail. This changes process IPC handling, not provider,
 credentials, Project authority, public hosting or control-plane.
+
+Actual Chief recovery exhausted a lifetime Chief→Dev edge budget despite a newly
+verified environment repair. Apply the loop budget between audited Chief interventions,
+keep global quotas and history, and preflight routing before changing execution state.
+This permits explicit Chief recovery without granting ordinary workers a budget bypass.

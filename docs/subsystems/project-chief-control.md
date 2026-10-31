@@ -98,3 +98,8 @@ trusted host exit evidence, unlike a terminal Task or absent PID.
 
 Snapshots name Attempt status and the actual claim Bot. A Chief request for human
 clarification ends its own active claim as waiting-human, preserving the question.
+
+Chief routing checks handoff admission before fencing current execution or preparing
+a successor Run. An audited intervention begins a new bounded autonomous routing
+epoch without resetting global usage or history. Preparation failures after fencing
+record an explicit blocked state linked to the decision instead of remaining stopping.
