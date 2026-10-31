@@ -166,3 +166,6 @@ M7.3 adds projects.execution spawn/dispatch/release/onResult only for flybot-wor
 
 
 Repair R2 (#35): Project native worker creation assembles the complete pinned role policy after Workflow node cleaning and verifies its hash before creating the Bot; see [Project role conventions](project-agents.md).
+
+
+Repair R3 (#36): The trusted Workflow namespace connects its lifecycle and pure admission validator to Project pools. New native/SDK pool results are consumed before legacy Workflow routing; retired worker results stay on their original surface. No other plugin receives this binding authority. See [pool contract](project-pools.md).

@@ -1,7 +1,5 @@
-// The handoff contract of #1550 Stage 3 P0 (#1853): the seven validations of a handoff, in one
-// order, as a pure decision. Nothing in the plugin imports this file yet — no endpoint, tool, run
-// or dispatch path calls it — so loading the plugin behaves exactly as it did before. P1 wires it
-// into dispatch; this module keeps the policy out of `service.js` until then.
+// Shared pure handoff admission contract. Project Bot pools enforce it through the
+// trusted Workflow host adapter; historical DAG shadow records remain readable.
 import { createHash } from 'node:crypto'
 
 const DEFAULT_CYCLE_MAX = 3

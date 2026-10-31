@@ -36,7 +36,7 @@ export function createProjectScheduler(rt, { preflight = preflightRepository } =
     return changed
   }
   function resourceBlock(projectId) {
-    try { rt.projectResources?.plan(projectId, rt.projectAgents?.deliveryDefinitions(projectId)); return null }
+    try { const definitions = rt.projectAgents?.deliveryDefinitions(projectId); rt.projectResources?.plan(projectId, rt.config.projectDispatch === 'workflow' ? definitions : { ...definitions, roles: definitions?.roles.filter(row => row.role === 'developer') }); return null }
     catch (failure) { return String(failure.message).slice(0, 300) }
   }
   async function request(body, actor) {
@@ -110,7 +110,7 @@ export function createProjectScheduler(rt, { preflight = preflightRepository } =
     }
     return changed
   }
-  const wake = () => { void serial(drain).catch(failure => rt.warn('Project queue: %s', failure.message)) }
+  const wake = () => { void serial(drain).then(() => rt.projectPools?.pump()).catch(failure => rt.warn('Project queue: %s', failure.message)) }
   return { request: (body, actor) => serial(() => request(body, actor)), cancel: (body, actor) => serial(() => cancel(body, actor)),
     slots, revalidate, recover, drain: () => serial(drain), wake }
 }

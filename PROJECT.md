@@ -230,3 +230,13 @@ The owner authorized sequential issues [#34–#41](https://github.com/zy95-12/Fl
 R1 (#34) rejects incomplete repository capabilities before workers/workspaces/leases are allocated. Workbench readiness checks Git/runtime/dependency metadata and reports the precise block; this does not claim tests or SDK task delivery have run. Old failed Attempts remain readable. R1 full local verification passed in PR #42; actual shared-service integration remains pending.
 
 R2 (#35) restores complete Dev/Tester/Reviewer conventions, pinned policy-source hashes and final-execution prompt assembly for native and SDK roles. FlyBot code sealing requires memory/tests/architecture evidence; candidate approval explicitly cannot mint a signed forge PASS. Focused tests cover full rules reaching SDK input, required-source failures and tampering. R2 full verification and later backend/dogfood acceptance are tracked separately.
+
+
+R3 (#36) implements per-logical-Bot pools on existing Task records, atomic claims,
+versioned receipts and enforced handoff admission. New shared deliveries default
+to dynamic pool dispatch; the legacy DAG is explicit opt-in. Only the receiving
+role allocates an execution Session/resource. Candidate returns retain the Task
+and create a new Attempt; overall completion waits for Chief judgement. Unit and
+SDK contract-process tests cover non-DAG return/rework with one resource. Full
+verification, conversation bridging, Chief arbitration/schedules and real shared
+service dogfood remain separately tracked acceptance, not implied by these tests.

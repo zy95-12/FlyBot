@@ -362,6 +362,7 @@ export function install(rt) {
     if (rt.projectDelivery?.recover()) migrated = true
     if (rt.projectResources?.recover()) migrated = true
     if (rt.projectScheduler?.recover()) migrated = true
+    if (rt.projectPools?.recover()) migrated = true
     if (syncDesignatedChief()) migrated = true
     indexSessions()
     return { migrated: migrated || stale.length > 0, stale }

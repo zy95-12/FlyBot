@@ -15,7 +15,7 @@ import { createWorkflowService } from '../../plugins/workflow/src/service.js'
 const alice = { memberId: 'owner-1' }
 const bob = { memberId: 'bob' }
 const git = (path, args) => execFileSync('git', args, { cwd: path, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()
-async function setup(t, testCommand = [process.execPath, '--test', 'code.test.mjs'], { sdkContract = false } = {}) {
+async function setup(t, testCommand = [process.execPath, '--test', 'code.test.mjs'], { sdkContract = false, pool = false } = {}) {
   const directory = mkdtempSync(join(tmpdir(), 'flybot-delivery-'))
   const home = join(directory, 'home')
   const repository = join(directory, 'repo')
@@ -32,7 +32,7 @@ async function setup(t, testCommand = [process.execPath, '--test', 'code.test.mj
   const ctx = fakeContext()
   Object.assign(ctx, { llm: { listProviders: () => [], listModels: async () => [] }, workspaceRegistry: { get: () => undefined, archiveSession: async () => {} },
     sessionController: { resolveAgent: async () => ({ agent: undefined }) }, sessions: { flush: async () => {} } })
-  const rt = createRuntime(ctx, { home, projectWorkbench: true, projectWorkspaceRoot: join(directory, 'execution'), projectRepositories: { 'example/demo': { path: repository, model: 'fixture/model', testCommand, allowedPaths: ['code.mjs', 'code.test.mjs'] } } })
+  const rt = createRuntime(ctx, { home, projectWorkbench: true, projectDispatch: pool ? 'pools' : 'workflow', projectWorkspaceRoot: join(directory, 'execution'), projectRepositories: { 'example/demo': { path: repository, model: 'fixture/model', testCommand, allowedPaths: ['code.mjs', 'code.test.mjs'] } } })
   await rt.load()
   const published = []
   const publisher = { publish: async attempt => {
@@ -453,4 +453,55 @@ test('a required role convention source cannot silently disappear', async t => {
   assert.equal(started.attempt.status, 'failed')
   assert.match(started.attempt.failure.message, /Required role policy source/)
   assert.equal(Object.keys(fixture.rt.state.projectHarnessWorkers ?? {}).length, 0)
+})
+
+
+test('default per-Bot pools execute a non-DAG SDK return/rework path with one resource and Chief completion inbox', async t => {
+  const fixture = await setup(t, undefined, { sdkContract: true, pool: true })
+  const { rt, directory } = fixture, runtimeDir = join(directory, 'pool-runtime')
+  mkdirSync(join(runtimeDir, 'src/host'), { recursive: true })
+  writeFileSync(join(runtimeDir, 'src/host/project-harness-worker.mjs'), `
+import{createInterface}from'node:readline';import{writeFileSync,readFileSync}from'node:fs';import{execFileSync}from'node:child_process';
+const write=v=>process.stdout.write(JSON.stringify(v)+'\\n');write({type:'ready',sdk:{codex:'0.166.0'}});
+createInterface({input:process.stdin}).on('line',line=>{const m=JSON.parse(line);
+if(m.type==='stop'){write({type:'stopped',released:true});setTimeout(()=>process.exit(0),20);return;}if(m.type!=='start')return;
+const code=readFileSync('code.mjs','utf8');let decision;
+if(!m.settings.readOnly){
+const rework=code.includes('stage-one');writeFileSync('code.mjs',rework?'export const add=(a,b)=>a+b;\\n':'export const add=(a,b)=>a+b; // stage-one\\n');
+if(rework)writeFileSync('code.test.mjs',readFileSync('code.test.mjs','utf8')+'assert.equal(add(-4.5,0),-4.5);\\n');
+decision={action:'handoff',to:'p1:reviewer',reason:rework?'Regression added; run tests':'Review before testing',outputs:{implementation:'Fixed addition'}};
+}else if(m.prompt.includes('(project-role-policy/v1, reviewer)')){
+if(code.includes('stage-one'))decision={action:'return',to:'p1:developer',reason:'Add fractional negative-zero regression before further verification'};
+else if(!m.prompt.includes('\"passed\":true'))decision={action:'transfer',to:'p1:tester',reason:'Run tests before final review'};\nelse decision={action:'complete',reason:'Candidate matches criteria; request Chief judgement',outputs:{review:JSON.stringify({commit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),verdict:'approve',summary:'Inspected exact candidate and regression'})}};
+}else decision={action:'handoff',to:'p1:reviewer',reason:'Host tests should verify this candidate',outputs:{tests:'Inspected regression'}};
+write({type:'sdk-event',event:{type:'thread.started',thread_id:'pool-'+process.pid}});write({type:'completed',sessionId:'pool-'+process.pid,text:'OUTPUT handoff: '+JSON.stringify(decision),usage:{input_tokens:1}});
+});`)
+  rt.config.projectResources = { one: { type: 'local', root: directory, runtimeDir, capacity: 1, allowedProjectOwnerIds: ['owner-1'], harnesses: ['codex'], profiles: { 'owner-1': { codex: { home: join(directory, 'sdk-home'), configDir: join(directory, 'sdk-config'), model: 'contract-model' } } } } }
+  rt.state.projectResourceHealth = { one: { status: 'ready', at: Date.now() } }
+  rt.state.projectHarnessHealth = { 'p1:one:codex': { status: 'ready' } }
+  for (const role of ['developer', 'tester', 'reviewer']) await rt.projectEndpoint('project-agent-definition', { projectId: 'p1', role, execution: { harness: 'codex', resourceIds: ['one'] } }, alice)
+  const started = await fixture.start('dynamic-pool')
+  assert.ok(started.attempt, `One free resource must admit only the receiving role, instead of reserving the full DAG: ${JSON.stringify(started.queue)}`)
+  assert.equal(started.attempt.status, 'running', started.attempt.failure?.message)
+  assert.equal(started.attempt.workflowId, undefined)
+  assert.equal(Object.keys(started.attempt.workspaces).length, 0)
+  assert.equal(rt.projectResources.occupied('one'), 0)
+  for (let n = 0; n < 400; n++) {
+    await rt.projectPools.pump()
+    if (['arbitration', 'blocked'].includes(rt.state.tasks[fixture.task.id].collaboration.status)) break
+    await new Promise(resolve => setTimeout(resolve, 20))
+  }
+  assert.equal(rt.state.tasks[fixture.task.id].collaboration.status, 'arbitration', JSON.stringify(rt.state.tasks[fixture.task.id].collaboration.block))
+  assert.deepEqual(rt.state.tasks[fixture.task.id].collaboration.history.map(row => row.to), ['p1:developer', 'p1:reviewer', 'p1:developer', 'p1:reviewer', 'p1:tester', 'p1:reviewer', 'p1:chief'])
+  assert.equal(Object.values(rt.state.projectAttempts).length, 2)
+  assert.equal(Object.values(rt.state.tasks).filter(row => row.projectId === 'p1').length, 1)
+  assert.equal(rt.projectResources.occupied('one'), 0)
+  assert.equal(Object.values(rt.state.projectAttempts)[0].status, 'returned')
+  assert.equal(fixture.attempt().evidence.tests.passed, true)
+  const reviewLogs = Object.values(rt.state.projectHarnessWorkers).filter(row => row.role === 'reviewer').map(row => row.sealedLog)
+  assert.equal(new Set(reviewLogs).size, 3, 'Revisited role Sessions must retain distinct immutable SDK logs')
+  assert.equal(fixture.attempt().roleSessionHistory.length, 1)
+  assert.equal(fixture.attempt().status, 'waiting-acceptance', JSON.stringify(rt.state.tasks[fixture.task.id].collaboration.history.at(-1)))
+  assert.equal(fixture.workflow.state().workflows.filter(row => row.projectId === 'p1').length, 0)
+  await assert.rejects(rt.projectEndpoint('project-task-accept', { attemptId: fixture.attempt().id }, alice), /Chief arbitration/)
 })

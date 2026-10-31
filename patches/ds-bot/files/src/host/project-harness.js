@@ -72,7 +72,8 @@ export function createProjectHarness(rt) {
     else await rt.projectDelivery.bindSession(workspace, { id, sessionId: id, kind: 'sdk' })
     const directory = join(rt.home, 'project-artifacts', row.attemptId)
     await mkdir(directory, { recursive: true, mode: 0o700 })
-    row.eventLog = join(directory, `${row.role}-sdk.jsonl`)
+    const evidenceName = session.poolClaimId ? `${row.role}-${session.poolClaimId}` : row.role
+    row.eventLog = join(directory, `${evidenceName}-sdk.jsonl`)
     const process = rt.projectResources.startProcess(row.projectId, row.resourceId, { argv: ['node', workerPath], cwd: workspace.path })
     const control = { process, chief, resumeSessionId: chief?.resumeSessionId, env: selected.env, profile: { ...selected.selected, ...(session.execution.model ? { model: session.execution.model } : {}) }, session, prompt: spec.prompt, outputs: [], closed: false, ready: false }
     active.set(id, control)
@@ -122,9 +123,10 @@ export function createProjectHarness(rt) {
           if (control.outputs.every(name => new RegExp(`(?:^|\\n)OUTPUT ${name}:`).test(event.text))) {
             row.status = 'completed'
             if (!control.chief) {
-              const sealedLog = join(directory, `${row.role}-sdk.completed.jsonl`)
+              const sealedLog = join(directory, `${evidenceName}-sdk.completed.jsonl`)
               await copyFile(row.eventLog, sealedLog)
-              await rt.projectDelivery.recordExecution?.({ ...row, sealedLog, eventSha256: await fileDigest(sealedLog) })
+              row.sealedLog = sealedLog; row.eventSha256 = await fileDigest(sealedLog)
+              await rt.projectDelivery.recordExecution?.(row)
             }
             await report(row, true, event.text)
           }
@@ -173,7 +175,7 @@ export function createProjectHarness(rt) {
     row.status = 'running'
     control.process.stdin.write(JSON.stringify({ type: 'start', settings: { harness: row.harness, cwd: row.cwd, sessionId: control.resumeSessionId, noTools: row.role === 'chief', model: control.profile.model, env: control.env,
       ...(control.profile.baseUrl ? { baseUrl: control.profile.baseUrl } : {}), readOnly: row.role !== 'developer', maxBudgetUsd: control.profile.maxBudgetUsd ?? 1 }, prompt }) + '\n')
-    control.timer = setTimeout(() => { row.status = 'failed'; failAsync(row, 'SDK execution timeout') }, 120_000)
+    control.timer = setTimeout(() => { row.status = 'failed'; failAsync(row, 'SDK execution timeout') }, Math.max(1000, Math.min(rt.config.projectExecutionTimeoutMs ?? 120_000, 7_200_000)))
     control.timer.unref?.()
     await rt.save()
     return { ok: true }

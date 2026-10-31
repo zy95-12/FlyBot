@@ -171,3 +171,6 @@ which caught this dependency that older API probes (calling private `state`) con
 ### M7.3 checkpoint — 2026-10-31
 
 Fork M7.3 lifecycle first offers spawn/dispatch/release to the host SDK adapter, then uses the existing native Bot path. Host SDK results enter service.stepResult through a scoped callback; graph transitions, deadlines, delivery gates and release error handling are reused.
+
+
+Repair R3 (#36): Project task pools now enforce the existing pure handoff validator via the trusted host adapter and reuse spawn/dispatch/release and result interception. New Project deliveries do not instantiate a static Workflow graph. `projectDispatch: workflow` retains explicit legacy graph execution and fixtures. See [pool contract](project-pools.md).

@@ -13,6 +13,17 @@ Dated, short lessons from real FlyBot work. Agents read this **before coding**. 
 
 ## Open lessons
 
+### 2026-11-01 — Transfer the Task after confirmed worker exit
+
+Seen 1×. Pool dispatch must not reserve all downstream roles, replace a returned
+Task or accept a retired worker result as fresh work. Keep stable Task identity,
+version each claim/Attempt, retain unknown leases, and consume retired replies on
+the original run surface. Revisited roles need per-Session sealed logs and archived
+previous evidence; the old one-result-per-role guard otherwise rejects valid
+follow-up review as a duplicate. Enforce the existing validator with trusted evidence;
+model-supplied green checks or PASS text cannot satisfy admission.
+
+
 ### 2026-11-01 — Check complete conventions at the actual worker input
 
 Seen 1×. Appending complete policy to a Workflow node passed metadata assertions

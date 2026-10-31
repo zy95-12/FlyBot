@@ -384,6 +384,10 @@ export interface FlyBot {
     shared(): boolean
     /** Existing Workflow lifecycle delegates explicitly configured SDK workers to the host. */
     execution?: {
+      /** Trusted Workflow plugin supplies lifecycle adapters and its existing handoff validator. */
+      connectPools(lifecycle: { spawn(spec: Record<string, unknown>): Promise<string>; dispatch(step: Record<string, unknown>): Promise<unknown>; release(id: string): Promise<unknown> }, validate: (handoff: Record<string, unknown>, context: Record<string, unknown>) => { ok: boolean; code?: string; reason?: string }): () => void
+      poolOwns(id: string): boolean
+      poolResult(result: { botId: string; ok: boolean; text: string }): Promise<boolean> | false
       spawn(spec: Record<string, unknown>): Promise<string | null> | undefined
       dispatch(step: Record<string, unknown>): Promise<unknown> | undefined
       release(id: string): Promise<boolean> | undefined
