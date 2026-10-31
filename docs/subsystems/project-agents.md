@@ -293,3 +293,6 @@ SDK execution with complete pinned policy. Private tokens bind current Run and
 policy revision; native job prompts restore after completion and new human turns
 replace both instruction fields. Stale persisted inputs cannot reuse a revoked
 delegation. Coordination jobs cannot authorize themselves or create arbitrary Tasks.
+
+Chief coordination retains explicitly published shared Project knowledge alongside
+its role memory; private human notes/history remain excluded.

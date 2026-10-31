@@ -253,7 +253,7 @@ export function createProjectAgents(rt) {
     const set = definitionSet(projectId), definition = structuredClone(set.roles.find(row => row.role === 'chief'))
     const project = rt.readProject(projectId)
     const policy = rt.config.projectRepositories?.[project.repository] ? await rt.projectDelivery.repositoryRolePolicy(projectId, undefined, 'chief') : null
-    const snapshot = roleContext({ projectId, role: 'chief', revision: set.revision, definition: { ...definition, resolvedSkills: resolveAgentSkills(rt, definition.skills) }, policy, memory: memoryFor(projectId, 'chief', definition.memoryRefs), knowledge: [], projectFacts, repository: [] })
+    const snapshot = roleContext({ projectId, role: 'chief', revision: set.revision, definition: { ...definition, resolvedSkills: resolveAgentSkills(rt, definition.skills) }, policy, memory: memoryFor(projectId, 'chief', definition.memoryRefs), knowledge: ownEntry(state.projectKnowledge ?? {}, projectId) ?? [], projectFacts, repository: [] })
     const carrierBefore = rt.botOf(agent.botId), priorPrompt = { instructions: carrierBefore.instructions, systemPrompt: carrierBefore.systemPrompt }
     const fullPrompt = prompt + (policy ? '\n\n' + policy.text : '')
     const delegation = { id: randomUUID(), exchangeId: randomUUID(), actor: { ...actor }, definitionRevision: set.revision, started: false, revoked: false, chiefJob: { runId, prompt: fullPrompt }, onChiefResult: onResult }
