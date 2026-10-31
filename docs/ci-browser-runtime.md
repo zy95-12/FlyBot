@@ -16,3 +16,7 @@ CI/docs only; milestone executable code and previous local validation stay attri
 to their recorded source commits. Fresh CI at every new PR tip is tracked separately.
 
 Written-by: Codex
+
+The historical Test job display name is a required-check compatibility contract and
+remains unchanged. Actual OS/DSH pins are runs-on and the action input; changing the
+label alone breaks core/test/dsh-pin.test.js without improving runtime compatibility.
