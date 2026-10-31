@@ -43,11 +43,17 @@ See [baseline ownership and tests](docs/subsystems/demo-baseline.md).
   immediate revocation and scoped Workflow gateway. It is explicitly configured; physical
   isolation, agent delegation/credentials and browser delivery remain M3–M6.
 
-- M3 implements the [commit-specific delivery contract](docs/subsystems/project-delivery.md)
+- M3 ([draft PR #13](https://github.com/zy95-12/FlyBot/pull/13), full local verify) implements the [commit-specific delivery contract](docs/subsystems/project-delivery.md)
   on the existing Workflow service: versioned Attempts, real role worktrees/cwd, host test
   evidence, Review/SHA gates and human acceptance. Actual DSH and draft artifact PR #12
   were exercised with a deterministic model; true-model acceptance is pending model
   configuration. M4–M6 implementation remains authorized and continues separately.
+
+- M4 implements [scoped Project agents](docs/subsystems/project-agents.md): fresh public
+  Chief, private human/Project identities, separate memory/history/proposals, live delegated
+  tool checks, role/skill snapshots and exact GitHub credential scopes. Actual DSH fixture
+  validation covers creation/publication/revocation; real-model/browser acceptance remains
+  M6. Runtime code-worker OS isolation is not claimed by this demo.
 
 ## Historical upstream Project State
 

@@ -144,3 +144,10 @@ head `d8371cbc797889340b602bf1352011a7c3fd7d7d`, through actual DSH/Git/GitHub w
 model. That draft is not the milestone implementation PR and is not independently reviewed.
 True-model and browser acceptance remain pending M3/M6 until a model configuration is
 available; the working conversation requests only its config name/path, not secret text.
+
+## Fork M4 — 2026-10-31
+
+M4 snapshots Project agent definitions/skill content on each new Attempt. GitHub
+automation now verifies its actual login, strips ambient token overrides and records
+executorLogin/credentialScope on PR metadata. Personal human/Project writes use a
+separate broker with no fallback. [Contract](project-agents.md).

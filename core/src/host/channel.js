@@ -671,6 +671,15 @@ export function install(rt) {
           return ok(await rt.workflowEndpoint(endpoint, body))
         // Projects (#1691): a durable Project record and the binding a group, Bot or run names.
         case 'projects':
+        case 'project-credential-status':
+        case 'project-github-comment':
+        case 'project-agents':
+        case 'project-agent-message':
+        case 'project-agent-history':
+        case 'project-agent-memory-write':
+        case 'project-agent-definition':
+        case 'project-agent-proposal-apply':
+        case 'project-knowledge-write':
         case 'project-task-run':
         case 'project-task-detail':
         case 'project-task-accept':

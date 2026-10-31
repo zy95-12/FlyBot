@@ -6,6 +6,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { promisify } from 'node:util'
 import { ownEntry, setEntry } from './store.js'
 import { DELIVERY_ROLES, DELIVERY_VERSION, deliveryGraph } from './project-delivery-template.js'
+import { skillInstructions } from './project-agent-skills.js'
 import { githubPublisher } from './project-github.js'
 
 const exec = promisify(execFile)
@@ -101,6 +102,14 @@ export function createProjectDelivery(rt, { publisher } = {}) {
       const model = settings.model ?? config.projectModel ?? await rt.defaultModel?.()
       if (typeof model !== 'string' || !model) throw reject('A served delivery model must be provisioned')
       const graph = deliveryGraph(model)
+      const definitions = rt.projectAgents?.deliveryDefinitions(project.id)
+      for (const node of graph.nodes) {
+        const role = definitions?.roles.find(role => role.role === node.id)
+        if (!role) continue
+        node.model = role.model || model
+        node.prompt += '\n\nProject role persona:\n' + role.instructions + '\n\n' + skillInstructions(role.resolvedSkills)
+      }
+      attempt.agentDefinitions = definitions
       attempt.workflowDefinition = structuredClone(graph)
       const made = await rt.projectEndpoint('project-workflow', { projectId: project.id, operation: 'create', name: `${DELIVERY_VERSION} ${attempt.id}`, ...graph }, { memberId: project.ownerUserId })
       if (made.ok === false) throw reject(made.error)

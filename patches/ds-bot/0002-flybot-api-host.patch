@@ -3,13 +3,15 @@ FlyBot patch 0002-flybot-api-host on Fei2411/DeepSeek-Bot@2b10c70 (ds-bot/). Gen
 diff --git a/index.js b/index.js
 --- a/index.js
 +++ b/index.js
-@@ -4,9 +4,22 @@
+@@ -4,9 +4,24 @@
  import { join } from 'node:path'
  import * as diagnostics from './src/host/diagnostics.js'
  import * as store from './src/host/store.js'
 +import * as harness from './src/host/harness.js'
 +import * as memberAuth from './src/host/member-auth.js'
 +import * as platformIdentity from './src/host/platform-identity.js'
++import * as projectCredentials from './src/host/project-credentials.js'
++import * as projectAgents from './src/host/project-agents.js'
 +import * as projectDelivery from './src/host/project-delivery.js'
 +import * as projectAccess from './src/host/project-access.js'
 +import * as authz from './src/host/authz.js'
@@ -61,7 +63,7 @@ diff --git a/index.js b/index.js
  // install. Listeners run and tools are listed in registration order, so this order holds:
  // usage meters model requests after every listener that rewrites them.
 -const MODULES = [diagnostics, store, models, permissions, turns, delivery, roster, folders, agents, prompt, timeContext, tools, chatIndex, groups, approvals, resume, memory, parts, images, secrets, connectors, capabilities, schedules, browser, usage, update, dshUpdate, channel]
-+const MODULES = [diagnostics, store, harness, memberAuth, platformIdentity, projectAccess, projectDelivery, authz, models, permissions, turns, busyAck, steeringInterrupt, delivery, roster, folders, agents, prompt, timeContext, tools, decisions, projectState, meetings, chatIndex, groups, roomMembership, reach, tasks, projectBoard, taskDrive, approvals, resume, memory, parts, images, secrets, connectors, connectorAccess, capabilities, schedules, projectAssistant, projectChief, projectTeam, automationDefault, browser, usage, update, dshUpdate, hooks, remoteChat, workflowStore, channel]
++const MODULES = [diagnostics, store, harness, memberAuth, platformIdentity, projectAccess, projectDelivery, projectAgents, projectCredentials, authz, models, permissions, turns, busyAck, steeringInterrupt, delivery, roster, folders, agents, prompt, timeContext, tools, decisions, projectState, meetings, chatIndex, groups, roomMembership, reach, tasks, projectBoard, taskDrive, approvals, resume, memory, parts, images, secrets, connectors, connectorAccess, capabilities, schedules, projectAssistant, projectChief, projectTeam, automationDefault, browser, usage, update, dshUpdate, hooks, remoteChat, workflowStore, channel]
  
  export function apply(ctx, config = {}) {
 -  createRuntime(ctx, config)
@@ -385,7 +387,7 @@ diff --git a/src/host/roster.js b/src/host/roster.js
    const cleanNotice = text => String(text ?? '').trim().slice(0, ROOM_NOTICE_MAX)
  
    function cleanRoomName(text, selfId) {
-@@ -257,21 +257,36 @@ export function install(rt) {
+@@ -257,21 +257,37 @@ export function install(rt) {
    async function followMemberNames(rooms = Object.values(state.rooms)) {
      for (const room of rooms) {
        if (room.named) continue
@@ -423,6 +425,7 @@ diff --git a/src/host/roster.js b/src/host/roster.js
 +      const bot = rt.botOf(id)
 +      return bot && !bot.remote
 +    })
++    if (members.some(id => rt.botOf(id)?.projectAgent)) throw new Error('Project agents cannot join group chats')
 +    if (members.length >= 2) checkMembers(members)
 +    else if (members.length + remotes.length < 2 || members.length === 0) checkMembers(members)
      const custom = cleanRoomName(roomName ?? '')
@@ -448,7 +451,7 @@ diff --git a/src/host/roster.js b/src/host/roster.js
        return state.rooms[id]
      } catch (error) {
        // The group's Session was already made: archive it instead of leaving an orphan.
-@@ -306,17 +306,29 @@ export function install(rt) {
+@@ -306,17 +306,30 @@ export function install(rt) {
      }
    }
  
@@ -472,6 +475,7 @@ diff --git a/src/host/roster.js b/src/host/roster.js
      for (const member of patch.add ?? []) if (!members.includes(member)) members.push(member)
      members = members.filter(member => !(patch.remove ?? []).includes(member) && rt.botOf(member))
 -    checkMembers(members)
++    if (members.some(id => rt.botOf(id)?.projectAgent)) throw new Error('Project agents cannot join group chats')
 +    // #1764: only a patch that changes membership is judged by the two-Bot floor. A face-to-face
 +    // or inbound-share room's seats are synced, not patched, so its local list is not its membership.
 +    const changesMembers = patch.members !== undefined || patch.add !== undefined || patch.remove !== undefined

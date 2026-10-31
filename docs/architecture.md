@@ -32,6 +32,12 @@ independent test processes, typed Review/SHA gates, explicit GitHub draft public
 human acceptance. Restart records interruption; retry preserves evidence. Actual DSH and
 GitHub fixture proof is available; true-model/browser acceptance is tracked separately.
 
+M4 separates [public roles and private human/Project agents](subsystems/project-agents.md).
+A fresh shared Chief avoids promoting old owner-private conversations. Current own-session
+and human delegation gate tools; memory/transcripts/proposals are distinct from shared facts.
+Project automation and exact human/Project GitHub identities have separate credential paths.
+The shared browser entry must fence raw DSH owner/session APIs; that is part of M5/M6.
+
 ## Layout
 
 | Path | What it is |

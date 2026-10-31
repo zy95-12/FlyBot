@@ -7,6 +7,7 @@ import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { mockModel } from './mock.mjs'
+import { agentReply, checkAgents } from './agents.mjs'
 import { checkDelivery, deliveryReply, provisionDeliveryFixture } from './delivery.mjs'
 import { checkShared } from './shared.mjs'
 import { verifyArtifact } from './artifact.mjs'
@@ -35,6 +36,7 @@ async function waitFor(read, label, milliseconds = 90_000) {
 }
 
 async function main() {
+  const agents = process.argv.includes('--agents')
   const delivery = process.argv.includes('--delivery')
   const githubRepository = process.argv.includes('--github-repo') ? process.argv[process.argv.indexOf('--github-repo') + 1] : undefined
   const githubConfigDir = process.argv.includes('--github-config-dir') ? process.argv[process.argv.indexOf('--github-config-dir') + 1] : undefined
@@ -65,7 +67,7 @@ async function main() {
       '@deepseek-ai/dsh-base': '0.2.1-rc.2', '@deepseek-ai/dsh-web-app': '0.2.1-rc.2' },
     dsh: { profile: { bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'ds-bot', '@flybot/workflow'] } } }))
   const observations = []
-  const model = mockModel(observations, { reply: delivery ? deliveryReply : undefined })
+  const model = mockModel(observations, { reply: delivery ? deliveryReply : agents ? agentReply : undefined })
   model.listen(0, '127.0.0.1')
   await once(model, 'listening')
   const port = await freePort()
@@ -78,7 +80,7 @@ async function main() {
   // External connector credentials are not needed in this transport check.
   for (const name of Object.keys(env)) if (/TOKEN|SECRET|API_KEY/.test(name) && name !== 'DEEPSEEK_API_KEY') delete env[name]
   let patch = join(root, 'docker/web.patch.yml')
-  if (shared || delivery) {
+  if (shared || delivery || agents) {
     patch = join(directory, 'shared.patch.yml')
     const botConfig = { projectWorkbench: true,
       ...(shared ? { controlPlane: { origin: shared.origin, ownerSubject: shared.ownerSubject } } : {}),
@@ -118,6 +120,10 @@ async function main() {
       const result = await call(...args)
       assert.equal(result.ok, true, `API ${args[0]}: ${result.error?.code ?? 'failed'}`)
       return result.value
+    }
+    if (agents) {
+      console.log(JSON.stringify(await checkAgents({ api, call, saved, waitFor })))
+      return
     }
     if (delivery) {
       console.log(JSON.stringify(await checkDelivery({ api, call, saved, waitFor, repository: workspace, githubRepository })))

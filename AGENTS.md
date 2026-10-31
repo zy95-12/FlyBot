@@ -17,7 +17,10 @@ on every request and retain Project authorization on all new entry points. Code 
 follows [Project delivery](docs/subsystems/project-delivery.md): bump its template version
 when the role/graph contract changes, preserve Attempt history and require matching
 commit evidence before human acceptance. Never claim a deterministic fixture is a real
-model or independent Review PASS.
+model or independent Review PASS. [Project agents](docs/subsystems/project-agents.md)
+bind tools to a current own Session and live human delegation; private notes/proposals
+never enter public context automatically. Personal GitHub operations must select the
+exact human/Project credential and verify its login, with no automation/ambient fallback.
 
 
 1. Read [LESSONS.md](LESSONS.md) (open lessons are constraints).

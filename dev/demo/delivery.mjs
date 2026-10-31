@@ -44,7 +44,7 @@ export async function checkDelivery({ api, call, saved, waitFor, repository, git
   const model = state.models.find(row => /deepseek-flash/.test(row.ref))?.ref ?? state.models.at(-1)?.ref
   const { project } = await ownerCall('project-create', { name: 'Delivery acceptance', repository: githubRepository ?? 'example/delivery-fixture' })
   const botId = saved().projects[project.id].chief.botId
-  await ownerCall('update-bot', { id: botId, model })
+  await ownerCall('project-agent-definition', { projectId: project.id, role: 'chief', model })
   const task = await ownerCall('task-create', { botId, projectId: project.id, title: githubRepository ? '[Demo artifact M3] Fix addition in isolated worktrees' : 'Fix addition', criteria: githubRepository ? 'Addition must pass the provisioned cases. Integration artifact: deterministic model transport, no independent code-review PASS and no production deployment.' : 'add(2,3) must equal 5' })
   const started = await ownerCall('project-task-run', { taskId: task.id, requestId: 'delivery-runtime-1' })
   assert.equal(started.attempt.status, 'running', started.attempt.failure?.message)

@@ -166,7 +166,7 @@ export function install(rt) {
   // group turn (groups.js). `fromRoomId`: the group whose Session the sender wrote
   // from; the reply goes back to that Session (turns.js). `answeredIn`: the group where the user
   // answered the Bot's question card about work handed over from there (tools.js, #550).
-  async function deliver({ fromId, toId, sessionId, text, role, hop = 0, replyTo, roomId, audience, note, exchangeId = randomUUID(), steer = false, deferred = false, resumed = false, retried = false, rateLimited = false, resent = false, askedBy, fromRoomId, answeredIn, fromName: givenName, untrusted = false, remote, attachments, origin: givenOrigin, taskDrive = false }) {
+  async function deliver({ fromId, toId, sessionId, text, role, hop = 0, replyTo, roomId, audience, note, exchangeId = randomUUID(), steer = false, deferred = false, resumed = false, retried = false, rateLimited = false, resent = false, askedBy, fromRoomId, answeredIn, fromName: givenName, untrusted = false, remote, attachments, origin: givenOrigin, taskDrive = false, projectDelegation }) {
     const from = rt.botOf(fromId)
     const to = rt.botOf(toId)
     if (to === undefined) throw new Error(`Unknown Bot ${toId}`)
@@ -218,6 +218,7 @@ export function install(rt) {
     }
     await rt.ensureCapabilities(targetSessionId)
     const agent = await resolveAgent(targetSessionId)
+    if (projectDelegation && !rt.projectAgents?.isDelegationActive(projectDelegation.agentId, projectDelegation.delegationId)) throw new Error('Project delegation was revoked before delivery')
     // A steered message cuts into a running turn at its next step; a follow-up
     // queues for the next turn (see turns.js for how each is routed).
     const body = fromId ? stripSessionChips(text) : text

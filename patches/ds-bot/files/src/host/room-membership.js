@@ -618,6 +618,7 @@ export function install(rt) {
     }
     const bot = state.bots?.[draft.id]
     if (!bot) throw invalid('Unknown Bot')
+    if (bot.projectAgent) throw forbidden('Project agents cannot join group chats')
     const humans = new Set(currentParticipants(room).filter(p => p.kind === 'human').map(p => p.id))
     if (actor?.memberId) humans.add(actor.memberId)
     humans.add(bot.ownerId)
@@ -861,6 +862,7 @@ export function install(rt) {
 
   rt.applyParticipants = function applyParticipants(room, drafts, actor) {
     if (!Array.isArray(drafts) || drafts.length === 0) return room
+    if (drafts.some(draft => draft?.kind === 'bot' && state.bots?.[draft.id]?.projectAgent)) throw forbidden('Project agents cannot join group chats')
     room.participants = []
     const at = room.createdAt ?? Date.now()
     for (const draft of drafts) {
