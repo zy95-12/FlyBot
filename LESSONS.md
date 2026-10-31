@@ -13,6 +13,15 @@ Dated, short lessons from real FlyBot work. Agents read this **before coding**. 
 
 ## Open lessons
 
+### 2026-11-01 — Check complete conventions at the actual worker input
+
+Seen 1×. Appending complete policy to a Workflow node passed metadata assertions
+but node cleaning cut the final SDK prompt at 4000 characters. Assemble the pinned
+policy at the host execution boundary after cleaning, check its hash, and test the
+actual child-worker input with an end-of-policy sentinel. A candidate JSON approval
+also cannot establish the separately signed repository Reviewer PASS.
+
+
 ### 2026-10-31 — Pin the browser runner to the locked Playwright platform
 
 Seen 1×. GitHub ubuntu-latest moved to 26.04 while Playwright remains locked at 1.56.1;

@@ -217,3 +217,14 @@ M7.5 new Attempts use project-delivery/v3. Remote resource-clone roles import th
 ## R1 admission and candidate failures
 
 The repository preflight now runs before creating an Attempt/worktree/lease. Missing or malformed allowedPaths is a provisioning failure, not evidence that a worker wrote outside its workspace. Optional testDependencies names readable repository-relative prerequisites; metadata checks never install or execute them. testTimeoutMs must be a positive integer and retains the existing 300-second execution ceiling. Candidate sealing separately refuses no final code change, actual path-list violations and changed symbolic links that resolve outside the allocated workspace. Historical Attempt/graph versions are unchanged.
+
+## Repair R2: versioned role policies
+
+New Attempts use `project-delivery/v4`; v1–v3 records stay readable. All three
+role Sessions pin a complete, hashed policy bundle at the base SHA. Host execution
+assembles it after Workflow prompt cleaning; it does not rely on the node preview
+for complete rules. See [role policy](project-agents.md#complete-role-conventions-repair-r2-issue-35).
+Gate verification rejects changed bundles. FlyBot code candidates must include
+repository memory, regression tests and architecture changes. Review evidence
+distinguishes a candidate recommendation from a signed repository Reviewer PASS;
+existing candidate tests and human acceptance remain mandatory.

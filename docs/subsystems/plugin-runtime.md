@@ -163,3 +163,6 @@ M7.1 inserts frozen role context at host Bot creation after graph prompt truncat
 ### M7.3 checkpoint — 2026-10-31
 
 M7.3 adds projects.execution spawn/dispatch/release/onResult only for flybot-workflow, typed in flybot.d.ts. SDK worker output enters existing stepResult, not a persistent Bot chat. Native lifecycle stays available when spawn/dispatch returns null.
+
+
+Repair R2 (#35): Project native worker creation assembles the complete pinned role policy after Workflow node cleaning and verifies its hash before creating the Bot; see [Project role conventions](project-agents.md).

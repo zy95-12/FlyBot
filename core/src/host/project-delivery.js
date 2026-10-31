@@ -8,6 +8,7 @@ import { ownEntry, setEntry } from './store.js'
 import { DELIVERY_ROLES, DELIVERY_VERSION, deliveryGraph } from './project-delivery-template.js'
 import { repositorySettings, preflightRepository } from './project-repository-policy.js'
 import { createResourceWorkspaces, fileDigest } from './project-resource-workspaces.js'
+import { ROLE_POLICY_FILES, assembleRolePolicy, verifyRolePolicy, deliveryReviewReport, checkDevelopmentEvidence } from './project-role-policy.js'
 import { roleContext, contextHash } from './project-role-context.js'
 import { githubPublisher } from './project-github.js'
 
@@ -17,13 +18,13 @@ const ongoing = new Set(['preparing', 'running'])
 const reject = message => Object.assign(new Error(message), { code: 'bot/delivery' })
 const inside = (root, path) => { const rel = relative(root, path); return rel !== '' && rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel) }
 const cleanEnv = () => Object.fromEntries(Object.entries(process.env).filter(([key]) => !/TOKEN|PASSWORD|SECRET|API_KEY|GIT_CONFIG|NODE_OPTIONS/.test(key)))
-async function git(path, args) {
+async function git(path, args, preserveWhitespace = false) {
   const { stdout } = await exec('git', ['-c', 'core.hooksPath=/dev/null', '-c', 'commit.gpgsign=false', ...args], {
     cwd: path, timeout: 30_000, maxBuffer: 2 * 1024 * 1024, env: { ...cleanEnv(), GIT_TERMINAL_PROMPT: '0',
       GIT_AUTHOR_NAME: 'FlyBot project automation', GIT_AUTHOR_EMAIL: 'flybot-project@localhost',
       GIT_COMMITTER_NAME: 'FlyBot project automation', GIT_COMMITTER_EMAIL: 'flybot-project@localhost' },
   })
-  return stdout.trim()
+  return preserveWhitespace ? stdout : stdout.trim()
 }
 
 export function createProjectDelivery(rt, { publisher } = {}) {
@@ -130,15 +131,18 @@ export function createProjectDelivery(rt, { publisher } = {}) {
       const graph = deliveryGraph(model)
       attempt.roleSessions = {}
       const repository = await repositoryContext(project.id, attempt.baseSha)
+      attempt.rolePolicies = {}
       for (const node of graph.nodes) {
         const role = definitions?.roles.find(role => role.role === node.id)
         const definition = role ?? { instructions: node.prompt, resolvedSkills: [], memory: [], execution: { harness: 'flybot', resourceIds: [] } }
         node.model = definition.model || model
-        const context = roleContext({ projectId: project.id, role: node.id, revision: definitions?.revision ?? 0, definition, memory: definition.memory,
+        const policy = await repositoryRolePolicy(project.id, attempt.baseSha, node.id)
+        attempt.rolePolicies[node.id] = policy
+        const context = roleContext({ policy, projectId: project.id, role: node.id, revision: definitions?.revision ?? 0, definition, memory: definition.memory,
           knowledge: ownEntry(state.projectKnowledge ?? {}, project.id) ?? [], requirement: attempt.requirement, feedback: attempt.feedback, repository })
         attempt.roleSessions[node.id] = { id: `role-session-${randomUUID()}`, projectId: project.id, taskId: task.id, attemptId: attempt.id, role: node.id,
           ...(attempt.resourceLeases[node.id] ? { resourceLease: attempt.resourceLeases[node.id] } : {}),
-          definitionRevision: definitions?.revision ?? 0, execution: structuredClone(definition.execution), context, status: 'prepared', generation: 1, createdAt: Date.now() }
+          policy, definitionRevision: definitions?.revision ?? 0, execution: structuredClone(definition.execution), context, status: 'prepared', generation: 1, createdAt: Date.now() }
       }
       attempt.agentDefinitions = definitions
       attempt.workflowDefinition = structuredClone(graph)
@@ -179,6 +183,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
       const info = await lstat(path).catch(error => { if (error.code === 'ENOENT') return null; throw error })
       if (info?.isSymbolicLink() && !inside(workspace.path, await realpath(path))) throw reject('Code changes contain a symbolic link outside the allocated workspace')
     }
+    checkDevelopmentEvidence(attempt.rolePolicies?.developer, names)
     const roots = settings.allowedPaths
     if (!Array.isArray(roots) || !roots.length || roots.some(value => typeof value !== 'string' || value.startsWith('/') || value.includes('..')) || names.some(name => !roots.some(prefix => name === prefix || name.startsWith(prefix.endsWith('/') ? prefix : `${prefix}/`)))) throw reject('Code changes exceed the provisioned repository paths')
     await workspaceGit(workspace, ['reset', '--soft', attempt.baseSha]) // Seal one final commit; do not transfer intermediate worker history.
@@ -224,7 +229,14 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     let result
     try { result = typeof outputs?.review === 'string' ? JSON.parse(outputs.review) : outputs?.review } catch { throw reject('Review output must be commit-specific JSON') }
     if (!result || result.commit !== attempt.candidateSha || !['approve', 'request-changes'].includes(result.verdict) || typeof result.summary !== 'string' || !result.summary.trim()) throw reject('Review verdict is missing or names a different commit')
-    attempt.evidence.review = { sha: result.commit, verdict: result.verdict, summary: result.summary.slice(0, 8000), at: Date.now() }
+    const policy = attempt.rolePolicies?.reviewer
+    const execution = attempt.evidence.execution?.reviewer
+    const commands = []
+    if (execution?.log) for (const line of (await readFile(execution.log, 'utf8')).split('\n').filter(Boolean)) {
+      const item = JSON.parse(line).event?.item
+      if (item?.type === 'command_execution' && typeof item.exit_code === 'number') commands.push({ command: item.command, exitCode: item.exit_code, executor: 'reviewer-sdk' })
+    }
+    attempt.evidence.review = { ...(policy ? { policySha256: policy.sha256, report: deliveryReviewReport({ verdict: result.verdict, sha: result.commit, commands }) } : {}), sha: result.commit, verdict: result.verdict, summary: result.summary.slice(0, 8000), at: Date.now() }
     if (result.verdict !== 'approve') throw reject('Reviewer requested changes')
     if (attempt.evidence.tests?.sha !== attempt.candidateSha || !attempt.evidence.tests.passed) throw reject('Matching passing tests are missing')
     if (attempt.cancelRequested) throw reject('Delivery was stopped')
@@ -257,6 +269,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     if (attempt?.cancelRequested) throw reject('Delivery was stopped')
     if (!attempt || attempt.workflowId !== workflowId) throw reject('Delivery Attempt/Workflow mismatch')
     if (['accepted', 'cancelled'].includes(taskOf(taskId)?.status)) throw reject('Task has already ended')
+    for (const [role, policy] of Object.entries(attempt.rolePolicies ?? {})) verifyRolePolicy(policy, attempt.roleSessions[role]?.context.sources.policy?.sha256)
     for (const role of Object.keys(attempt.evidence.execution ?? {})) await verifyExecution(attempt, role)
     await verifyExecution(attempt, nodeId)
     const completed = nodeId === 'developer' ? attempt.evidence.implementation : nodeId === 'tester' ? attempt.evidence.tests?.passed && attempt.evidence.tests : nodeId === 'reviewer' ? attempt.evidence.review?.verdict === 'approve' && attempt.pr : null
@@ -404,6 +417,27 @@ export function createProjectDelivery(rt, { publisher } = {}) {
       rt.taskDeliveryState?.(attempt.taskId, attempt.id, 'failed', attempt.failure.message)
     }
   }
+  async function repositoryRolePolicy(projectId, commit, role) {
+    const project = projectOf(projectId)
+    const settings = settingsOf(project)
+    const configured = settings.rolePolicySources?.[role]
+    const names = configured ?? [...ROLE_POLICY_FILES.common, ...ROLE_POLICY_FILES[role]]
+    if (!Array.isArray(names) || names.length > 40 || names.some(name => typeof name !== 'string' || name.startsWith('/') || name.includes('..') || /[\\\r\n\0]/.test(name))) throw reject('Role policy source list is invalid')
+    const sources = []
+    for (const name of [...new Set(names)]) {
+      const entry = await git(settings.path, ['ls-tree', commit, '--', name])
+      if (!entry) continue
+      if (!/^100(?:644|755) blob /.test(entry)) throw reject('Role policy source must be a regular repository file')
+      sources.push({ name, commit, text: await git(settings.path, ['show', `${commit}:${name}`], true) })
+    }
+    let profile = settings.rolePolicyProfile ?? 'repository'
+    if (!settings.rolePolicyProfile && await git(settings.path, ['ls-tree', '--name-only', commit, '--', 'package.json'])) {
+      const entry = JSON.parse(await git(settings.path, ['show', `${commit}:package.json`]))
+      if (entry.name === 'flybot' && await git(settings.path, ['ls-tree', '--name-only', commit, '--', 'core/cordis.patch.yml'])) profile = 'flybot-development'
+    }
+    const requiredFiles = settings.requiredRolePolicySources?.[role] ?? (profile === 'flybot-development' ? [...ROLE_POLICY_FILES.common.filter(name => !name.startsWith('decisions/')), ...ROLE_POLICY_FILES[role]] : configured ?? [])
+    return assembleRolePolicy({ role, commit, sources, requiredFiles, profile })
+  }
   async function repositoryContext(projectId, commit) {
     const project = projectOf(projectId)
     if (!ownEntry(config.projectRepositories ?? {}, project?.repository)) return []
@@ -444,7 +478,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     }
   }
   const ownsWorkspace = (projectId, path) => Object.values(state.projectWorkspaces ?? {}).find(workspace => workspace.projectId === projectId && workspace.path === path && DELIVERY_ROLES.includes(workspace.role) && ['worktree', 'resource-clone'].includes(workspace.kind) && workspace.status === 'allocated' && ongoing.has(ownEntry(attempts(), workspace.attemptId)?.status))
-  return { endpoint, context, recordExecution, repositoryContext, bindSession, releaseSession, sessionFor, recover, runReported, ownsWorkspace, gate: input => serialAttempt(current(input.taskId)?.id ?? input.taskId, () => gate(input)) }
+  return { endpoint, context, recordExecution, repositoryContext, repositoryRolePolicy, bindSession, releaseSession, sessionFor, recover, runReported, ownsWorkspace, gate: input => serialAttempt(current(input.taskId)?.id ?? input.taskId, () => gate(input)) }
 }
 
 export function install(rt) {

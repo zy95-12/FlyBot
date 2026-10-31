@@ -116,3 +116,6 @@ credentials; parent dispatch waits for the selected pinned version. Missing/inco
 bridges fail closed, invalidate that resource's readiness and release only a demonstrably
 unstarted or acknowledged-stopped worker. Broken stdin channels are contained as execution
 errors. Tests cover missing bridges, mismatched versions and the complete callback path.
+
+
+Repair R2 (#35): SDK delivery dispatch assembles complete pinned role conventions after Workflow node cleaning, alongside the bounded role context; Session policy hash verification precedes spawn. The SDK contract test checks the actual worker input beyond the old prompt limit. See [Project role conventions](project-agents.md).
