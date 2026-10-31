@@ -51,3 +51,5 @@ Fork M7 local/Docker Git handoff, candidate and sealed SDK evidence: [project-re
 Project per-Bot handoff and claim lifecycle: [project-pools](project-pools.md).
 
 Bounded Project repository reads: [project-github-read](project-github-read.md).
+
+Safe/watch authority and account checks: [project-delegations](project-delegations.md).

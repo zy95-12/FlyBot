@@ -49,7 +49,7 @@ export async function checkAgents({ api, call, saved, waitFor }) {
   assert.equal((await b('project-board', { id: project.id })).tasks.length, 0)
   const approved = await b('project-agent-proposal-apply', { proposalId: proposal.id })
   assert.equal(approved.task.requesterId, bob.memberId)
-  await b('project-agent-message', { projectId: project.id, visibility: 'public', text: 'Create a shared Task from this public request. Read current Project facts first.' })
+  await b('project-agent-message', { projectId: project.id, visibility: 'public', publicationApproved: true, text: 'Create a shared Task from this public request. Read current Project facts first.' })
   await waitFor(async () => {
     const history = await b('project-agent-history', { projectId: project.id, visibility: 'public' })
     return history.messages.some(row => row.kind === 'agent') && !history.busy

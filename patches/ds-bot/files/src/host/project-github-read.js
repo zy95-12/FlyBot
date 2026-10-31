@@ -8,7 +8,7 @@ export function createProjectGithubRead(rt, { identity = resolveGithubIdentity, 
     const project = rt.requireProjectAccess(actor, String(body.projectId ?? ''))
     if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(project.repository ?? '')) throw refuse('Project repository is unavailable')
     if (body.scope !== undefined && !['personal', 'project'].includes(body.scope)) throw refuse('Unknown GitHub read scope')
-    if (rt.platformIdentityEnabled && !await rt.validatePlatformActor(actor)) throw refuse('Human platform session was revoked')
+    if (rt.platformIdentityEnabled && !await (rt.validateHumanActor ? rt.validateHumanActor(actor) : rt.validatePlatformActor(actor))) throw refuse('Human platform session was revoked')
     const operation = body.operation ?? 'issues'
     const number = body.number
     if (!['issues', 'pulls', 'pull', 'reviews', 'checks'].includes(operation) || ['pull', 'reviews', 'checks'].includes(operation) && (!Number.isSafeInteger(number) || number < 1)) throw refuse('Unsupported bounded GitHub read')
@@ -20,7 +20,7 @@ export function createProjectGithubRead(rt, { identity = resolveGithubIdentity, 
     const selected = await identity(settings)
     if (selected.login.toLowerCase() !== settings.login.toLowerCase()) throw refuse('Scoped GitHub read identity mismatch')
     const validate = async () => {
-      if (rt.platformIdentityEnabled && !await rt.validatePlatformActor(actor)) throw refuse('Human platform session was revoked')
+      if (rt.platformIdentityEnabled && !await (rt.validateHumanActor ? rt.validateHumanActor(actor) : rt.validatePlatformActor(actor))) throw refuse('Human platform session was revoked')
       rt.requireProjectAccess(actor, project.id)
       if (rt.readProject?.(project.id)?.repository && rt.readProject(project.id).repository !== project.repository) throw refuse('Project repository changed during the read')
     }

@@ -129,3 +129,8 @@ action contract, with no filesystem/network/connector tools and no Task/run
 actions. Each private inquiry has a separate carrier and SDK binding, and returns
 to the originating private transcript. Private worker metadata is scoped to its
 requester in workbench responses. See [conversation routing](project-agents.md).
+
+
+Repair R5 (#38): SDK Chief action results support `$lastTask` only
+after actual Task creation; private proposals never qualify. Existing SDK execution
+and repository gates are unaffected by user watch mode. See [delegation contract](project-delegations.md).

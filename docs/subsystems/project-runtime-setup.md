@@ -110,3 +110,9 @@ Connection probes use the same installed-version handshake as task workers and r
 observed and expected SDK versions separately. A missing bridge cannot consume probe
 capacity or become authenticated-ready. A PTY bridge that exits is shown as a closed
 configuration terminal; input on a broken process pipe cannot crash the host.
+
+Repair R5 (#38): runtime checks and the owning human's configuration terminal accept
+validated persistent watch actors through the same current Project/resource policy.
+They do not require a browser cookie when a current user grant exists. Revocation
+still denies or closes the terminal; other users' resources remain unavailable.
+See [delegation contract](project-delegations.md).

@@ -141,7 +141,7 @@ export function createProjectRuntimeSetup(rt) {
     try {
       await authorized(terminal.target, actor, true)
       const session = ownEntry(rt.state.authSessions ?? {}, actor.sessionId)
-      if (!session || session.revokedAt || Date.now() > terminal.expiresAt || rt.platformIdentityEnabled && !await rt.validatePlatformActor(actor)) throw refuse('Configuration terminal expired or access was revoked')
+      if (!session || session.revokedAt || Date.now() > terminal.expiresAt || rt.platformIdentityEnabled && !await (rt.validateHumanActor ? rt.validateHumanActor(actor) : rt.validatePlatformActor(actor))) throw refuse('Configuration terminal expired or access was revoked')
     } catch (error) { await close(terminal, 'authorization-ended'); throw error }
     if (heartbeat) terminal.lastSeen = Date.now()
     return terminal

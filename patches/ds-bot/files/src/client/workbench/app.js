@@ -175,6 +175,8 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
     for (const message of history?.messages ?? []) node.append(box(message.role ?? message.kind ?? 'Message', el('p', message.text ?? message.content ?? '')))
     node.append(form('message', [['text', 'Message', 'textarea']], values => scoped('project-agent-message', { ...values, visibility }), history?.busy ? 'Agent busy' : 'Send'))
     if (privateView) {
+      node.append(el('p', `Agent mode: ${agents.delegation?.mode ?? 'safe'}. Safe mode requires approval before Task publication. Watch mode acts with your current Project permissions until revoked.`))
+      node.append(form('agent-mode', [['mode', 'Agent mode', 'select', ['safe', 'watch'], agents.delegation?.mode ?? 'safe']], values => scoped('project-agent-mode', values), 'Set agent mode'))
       node.append(form('chief-question', [['text', 'Question for Chief', 'textarea']], values => scoped('project-chief-question', { ...values, requestId: win.crypto.randomUUID() }), 'Ask Chief without a Task'))
       node.append(box('Private notes', ...agents.privateMemory.map(note => el('p', note.text)), form('memory', [['text', 'Remember privately', 'textarea']], values => scoped('project-agent-memory-write', values))))
       for (const proposal of agents.proposals) node.append(box(proposal.taskId ? 'Published Task' : 'Unpublished proposal', el('p', proposal.taskId ? 'Published; execution requires a separate run request.' : 'Private proposal; it has not been published or assigned.'), json(proposal.fields), button(proposal.taskId ? 'Published' : 'Publish as shared Task', () => act(() => scoped('project-agent-proposal-apply', { proposalId: proposal.id })), Boolean(proposal.taskId) || busy)))

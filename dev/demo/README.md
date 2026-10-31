@@ -114,3 +114,9 @@ needs the pinned optional Playwright package and explicit control-plane/Python p
 foreground `--serve-workbench` launcher privately prompts for demo account passwords and
 shares only the restricted gateway URL. True-model mode requires explicit existing model
 configuration and is never silently replaced by the deterministic model.
+
+
+The optional operator helper `platform-principal.py --db /absolute/platform.sqlite`
+reads one account status for persistent watch grants; it must run under the DB
+owner using a fixed root-owned command. It does not log in, modify control-plane
+source or return credentials. See [delegation setup](../../docs/subsystems/project-delegations.md).

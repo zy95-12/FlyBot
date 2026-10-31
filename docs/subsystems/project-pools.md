@@ -69,3 +69,10 @@ protocol evidence, not real Codex or persistent-service acceptance.
 Repair R4 (#37): Task admission preserves its published code/decision/release
 kind and rejects a conflicting execution-time kind. Ordinary inquiries are
 separate conversation handoffs, not pool Tasks. See [conversation routing](project-agents.md).
+
+
+Repair R5 (#38): Claims, results and handoff admission validate the
+initiating human account outside the browser when the operator principal checker
+is configured; otherwise only a live initiating platform session suffices.
+Revocation fences the claim before worker shutdown; unknown exits retain capacity.
+See [delegation contract](project-delegations.md).
