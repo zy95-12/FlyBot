@@ -45,7 +45,8 @@ test('main keeps its run (no cancel), every other ref, queue branches included, 
 test('M0 regression/runtime checks stay in the required test job', () => {
   const required = job('test')
   for (const command of ['npm run lint:demo', 'npm run test:demo', 'npm run test:demo:runtime']) {
-    assert.ok(required.includes(command), `${command} must remain under the tests-ok dependency`)
+    assert.ok(required.includes(command + ' &&') || required.includes(command + '\n'),
+      `${command} must remain under the tests-ok dependency as its own command`)
   }
 })
 
