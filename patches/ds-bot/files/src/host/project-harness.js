@@ -198,7 +198,7 @@ export function createProjectHarness(rt) {
     const stopped = await Promise.race([control.exit.then(() => true), new Promise(resolve => { timer = setTimeout(() => resolve(false), 6000) })])
     clearTimeout(timer)
     if (!stopped || !control.stoppedConfirmed && !control.spawnFailed) { row.status = 'unreachable'; await rt.save(); throw refuse('SDK worker has not confirmed exit; capacity retained') }
-    row.status = 'released'; row.releasedAt = Date.now(); row.releaseProof = { kind: 'sdk-stop-ack-and-process-exit', workerId: id, generation: row.generation, at: row.releasedAt }; active.delete(id)
+    row.status = 'released'; row.releasedAt = Date.now(); row.releaseProof = { kind: control.spawnFailed ? 'sdk-worker-spawn-failed' : 'sdk-stop-ack-and-process-exit', workerId: id, generation: row.generation, at: row.releasedAt }; active.delete(id)
     await rt.projectResources.release(row.leaseId, row.generation, { handle: id, exited: true, proof: row.releaseProof })
     await rt.projectDelivery.releaseSession(id)
     await rt.save()

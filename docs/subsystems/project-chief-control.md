@@ -95,3 +95,6 @@ Any such record makes allocation recorded/unknown; missing PID is never this pro
 Chief distinguishes route/resume from explicit return/rework and receives actual
 SDK stop-ack/process-exit proof. A matching historical released SDK record is
 trusted host exit evidence, unlike a terminal Task or absent PID.
+
+Snapshots name Attempt status and the actual claim Bot. A Chief request for human
+clarification ends its own active claim as waiting-human, preserving the question.
