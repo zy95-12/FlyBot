@@ -8,13 +8,16 @@ stages below do not restrict the fork's approved Project and frontend refactor.
 
 | Milestone | Deliverable | Status / issue |
 | --- | --- | --- |
-| M0 | Isolated DSH/tool/cwd/lifecycle and unchanged-platform HTTP checks | PR #9 pending review/merge; [#2](https://github.com/zy95-12/FlyBot/issues/2) |
-| M1 | Project domain and direct Task/Run/Workspace ownership | Planned; [#3](https://github.com/zy95-12/FlyBot/issues/3) |
+| M0 | Isolated DSH/tool/cwd/lifecycle and unchanged-platform HTTP checks | Merged PR #9; [#2](https://github.com/zy95-12/FlyBot/issues/2) |
+| M1 | Project domain and direct Task/Run/Workspace ownership | Implemented, verification/review in progress; [#3](https://github.com/zy95-12/FlyBot/issues/3) |
 | M2 | Shared membership, platform identity adapter and backend authorization | Planned; [#4](https://github.com/zy95-12/FlyBot/issues/4) |
 | M3 | Worktree, code/tests/PR/review evidence and human acceptance | Planned; [#5](https://github.com/zy95-12/FlyBot/issues/5) |
 | M4 | Public project Bots and private user/project agents | Planned; [#6](https://github.com/zy95-12/FlyBot/issues/6) |
 | M5 | Rebuild task navigation, Project board, details and resource view | Planned; [#7](https://github.com/zy95-12/FlyBot/issues/7) |
 | M6 | Repeatable two-user end-to-end acceptance | Planned; [#8](https://github.com/zy95-12/FlyBot/issues/8) |
+
+The owner authorized sequential M1–M6 implementation, one PR per milestone. Each PR
+updates long-term memory, architecture and tests. Merge status is tracked separately.
 
 Reuse platform services unchanged first; new project logic/adapters belong in FlyBot.
 M0's deterministic model and existing shared-write denials do not imply M2/M3 completion.

@@ -145,6 +145,7 @@ function publicRun(workflow, run) {
   return {
     id: run.id,
     workflowId: run.workflowId,
+    projectId: run.projectId ?? run.task?.projectId ?? null,
     task: run.task,
     taskSummary: summarizeTask(run.task),
     status: run.status,
@@ -174,6 +175,7 @@ function blankRun(workflow, task, now, history = []) {
   return {
     id: idOf('run'),
     workflowId: workflow.id,
+    projectId: Object.hasOwn(task, 'projectId') ? task.projectId : workflow.projectId ?? null,
     task,
     status: 'idle',
     nodeStatus: freshStatus(workflow),
@@ -191,7 +193,7 @@ export function createWorkflowService({
   dir, persist = true, now = () => Date.now(), bots = () => [], readOnly = () => false, warn = () => {}, tasksWired = false, spawn, release, dispatch,
   // #1856: the host's Project seam. `readProject(id)` answers the record or null; `bindRun(runId,
   // projectId)` binds a run at creation. A host without either leaves the run unbound.
-  readProject, bindRun,
+  readProject, bindRun, projectContext, readRun,
   setTimer = (fn, ms) => setTimeout(fn, ms), clearTimer = handle => clearTimeout(handle),
 } = {}) {
   const file = dir ? join(dir, FILE) : null
@@ -200,6 +202,14 @@ export function createWorkflowService({
   // migrateRuns() also normalizes the orphan list a deleted workflow left
   // (#1621), so a store written by an older version keeps those ids.
   migrateRuns(state)
+  for (const lane of Object.values(state.lanes)) {
+    for (const run of [...(lane.active ?? []), lane.last, ...(lane.history ?? [])].filter(Boolean)) {
+      if (Object.hasOwn(run, 'projectId')) continue
+      const bound = readRun?.(run.id)
+      run.projectId = bound?.projectId ?? run.task?.projectId ?? null
+      if (run.projectId === null) run.projectResolution = { reason: 'unassigned-legacy-run' }
+    }
+  }
   purgeDemos(state, historyRow)
   let seq = state.seq ?? 1
   // One lock for every start and release to serialize drain operations.
@@ -307,6 +317,20 @@ export function createWorkflowService({
   }
 
   function write() {
+    // Report current and terminal records; host history keeps direct ownership after unbinding.
+    if (typeof projectContext === 'function' && typeof bindRun === 'function') {
+      for (const lane of Object.values(state.lanes ?? {})) {
+        for (const run of [...(lane.active ?? []), lane.last].filter(Boolean)) {
+          if (!run.projectId) continue
+          try {
+            const result = bindRun(run.id, run.projectId, { status: run.status })
+            result?.catch?.(error => warnOnce(`project-report:${run.id}`, `flybot-workflow: run report failed: ${error.message}`))
+          } catch (error) {
+            warnOnce(`project-report:${run.id}`, `flybot-workflow: run report failed: ${error.message}`)
+          }
+        }
+      }
+    }
     if (!persist || !file) return
     state.seq = seq
     mkdirSync(dir, { recursive: true })
@@ -759,6 +783,7 @@ export function createWorkflowService({
     return {
       id: run.id,
       task: run.task,
+      projectId: run.projectId ?? run.task?.projectId ?? null,
       status: run.status,
       at: run.updatedAt,
       ...(run.failure ? { failure: { ...run.failure } } : {}),
@@ -872,7 +897,7 @@ export function createWorkflowService({
   // #1856: a run belongs to the Project its workflow names, or to the one the assign call named.
   // A host without the seam, and a refused binding, leave the run unbound — the run still starts.
   function bindRunProject(item, task, run) {
-    const projectId = cleanLine(task?.projectId ?? item?.projectId ?? '', 120)
+    const projectId = cleanLine(run.projectId ?? '', 120)
     if (projectId === '') return
     if (typeof bindRun !== 'function') {
       warnOnce('project-seam', 'flybot-workflow: this host has no project seam, so a run stays unbound')
@@ -880,7 +905,8 @@ export function createWorkflowService({
     }
     const onError = error => warnOnce(`project-refused:${run.id}`, `flybot-workflow: run ${run.id} was refused Project ${projectId}: ${String(error?.message ?? error).slice(0, 200)}`)
     try {
-      const bound = bindRun(run.id, projectId)
+      const context = projectContext?.(task.id, projectId)
+      const bound = bindRun(run.id, projectId, { taskId: context?.taskId, status: run.status })
       if (bound && typeof bound.then === 'function') bound.catch(onError)
     } catch (error) {
       onError(error)
@@ -911,7 +937,14 @@ export function createWorkflowService({
     }
   }
 
+  function prepareProject(task, item) {
+    const context = projectContext?.(task.id, Object.hasOwn(task, 'projectId') ? task.projectId : item.projectId)
+    if (context) task.projectId = context.projectId
+  }
+
   function beginRun(item, task, ephemeral) {
+    try { prepareProject(task, item) } catch (error) { return refuse(error) }
+
     const holes = missingProviders(item)
     if (holes.length > 0) return { ok: false, error: `Node ${holes[0].nodeId} input ${holes[0].name} has no upstream provider` }
     let run = { ...blankRun(item, task, now(), []), live: true }
@@ -942,6 +975,7 @@ export function createWorkflowService({
   }
 
   async function startLive(item, task) {
+    try { prepareProject(task, item) } catch (error) { return refuse(error) }
     let ephemeral
     if (typeof spawn === 'function') {
       const holes = missingProviders(item)
@@ -1248,6 +1282,7 @@ export function createWorkflowService({
       const wanted = body.projectId !== undefined ? body.projectId : item.projectId
       const projectId = cleanLine(wanted ?? '', 120)
       if (projectId !== '') task.projectId = projectId
+      try { prepareProject(task, item) } catch (error) { return answer(refuse(error)) }
       // #1862: the caller may pass the facts of a pull request it holds; the shadow pass records the
       // contract's answer for them and nothing reads it. `acceptance`/`evidence` are the card's own
       // gate, so a card that carries them gets a verdict from `runHandoff` with no new contract. A

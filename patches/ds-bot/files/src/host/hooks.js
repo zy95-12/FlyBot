@@ -1359,9 +1359,15 @@ export function install(rt) {
       read(id) {
         return typeof rt.readProject === "function" ? rt.readProject(String(id ?? '')) ?? undefined : undefined
       },
-      async bindRun(runId, projectId) {
+      readRun(id) {
+        return ownEntry(rt.state.projectExecutions ?? {}, String(id ?? ''))
+      },
+      context(taskId, projectId) {
+        return rt.projects?.executionContext(String(taskId ?? ''), projectId)
+      },
+      async bindRun(runId, projectId, details = {}) {
         if (typeof rt.bindProject !== "function") return undefined
-        const project = rt.bindProject({ kind: 'run', id: String(runId ?? ''), projectId })
+        const project = rt.bindProject({ ...details, kind: 'run', id: String(runId ?? ''), projectId })
         await rt.save?.()
         return project ?? undefined
       },

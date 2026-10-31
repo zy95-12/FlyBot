@@ -188,6 +188,7 @@ export function install(rt) {
   rt.onProjectProvider = (fn) => {
     if (typeof fn !== 'function') return () => {}
     projectProviders.add(fn)
+    if (!rt.readOnly?.() && rt.projects?.importRunRefs(rt.projectRunRefs())) void rt.save()
     return () => { projectProviders.delete(fn) }
   }
   rt.projectRunRefs = ({ hasTask } = {}) => {
@@ -205,8 +206,8 @@ export function install(rt) {
       for (const row of Array.isArray(rows) ? rows : []) {
         const taskId = typeof row?.taskId === 'string' ? row.taskId.trim() : ''
         const runId = typeof row?.runId === 'string' ? row.runId.trim() : ''
-        if (taskId === '' || runId === '' || seen.has(taskId)) continue
-        seen.add(taskId)
+        if (taskId === '' || runId === '' || seen.has(`${taskId}:${runId}`)) continue
+        seen.add(`${taskId}:${runId}`)
         const nodeId = typeof row?.nodeId === 'string' && row.nodeId.trim() !== '' ? row.nodeId.trim() : undefined
         refs.push({ taskId, runId, ...(nodeId === undefined ? {} : { nodeId }) })
       }
@@ -510,9 +511,9 @@ export function install(rt) {
   }
   // ---------------------------------------------------------------- isolated workers (#1729)
   const workers = new Map()
-  function newWorker() {
+  function newWorker(task) {
     const id = `worker-${randomBytes(6).toString('hex')}`
-    workers.set(id, { id, files: new Map(), vars: new Map(), claimedAt: Date.now() })
+    workers.set(id, { id, ...(Object.hasOwn(task, 'projectId') ? { projectId: task.projectId } : {}), files: new Map(), vars: new Map(), claimedAt: Date.now() })
     while (workers.size > WORKERS_KEPT) workers.delete(workers.keys().next().value)
     return id
   }
@@ -520,7 +521,7 @@ export function install(rt) {
   // The worker of one claim, or nothing: a caller reaches its own claim's maps only.
   rt.taskWorkerState = (workerId) => {
     const worker = workers.get(String(workerId ?? ''))
-    return worker === undefined ? undefined : { id: worker.id, files: worker.files, vars: worker.vars, claimedAt: worker.claimedAt }
+    return worker === undefined ? undefined : { id: worker.id, ...(Object.hasOwn(worker, 'projectId') ? { projectId: worker.projectId } : {}), files: worker.files, vars: worker.vars, claimedAt: worker.claimedAt }
   }
   // Measured deliveries from the rows themselves (#1729): no second store, the numbers are a
   // read of the cards. `roles` counts per role, `runs` per run id a card carries.
@@ -661,6 +662,7 @@ export function install(rt) {
   // means "part of an overall card" and must never make `settleOverall` fire. A replay of the
   // same rejection reuses the child that is still open instead of creating a second one.
   function openRework(original, note, by = 'requester') {
+    if (original.projectId) rt.projects?.requireActive(original.projectId)
     const reason = boundedLine(note, HANDOFF_REASON_MAX, 'handoff.reason')
     // A worker-side return names the role that produced the card (#1775); the requester's own
     // send-back stays the owner's role, exactly as before.
@@ -695,6 +697,7 @@ export function install(rt) {
       origin: { ...(original.origin ?? {}) },
       actors: [{ status: 'open', at, by: 'rework opened' }],
     }
+    rt.projects?.stampTask(child)
     store()[child.id] = child
     return child
   }
@@ -711,6 +714,7 @@ export function install(rt) {
   }
 
   function applyFields(task, body) {
+    if (Object.hasOwn(task, 'projectId')) rt.projects?.validateTask(task, body)
     const title = body.title !== undefined ? readTitle(body.title) : undefined
     if (title !== undefined) {
       if (title === '') throw invalid('A task needs a title')
@@ -935,6 +939,7 @@ export function install(rt) {
       actors: [{ status: 'open', at, by: 'dispatch', ...(by ? { botId: by } : {}) }],
     }
     defaultContract(task)
+    rt.projects?.stampTask(task)
     store()[task.id] = task
     await save()
     return view(task)
@@ -991,7 +996,7 @@ export function install(rt) {
     const claimedAt = Date.now()
     live.lease = { holder: botId, takenAt: claimedAt, expiresAt: claimedAt + LEASE_TTL_SEC * 1000 }
     // Every claim gets a worker nobody else has started (#1729).
-    live.worker = newWorker()
+    live.worker = newWorker(live)
     transition(live, 'claimed', null, { by: 'claimed from the queue' })
     announceClaim(live)
     await save()
@@ -1032,7 +1037,7 @@ export function install(rt) {
     delete live.queueReason
     const claimedAt = Date.now()
     live.lease = { holder: botId, takenAt: claimedAt, expiresAt: claimedAt + LEASE_TTL_SEC * 1000 }
-    live.worker = newWorker()
+    live.worker = newWorker(live)
     transition(live, 'claimed', null, { by: 'claimed from the handoff pool' })
     announceClaim(live)
     await save()
@@ -1094,7 +1099,7 @@ export function install(rt) {
     if (items === undefined) return listed(botId)
     if (!Array.isArray(items)) throw invalid('tasks must be a list')
     if (items.length > 20) throw invalid('Track at most 20 tasks at once')
-    const makeTask = (ownerBot, title, roomId) => {
+    const makeTask = (ownerBot, title, roomId, parent) => {
       const at = stamp()
       const actor = ownerBot.ownerId ? { memberId: ownerBot.ownerId } : null
       const task = {
@@ -1106,10 +1111,12 @@ export function install(rt) {
         ownerBotId: ownerBot.id,
         title,
         source: 'conversation',
+        ...(parent ? { parentId: parent.id } : {}),
         origin: { ...(roomId ? { roomId } : {}), ...(origin.sessionId ? { sessionId: String(origin.sessionId) } : {}) },
         actors: [{ status: 'open', at, by: 'conversation', ...(actor?.memberId ? { memberId: actor.memberId } : {}) }],
       }
       defaultContract(task)
+      rt.projects?.stampTask(task)
       store()[task.id] = task
       return task
     }
@@ -1167,7 +1174,7 @@ export function install(rt) {
         if (!task) {
           if (!title) throw invalid('A new task needs a title')
           isNew = true
-          task = makeTask(bot, title, roomId)
+          task = makeTask(bot, title, roomId, parent)
           task.kind = 'group'
         }
       } else if (ownerBot.id !== botId) {
@@ -1176,7 +1183,7 @@ export function install(rt) {
         if (task) frozen = true
         else {
           isNew = true
-          task = makeTask(ownerBot, title, roomId)
+          task = makeTask(ownerBot, title, roomId, parent)
           task.parentId = parent.id
         }
       } else {
@@ -1186,7 +1193,7 @@ export function install(rt) {
           // A member still records its own room card, parented or not. Dividing
           // the board (overall, or assignee) is refused above (#1182).
           isNew = true
-          task = makeTask(bot, title, roomId)
+          task = makeTask(bot, title, roomId, parent)
         }
       }
       if (!frozen) {
@@ -1431,11 +1438,14 @@ export function install(rt) {
           actors: [{ status: 'open', at: stamp(), ...(actor?.memberId ? { memberId: actor.memberId } : {}) }],
         }
         defaultContract(task)
+        rt.projects?.stampTask(task, body)
+        rt.projects?.validateTask(task, body)
         writeContract(task, body)
         const { progress } = applyFields(task, body)
         const column = readColumn(body.column)
         applyColumn(task, column, actor)
         if (column === 'done' && progress === undefined) task.progress = 100
+        rt.projects?.stampTask(task)
         store()[task.id] = task
         prune()
         await save()
@@ -1446,6 +1456,7 @@ export function install(rt) {
         const task = find(body.id)
         if (task === undefined) throw stale(`no task ${String(body.id ?? '')}`)
         if (!mayUpdate(task, actor)) throw forbidden('Only the requester or the Bot\'s owner may update this task')
+        rt.projects?.validateTask(task, body)
         writeContract(task, body)
         const { progress } = applyFields(task, body)
         const column = readColumn(body.column)

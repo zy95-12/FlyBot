@@ -672,6 +672,9 @@ export function install(rt) {
         case 'projects':
         case 'project-create':
         case 'project-read':
+        case 'project-detail':
+        case 'project-archive':
+        case 'project-workspace-create':
         case 'project-bind':
         case 'project-of':
         case 'project-board':

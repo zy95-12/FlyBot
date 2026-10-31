@@ -804,3 +804,11 @@ the host side only, so the tier stays T2 and `core/src/shared/` is untouched.
 ## The Project run seam (#1856)
 
 `fb.projects` is the one seam a workflow run's Project binding goes through. `read(id)` answers the Project record or `undefined`; `bindRun(runId, projectId)` writes `state.projectRuns[runId]` through `bindProject({ kind: 'run', … })` — the path the `project-bind` endpoint already uses — and saves. An unknown Project throws the store's own refusal, so the caller (the workflow plugin) treats it as a refused binding and keeps the run. A host without either function answers `undefined` and never throws, which is what an older plugin instance sees.
+
+## Fork M1 — 2026-10-31
+
+M1 extracts Project management from store.js into project-service.js/project-domain.js,
+with human policy in shared/project-policy.js. Store invokes explicit migration on
+load/refresh; tasks stamp immutable ownership and board reads use it. Member removal
+preserves attribution and refuses owned Projects/unfinished requests. See
+[Project contract](project-domain.md) and project-domain.test.js.

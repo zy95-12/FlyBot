@@ -375,6 +375,14 @@ export interface ModelAsk {
 export type ModelAnswer = { ok: true; text: string } | { ok: false; code: string }
 
 export interface FlyBot {
+  /** Project context is derived from the durable host Task. Not a user authorization token. */
+  projects: {
+    read(id: string): { id: string; status: 'active' | 'archived'; [key: string]: unknown } | undefined
+    readRun(id: string): { id: string; projectId: string; status: string } | undefined
+    context(taskId: string, projectId?: string | null): { projectId: string | null; taskId?: string } | undefined
+    bindRun(runId: string, projectId: string, details?: { taskId?: string; workspaceId?: string; status?: string }): Promise<unknown>
+  }
+
   version: 1
   /** Plugin this handle is scoped to; 'shared' for the unscoped service. */
   plugin: string

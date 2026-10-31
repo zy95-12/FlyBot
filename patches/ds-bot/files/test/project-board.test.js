@@ -37,6 +37,8 @@ const seed = () => ({
 // `seed()`: the leak needs a run binding of the far Project on a card that has a board of its own.
 const splitSeed = () => {
   const team = seed()
+  // A canonical Task cannot be borrowed through another Project's run.
+  team.tasks['task-group'].projectId = 'project-p1'
   team.rooms.r2 = { id: 'r2', name: 'Garden', members: ['a'], mode: 'admin', admin: 'a', named: true, sessions: {}, log: [], seq: 0, seen: {}, projectId: 'project-p2' }
   team.projects['project-p2'] = { id: 'project-p2', name: 'P2', repository: 'ThinkFlowLab/FlyBot', defaultBranch: 'main', ownerUserId: 'owner-1', createdAt: 1, updatedAt: 1, status: 'active' }
   team.projectRuns = { 'run-1': 'project-p1', 'run-2': 'project-p2' }

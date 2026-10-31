@@ -1,6 +1,6 @@
 // #1706: the Inbox needs two facts about a run it never had — when a run ended and
 // which node it walks now — without any change to the fields the stage and the Runs
-// tab already read. publicRun() gains exactly `finishedAt` and `currentStep`; every
+// tab already read. publicRun() carries `finishedAt`, `currentStep` and M1 `projectId`; every
 // old key stays and keeps its value.
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
@@ -32,7 +32,7 @@ const OLD_FLAGS = ['live', 'paused', 'failure', 'earlyEnd', 'ephemeral', 'shadow
 const assertOnlyAdded = (run) => {
   for (const key of OLD_KEYS) assert.ok(key in run, `${run.status} run keeps ${key}`)
   const added = Object.keys(run).filter(key => !OLD_KEYS.includes(key) && !OLD_FLAGS.includes(key))
-  assert.deepEqual(added.sort(), ['currentStep', 'finishedAt'])
+  assert.deepEqual(added.sort(), ['currentStep', 'finishedAt', 'projectId'])
 }
 
 test('#1706: a running run is not finished and names the node it walks', async () => {

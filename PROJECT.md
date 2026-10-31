@@ -16,12 +16,12 @@ people and stage descriptions below are historical upstream context; upstream ac
 are not this fork's decision-makers merely because inherited docs name them.
 
 - Project is the target stable boundary for Task/Run/Workspace ownership. Bots and
-  Sessions are replaceable execution/interaction carriers; migration is M1 work.
+  Sessions are replaceable execution/interaction carriers. M1 implements direct ownership and explicit legacy resolution; see [Project domain](docs/subsystems/project-domain.md).
 - Reuse control-plane identity, auth, invitation, instance and operations APIs unchanged
   where possible. Put project business logic/adapters in FlyBot; justify a missing API
   separately. The platform PR was withdrawn, not merged.
 - Rebuild task navigation and the Project board; current UI/components are not constraints.
-- M0 is implemented on [PR #9](https://github.com/zy95-12/FlyBot/pull/9), pending review/merge:
+- M0 is implemented on [PR #9](https://github.com/zy95-12/FlyBot/pull/9), merged (2026-10-31):
   real DSH/tool execution with a deterministic model, plus a FlyBot-owned HTTP adapter
   exercising unchanged external platform source. This is not real-model PR delivery.
 - Known seams: platform/member identity mapping, project-scoped multi-member Workflow
@@ -31,6 +31,12 @@ are not this fork's decision-makers merely because inherited docs name them.
   verify/CI and tested-SHA evidence. Never edit live DSH/Bot memory for repository decisions.
 
 See [baseline ownership and tests](docs/subsystems/demo-baseline.md).
+
+- M1 implementation adds Project service/policy/repository boundaries, immutable work
+  ownership, explicit migration, archive/delete/member-removal rules and an owner-only
+  detail API. Workspace records are directory references; M3 supplies worktree isolation.
+- The owner authorized continuing M2–M6, one PR per milestone, with memory, architecture
+  and tests updated in each. [M1 decision](decisions/2026-10-31-m1-project-ownership.md).
 
 ## Historical upstream Project State
 

@@ -2,12 +2,13 @@
 
 FlyBot is a team of long-lived Bots built on DeepSeek Harness (DSH). Two parts ship: the `ds-bot` plugin (patched upstream) and the desktop app.
 
-## Fork direction and M0 boundary
+## Fork direction and M1 boundary
 
 The accepted [Project-first fork direction](../decisions/2026-10-31-project-first-fork.md)
-makes Project the target stable boundary for Tasks, Runs and Workspaces. Bots/Sessions
-are replaceable carriers. This is planned architecture, not a claim that existing
-instance-local bindings have been migrated. Reuse control-plane APIs unchanged where
+makes Project the stable boundary for Tasks, Runs and Workspace references. M1
+implements direct ownership, explicit migration, lifecycle rules and a Project service/
+repository/policy boundary. See the [Project domain contract](subsystems/project-domain.md).
+Bots/Sessions remain replaceable carriers; physical worktree isolation is M3. Reuse control-plane APIs unchanged where
 possible; put new project logic/adapters in FlyBot. Task navigation and the Project
 board may be rebuilt without preserving their current components or layout.
 

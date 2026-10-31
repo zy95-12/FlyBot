@@ -21,3 +21,5 @@ Detail pages for each FlyBot subsystem. Each page lists `owned_paths`, what the 
 The `team` page is a planning contract: it defines the proposed human ↔ Chief ↔ specialist authority, routing and approval rules **before** schema work. Team mode stays disabled until its authorization gates pass.
 
 The core is three pages so that a change to the browser client, to the server, or to the pin and patch tooling edits only its own page. Longest-match wins when two subsystems claim a path. The arch-doc check (`core/scripts/check-arch-docs.mjs`) fails if an owned file changes without its subsystem doc being updated in the same PR (unless the commit message carries a `Docs-not-needed:` trailer).
+
+- [Project domain](project-domain.md) — fork M1 ownership, migration, lifecycle and API contract.
