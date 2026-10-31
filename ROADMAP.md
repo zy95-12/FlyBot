@@ -107,3 +107,8 @@ Stage 1's approval.
 Editing this page is a **major** decision: the owner or a human maintainer concludes it, and the
 outcome is recorded in [`decisions/`](decisions/README.md) with its evidence, participants and
 dissent. A stage moving from "not started" to "active" is itself a decision, not an edit alone.
+
+
+### M7.2 — 2026-10-31
+
+M7.1 PR #26 passed full verify and actual DSH context/lifecycle checks. M7.2 implementation on feat/m7-resource-pools adds resource capabilities/leases and real local+Docker execution probes; integration acceptance with SDKs remains in M7.5.

@@ -37,6 +37,8 @@ export function install(rt) {
     return { projectId: id, quota: project.quota ?? { maxConcurrent: 2 }, activeSlots: rt.projectScheduler.slots(id),
       queue: Object.values(rt.state.projectQueue ?? {}).filter(entry => entry.projectId === id).map(entry => structuredClone(entry)), workers,
       workspaces: Object.values(rt.state.projectWorkspaces ?? {}).filter(workspace => workspace.projectId === id),
+      executionResources: rt.projectResources?.list(id) ?? [],
+      resourceLeases: Object.values(rt.state.projectResourceLeases ?? {}).filter(row => row.projectId === id).map(({ worker: _worker, ...row }) => structuredClone(row)),
       repository, host, metrics: deliveryMetrics(rt.state, id), platformInstance: rt.platformInstance ? await rt.platformInstance(actor).catch(() => null) : null }
   }
 }

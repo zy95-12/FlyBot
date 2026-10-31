@@ -52,6 +52,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     attempt.failure = { message: String(error?.message ?? error).slice(0, 1000), at: Date.now() }
     attempt.updatedAt = Date.now()
     rt.taskDeliveryState?.(attempt.taskId, attempt.id, 'failed', attempt.failure.message)
+    for (const lease of Object.values(attempt.resourceLeases ?? {})) await rt.projectResources?.release(lease.id, lease.generation)
     await rt.save()
   }
   async function allocate(attempt, project, settings) {
@@ -99,8 +100,13 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     await rt.save() // Reserve idempotency and ownership before any filesystem effects.
     try {
       const definitions = rt.projectAgents?.deliveryDefinitions(project.id)
-      if (definitions?.roles.some(role => role.role !== 'chief' && (role.execution?.harness !== 'flybot' || role.execution?.resourceIds?.length))) throw reject('Selected execution Harness/resource is not provisioned')
+      if (definitions?.roles.some(role => role.role !== 'chief' && ((role.execution?.harness ?? 'flybot') !== 'flybot'))) throw reject('Selected execution Harness/resource is not provisioned')
       attempt.agentDefinitions = definitions
+      attempt.resourceLeases = await rt.projectResources?.reserveRoles(project.id, attempt.id, definitions) ?? {}
+      for (const lease of Object.values(attempt.resourceLeases)) {
+        const resource = rt.projectResources.setting(project.id, lease.resourceId)
+        if (resource.type !== 'local' || !inside(resource.root, root)) throw reject('Native Harness requires a local resource containing the registered workspace root')
+      }
       await allocate(attempt, project, settings)
       if (attempt.cancelRequested) throw reject('Delivery was stopped')
       const model = settings.model ?? config.projectModel ?? await rt.defaultModel?.()
@@ -115,6 +121,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
         const context = roleContext({ projectId: project.id, role: node.id, revision: definitions?.revision ?? 0, definition, memory: definition.memory,
           knowledge: ownEntry(state.projectKnowledge ?? {}, project.id) ?? [], requirement: attempt.requirement, feedback: attempt.feedback, repository })
         attempt.roleSessions[node.id] = { id: `role-session-${randomUUID()}`, projectId: project.id, taskId: task.id, attemptId: attempt.id, role: node.id,
+          ...(attempt.resourceLeases[node.id] ? { resourceLease: attempt.resourceLeases[node.id] } : {}),
           definitionRevision: definitions?.revision ?? 0, execution: structuredClone(definition.execution), context, status: 'prepared', generation: 1, createdAt: Date.now() }
       }
       attempt.agentDefinitions = definitions
@@ -369,6 +376,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     session.botId = bot.id
     session.sessionId = bot.sessionId
     session.status = 'bound'
+    if (session.resourceLease) await rt.projectResources?.markStarted(session.resourceLease.id, session.resourceLease.generation, { kind: 'native', botId: bot.id })
     await rt.save()
   }
   async function releaseSession(botId) {
@@ -376,6 +384,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
       if (session.botId !== botId || session.status === 'released') continue
       session.status = 'released'
       session.releasedAt = Date.now()
+      if (session.resourceLease) await rt.projectResources?.release(session.resourceLease.id, session.resourceLease.generation)
       await rt.save()
     }
   }

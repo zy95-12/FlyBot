@@ -16,6 +16,7 @@ export function createProjectScheduler(rt) {
     for (const run of Object.values(state.projectExecutions ?? {})) if (run.projectId === projectId && ACTIVE.has(run.status)) keys.add(run.attemptId ?? run.id)
     for (const attempt of Object.values(state.projectAttempts ?? {})) if (attempt.projectId === projectId && ['preparing', 'running'].includes(attempt.status)) keys.add(attempt.id)
     for (const bot of Object.values(state.bots)) if (bot.projectId === projectId && bot.ephemeral && bot.attemptId) keys.add(bot.attemptId)
+    for (const lease of Object.values(state.projectResourceLeases ?? {})) if (lease.projectId === projectId && lease.status !== 'released' && lease.attemptId) keys.add(lease.attemptId)
     return keys.size
   }
   const quota = project => project.quota?.maxConcurrent ?? 2
@@ -34,6 +35,10 @@ export function createProjectScheduler(rt) {
     }
     return changed
   }
+  function resourceBlock(projectId) {
+    try { rt.projectResources?.plan(projectId, rt.projectAgents?.deliveryDefinitions(projectId)); return null }
+    catch (failure) { return String(failure.message).slice(0, 300) }
+  }
   async function request(body, actor) {
     const task = ownEntry(state.tasks, String(body.taskId ?? ''))
     if (!task?.projectId) throw error('Unknown Project Task')
@@ -48,9 +53,10 @@ export function createProjectScheduler(rt) {
     if (queued) return { queue: structuredClone(queued), already: true }
     if (['accepted', 'cancelled'].includes(task.status)) throw error('Task has ended')
     if (Object.values(state.projectAttempts ?? {}).some(attempt => attempt.taskId === task.id && ['preparing', 'running', 'waiting-acceptance'].includes(attempt.status))) throw error('Task already has an active Attempt')
-    if (slots(project.id) < quota(project)) return rt.projectDelivery.endpoint('project-task-run', body, actor)
+    const resourceReason = resourceBlock(project.id)
+    if (slots(project.id) < quota(project) && !resourceReason) return rt.projectDelivery.endpoint('project-task-run', body, actor)
     const entry = { id: `queue-${randomUUID()}`, projectId: project.id, taskId: task.id, requestId: body.requestId, requestKey,
-      memberId: actor.memberId, status: 'waiting', enqueuedAt: Date.now(), updatedAt: Date.now() }
+      memberId: actor.memberId, status: 'waiting', ...(resourceReason ? { reason: resourceReason } : {}), enqueuedAt: Date.now(), updatedAt: Date.now() }
     setEntry(entries(), entry.id, entry)
     await rt.save()
     return { queue: structuredClone(entry) }
@@ -64,6 +70,8 @@ export function createProjectScheduler(rt) {
       const project = rt.readProject(entry.projectId)
       if (!project || project.status !== 'active') { entry.status = 'blocked'; entry.reason = 'Project is archived or unavailable'; changed = true; continue }
       if (slots(project.id) >= quota(project)) continue
+      const blocked = resourceBlock(project.id)
+      if (blocked) { entry.reason = blocked; changed = true; continue }
       entry.status = 'starting'
       entry.updatedAt = Date.now()
       await rt.save()

@@ -186,3 +186,8 @@ decisions, concluded as [docs/governance.md](docs/governance.md) requires and re
   failing tests/retry/queue/revocation and cleanup. [Evidence](docs/live-acceptance.md) and
   [owner decision](decisions/2026-10-31-real-provider-acceptance.md). Implementation PR #16
   contains the integration fixes and regressions; review/CI/merge remain separate.
+
+
+### M7.2 — 2026-10-31
+
+M7.2 adds operator-granted local/Docker execution resources, safe environment observations, candidate pools, sticky resource leases and shared queue capacity accounting. The actual two-runtime probe passed with distinct hostnames/filesystems and confirmed cleanup. SDK authentication and mixed-resource Task delivery remain M7.3–M7.5. See docs/subsystems/project-resources.md.

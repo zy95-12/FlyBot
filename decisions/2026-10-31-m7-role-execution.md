@@ -21,3 +21,8 @@ Control-plane remains unchanged. No upstream participant or independent review i
 
 References: https://github.com/zy95-12/FlyBot/issues/20 and child issues #21–#25.
 No dissent recorded. Written-by: Codex
+
+
+### M7.2 — 2026-10-31
+
+M7.2 implementation uses operator-configured local/Docker capabilities and the existing Project queue. Unknown workers retain leases after restart; credentials and environment readiness remain separate observations. Explicit platform instance association cannot confer remote-execution capability.

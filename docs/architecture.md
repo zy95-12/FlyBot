@@ -99,3 +99,8 @@ Chief, so shared execution does not require bootstrapping the private legacy ope
 ### Fork M7.1 — 2026-10-31
 
 M7.1 separates durable role definitions/public role memory from per-Attempt execution Session snapshots. Existing Workflow retains lifecycle and scheduling; the host supplies hashed bounded context after graph prompt sanitization. See [role contract](subsystems/project-agents.md) and [session binding](subsystems/project-delivery.md).
+
+
+### M7.2 — 2026-10-31
+
+M7.2 adds [execution resource capabilities](subsystems/project-resources.md) under the existing Project scheduler. Control-plane instance association is metadata, not invented remote execution; local/Docker command adapters and lease records stay in FlyBot.

@@ -100,3 +100,8 @@ and configures its reference. For the marked local fixture, the deterministic mo
 its received system request contains published memory, repository instructions and context
 version before issuing shell work. The host also verifies three distinct bound Sessions
 reach released state. This validates real Harness transport/lifecycle, not real inference.
+
+
+### M7.2 — 2026-10-31
+
+M7.2 adds the explicitly invoked node dev/demo/resources.mjs test-host probe. It creates its own disposable Docker container, verifies distinct actual runtimes/filesystems and candidate-pool capacity/release, then cleans up. It needs Docker and is not part of key-free ordinary CI or proof of mixed-Harness Task delivery.
