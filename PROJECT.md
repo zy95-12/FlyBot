@@ -249,3 +249,13 @@ persist across proposal publication; workbench status separates publication from
 queue/start/execution and Chief wait. Targeted privacy, native/SDK-query, no-Task
 and credential/revocation tests pass. Full verification and real shared-service
 acceptance remain separate; control-plane and public hosting are unchanged.
+
+
+R5 (#38) implements safe/private publication proposals and persistent, revocable
+watch grants bound to the current human and Project. Browser logout does not
+revoke watch authority; account/membership/grant changes do. Scoped actions use
+current human rights and retain provenance. The unchanged SQLite platform can
+supply fresh account status through a FlyBot-owned read-only operator helper,
+without storing browser cookies or admin credentials. Regression tests cover
+logout, restart, current rights, revocation, forged status evidence and fresh WAL
+reads. Shared-service provisioning and real-model acceptance are still pending.

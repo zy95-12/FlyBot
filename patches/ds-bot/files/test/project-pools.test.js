@@ -103,3 +103,14 @@ test('transfer can route an uncompleted role directly without claiming candidate
   assert.equal(f.task.collaboration.botId, 'p:reviewer')
   assert.equal(f.task.collaboration.history[0].decision.action, 'transfer')
 })
+
+test('revocation fences an active worker before stopping it and retains unconfirmed capacity', async () => {
+  const f = setup(); await f.admit(); const token = await f.claim()
+  f.task.collaboration.claim.workerId = 'live-worker'
+  let stopped = false
+  f.adapter.release = async () => { stopped = true; assert.equal(f.task.collaboration.claim.status, 'revoked'); return false }
+  await f.pool.revokePrincipal('p', 'owner')
+  assert.equal(stopped, true); assert.equal(f.task.collaboration.claim.exitConfirmed, false)
+  assert.equal(f.task.collaboration.status, 'blocked')
+  await assert.rejects(f.pool.decide('task', token, { action: 'complete', reason: 'Late result after revocation' }), /stale/)
+})

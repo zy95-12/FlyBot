@@ -161,3 +161,10 @@ status distinguishes published, queued, starting, running, awaiting input/Chief/
 acceptance and blocked/failed. An active Attempt does not imply a running worker.
 Private inquiry worker metadata and sealed log paths are omitted for other users.
 See [conversation routing](project-agents.md).
+
+
+Repair R5 (#38): The private agent panel shows safe/watch mode
+and allows its human to change or revoke it. Safe mode still requires Task
+publication approval. Watch mode uses current human rights with no extra
+agent-only confirmation; grant/account/role revocation remains effective.
+See [delegation contract](project-delegations.md).

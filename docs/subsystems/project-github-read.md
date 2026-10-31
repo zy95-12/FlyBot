@@ -23,3 +23,8 @@ These are read operations and grant no write/merge/release capability.
 Native agents use `project_agent_github`. SDK Chief can request bounded host reads
 with `github_read` actions; host-confirmed results are appended separately from the
 model narrative. A model action or prose is not evidence that a read or write ran.
+
+
+Repair R5 (#38): Watch reads validate their current persistent
+actor instead of requiring a browser cookie. Personal credential selection remains
+exactly human/Project scoped. See [delegation contract](project-delegations.md).

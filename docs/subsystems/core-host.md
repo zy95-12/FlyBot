@@ -879,3 +879,9 @@ Repair R3 (#36): Runtime installs Project Bot pools before the admission schedul
 Repair R4 (#37): Host setup installs scoped GitHub reads separately from
 credential writes. Chief conversation handoffs have independent per-request
 delegations and private return routing. See [GitHub reads](project-github-read.md).
+
+
+Repair R5 (#38): Runtime installs persistent delegation before Project
+agents and wraps Project authorization with synchronous grant/generation checks.
+Platform checks run through a fixed operator command with no inherited credentials.
+See [delegation contract](project-delegations.md).

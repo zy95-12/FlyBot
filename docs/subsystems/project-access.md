@@ -188,3 +188,10 @@ Repair R4 (#37): `project-chief-question` and `project-github-read`
 are membership-guarded workbench endpoints. The host derives inquiry return
 identity and repository scope. Model-supplied Project/member/URL fields cannot
 select another conversation, credential or repository. See [GitHub reads](project-github-read.md).
+
+
+Repair R5 (#38): `project-agent-mode` is human-only, scoped to the
+current account and Project. Watch actors carry a bound grant/generation checked
+at every Project boundary. Membership removal revokes grants and stops affected
+claims. Scoped GitHub and runtime setup accept validated persistent actors, without
+falling back to another browser or credential. See [delegation contract](project-delegations.md).

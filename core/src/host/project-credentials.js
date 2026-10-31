@@ -22,7 +22,7 @@ export function createProjectCredentials(rt, { identity = resolveGithubIdentity,
       if (!Number.isSafeInteger(body.issueNumber) || body.issueNumber < 1 || typeof body.text !== 'string' || !body.text.trim() || body.text.length > 10_000) throw refused('A GitHub comment needs an issue number and bounded text')
       const selected = await identity(settings)
       if (selected.login.toLowerCase() !== settings.login.toLowerCase()) throw refused('Personal GitHub identity mismatch')
-      if (rt.platformIdentityEnabled && !(await rt.validatePlatformActor(actor))) throw refused('Human platform session was revoked')
+      if (rt.platformIdentityEnabled && !(await (rt.validateHumanActor ? rt.validateHumanActor(actor) : rt.validatePlatformActor(actor)))) throw refused('Human platform session was revoked')
       rt.requireProjectAccess(actor, projectId, 'create')
       const response = await request(`https://api.github.com/repos/${project.repository}/issues/${body.issueNumber}/comments`, {
         method: 'POST', redirect: 'error', signal: AbortSignal.timeout(30_000), headers: {
@@ -32,7 +32,7 @@ export function createProjectCredentials(rt, { identity = resolveGithubIdentity,
       if (!response.ok) throw new Error(`GitHub comment failed (${response.status})`)
       const comment = await response.json()
       const audit = { id: `github-write-${randomUUID()}`, projectId, initiatedBy: actor.memberId, executorLogin: comment.user?.login ?? selected.login, selectedLogin: selected.login,
-        scope: 'personal', operation: 'issue-comment', identityVerified: comment.user?.login?.toLowerCase() === selected.login.toLowerCase(), url: comment.html_url, at: Date.now(),
+        scope: 'personal', agentId: actor.agentId ?? null, grantId: actor.watchGrantId ?? null, operation: 'issue-comment', identityVerified: comment.user?.login?.toLowerCase() === selected.login.toLowerCase(), url: comment.html_url, at: Date.now(),
         bodySha256: createHash('sha256').update(body.text.trim()).digest('hex') }
       rt.state.projectGithubWrites ??= {}
       setEntry(rt.state.projectGithubWrites, audit.id, audit)

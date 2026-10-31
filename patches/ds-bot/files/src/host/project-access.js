@@ -107,6 +107,7 @@ export function install(rt) {
   rt.projectAccessEndpoint = async (endpoint, body = {}, actor) => {
     if (!rt.sharedProjectMode()) return undefined
     if (!actor?.memberId || !ownEntry(state.members, actor.memberId)) throw refusal('Sign in first')
+    if (endpoint === 'project-agent-mode') return rt.projectDelegations.mode(body, actor)
     if (endpoint === 'project-github-read') return rt.projectGithubRead(body, actor)
     if (endpoint === 'project-chief-question') return rt.projectAgents.chiefQuestion(body, actor)
     if (['project-credential-status', 'project-github-comment'].includes(endpoint)) return rt.projectCredentials.endpoint(endpoint, body, actor)

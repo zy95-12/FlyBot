@@ -34,4 +34,11 @@ turns. Shared GitHub reads use explicit Project automation identity; personal
 reads select the exact human/Project profile. Publication and execution status
 are separate facts. Safe/watch persistence remains R5 scope.
 
+R5 stacks on R4 `325dfc9bd5bf9f51597bd2344b6771db6822f0aa`. Safe mode
+requires Task publication approval; watch delegates the current human's scoped
+Project operations without additional agent-only approval. Browser sessions are
+not durable grants. Current unchanged-platform account checks use an explicitly
+configured FlyBot-owned read-only principal projection in the SQLite deployment;
+no broad admin credential or control-plane source change is introduced.
+
 Written-by: Codex

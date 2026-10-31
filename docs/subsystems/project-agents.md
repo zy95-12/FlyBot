@@ -277,3 +277,13 @@ Task proposals explicitly carry code/decision/release kinds, persisted on
 publication and fixed at execution admission. Questions have no Task kind. Safe
 proposal publication still does not imply assignment or execution; watch-mode
 authority is completed by R5. See [GitHub reads](project-github-read.md).
+
+
+Repair R5 (#38): Private agent prompt v3 and `project-agent-mode`
+provide safe/watch modes. Safe task tools return proposals unless the current
+human explicitly approved publication; watch publishes using a validated persistent
+user grant. The query-only Chief contract still forbids Task/run actions in watch
+mode. Full scoped human operations are exposed through `project_agent_action`
+with current Project checks and audit. SDK Chief may reference `$lastTask` only
+for the immediately preceding host-created Task; a proposal cannot be run.
+See [delegation contract](project-delegations.md).

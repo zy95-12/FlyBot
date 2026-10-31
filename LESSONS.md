@@ -13,6 +13,15 @@ Dated, short lessons from real FlyBot work. Agents read this **before coding**. 
 
 ## Open lessons
 
+### 2026-11-01 — A browser cookie is not a persistent user grant
+
+Seen 1×. Watch behavior cannot survive browser logout/restart by treating a
+transient turn or old cookie as authority. Persist a revocable human/Project
+grant, recheck current account and role, and fence revoked callbacks before
+stopping workers. A read-only SQLite account projection must read fresh WAL
+state; immutable mode can silently miss a recent account disable.
+
+
 ### 2026-11-01 — Questions need a scoped conversation route, not a Task
 
 Seen 1×. A private assistant with only Task/run tools turned repository inquiries

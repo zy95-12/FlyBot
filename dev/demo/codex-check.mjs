@@ -29,7 +29,7 @@ export async function checkCodexDelivery({ api, saved, waitFor, settings, artifa
   assert.equal(health.status, 'ready', health.reason)
   const title = '[M7 real Codex artifact] Fix numeric addition'
   const criteria = 'This is an isolated integration artifact, not a FlyBot product change. Edit only code.mjs and code.test.mjs. Export add(a,b) computing numeric addition for positive, negative, zero and fractional inputs; use node tests with explicit regression cases. Do not modify repository policy/configuration, publish or merge. Host independently tests sealed code and publishes a draft artifact PR.'
-  await owner('project-agent-message', { projectId: project.id, visibility: 'public', text: `Create exactly one shared Task. Title: ${title}. Criteria: ${criteria}. Do not run it yet. Return the scoped task proposal JSON; no tools.` })
+  await owner('project-agent-message', { projectId: project.id, visibility: 'public', publicationApproved: true, text: `Create exactly one shared Task. Title: ${title}. Criteria: ${criteria}. Do not run it yet. Return the scoped task proposal JSON; no tools.` })
   const task = await waitFor(() => Object.values(saved().tasks ?? {}).find(row => row.projectId === project.id), 'real Codex Chief creates Task')
   assert.equal(task.title, title)
   assert.match(task.criteria, /code\.mjs/)

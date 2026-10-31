@@ -34,7 +34,7 @@ async function setup(t) {
 }
 
 const get = (rt, actor, projectId = 'p1') => rt.projectEndpoint('project-agents', { projectId }, actor)
-const message = (rt, actor, visibility = 'private', text = 'Read my Project context') => rt.projectEndpoint('project-agent-message', { projectId: 'p1', visibility, text }, actor)
+const message = (rt, actor, visibility = 'private', text = 'Read my Project context') => rt.projectEndpoint('project-agent-message', { projectId: 'p1', visibility, text, publicationApproved: visibility === 'public' }, actor)
 
 test('private agents have stable per-user/project identities and only shared public facts overlap', async t => {
   const { rt } = await setup(t)
@@ -369,4 +369,38 @@ test('impactful Task kinds survive private proposal publication and cannot becom
   const published = await rt.projectEndpoint('project-agent-proposal-apply', { proposalId: proposal.proposalId }, alice)
   assert.equal(published.task.projectTaskKind, 'decision')
   await assert.rejects(rt.projectAgents.task(rt.botOf(original.mine.botId), { title: 'Ordinary inquiry', projectTaskKind: 'question' }), /impactful Task kind/)
+})
+
+test('watch publishes with live user rights after browser logout, while safe mode requires approval', async t => {
+  const { rt } = await setup(t), original = await get(rt, alice)
+  const browser = { ...alice, sessionId: 'browser' }; rt.state.authSessions.browser = { id: 'browser', memberId: alice.memberId }
+  await rt.projectEndpoint('project-agent-mode', { projectId: 'p1', mode: 'watch' }, alice)
+  await message(rt, browser)
+  rt.projectAgents.revokeSession('browser'); rt.state.authSessions.browser.revokedAt = Date.now()
+  const created = await rt.projectAgents.task(rt.botOf(original.mine.botId), { title: 'Owner-approved watch publication' })
+  assert.equal(created.requesterId, alice.memberId)
+  assert.ok(rt.state.tasks[created.id].agentProvenance.grantId)
+  await rt.projectAgents.action(rt.botOf(original.mine.botId), { endpoint: 'project-quota', args: { id: 'p1', maxConcurrent: 1 } })
+  assert.equal(rt.readProject('p1').quota.maxConcurrent, 1)
+  await rt.projectEndpoint('project-agent-mode', { projectId: 'p1', mode: 'safe' }, alice)
+  await assert.rejects(rt.projectAgents.task(rt.botOf(original.mine.botId), { title: 'Revoked watch' }), /revoked|delegation/)
+})
+test('watch cannot use another Project, gain Owner rights from its role, or survive membership removal', async t => {
+  const { rt } = await setup(t), original = await get(rt, bob)
+  await rt.projectEndpoint('project-agent-mode', { projectId: 'p1', mode: 'watch' }, bob)
+  await message(rt, bob)
+  const bot = rt.botOf(original.mine.botId)
+  await assert.rejects(rt.projectAgents.action(bot, { endpoint: 'project-quota', args: { id: 'p1', maxConcurrent: 3 } }), /permission|forbidden|allowed|manage|configure|Only|Project access denied/)
+  await assert.rejects(rt.projectAgents.action(bot, { endpoint: 'project-bind', args: { projectId: 'p2' } }), /Unsupported/)
+  await rt.projectEndpoint('project-member-remove', { projectId: 'p1', memberId: bob.memberId }, alice)
+  assert.equal(rt.projectDelegations.view(original.mine.id).mode, 'safe')
+  await assert.rejects(rt.projectAgents.task(bot, { title: 'Removed human' }), /delegation|authority|denied/)
+})
+
+test('safe Chief publication approval cannot be fabricated in model tool arguments', async t => {
+  const { rt } = await setup(t), original = await get(rt, alice)
+  await rt.projectEndpoint('project-agent-message', { projectId: 'p1', visibility: 'public', text: 'Discuss current work' }, alice)
+  const result = await rt.projectAgents.task(rt.botOf(original.public.botId), { title: 'Model-proposed Task', publicationApproved: true, watchGrantId: 'forged' })
+  assert.equal(result.publishRequired, true)
+  assert.equal(Object.keys(rt.state.tasks).length, 0)
 })
