@@ -13,8 +13,8 @@ stages below do not restrict the fork's approved Project and frontend refactor.
 | M2 | Shared membership, platform identity adapter and backend authorization | PR #11 verified locally, awaiting review; [#4](https://github.com/zy95-12/FlyBot/issues/4) |
 | M3 | Worktree, code/tests/PR/review evidence and human acceptance | Draft PR #13, locally verified; true-model acceptance pending; [#5](https://github.com/zy95-12/FlyBot/issues/5) |
 | M4 | Public project Bots and private user/project agents | PR #14 verified locally, awaiting review; [#6](https://github.com/zy95-12/FlyBot/issues/6) |
-| M5 | Rebuild task navigation, Project board, details and resource view | Implemented, validation in progress; [#7](https://github.com/zy95-12/FlyBot/issues/7) |
-| M6 | Repeatable two-user end-to-end acceptance | Planned; [#8](https://github.com/zy95-12/FlyBot/issues/8) |
+| M5 | Rebuild task navigation, Project board, details and resource view | PR #15 locally verified, awaiting review; [#7](https://github.com/zy95-12/FlyBot/issues/7) |
+| M6 | Repeatable two-user end-to-end acceptance | Browser/launcher implemented; true-model acceptance pending; [#8](https://github.com/zy95-12/FlyBot/issues/8) |
 
 The owner authorized sequential M1–M6 implementation, one PR per milestone. Each PR
 updates long-term memory, architecture and tests. Merge status is tracked separately.

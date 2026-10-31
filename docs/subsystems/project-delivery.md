@@ -159,3 +159,9 @@ Queue admission rechecks current membership, preserves immutable Task/Run owners
 allocates worktrees only when quota permits. Explicit stop releases the existing single
 Run; orphan Workers retain capacity. Shared Project creation cannot supply filesystem cwd,
 and scoped agent/Worker identities cannot move to a different Project.
+
+M6 adds return→retry→accept regression coverage: an authorized human return retains the
+old Attempt/evidence, retry uses a new workspace/Attempt, and only that Attempt's current
+verified commit can be accepted. The test uses the explicitly injected publisher fixture;
+real GitHub and real-model acceptance are recorded independently. Actual shared browser
+execution now uses the Project Chief sender without private `state` bootstrap.

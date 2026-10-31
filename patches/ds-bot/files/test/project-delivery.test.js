@@ -47,7 +47,7 @@ async function setup(t, testCommand = [process.execPath, '--test', 'code.test.mj
   const start = requestId => rt.projectEndpoint('project-task-run', { taskId: task.id, requestId }, bob)
   const attempt = () => Object.values(rt.state.projectAttempts).at(-1)
   const gate = (role, outputs = {}) => rt.projectDelivery.gate({ taskId: task.id, workflowId: attempt().workflowId, runId: attempt().runId, nodeId: role, outputs })
-  return { rt, home, task, start, attempt, gate, repository, published, publisher }
+  return { rt, home, task, start, attempt, gate, repository, published, publisher, workflow }
 }
 
 async function implement(fixture) {
@@ -228,4 +228,28 @@ test('only managers stop one delivery Run and failed Worker release retains its 
   const stopped = await rt.projectEndpoint('project-attempt-stop', { attemptId: attempt.id }, alice)
   assert.equal(stopped.attempt.status, 'cancelled')
   assert.equal(resets, 2)
+})
+
+
+test('human return preserves old evidence and retry can only accept its own newly verified commit', async t => {
+  const fixture = await setup(t)
+  await fixture.start('before-return')
+  await complete(fixture)
+  const old = structuredClone(fixture.attempt())
+  for (const nodeId of ['developer', 'tester', 'reviewer']) fixture.workflow.advance({ workflowId: old.workflowId, runId: old.runId, nodeId, outcome: 'done' })
+  await assert.rejects(fixture.rt.projectEndpoint('project-task-reject', { attemptId: old.id, reason: 'Add negative cases' }, bob), /denied/)
+  await fixture.rt.projectEndpoint('project-task-reject', { attemptId: old.id, reason: 'Add negative cases' }, alice)
+  assert.equal(fixture.rt.state.projectAttempts[old.id].status, 'failed')
+  assert.equal(fixture.rt.state.projectAttempts[old.id].evidence.tests.sha, old.candidateSha)
+  const retry = await fixture.start('after-return')
+  assert.equal(retry.attempt.status, 'running', retry.attempt.failure?.message)
+  await complete(fixture)
+  const next = fixture.attempt()
+  assert.notEqual(next.id, old.id)
+  assert.notEqual(next.workspaces.developer.path, old.workspaces.developer.path)
+  await assert.rejects(fixture.rt.projectEndpoint('project-task-accept', { attemptId: old.id }, alice), /evidence/)
+  await fixture.rt.projectEndpoint('project-task-accept', { attemptId: next.id }, alice)
+  assert.equal(next.status, 'accepted')
+  assert.equal(fixture.rt.state.tasks[fixture.task.id].status, 'accepted')
+  assert.equal(fixture.rt.state.projectAttempts[old.id].status, 'failed')
 })

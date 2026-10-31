@@ -67,3 +67,11 @@ M5 adds `node dev/demo/run.mjs --queue`: real DSH + deterministic model, three s
 Tasks with quota one, no allocation while waiting, automatic drain after Worker release,
 duplicate request identity and cancellation after member removal. It is part of runtime
 verify. This is not a real model or GitHub publication test.
+
+M6 adds the optional browser development package (pinned Playwright), `browser-check.mjs`,
+`workbench.mjs` and a foreground `serve.mjs` gateway launcher. CI installs Chromium and
+runs `npm run test:demo:browser` against the same immutable control-plane checkout. Standard
+verify retains the four key-free actual DSH probes and offline entry guards. Browser
+acceptance requires explicit platform/Python/browser installations; it is not silently
+skipped or replaced by DOM fixtures. Passwords enter the DSH runner via stdin; no browser
+trace/HAR, cookies or model credentials are emitted. Failure diagnostics stay private.

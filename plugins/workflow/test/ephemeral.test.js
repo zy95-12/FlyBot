@@ -1238,3 +1238,25 @@ test('Stop and Reset still forget every id and archive the run when no release f
   }
 })
 
+
+
+test('Project dispatch uses its own Chief without a legacy main and never borrows another Project sender', async () => {
+  const sent = []
+  let chief = 'project-chief'
+  const fb = {
+    projects: { context: () => ({ projectId: 'p1' }), read: () => ({ id: 'p1', status: 'active', chief: { botId: chief } }) },
+    bot: { list: () => [{ id: 'project-chief', name: 'Public Chief' }, { id: 'unrelated-main', name: 'Private main', isMain: true }],
+      create: async () => 'worker', remove: async () => true, send: async message => { sent.push(message); return { action: 'allow' } } },
+    readOnly: () => false, api: { handle() { return () => {} } }, tools: { register() { return () => {} } }, warn() {},
+  }
+  const started = apply({ flybot: { scope: () => fb }, effect(fn) { fn() } }, { persist: false })
+  try {
+    await started.service.define({ name: 'Project dispatch', nodes: [{ id: 'dev', name: 'Dev', prompt: 'Implement' }], edges: [] })
+    await started.service.runNamed({ workflow: 'Project dispatch', brief: 'First task' })
+    assert.equal(sent[0].from, 'project-chief')
+    await started.service.advance({ workflowId: started.service.state().workflows.find(row => row.name === 'Project dispatch').id, nodeId: 'dev', outcome: 'done' })
+    chief = 'missing-project-chief'
+    await started.service.runNamed({ workflow: 'Project dispatch', brief: 'Second task' })
+    assert.equal(sent.length, 1, 'a missing Project Chief must not fall back to an unrelated private main')
+  } finally { await started.service.dispose() }
+})

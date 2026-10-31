@@ -159,3 +159,10 @@ decisions, concluded as [docs/governance.md](docs/governance.md) requires and re
   quota admission and actual acceptance/resource metrics. It reuses unchanged platform
   services and the existing Workflow executor. See [M5 decision](decisions/2026-10-31-m5-project-workbench.md).
   Browser/live-model acceptance is tracked separately in M6; no deployment is implied.
+
+- M5 ([PR #15](https://github.com/zy95-12/FlyBot/pull/15), full local verify passed) supplies
+  the actual shared Project UI/gateway and quota admission. M6 adds a clean two-account
+  Chromium/DSH/platform runner and foreground demo launcher, plus the Project Chief
+  dispatch fix found through that fresh entry. See [shared demo](docs/shared-demo.md) and
+  [M6 decision](decisions/2026-10-31-m6-shared-demo.md). True-model full delivery acceptance
+  remains pending model configuration; deterministic runtime/browser evidence is separate.

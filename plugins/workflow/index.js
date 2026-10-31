@@ -77,7 +77,11 @@ export function apply(ctx, config = {}) {
       return fb.bot.remove(id)
     },
     async dispatch(step) {
-      const from = (fb.bot.list?.() ?? []).find(bot => bot.isMain)?.id
+      const bots = fb.bot.list?.() ?? []
+      const projectId = fb.projects?.context?.(step.taskId)?.projectId
+      const chiefId = projectId ? fb.projects?.read?.(projectId)?.chief?.botId : null
+      // A shared Project must run without bootstrapping the private legacy Main Bot.
+      const from = projectId ? bots.find(bot => bot.id === chiefId)?.id : bots.find(bot => bot.isMain)?.id
       if (!from || typeof fb.bot.send !== 'function') return { ok: false, code: 'no-sender' }
       const lines = [`Task ${step.taskId}: ${step.brief}`]
       for (const [name, value] of Object.entries(step.inputs ?? {})) {

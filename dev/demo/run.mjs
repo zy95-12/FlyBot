@@ -7,6 +7,8 @@ import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { mockModel } from './mock.mjs'
+import { serveWorkbench } from './serve.mjs'
+import { checkWorkbench } from './workbench.mjs'
 import { checkQueue } from './queue.mjs'
 import { agentReply, checkAgents } from './agents.mjs'
 import { checkDelivery, deliveryReply, provisionDeliveryFixture } from './delivery.mjs'
@@ -38,8 +40,12 @@ async function waitFor(read, label, milliseconds = 90_000) {
 
 async function main() {
   const agents = process.argv.includes('--agents')
+  const serve = process.argv.includes('--workbench-serve')
+  const realModel = process.argv.includes('--real-model')
+  const workbench = process.argv.includes('--workbench') || serve
+  if (realModel && (!serve || !process.env.DEEPSEEK_API_KEY || !process.env.DEEPSEEK_BASE_URL)) throw new Error('Real-model demo requires --workbench-serve and explicit DEEPSEEK_API_KEY/DEEPSEEK_BASE_URL environment configuration')
   const queue = process.argv.includes('--queue')
-  const delivery = process.argv.includes('--delivery') || queue
+  const delivery = process.argv.includes('--delivery') || queue || workbench
   const githubRepository = process.argv.includes('--github-repo') ? process.argv[process.argv.indexOf('--github-repo') + 1] : undefined
   const githubConfigDir = process.argv.includes('--github-config-dir') ? process.argv[process.argv.indexOf('--github-config-dir') + 1] : undefined
   if (githubRepository && (!delivery || !githubConfigDir)) throw new Error('GitHub demo requires --delivery and explicit --github-config-dir')
@@ -69,7 +75,7 @@ async function main() {
       '@deepseek-ai/dsh-base': '0.2.1-rc.2', '@deepseek-ai/dsh-web-app': '0.2.1-rc.2' },
     dsh: { profile: { bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'ds-bot', '@flybot/workflow'] } } }))
   const observations = []
-  const model = mockModel(observations, { reply: delivery ? deliveryReply : agents ? agentReply : undefined })
+  const model = mockModel(observations, { reply: workbench ? input => deliveryReply(input) ?? agentReply(input) : delivery ? deliveryReply : agents ? agentReply : undefined })
   model.listen(0, '127.0.0.1')
   await once(model, 'listening')
   const port = await freePort()
@@ -77,14 +83,14 @@ async function main() {
   const log = openSync(logPath, 'w', 0o600)
   const env = { ...process.env, HOME: directory, DSH_HOME: home,
     TMPDIR: scratch, TMP: scratch, TEMP: scratch,
-    DEEPSEEK_API_KEY: 'mock-key', DEEPSEEK_BASE_URL: `http://127.0.0.1:${model.address().port}/v1`,
+    DEEPSEEK_API_KEY: realModel ? process.env.DEEPSEEK_API_KEY : 'mock-key', DEEPSEEK_BASE_URL: realModel ? process.env.DEEPSEEK_BASE_URL : `http://127.0.0.1:${model.address().port}/v1`,
     NODE_OPTIONS: `--import=${join(import.meta.dirname, 'resolve.mjs')}` }
   // External connector credentials are not needed in this transport check.
   for (const name of Object.keys(env)) if (/TOKEN|SECRET|API_KEY/.test(name) && name !== 'DEEPSEEK_API_KEY') delete env[name]
   let patch = join(root, 'docker/web.patch.yml')
   if (shared || delivery || agents) {
     patch = join(directory, 'shared.patch.yml')
-    const botConfig = { projectWorkbench: true,
+    const botConfig = { projectWorkbench: true, ...(workbench ? { projectDemoMode: realModel ? 'real-provider' : 'deterministic-fixture' } : {}),
       ...(shared ? { controlPlane: { origin: shared.origin, ownerSubject: shared.ownerSubject } } : {}),
       ...(delivery ? { projectRepositories: { [githubRepository ?? 'example/delivery-fixture']: { ...(githubRepository ? { github: { credential: 'gh-cli', configDir: githubConfigDir } } : {}), path: workspace, testCommand: [process.execPath, '--test', 'code.test.mjs'], allowedPaths: ['code.mjs', 'code.test.mjs'] } } } : {}) }
     writeFileSync(patch, readFileSync(join(root, 'docker/web.patch.yml'), 'utf8') + `\n- id: bot\n  config: ${JSON.stringify(botConfig)}\n`, { mode: 0o600 })
@@ -122,6 +128,16 @@ async function main() {
       const result = await call(...args)
       assert.equal(result.ok, true, `API ${args[0]}: ${result.error?.code ?? 'failed'}`)
       return result.value
+    }
+    if (serve) {
+      if (!shared) throw new Error('Workbench serving requires --shared credentials on stdin')
+      await serveWorkbench({ port, cookie, platformOrigin: shared.origin, realModel })
+      return
+    }
+    if (workbench) {
+      if (!shared) throw new Error('Workbench browser acceptance requires --shared credentials on stdin')
+      console.log(JSON.stringify({ ...await checkWorkbench({ credentials: shared, port, cookie, saved, waitFor, artifacts: process.env.FLYBOT_DEMO_ARTIFACTS }), source: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(), dirty: execFileSync('git', ['status', '--porcelain'], { cwd: root, encoding: 'utf8' }).trim() !== '' }))
+      return
     }
     if (agents) {
       console.log(JSON.stringify(await checkAgents({ api, call, saved, waitFor })))

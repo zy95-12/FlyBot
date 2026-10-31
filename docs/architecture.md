@@ -89,3 +89,8 @@ The fork M5 [Project workbench](subsystems/project-workbench.md) provides the sh
 entry, keeping Harness owner credentials server-side behind an endpoint allowlist. Its
 persisted admission queue wraps existing delivery/Workflow services; it adds no second
 Task store or DAG executor. Platform source remains unchanged.
+
+M6's [shared demo](shared-demo.md) starts unchanged control-plane, actual DSH and the
+restricted gateway with disposable private data. Browser acceptance uses two platform
+identities and independent contexts. Workflow dispatch resolves a bound Task's Project
+Chief, so shared execution does not require bootstrapping the private legacy operator UI.

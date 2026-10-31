@@ -124,3 +124,11 @@ also receives the private runtime owner login. M5 uses a fixed-upstream endpoint
 gateway with the cookie held server-side. Test blocked raw/plugin routes and cookie
 stripping alongside runtime membership. Repository name equality also does not grant
 operator filesystem/GitHub capabilities: verify the provisioned Project owner.
+
+## 2026-10-31 — test the fresh shared entry without private UI bootstrap (Seen 1×)
+
+Old runtime probes called private `state`, which created a legacy Main Bot before any
+Project delivery. The actual shared browser did not, exposing Workflow's `no-sender`
+dependency. Resolve the dispatch sender from the durable Task Project's Chief and fail
+if missing, never borrow an unrelated private main. Keep a fresh two-account browser
+regression; DOM/API tests alone do not prove clean startup integration.

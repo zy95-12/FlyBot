@@ -58,6 +58,15 @@ jobs:
           "$RUNNER_TEMP/flybot-demo-python/bin/python" dev/demo/control_plane.py --control-plane .demo-control-plane --shared-check --port 0
           test -z "$(git -C .demo-control-plane status --porcelain)"
 
+      - name: M6 two-account browser acceptance through shared entry
+        env:
+          FLYBOT_DEMO_CONTROL_PLANE: .demo-control-plane
+        run: |
+          npm ci --prefix dev/demo/browser --no-fund --no-audit
+          node dev/demo/browser/node_modules/playwright/cli.js install --with-deps chromium
+          FLYBOT_DEMO_PYTHON="$RUNNER_TEMP/flybot-demo-python/bin/python" npm run test:demo:browser
+          test -z "$(git -C .demo-control-plane status --porcelain)"
+
   # Each peer plugin (plugins/<name>) on its own: lint and its suite against core/ and the DSH
   # harness. DSH_HARNESS points the frontend (web entry) tests at real Cordis; a skipped test
   # fails the job, so they cannot silently stop running.

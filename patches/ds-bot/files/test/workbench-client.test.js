@@ -14,7 +14,7 @@ function fixture(t, override = () => undefined) {
     const special = override(endpoint, payload)
     if (special !== undefined) return special
     const id = payload.projectId
-    if (endpoint === 'auth-mode') return { mode: 'platform' }
+    if (endpoint === 'auth-mode') return { mode: 'platform', panelUrl: 'http://127.0.0.1:18088' }
     if (endpoint === 'workbench-state') return { self: { memberId: 'bob', displayName: 'Bob' }, repositories: [], projects: [{ id: 'a', name: 'Alpha' }, { id: 'b', name: 'Beta' }] }
     if (endpoint === 'project-detail') return { project: { id, name: id === 'a' ? 'Alpha' : 'Beta', role: 'member' }, permissions: { create: true }, tasks: [{ id: `task-${id}`, title: id === 'a' ? '<img src=x onerror=alert(1)>' : 'Beta task', requesterId: 'bob', status: 'open' }] }
     if (endpoint === 'project-resources') return { metrics: { acceptedTasks: 0, duration: { medianMs: null } }, activeSlots: 0, quota: { maxConcurrent: 1 }, repository: { configured: false }, queue: [] }
@@ -30,6 +30,8 @@ function fixture(t, override = () => undefined) {
 test('Project board renders untrusted titles as text and Member cannot manage others', async t => {
   const { dom, root, calls } = fixture(t)
   await tick()
+  assert.equal(root.querySelector('a').href, 'http://127.0.0.1:18088/')
+  assert.equal(root.querySelector('[name=title]').getAttribute('aria-label'), 'Requirement')
   assert.match(root.textContent, /<img src=x onerror=alert\(1\)>/)
   assert.equal(root.querySelector('img'), null)
   assert.match(root.textContent, /No samples/)
