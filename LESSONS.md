@@ -253,3 +253,10 @@ A missing PID or terminal Task status does not prove external work exited. Recor
 the actual supervisor invocation/control group before starting execution. Only a
 verified manager boundary with control-group termination can release old local
 capacity; unknown/remote/different-boot evidence remains held.
+
+### 2026-11-01 — an empty inbox is a valid native tool continuation (Seen 1×)
+
+A schedule interceptor rejected empty pre-step messages even when it consumed no
+reminder. Actual DSH executed the shell tool but never submitted the final Workflow
+result. Reject only a consumed managed-only delivery, preserve ordinary empty
+continuations, and verify the actual native runtime as well as fake schedule hooks.

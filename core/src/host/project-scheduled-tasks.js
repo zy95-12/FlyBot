@@ -142,6 +142,6 @@ export function install(rt) {
       if (remaining.length && remaining.length !== entries.length) kept.push(createUserMessage({ content: [{ type: 'text', text: `[SCHEDULE REMINDER BATCH]\nreminders_json: ${JSON.stringify(remaining)}` }], source: message.source }))
     }
     if (intercepted && !kept.some(message => !CLOCK_KINDS.includes(message.source?.kind))) return { kind: 'reject' }
-    return kept.length ? { ...decision, messages: kept } : { kind: 'reject' }
+    return { ...decision, messages: kept }
   })
 }

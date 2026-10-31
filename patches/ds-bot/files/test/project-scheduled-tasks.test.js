@@ -66,3 +66,14 @@ test('managed scheduled reminders do not fall through to a native model turn con
   assert.equal(result.kind, 'reject')
   assert.equal(Object.values(f.rt.state.projectScheduledTasks[row.id].deliveries).length, 1)
 })
+
+test('ordinary native tool continuation with no new inbox messages remains admitted', async () => {
+  const { install } = await import('../src/host/project-scheduled-tasks.js')
+  const f = setup(); let hook
+  f.rt.ctx = { on: (_name, callback) => { hook = callback } }
+  install(f.rt)
+  const decision = { kind: 'enter', messages: [] }
+  const result = await hook({ agent: { id: 'ordinary-worker' } }, async () => decision)
+  assert.equal(result.kind, 'enter', 'No managed reminder was consumed, so the native continuation must run')
+  assert.deepEqual(result.messages, [])
+})

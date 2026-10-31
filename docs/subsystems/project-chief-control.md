@@ -75,3 +75,6 @@ off, Chief closes. They also cover stale authority/carrier/generation, rejected
 closure, timer mapping, pause/resume, deduplication and conservative process proof.
 These fixtures are not actual Codex, original live DSH timer delivery, browser
 acceptance or shared-service restart evidence; those remain issue #41 acceptance.
+
+Native continuation invariant: an empty pre-step inbox remains admitted when no
+managed reminder was consumed. A tool result may continue without new messages.
