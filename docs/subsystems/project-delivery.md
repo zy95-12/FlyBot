@@ -344,3 +344,9 @@ Successful reconciliation stores the actual PR receipt and normal result-ready
 transition, with a recovery audit entry. Repetition retains that entry and does not
 repeat an invalid result-ready transition. Overall acceptance remains Chief/human
 authority, and unfinished requirements still require normal same-Task rework.
+
+Chief inspection keeps every current or uncertain resource record detailed. Historical
+leases with confirmed release proofs may be represented by a count and content digest;
+the complete original lease/worker state remains retained. This avoids expanding the
+same released history on every inspection without raising context limits, truncating
+policy/knowledge or treating an unproven release as execution exit evidence.

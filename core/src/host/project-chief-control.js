@@ -8,6 +8,12 @@ const template = JSON.parse(readFileSync(new URL('./project-chief-schedule.json'
 const refuse = message => Object.assign(new Error(message), { code: 'bot/chief' })
 const digest = value => createHash('sha256').update(JSON.stringify(value)).digest('hex')
 const terminal = new Set(['accepted', 'cancelled'])
+export function inspectionResources(state, task) {
+  const rows = Object.values(state.projectResourceLeases ?? {}).filter(lease => state.projectAttempts?.[lease.attemptId]?.taskId === task.id).map(lease => ({ role: lease.role, status: lease.status, attemptId: lease.attemptId, workerId: lease.worker?.handle ?? null, releasedAt: lease.releasedAt ?? null, releaseProof: lease.releaseProof?.kind ?? (lease.status === 'released' && state.projectHarnessWorkers?.[lease.worker?.handle]?.status === 'released' && state.projectHarnessWorkers[lease.worker.handle].leaseId === lease.id && state.projectHarnessWorkers[lease.worker.handle].generation === lease.generation ? 'persisted-sdk-confirmed-release' : null) }))
+  const proven = new Set(['sdk-stop-ack-and-process-exit', 'systemd-prior-invocation-exited', 'unbound-reservation-release', 'persisted-sdk-confirmed-release'])
+  const historical = rows.filter(row => row.attemptId !== task.deliveryAttemptId && row.status === 'released' && proven.has(row.releaseProof))
+  return { resources: rows.filter(row => !historical.includes(row)), ...(historical.length ? { releasedResourceHistory: { count: historical.length, allConfirmedReleased: true, sha256: digest(historical), source: 'projectResourceLeases and projectHarnessWorkers; original records retained' } } : {}) }
+}
 function verifiedProgress(evidence = []) {
   return evidence.filter(row => row.kind === 'host-tests' && row.passed === true && typeof row.sha === 'string' && typeof row.sha256 === 'string')
 }
@@ -109,7 +115,7 @@ export function createProjectChiefControl(rt) {
         allocationProof: allocationProof(rt.state, task),
         execution: claim ? { botId: claim.botId, status: claim.status, startedAt: claim.createdAt, elapsedMs: Date.now() - claim.createdAt, workerStatus: worker?.status ?? null, lastEventAt: worker?.lastEventAt ?? null } : null,
         handoff: task.collaboration?.history.at(-1) ? { id: task.collaboration.history.at(-1).id, purpose: task.collaboration.history.at(-1).purpose, reason: task.collaboration.history.at(-1).reason } : null,
-        block: task.collaboration?.block ?? null, resources: Object.values(rt.state.projectResourceLeases ?? {}).filter(lease => rt.state.projectAttempts?.[lease.attemptId]?.taskId === task.id).map(lease => ({ role: lease.role, status: lease.status, attemptId: lease.attemptId, workerId: lease.worker?.handle ?? null, releasedAt: lease.releasedAt ?? null, releaseProof: lease.releaseProof?.kind ?? (lease.status === 'released' && rt.state.projectHarnessWorkers?.[lease.worker?.handle]?.status === 'released' && rt.state.projectHarnessWorkers[lease.worker.handle].leaseId === lease.id && rt.state.projectHarnessWorkers[lease.worker.handle].generation === lease.generation ? 'persisted-sdk-confirmed-release' : null) })),
+        block: task.collaboration?.block ?? null, ...inspectionResources(rt.state, task),
         attemptStatus: attempt?.status ?? null,
         generation: task.collaboration?.generation ?? 0, destination: task.collaboration?.botId ?? null, attemptId: attempt?.id ?? null, candidateSha: attempt?.candidateSha ?? null,
         evidence: { implementation: attempt?.evidence.implementation ? { sha: attempt.evidence.implementation.sha, paths: attempt.evidence.implementation.paths } : null,

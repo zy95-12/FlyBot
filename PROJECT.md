@@ -332,3 +332,5 @@ Owner basic-CI policy is implemented on the existing PR47 local branch: default 
   revalidates original sealed role/test evidence and uses the guarded publisher.
   It repairs read-after-push receipt gaps without a new Attempt, fabricated Review
   or overall Task acceptance; see Project delivery architecture and regressions.
+- Chief resource context retains current/uncertain lease details and digests only
+  proven released history, preserving original records and the 48k admission limit.
