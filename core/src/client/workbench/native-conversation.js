@@ -1,5 +1,7 @@
+import { PendingQuestion } from '../questions.js'
+import { ApprovalCard, MemberWork, MEMBER_CSS } from '../member-status.js'
 import { ScopedComposer } from '../composer.js'
-import { createElement as h, useSyncExternalStore } from 'react'
+import { createElement as h, useSyncExternalStore, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { AssistantCell, workText } from '../cells.js'
 import { BotMark, PersonMark } from '../mark.js'
@@ -10,6 +12,9 @@ import { SHELL_CSS, CONVERSATION_CSS } from '../styles.js'
 // Its data and navigation capabilities come only from this scoped projection.
 function Conversation({ source, roster, openBot, onQuote }) {
   const snapshot = useSyncExternalStore(source.subscribe, source.getSnapshot)
+  const [failure, setFailure] = useState('')
+  const chat = source.chat()
+  const control = operation => Promise.resolve().then(operation).catch(error => { setFailure(error.message); throw error })
   const ui = { reactions: {} }
   const reply = (row, key, streaming = false) => {
     const bot = roster.bots.find(bot => bot.id === row.botId || bot.role === row.speaker)
@@ -29,6 +34,21 @@ function Conversation({ source, roster, openBot, onQuote }) {
   }
   return h('div', { className: 'bt-native-conversation', role: 'log' },
     snapshot.messages.map((row, index) => reply(row, row.id ?? index)),
+    (snapshot.tools ?? []).map(tool => h('details', { key: `process:${tool.id}`, 'data-native-process': '' },
+      h('summary', null, `${workText(tool.tool)} · ${tool.status}`),
+      tool.text ? reply({ text: tool.text, speaker: 'Tool output' }, `result:${tool.id}`) : null)),
+    (snapshot.groupWork ?? []).map(entry => h('section', { key: entry.botId }, h('header', null, entry.name ?? 'Bot'), h(MemberWork, { entry: { state: 'work', doing: entry, here: entry.canStop },
+      bot: roster.byId[entry.botId] ?? { id: entry.botId }, room: { id: snapshot.binding?.personalId }, now: Date.now(),
+      actions: { stopMemberWork: (_room, botId) => chat.stopMember(botId), reportError: error => setFailure(error.message) } }))),
+    snapshot.question ? h(PendingQuestion, { sessionId: snapshot.binding?.personalId, question: snapshot.question, inline: true,
+      actions: { answerQuestion: (_session, id, answer) => control(() => chat.answerQuestion(id, answer)),
+        dismissQuestion: () => { void control(() => chat.dismissQuestion(snapshot.question.id)).catch(() => {}) } } }) : null,
+    (snapshot.approvals ?? []).map(approval => h(ApprovalCard, { key: approval.id, approval, standing: false,
+      bot: roster.byId[snapshot.binding?.personalId] ?? { id: snapshot.binding?.personalId, name: 'Bot' },
+      actions: { answerApproval: (id, choice) => chat.answerApproval(id, choice), reportError: error => setFailure(error.message) } })),
+    snapshot.binding?.personalId && !snapshot.binding.personalPart && !snapshot.groupWork ? h('div', { className: 'bt-scoped-controls' },
+      h('button', { type: 'button', onClick: () => { void control(() => snapshot.busy ? chat.stop() : chat.send('Continue.')).catch(() => {}) } }, snapshot.busy ? 'Stop reply' : 'Continue')) : null,
+    failure ? h('p', { role: 'alert' }, failure) : null,
     snapshot.live?.tool ? h('p', { role: 'status', 'data-native-tool': '' }, workText(snapshot.live.tool)) : null,
     (snapshot.sessions ?? []).filter(session => session.live?.tool).map(session => h('p', { key: `tool:${session.role}`, role: 'status', 'data-native-tool': '' }, `${session.role}: ${workText(session.live.tool)}`)),
     snapshot.live?.text ? reply({ ...snapshot.live, speaker: snapshot.live.speaker ?? 'Bot' }, 'live', true) : null,
@@ -44,7 +64,7 @@ export function mountNativeConversation(node, { source, bots = [], openBot, onQu
   root.render(h(Conversation, { source, roster, openBot, onQuote }))
   return () => root.unmount()
 }
-export const nativeConversationCss = SHELL_CSS + CONVERSATION_CSS + SIDEBAR_CSS
+export const nativeConversationCss = SHELL_CSS + CONVERSATION_CSS + SIDEBAR_CSS + MEMBER_CSS
 
 export function mountNativeChatList(node, { bots = [], rooms = [], mainBotIds = [], selectedId, openSession, openDetails }) {
   const root = createRoot(node)
@@ -60,5 +80,22 @@ export function mountNativeChatList(node, { bots = [], rooms = [], mainBotIds = 
 export function mountNativeComposer(node, options) {
   const root = createRoot(node)
   root.render(h(ScopedComposer, options))
+  return () => root.unmount()
+}
+
+function RuntimeInput({ worker, answer }) {
+  const [failure, setFailure] = useState('')
+  const pending = worker.pending
+  if (pending.kind !== 'permission') return h(ScopedComposer, { chat: { send: text => answer({ text }) }, onError: error => setFailure(error.message) })
+  return h('div', null,
+    h(ApprovalCard, { approval: { id: pending.id, tool: pending.request?.name ?? 'Runtime action', reason: pending.request?.description ?? '', answerable: true },
+      bot: { id: worker.id, name: worker.role }, standing: false,
+      actions: { answerApproval: (id, choice) => answer({ requestId: id, allow: choice === 'allow' }), reportError: error => setFailure(error.message) } }),
+    failure ? h('p', { role: 'alert' }, failure) : null)
+}
+
+export function mountNativeRuntimeInput(node, options) {
+  const root = createRoot(node)
+  root.render(h(RuntimeInput, options))
   return () => root.unmount()
 }

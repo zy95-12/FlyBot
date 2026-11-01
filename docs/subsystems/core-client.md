@@ -451,3 +451,10 @@ handle, visible mention list and registered room-document choices; it never
 consults the global owner roster or owner API. The workbench native entry mounts
 and unmounts it with the existing scope fences. See project-workbench.md for the
 remaining native interaction/acceptance limits.
+
+The scoped native conversation reuses PendingQuestion, exported ApprovalCard and
+MemberWork, including their original answer/error/busy behavior. ApprovalCard's new
+standing option defaults true for original consumers and is false for scoped controls.
+MEMBER_CSS is re-exported from pure member-styles.js so the same-origin workbench
+builder can include it without importing browser modules in Node. SDK runtime inputs
+reuse these components and the scoped composer through captured Project/epoch callbacks.

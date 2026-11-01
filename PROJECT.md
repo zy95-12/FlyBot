@@ -487,3 +487,19 @@ verification; a later process-control/result request was refused by sandbox
 loopback policy. Request actual configured host verification through Tester, then
 return this partial implementation to Developer for remaining tool-result,
 approval, personal live/stop and full interaction work. Do not close Task40.
+
+Task40 continuation at base cbcad4c4 adds actual native question/approval/stop/continue
+controls, original group MemberWork controls, bounded redacted tool results and current
+own-chat streaming. Existing original components are reused; standing grants and raw
+owner APIs are not exposed. SDK permission/message inputs now use the same original
+approval/composer components with existing host worker-generation/current-rights gates.
+The new personal HTTP capability test failed at base (1/2) before implementation and
+passed afterward; additional boundary tests cover foreign approvals/workers, retired
+handles, hidden turns, historical parts and stale questions. Host full verification,
+independent Review and deployed three-account/weak-network screenshots remain required.
+
+The continuation also restores answerable group question/approval cards through
+original handlers, exposing only public question fields rather than replyTo/origin.
+Group member-stop tests use actual native membership and reject another owner's Bot.
+Final local interaction checks, build/patch/lint results and outstanding host/browser
+validation are reported at handoff; no candidate recommendation closes this Task.

@@ -45,3 +45,11 @@ rooms. Room history follows existing membership windows; personal memory exclude
 team scope. This implements existing Owner scope without granting raw Harness or
 connector access. The full native shell/composer and deployed visual acceptance
 remain outstanding, not implied by this implementation slice.
+
+Task40 interaction continuation reuses original question, approval, member-work,
+reply and dictation components through selected-conversation adapters. One-shot
+permissions do not create standing grants. Group controls retain native membership
+and per-Bot ownership; original routing authority stays host-side. Native own-chat
+streams exclude hidden exchanges, and SDK execution inputs keep existing worker
+and Project authorization. This records implementation within the accepted scope,
+not a new permission, independent approval, deployment or completion decision.

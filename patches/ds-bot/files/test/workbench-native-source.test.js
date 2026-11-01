@@ -105,3 +105,24 @@ test('composer attaches only registered document IDs on its captured room bindin
   await assert.rejects(room.send('retired room', { attachmentIds: ['document-1'] }), /retired/)
   source.dispose()
 })
+
+test('personal controls retain their own Session and are fenced on navigation or logout', async () => {
+  const calls = []
+  const source = createScopedConversation({ async call(endpoint, payload) { calls.push({ endpoint, payload }); return { messages: [] } } })
+  await source.open({ personalId: 'own-chief' })
+  const chat = source.chat()
+  await chat.stop()
+  await chat.answerQuestion('q', { selected: ['main'] })
+  await chat.answerApproval('a', 'reject')
+  assert.deepEqual(calls.filter(row => ['stop', 'answer', 'approval'].includes(row.payload.operation)).map(row => row.payload), [
+    { operation: 'stop', id: 'own-chief' },
+    { operation: 'answer', id: 'own-chief', questionId: 'q', answer: { selected: ['main'] } },
+    { operation: 'approval', id: 'own-chief', approvalId: 'a', choice: 'reject' },
+  ])
+  await source.open({ personalId: 'own-chief', personalPart: 'old-part' })
+  await assert.rejects(chat.stop(), /retired/)
+  await assert.rejects(source.chat().answerApproval('a', 'allow'), /current personal/)
+  await source.open({ projectId: 'p', visibility: 'public' })
+  await assert.rejects(source.chat().stop(), /current personal/)
+  source.dispose()
+})

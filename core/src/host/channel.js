@@ -1,5 +1,5 @@
 // Client channel: the team view the browser renders, and the POST /api/bot endpoints.
-import { personalRoster, requirePersonalSession } from './workbench-personal.js'
+import { personalRoster, requirePersonalSession, personalToolRows, personalQuestion, createPersonalStreams } from './workbench-personal.js'
 import { randomUUID } from 'node:crypto'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { isApprovalWaiting } from '../shared/approval-waiting.js'
@@ -29,6 +29,8 @@ export function errorCode(error) {
 
 export function install(rt) {
   const { ctx, state } = rt
+  const personalStreams = createPersonalStreams(rt)
+  ctx.on('llm/stream', (options, next) => rt.sharedProjectMode() && options.purpose === undefined ? personalStreams.stream(options.sessionId, next) : next())
 
   // The DSH interface language of the last browser that asked for the team.
   let uiLocale
@@ -317,6 +319,45 @@ export function install(rt) {
             sessionId = body.partId
           }
           if (operation === 'send') return handle('send', { sessionId, text: body.text }, signal, sessionToken)
+          if (operation === 'member-stop') {
+            const room = rt.roomOf(sessionId), bot = rt.botOf(String(body.botId ?? ''))
+            if (!room || !room.members.includes(bot?.id) || !rt.botOwnedBy(actor, bot.id)) return fail('This group worker is not yours', 'bot/forbidden')
+            return handle('stop-member-work', { roomId: sessionId, botId: bot.id }, signal, sessionToken)
+          }
+
+          if (rt.roomOf(sessionId) && ['answer', 'dismiss', 'approval'].includes(operation)) {
+            if (operation === 'approval') {
+              const approval = (rt.approvalsView?.() ?? []).find(row => row.id === body.approvalId && row.roomId === sessionId && rt.botOwnedBy(actor, row.botId))
+              if (!approval || !['allow', 'reject'].includes(body.choice)) return fail('Approval is not yours in this group', 'bot/forbidden')
+              return handle('approval-answer', { id: approval.id, choice: body.choice }, signal, sessionToken)
+            }
+            const question = personalQuestion(rt, sessionId, actor)
+            if (!question || question.id !== body.questionId) return fail('Question is not yours in this group', 'bot/stale')
+            return handle(operation === 'answer' ? 'answer-question' : 'dismiss-question', { sessionId, questionId: question.id, answer: body.answer }, signal, sessionToken)
+          }
+          if (['stop', 'answer', 'dismiss', 'approval'].includes(operation)) {
+            // These controls operate only on a currently owned native Bot. A
+            // group membership cannot grant control of another owner's worker.
+            const bot = rt.botOf(sessionId)
+            if (!bot || !rt.botOwnedBy(actor, bot.id)) return fail('Select your own personal Bot', 'bot/forbidden')
+            if (operation === 'stop') {
+              const agent = await rt.resolveAgent(sessionId)
+              const freshActor = await rt.authenticate(sessionToken)
+              if (requirePersonalSession(rt, freshActor, String(body.id ?? '')) !== sessionId) return fail('Conversation changed', 'bot/stale')
+              if (typeof agent.cancel !== 'function') return fail('Conversation cannot be stopped', 'bot/unavailable')
+              agent.cancel({ kind: 'hook', reason: 'Human stopped personal conversation' })
+              return ok({ stopRequested: true })
+            }
+            if (operation === 'approval') {
+              const approval = (rt.approvalsView?.() ?? []).find(row => row.id === body.approvalId && row.sessionId === sessionId && row.botId === bot.id)
+              if (!approval || !['allow', 'reject'].includes(body.choice)) return fail('Approval is not open in this conversation', 'bot/forbidden')
+              return handle('approval-answer', { id: approval.id, choice: body.choice }, signal, sessionToken)
+            }
+            const question = state.questions[sessionId]
+            if (!question || question.id !== body.questionId || question.botId && question.botId !== bot.id) return fail('Question is not open in this conversation', 'bot/stale')
+            return handle(operation === 'answer' ? 'answer-question' : 'dismiss-question', { sessionId, questionId: question.id, answer: body.answer }, signal, sessionToken)
+          }
+
           if (operation === 'memory') {
             const bot = rt.botOf(sessionId)
             if (!bot) return fail('Select a personal Bot', 'bot/invalid')
@@ -326,7 +367,9 @@ export function install(rt) {
           }
 
           if (operation !== 'read') return fail('Unknown personal operation', 'bot/invalid')
-          if (rt.roomOf(sessionId)) return ok({ messages: rt.roomHistory(sessionId, actor).filter(line => typeof line.text === 'string' && line.text).map(line => ({ id: `${sessionId}:${line.seq}`, botId: line.botId ?? line.authorId, kind: line.authorKind === 'human' ? 'human' : 'assistant', speaker: line.who, text: line.text })), hasMore: false })
+          if (rt.roomOf(sessionId)) return ok({ messages: rt.roomHistory(sessionId, actor).filter(line => typeof line.text === 'string' && line.text).map(line => ({ id: `${sessionId}:${line.seq}`, botId: line.botId ?? line.authorId, kind: line.authorKind === 'human' ? 'human' : 'assistant', speaker: line.who, text: line.text })), hasMore: false, question: personalQuestion(rt, sessionId, actor),
+            approvals: (rt.approvalsView?.() ?? []).filter(row => row.roomId === sessionId && rt.botOwnedBy(actor, row.botId)).map(({ id, tool, reason, answerable }) => ({ id, tool, reason, answerable })),
+            groupWork: (rt.roomWorkView?.()[sessionId] ?? []).filter(row => rt.roomOf(sessionId).members.includes(row.botId)).map(row => ({ botId: row.botId, name: rt.botOf(row.botId)?.name, tool: row.tool, since: row.since, canStop: rt.botOwnedBy(actor, row.botId) })) })
           const agent = await rt.resolveAgent(sessionId)
           const page = await ctx.sessionController.page({ address: { kind: 'session', sessionId }, throughSeq: Number(agent.session.seq) - 1,
             ...(Number.isInteger(body.beforeSeq) ? { beforeSeq: body.beforeSeq } : {}), maxMessages: 100 }, AbortSignal.timeout(10000))
@@ -339,7 +382,13 @@ export function install(rt) {
             const entry = rt.historyEntry(event, Boolean(rt.roomOf(sessionId)))
             return entry?.text ? [{ id: `${sessionId}:${event.seq}`, botId: entry.answer ? rt.botOf(sessionId)?.id : null, kind: entry.answer ? 'assistant' : 'human', speaker: entry.answer ? rt.botOf(sessionId)?.name ?? 'Bot' : currentActor.displayName ?? 'You', text: entry.text }] : []
           })
-          return ok({ messages, hasMore: page.hasMore, beforeSeq: page.records[0]?.event.seq ?? null })
+          return ok({ messages, hasMore: page.hasMore, beforeSeq: page.records[0]?.event.seq ?? null,
+            busy: rt.live?.get(sessionId)?.turn !== undefined,
+            tools: personalToolRows(page.records, hidden, rt.redactSecrets),
+            live: body.partId ? null : personalStreams.read(sessionId),
+            question: body.partId ? null : personalQuestion(rt, sessionId, currentActor),
+            approvals: body.partId ? [] : (rt.approvalsView?.() ?? []).filter(row => row.sessionId === sessionId && row.botId === rt.botOf(sessionId)?.id)
+              .map(({ id, tool, reason, answerable }) => ({ id, tool, reason, answerable })) })
         }
         case 'state':
           if (typeof body.locale === 'string' && /^[a-z]{2,3}(-[\w-]+)?$/i.test(body.locale)) uiLocale = body.locale
@@ -521,6 +570,7 @@ export function install(rt) {
           return ok(await rt.stopMemberWork(String(body.roomId ?? ''), String(body.botId ?? '')))
         case 'dismiss-question':
           await rt.load()
+          if (body.questionId !== undefined && state.questions[body.sessionId]?.id !== body.questionId) return fail('This question is no longer open', 'bot/stale')
           if (state.questions[body.sessionId] !== undefined) {
             delete state.questions[body.sessionId]
             await rt.save()

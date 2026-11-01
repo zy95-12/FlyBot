@@ -513,3 +513,10 @@ Seen 1×. A FlyBot48k role-admission cap precedes the SDK; Codex automatic compa
 Seen 1×. A slow connection delivered native JS before its stylesheet and mounted
 unstyled controls. Await both fixed same-origin assets, test script-first ordering
 and stylesheet failure, and retain scope fences for late load callbacks.
+
+### 2026-11-01 — Scope interactive controls to their displayed conversation
+
+Seen 1×. Reusing a renderer without questions, approvals or live controls leaves native
+behavior unavailable. Reuse the original cards with captured handles, match approval
+and question IDs to the current owned Session, revalidate after awaits, and exclude
+hidden exchange/tool data. A group seat cannot grant control of another owner's Bot.

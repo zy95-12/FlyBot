@@ -356,3 +356,35 @@ choices for a personal group are limited to its supplied member roster. Live too
 labels reuse original `cells.js` workText and only the scoped live tool name;
 arguments, private reasoning and raw SDK logs are not exposed. Tool-result cards,
 blocking approvals and personal live/stop controls still need implementation.
+
+### Task40 native interaction continuation
+
+Personal-space now projects only the current owned Bot's question and one-shot
+approval cards, with captured-scope stop/continue controls. Original PendingQuestion,
+ApprovalCard and MemberWork components render the controls; original standing grants
+remain available in the owner UI but are not introduced through this adapter. An
+approval ID must belong to the selected Session/Bot. Historical parts cannot mutate
+current execution, stale question dismissal fails, and asynchronous stop resolution
+revalidates current identity before requesting cancellation. A stop request is not
+proof that an external process exited.
+
+Personal group work uses roomWorkView and the original MemberWork component; only
+the viewer's own seated Bot may be stopped through this adapter. Room history retains
+its existing membership-window filtering. The adapter does not stream unapproved
+member replies. Current personal own-chat streaming uses documented llm/stream hooks,
+excludes hidden exchange turns and drops buffers on completion. SDK permission and
+message-input controls reuse the original approval card/scoped composer while still
+calling project-execution-input with its actual worker ID/generation/request ID and
+current Project rights. No raw DSH endpoint is exposed by the gateway.
+
+Authorized personal tool pages expose bounded, redacted text results and tool names,
+rendered through the original workText/AssistantCell components. Arguments, images,
+reasoning, hidden exchanges and orphan result events are excluded. Real deployed
+three-account/browser/weak-network screenshots remain operator acceptance; local
+component and HTTP fixtures do not establish that acceptance.
+
+Answerable personal group questions and owned member approvals use the same native
+cards. Public question fields exclude origin/replyTo routing authority. The original
+host selects the answer destination from its saved question; body IDs cannot retarget
+another question or worker. Tool rows retain loaded history within the bound Session;
+a call without a visible result is labelled started, not inferred to be still running.

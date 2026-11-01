@@ -90,8 +90,9 @@
           const incoming = Array.isArray(value.messages) ? value.messages : [];
           const retained = selected.personalId ? previous.messages : [];
           const messages = selected.personalId ? [...new Map((earlier ? [...incoming, ...retained] : [...retained, ...incoming]).map((message) => [message.id, message])).values()] : incoming;
+          const tools = selected.personalId ? [...new Map((earlier ? [...value.tools ?? [], ...previous.tools ?? []] : [...previous.tools ?? [], ...value.tools ?? []]).map((tool) => [tool.id, tool])).values()].slice(-100) : value.tools;
           const paged = selected.personalId && !earlier && retained.length > 0;
-          state.set({ ...value, messages, ...paged ? { hasMore: previous.hasMore, beforeSeq: previous.beforeSeq } : {}, binding: selected });
+          state.set({ ...value, messages, tools, ...paged ? { hasMore: previous.hasMore, beforeSeq: previous.beforeSeq } : {}, binding: selected });
         } catch (error) {
           if (!disposed && captured === generation) {
             clear();
@@ -123,7 +124,19 @@
       // Session. A retained composer must never retarget itself after navigation.
       chat() {
         const selected = binding, captured = generation;
+        const control = async (operation, args = {}) => {
+          if (disposed || !selected || captured !== generation) throw new Error("Conversation handle is retired");
+          if (!selected.personalId || selected.personalPart) throw new Error("Controls require the current personal conversation");
+          const result = await api.call("personal-space", { operation, id: selected.personalId, ...args });
+          if (!disposed && captured === generation) await refresh();
+          return result;
+        };
         return {
+          stop: () => control("stop"),
+          stopMember: (botId) => control("member-stop", { botId }),
+          answerQuestion: (questionId, answer) => control("answer", { questionId, answer }),
+          dismissQuestion: (questionId) => control("dismiss", { questionId }),
+          answerApproval: (approvalId, choice) => control("approval", { approvalId, choice }),
           async send(text, options) {
             if (disposed || !selected || captured !== generation) throw new Error("Conversation handle is retired");
             if (selected.personalPart) throw new Error("Cannot send to a historical conversation part");
@@ -157,6 +170,7 @@
     let bootstrap, mode, selected = "", tab = "board", taskId = "", personalPart = "", detail, resources, agents, members, history, taskDetail, workflowState;
     let loading, epoch = 0, controller, error = "", notice = "", timer, disposed = false, busy = false;
     let personal, personalMemory, nativeUnmount, nativeListUnmount, nativeComposerUnmount;
+    let nativeControlUnmounts = [];
     let conversationSource = createScopedConversation(api);
     function clearConversation() {
       conversationSource.dispose();
@@ -662,6 +676,22 @@ ${result.text}`;
         }
       });
     }
+    function mountExecutionInput(container, worker) {
+      const captured = epoch, projectId = selected;
+      void loadNative().then(() => {
+        if (disposed || captured !== epoch || selected !== projectId || !container.isConnected) return;
+        container.replaceChildren();
+        nativeControlUnmounts.push(win.FlyBotNativeConversation.mountNativeRuntimeInput(container, {
+          worker,
+          answer: (args) => {
+            if (disposed || captured !== epoch || selected !== projectId) return Promise.reject(new Error("Execution control is retired"));
+            return scoped("project-execution-input", { workerId: worker.id, generation: worker.generation, ...args });
+          }
+        }));
+      }).catch((failure) => {
+        if (!disposed && captured === epoch) error = failure.message;
+      });
+    }
     function agentsPanel() {
       const privateView = tab === "private", visibility = privateView ? "private" : "public";
       const node = box(privateView ? "My Project agent" : "Public Chief", el("p", privateView ? "Your conversation, notes and unpublished proposals are private to this Project and account." : "This conversation is shared with current Project members."));
@@ -777,6 +807,12 @@ ${result.text}`;
         const row = box(`${worker.role} · ${worker.harness}`, el("p", `${worker.status} · ${worker.resourceId} · ${worker.sdkVersion ? "SDK " + worker.sdkVersion : "SDK pending"} · ${worker.model ?? "Model unavailable"}`));
         if (worker.pending?.kind === "permission" && detail.permissions.configure) row.append(el("p", `Permission requested: ${worker.pending.request?.name ?? "Runtime action"}`), el("p", worker.pending.request?.description ?? "Review the scoped execution evidence before allowing this action."), button("Allow requested action", () => act(() => scoped("project-execution-input", { workerId: worker.id, generation: worker.generation, requestId: worker.pending.id, allow: true })), busy), button("Deny requested action", () => act(() => scoped("project-execution-input", { workerId: worker.id, generation: worker.generation, requestId: worker.pending.id, allow: false })), busy));
         else if (worker.pending) row.append(el("p", worker.pending.text), form(`execution-${worker.id}`, [["text", "Continue the same execution Session", "textarea"]], (values) => scoped("project-execution-input", { workerId: worker.id, generation: worker.generation, text: values.text })));
+        if (worker.pending && (worker.pending.kind !== "permission" || detail.permissions.configure)) {
+          const controls = el("div");
+          for (const child of [...row.children].slice(1)) controls.append(child);
+          row.append(controls);
+          mountExecutionInput(controls, worker);
+        }
         node.append(row);
       }
       for (const entry of resources.queue) {
@@ -791,6 +827,8 @@ ${result.text}`;
       const terminalInputValue = doc.getElementById("runtime-terminal-input")?.value ?? "";
       if (disposed) return;
       const active = doc.activeElement, focus = active?.id, start2 = active?.selectionStart, end = active?.selectionEnd;
+      for (const unmount of nativeControlUnmounts) unmount();
+      nativeControlUnmounts = [];
       nativeComposerUnmount?.();
       nativeComposerUnmount = void 0;
       nativeUnmount?.();
@@ -980,6 +1018,8 @@ ${result.text}`;
     void start();
     return { refresh, dispose() {
       clearConversation();
+      for (const unmount of nativeControlUnmounts) unmount();
+      nativeControlUnmounts = [];
       nativeComposerUnmount?.();
       nativeUnmount?.();
       nativeListUnmount?.();

@@ -135,3 +135,60 @@ test('native scoped composer selects a visible mention, submits once and retains
     assert.equal(node.textContent, '')
   } finally { unmount?.(); dom.window.close() }
 })
+
+test('original question and approval cards answer only the bound personal conversation and expose stop/continue', async () => {
+  const bundle = await readFile(join(import.meta.dirname, '../workbench-native.js'), 'utf8')
+  const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost/', runScripts: 'outside-only', pretendToBeVisual: true })
+  const calls = [], pause = () => new Promise(resolve => setTimeout(resolve, 70))
+  let question = { id: 'q-own', question: 'Which branch?', options: [{ label: 'main' }] }, approvals = [{ id: 'a-own', tool: 'read_file', reason: 'Read this file', answerable: true }], busy = true, unmount
+  const source = createScopedConversation({ async call(endpoint, payload) {
+    calls.push({ endpoint, payload })
+    if (payload.operation === 'answer') question = null
+    if (payload.operation === 'approval') approvals = []
+    if (payload.operation === 'stop') busy = false
+    return { messages: [], question, approvals, busy }
+  } })
+  try {
+    dom.window.eval(bundle)
+    await source.open({ personalId: 'chief' })
+    const node = dom.window.document.getElementById('root')
+    unmount = dom.window.FlyBotNativeConversation.mountNativeConversation(node, { source, bots: [{ id: 'chief', name: 'Original Chief' }] })
+    await pause()
+    assert.match(node.querySelector('.bt-q-inline').textContent, /Which branch/)
+    assert.ok(node.querySelector('.bt-mw-card'), 'original approval component must render')
+    assert.equal(node.querySelector('[data-choice^="always"]'), null, 'this scoped entry grants no standing authority')
+    const button = label => [...node.querySelectorAll('button')].find(row => row.textContent.trim() === label)
+    button('Allow once').click(); await pause()
+    assert.deepEqual(calls.find(row => row.payload.operation === 'approval').payload, { operation: 'approval', id: 'chief', approvalId: 'a-own', choice: 'allow' })
+    node.querySelector('.bt-q-opt').click(); await pause()
+    assert.equal(calls.find(row => row.payload.operation === 'answer').payload.questionId, 'q-own')
+    button('Stop reply').click(); await pause()
+    assert.equal(calls.find(row => row.payload.operation === 'stop').payload.id, 'chief')
+    button('Continue').click(); await pause()
+    assert.equal(calls.find(row => row.payload.operation === 'send').payload.text, 'Continue.')
+    source.dispose(); await pause()
+    assert.equal(node.querySelector('.bt-q-inline'), null)
+    assert.equal(node.querySelector('.bt-mw-card'), null)
+  } finally { unmount?.(); source.dispose(); dom.window.close() }
+})
+
+test('SDK permission input reuses the original approval card without standing grants', async () => {
+  const bundle = await readFile(join(import.meta.dirname, '../workbench-native.js'), 'utf8')
+  const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost/', runScripts: 'outside-only', pretendToBeVisual: true })
+  let unmount
+  const answers = []
+  try {
+    dom.window.eval(bundle)
+    const node = dom.window.document.getElementById('root')
+    unmount = dom.window.FlyBotNativeConversation.mountNativeRuntimeInput(node, {
+      worker: { id: 'worker', role: 'developer', pending: { kind: 'permission', id: 'request', request: { name: 'bash', description: 'Run the selected tests' } } },
+      answer: async args => { answers.push(args) },
+    })
+    await new Promise(resolve => setTimeout(resolve, 80))
+    assert.match(node.querySelector('.bt-mw-card').textContent, /Run the selected tests/)
+    assert.equal(node.querySelector('[data-choice^="always"]'), null)
+    ;[...node.querySelectorAll('button')].find(button => button.textContent === 'Reject').click()
+    await new Promise(resolve => setTimeout(resolve, 50))
+    assert.deepEqual(JSON.parse(JSON.stringify(answers)), [{ requestId: 'request', allow: false }])
+  } finally { unmount?.(); dom.window.close() }
+})

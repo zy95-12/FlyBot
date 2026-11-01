@@ -290,3 +290,9 @@ Task40 continues with synchronized native CSS/JS loading and a scoped composer
 exported from the original composer module, sharing dictation cleanup and captured
 chat sends. Focused regression evidence is separate from complete UI acceptance;
 rich tool/approval, personal running state and deployed browser acceptance remain open.
+
+Task40 native interaction continuation implements personal questions/one-shot approval,
+stop/continue, own-chat streaming, bounded tool output and original group member-work
+controls. SDK execution input reuses original approval/composer components. Proceed to
+exact-candidate host tests and independent Review; only operator evidence can satisfy
+actual deployed three-account/weak-network and visual acceptance.

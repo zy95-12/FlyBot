@@ -909,3 +909,11 @@ reauthenticate before returning. Sends reuse channel `send` authorization.
 
 ## Project Chief memory adapter
 `memory.js` exposes botMemoryRecall/botMemoryRemember for an already host-bound own Bot. They reuse original topic validation, entry/file limits, secret scan, replace handling, serialized writes and journal. Caller-supplied scope/Bot IDs are ignored; Project adapter derives the resident public Chief. Memory index is supplied per request and topic details are retrieved on demand; files survive SDK process release and host restart. The original DSH parts/steward implementation is unchanged.
+
+Task40 personal-space controls delegate to existing native question/approval/group
+stop handlers after checking the selected owned personal Session. Stop revalidates
+after resolving the native agent. Original dismiss-question accepts an optional
+question ID fence for scoped callers. The channel's native personal stream hook uses
+current-turn checks and excludes hidden exchanges; only the authorized personal read
+returns its redacted buffer. Workbench personal tool projection never returns raw
+arguments/non-text content or a result without its visible call.

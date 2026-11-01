@@ -19,8 +19,9 @@ export function createScopedConversation(api) {
         const incoming = Array.isArray(value.messages) ? value.messages : []
         const retained = selected.personalId ? previous.messages : []
         const messages = selected.personalId ? [...new Map((earlier ? [...incoming, ...retained] : [...retained, ...incoming]).map(message => [message.id, message])).values()] : incoming
+        const tools = selected.personalId ? [...new Map((earlier ? [...(value.tools ?? []), ...(previous.tools ?? [])] : [...(previous.tools ?? []), ...(value.tools ?? [])]).map(tool => [tool.id, tool])).values()].slice(-100) : value.tools
         const paged = selected.personalId && !earlier && retained.length > 0
-        state.set({ ...value, messages, ...(paged ? { hasMore: previous.hasMore, beforeSeq: previous.beforeSeq } : {}), binding: selected })
+        state.set({ ...value, messages, tools, ...(paged ? { hasMore: previous.hasMore, beforeSeq: previous.beforeSeq } : {}), binding: selected })
       } catch (error) {
         if (!disposed && captured === generation) { clear(); throw error }
       }
@@ -43,7 +44,19 @@ export function createScopedConversation(api) {
     // Session. A retained composer must never retarget itself after navigation.
     chat() {
       const selected = binding, captured = generation
+      const control = async (operation, args = {}) => {
+        if (disposed || !selected || captured !== generation) throw new Error('Conversation handle is retired')
+        if (!selected.personalId || selected.personalPart) throw new Error('Controls require the current personal conversation')
+        const result = await api.call('personal-space', { operation, id: selected.personalId, ...args })
+        if (!disposed && captured === generation) await refresh()
+        return result
+      }
       return {
+        stop: () => control('stop'),
+        stopMember: botId => control('member-stop', { botId }),
+        answerQuestion: (questionId, answer) => control('answer', { questionId, answer }),
+        dismissQuestion: questionId => control('dismiss', { questionId }),
+        answerApproval: (approvalId, choice) => control('approval', { approvalId, choice }),
         async send(text, options) {
           if (disposed || !selected || captured !== generation) throw new Error('Conversation handle is retired')
           if (selected.personalPart) throw new Error('Cannot send to a historical conversation part')

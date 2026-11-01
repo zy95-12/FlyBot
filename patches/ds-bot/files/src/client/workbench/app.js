@@ -6,6 +6,7 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
   let bootstrap, mode, selected = '', tab = 'board', taskId = '', personalPart = '', detail, resources, agents, members, history, taskDetail, workflowState
   let loading, epoch = 0, controller, error = '', notice = '', timer, disposed = false, busy = false
   let personal, personalMemory, nativeUnmount, nativeListUnmount, nativeComposerUnmount
+  let nativeControlUnmounts = []
   let conversationSource = createScopedConversation(api)
   function clearConversation() { conversationSource.dispose(); conversationSource = createScopedConversation(api) }
   async function readConversation(binding) {
@@ -329,6 +330,18 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
       nativeComposerUnmount = win.FlyBotNativeConversation.mountNativeComposer(container, { chat, mentions, attachments, initialText, onDraft: text => { if (source === conversationSource) drafts.set(draftKey, text) } })
     }).catch(failure => { if (!disposed && captured === epoch) { error = failure.message } })
   }
+  function mountExecutionInput(container, worker) {
+    const captured = epoch, projectId = selected
+    void loadNative().then(() => {
+      if (disposed || captured !== epoch || selected !== projectId || !container.isConnected) return
+      container.replaceChildren()
+      nativeControlUnmounts.push(win.FlyBotNativeConversation.mountNativeRuntimeInput(container, { worker,
+        answer: args => {
+          if (disposed || captured !== epoch || selected !== projectId) return Promise.reject(new Error('Execution control is retired'))
+          return scoped('project-execution-input', { workerId: worker.id, generation: worker.generation, ...args })
+        } }))
+    }).catch(failure => { if (!disposed && captured === epoch) error = failure.message })
+  }
   function agentsPanel() {
     const privateView = tab === 'private', visibility = privateView ? 'private' : 'public'
     const node = box(privateView ? 'My Project agent' : 'Public Chief', el('p', privateView ? 'Your conversation, notes and unpublished proposals are private to this Project and account.' : 'This conversation is shared with current Project members.'))
@@ -430,6 +443,11 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
       const row = box(`${worker.role} · ${worker.harness}`, el('p', `${worker.status} · ${worker.resourceId} · ${worker.sdkVersion ? 'SDK ' + worker.sdkVersion : 'SDK pending'} · ${worker.model ?? 'Model unavailable'}`))
       if (worker.pending?.kind === 'permission' && detail.permissions.configure) row.append(el('p', `Permission requested: ${worker.pending.request?.name ?? 'Runtime action'}`), el('p', worker.pending.request?.description ?? 'Review the scoped execution evidence before allowing this action.'), button('Allow requested action', () => act(() => scoped('project-execution-input', { workerId: worker.id, generation: worker.generation, requestId: worker.pending.id, allow: true })), busy), button('Deny requested action', () => act(() => scoped('project-execution-input', { workerId: worker.id, generation: worker.generation, requestId: worker.pending.id, allow: false })), busy))
       else if (worker.pending) row.append(el('p', worker.pending.text), form(`execution-${worker.id}`, [['text', 'Continue the same execution Session', 'textarea']], values => scoped('project-execution-input', { workerId: worker.id, generation: worker.generation, text: values.text })))
+      if (worker.pending && (worker.pending.kind !== 'permission' || detail.permissions.configure)) {
+        const controls = el('div');
+        for (const child of [...row.children].slice(1)) controls.append(child)
+        row.append(controls); mountExecutionInput(controls, worker)
+      }
       node.append(row)
     }
     for (const entry of resources.queue) {
@@ -444,6 +462,7 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
     const terminalInputValue = doc.getElementById('runtime-terminal-input')?.value ?? ''
     if (disposed) return
     const active = doc.activeElement, focus = active?.id, start = active?.selectionStart, end = active?.selectionEnd
+    for (const unmount of nativeControlUnmounts) unmount(); nativeControlUnmounts = []
     nativeComposerUnmount?.(); nativeComposerUnmount = undefined; nativeUnmount?.(); nativeUnmount = undefined; nativeListUnmount?.(); nativeListUnmount = undefined
     root.replaceChildren()
     const shell = el('div', null, 'shell'), sidebar = el('aside'), main = el('main')
@@ -530,5 +549,5 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
   }
   win.addEventListener('hashchange', changeRoute)
   render(); void start()
-  return { refresh, dispose() { clearConversation(); nativeComposerUnmount?.(); nativeUnmount?.(); nativeListUnmount?.(); void closeTerminal(); disposed = true; ++epoch; controller?.abort(); win.clearInterval(timer); win.removeEventListener('hashchange', changeRoute); root.replaceChildren(); drafts.clear() } }
+  return { refresh, dispose() { clearConversation(); for (const unmount of nativeControlUnmounts) unmount(); nativeControlUnmounts = []; nativeComposerUnmount?.(); nativeUnmount?.(); nativeListUnmount?.(); void closeTerminal(); disposed = true; ++epoch; controller?.abort(); win.clearInterval(timer); win.removeEventListener('hashchange', changeRoute); root.replaceChildren(); drafts.clear() } }
 }
