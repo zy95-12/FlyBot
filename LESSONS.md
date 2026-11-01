@@ -13,6 +13,14 @@ Dated, short lessons from real FlyBot work. Agents read this **before coding**. 
 
 ## Open lessons
 
+### 2026-11-02 — Prepared inbox is not an injected SDK turn
+
+Seen 1× (queue regression). A safe-turn remaining count included batches already
+injected earlier in the same claim. Count only sources not actually sent/observed,
+excluding the current prepared batch. An unsent inbox remains eligible after a
+concurrent manual answer or aborted dispatch; it cannot be treated as read.
+
+
 ### 2026-11-02 — Model input acknowledgement is not a Task acceptance receipt
 
 Seen 1× (fault regression). Planning a Chief decision must not consume input if

@@ -67,14 +67,14 @@ A healthy SDK worker is never interrupted to deliver ordinary feedback. At its
 completed-turn boundary, up to4 bounded additional turns can receive newly queued
 inputs in the same worker/backend thread/claim. Its intermediate handoff proposal
 is not applied. No new Dev, permission answer or forced role transition is created.
-The original execution deadline/evidence budgets remain; excess input follows the
+An idle SDK message question may also resume through this same bound inbox; permission prompts retain their original request id and cannot be answered by ordinary feedback. Original execution deadline/evidence budgets remain; excess input follows the
 next legitimate responsibility. Native dispatch uses its original inbox/step
 adapter and preserves pending feedback for the next safe role step. Native history
 read/persistence is not inferred from dispatch; real native/Claude receipt behavior
 still needs harness-specific acceptance and remains explicitly unverified.
 
 Blocked/arbitrating Tasks notify the existing configured Chief inspection through
-an Effect. Missing Chief configuration defers visibly; healthy execution receives
+an Effect. Feedback arriving during a Chief job queues its existing inspection port rather than a parallel Chief. Missing Chief configuration defers visibly; healthy execution receives
 no extra Chief run. Existing operator schedules, including the configured Chief
 inspection interval, remain unchanged; this module adds no timer or fixed DAG.
 

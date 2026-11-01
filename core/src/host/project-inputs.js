@@ -87,14 +87,14 @@ export function createProjectInputs(rt) {
     writable()
     const task = taskOf(taskId); current(task, claim)
     if (Object.values(rt.state.projectTaskInputs ?? {}).some(row => row.projectId === task.projectId && row.taskId === task.id && row.version !== INPUT_PROTOCOL)) throw refuse('Task input protocol upgrade is required')
-    const selected = pending(task).filter(row => row.kind !== 'handoff' || row.source.eventId === task.collaboration.currentHandoffId).filter(row => !next || !row.deliveries.some(d => d.claimId === claim.id && d.generation === claim.generation)).slice(0, 2)
+    const selected = pending(task).filter(row => row.kind !== 'handoff' || row.source.eventId === task.collaboration.currentHandoffId).filter(row => !next || !row.deliveries.some(d => d.claimId === claim.id && d.generation === claim.generation && (d.sentAt !== undefined || d.observedAt !== undefined))).slice(0, 2)
     const batchId = `input-batch-${digest([claim.id, claim.generation, selected.map(row => [row.id, row.sha256])])}`
     if (!selected.length) return { batchId, inputs: [], remaining: 0 }
     for (const row of selected) verify(row)
     for (const row of selected) if (!row.deliveries.some(d => d.batchId === batchId)) row.deliveries.push({ batchId, claimId: claim.id, botId: claim.botId, generation: claim.generation, acceptedAt: Date.now() })
     const token = rt.projectEffects.stage({ kind: 'input.inbox', key: batchId, projectId: task.projectId, taskId: task.id, payload: { batchId, claimId: claim.id, generation: claim.generation } })
     await rt.projectEffects.persist(token); current(task, claim)
-    return { batchId, inputs: selected.map(({ id, kind, source, text, sha256 }) => ({ id, kind, source: clone(source), text, sha256 })), remaining: pending(task).length - selected.length }
+    return { batchId, inputs: selected.map(({ id, kind, source, text, sha256 }) => ({ id, kind, source: clone(source), text, sha256 })), remaining: pending(task).filter(row => !selected.some(item => item.id === row.id) && (row.kind !== 'handoff' || row.source.eventId === task.collaboration.currentHandoffId) && !row.deliveries.some(d => d.claimId === claim.id && d.generation === claim.generation && (d.sentAt !== undefined || d.observedAt !== undefined))).length }
   }
   function deliveryRows(task, claim, batchId) {
     return Object.values(rt.state.projectTaskInputs ?? {}).filter(row => row.version === INPUT_PROTOCOL && row.projectId === task.projectId && row.taskId === task.id).map(row => ({ row, delivery: row.deliveries.find(d => d.batchId === batchId && d.claimId === claim.id && d.generation === claim.generation && d.botId === claim.botId) })).filter(pair => pair.delivery)
@@ -230,12 +230,14 @@ export function install(rt) {
     },
     async run(row) {
       const task = rt.state.tasks[row.taskId]
-      if (['blocked', 'arbitration'].includes(task.collaboration?.status)) {
+      const wake = await rt.projectHarness?.taskInputWake?.(task.id)
+      if (wake?.woken) return { inputId: row.payload.inputId, batchId: wake.batchId, status: 'safe-idle-turn' }
+      if (['blocked', 'arbitration', 'chief-working'].includes(task.collaboration?.status) || wake?.waitingFor === 'safe-turn-budget') {
         if (!rt.state.projectChiefPolicies?.[task.projectId]?.enabled) throw new EffectDeferred('Chief recovery is not configured', { waitingFor: 'configuration' })
         const run = await rt.projectChiefControl.request(task.projectId, 'inspection', { blockedTaskId: task.id, requestId: row.payload.inputId, reason: 'Task input awaits current responsibility' })
         return { inputId: row.payload.inputId, chiefRunId: run.id, status: 'chief-notified' }
       }
-      return { inputId: row.payload.inputId, status: 'queued-for-safe-boundary' }
+      return { inputId: row.payload.inputId, status: 'queued-for-safe-boundary', waitingFor: wake?.waitingFor ?? 'safe-turn' }
     },
   })
 }

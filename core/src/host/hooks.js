@@ -1392,7 +1392,7 @@ export function install(rt) {
               const taskInbox = await rt.projectInputs?.prepare(task.id, claim)
               const result = await lifecycle.dispatch({ botId: workerId, taskId: task.id, brief: `${task.title}\n${task.criteria ?? ''}\n${task.note ?? ''}`, inputs: { handoff: task.collaboration.history.at(-1), evidence: rt.state.projectAttempts[claim.attemptId].evidence, ...(taskInbox ? { taskInbox } : {}) }, outputs: [{ name: 'handoff', required: true }] })
               if (result?.ok === false) throw new Error(result.code ?? 'Pool dispatch failed')
-              if (taskInbox?.inputs.length) await rt.projectInputs.transport(task.id, claim, taskInbox.batchId, { kind: 'adapter-written', sha256: createHash('sha256').update(JSON.stringify(taskInbox)).digest('hex') })
+              if (taskInbox?.inputs.length && !rt.state.projectHarnessWorkers?.[workerId]) await rt.projectInputs.transport(task.id, claim, taskInbox.batchId, { kind: 'adapter-written', sha256: createHash('sha256').update(JSON.stringify(taskInbox)).digest('hex') })
             },
             async release(id) {
               await lifecycle.release(id)
