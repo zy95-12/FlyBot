@@ -24,6 +24,7 @@ export const SCENARIOS = [
   ['revoked-write', 'project-outbox', 'revoked watch authority and tampered immutable body cannot replay a queued personal write'],
   ['capacity-two-writers', 'project-resources', 'concurrent reservations cannot oversubscribe and failed release does not wake a new worker'],
   ['unknown-exit', 'project-resources', 'restart retains unknown-process leases until explicit reconciliation confirms release'],
+  ['completed-chief-deferral', 'project-chief-control', 'completed Chief deferral releases its execution claim while preserving the blocked Task and current Attempt'],
   ['autonomous-return-rework', 'project-delivery', 'default per-Bot pools execute a non-DAG SDK return/rework path with one resource and Chief completion inbox'],
   ['busy-safe-turn', 'project-harness', 'busy SDK queues feedback until a safe next turn in the same worker, thread and claim'],
   ['browser-offline-source', 'project-effects-runtime', 'scheduled Source polling survives closed browser sessions using scoped current-principal broker proof'],
