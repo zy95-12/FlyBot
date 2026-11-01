@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import {test} from 'node:test'
-import {taskSession,taskSessionId,backendBindingKey,resumableBinding} from '../src/host/project-task-sessions.js'
+import {taskSession,taskSessionId,backendBindingKey,resumableBinding,confirmedWorkerExit} from '../src/host/project-task-sessions.js'
 
 test('Task-role identity persists across Attempts and separates projects, tasks and roles', () => {
   const state={tasks:{t:{projectId:'p'},t2:{projectId:'p'}}}
@@ -60,4 +60,13 @@ test('supervisor-confirmed prior invocation permits same Task-role resumption wi
     s=>{s.projectHarnessWorkers.w.status='unreachable'},
   ]
   for(const mutate of mutations){const s=JSON.parse(JSON.stringify(original));mutate(s);assert.throws(()=>resumableBinding(s,record,'key'),/unconfirmed/)}
+})
+
+
+test('exit proof guards reject missing workers, unconfirmed generations and unbound supervisor claims', () => {
+  assert.equal(confirmedWorkerExit({}, null), false)
+  assert.equal(confirmedWorkerExit({}, {status:'released'}), false)
+  assert.equal(confirmedWorkerExit({}, {status:'released',generation:2,releaseProof:{kind:'sdk-stop-ack-and-process-exit',generation:1}}), false)
+  assert.equal(confirmedWorkerExit({}, {status:'released',generation:2,releaseProof:{kind:'systemd-prior-invocation-exited'}}), false)
+  assert.equal(confirmedWorkerExit({}, {status:'released',leaseId:'absent',releaseProof:{kind:'systemd-prior-invocation-exited',previousInvocationId:'a'.repeat(32)}}), false)
 })
