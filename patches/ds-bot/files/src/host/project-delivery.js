@@ -11,7 +11,7 @@ import { createResourceWorkspaces, fileDigest } from './project-resource-workspa
 import { ROLE_POLICY_FILES, assembleRolePolicy, verifyRolePolicy, deliveryReviewReport, checkDevelopmentEvidence } from './project-role-policy.js'
 import { roleContext, contextHash } from './project-role-context.js'
 import { githubPublisher } from './project-github.js'
-import { taskSessionId } from './project-task-sessions.js'
+import { taskSessionId, confirmedWorkerExit } from './project-task-sessions.js'
 import { testFailureExcerpt } from './project-test-diagnostics.js'
 
 const exec = promisify(execFile)
@@ -144,7 +144,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
         const previous = ownEntry(attempts(), reusable.attemptId)
         const workers = Object.values(state.projectHarnessWorkers ?? {}).filter(row => row.attemptId === reusable.attemptId && row.role === role)
         const leases = Object.values(state.projectResourceLeases ?? {}).filter(row => row.attemptId === reusable.attemptId && row.role === role)
-        if (!previous || previous.projectId !== project.id || previous.taskId !== attempt.taskId || ongoing.has(previous.status) || previous.status === 'waiting-acceptance' || workers.some(row => row.status !== 'released' || row.releaseProof?.kind !== 'sdk-stop-ack-and-process-exit') || leases.some(row => row.status !== 'released')) throw reject('Task workspace is still held by previous execution')
+        if (!previous || previous.projectId !== project.id || previous.taskId !== attempt.taskId || ongoing.has(previous.status) || previous.status === 'waiting-acceptance' || workers.some(row => !confirmedWorkerExit(state, row)) || leases.some(row => row.status !== 'released')) throw reject('Task workspace is still held by previous execution')
         const dirty = await workspaceGit(reusable, ['status', '--porcelain'])
         const head = await workspaceGit(reusable, ['rev-parse', 'HEAD'])
         if (head !== (previous.candidateSha ?? previous.seedSha ?? previous.baseSha) || dirty && (role !== 'developer' || previous.candidateSha)) throw reject('Task workspace changed after its checkpoint; preserve it before reuse')

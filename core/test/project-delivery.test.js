@@ -1105,3 +1105,31 @@ test('SDK Task rework preserves an unsealed same-base draft and old cleanup cann
   assert.equal(f.rt.state.projectWorkspaces[previous.workspaces.developer.id].status,'released')
   assert.equal(readFileSync(join(cwd,'code.mjs'),'utf8'),'export const preservedDraft = true;\n')
 })
+
+test('a returned SDK draft reuses its Task workspace after exact supervisor exit proof', async t => {
+  const f = await setup(t, undefined, { pool: true })
+  f.rt.projectPools.connect({ validate: () => ({ ok: true }) })
+  f.rt.config.projectResources = { one: { type: 'local', root: f.directory, capacity: 1, allowedProjectOwnerIds: ['owner-1'], harnesses: ['codex'] } }
+  f.rt.state.projectResourceHealth = { one: { status: 'ready' } }
+  f.rt.state.projectHarnessHealth = { 'p1:one:codex': { status: 'ready' } }
+  await f.rt.projectEndpoint('project-agent-definition', { projectId: 'p1', role: 'developer', execution: { harness: 'codex', resourceIds: ['one'] } }, alice)
+  await f.start('supervised-draft')
+  const previous = f.attempt(), task = f.rt.state.tasks[f.task.id]
+  const dev = f.rt.projectAgents.deliveryDefinitions('p1').roles.find(row => row.role === 'developer')
+  await f.rt.projectDelivery.preparePoolRole(task, { id: 'old', attemptId: previous.id, generation: 1 }, dev)
+  const workspace = previous.workspaces.developer, lease = f.rt.state.projectResourceLeases[previous.resourceLeases.developer.id]
+  writeFileSync(join(workspace.path, 'code.mjs'), 'export const add = (a,b) => a+b; // retained draft\n')
+  const proof = { kind: 'systemd-prior-invocation-exited', previousInvocationId: 'a'.repeat(32), at: Date.now() }
+  Object.assign(lease, { status: 'released', worker: { kind: 'sdk', handle: 'old-worker' }, processScope: { kind: 'systemd-control-group', killMode: 'control-group', invocationId: proof.previousInvocationId }, releaseProof: proof })
+  f.rt.state.projectHarnessWorkers = { 'old-worker': { id: 'old-worker', projectId: 'p1', taskId: task.id, attemptId: previous.id, role: 'developer', leaseId: lease.id, resourceId: 'one', generation: lease.generation, status: 'released', releaseProof: proof } }
+  const id = await f.rt.projectDelivery.reworkPool({ task, claim: { id: 'return', attemptId: previous.id, botId: dev.id }, reason: 'Resume the retained draft after supervisor restart', force: true })
+  await f.rt.projectDelivery.preparePoolRole(task, { id: 'next', attemptId: id, generation: 2 }, dev)
+  const current = f.rt.state.projectAttempts[id].workspaces.developer
+  assert.equal(current.path, workspace.path)
+  assert.equal(current.reusesWorkspaceId, workspace.id)
+  assert.equal(current.retainedDraft, true)
+  assert.match(readFileSync(join(current.path, 'code.mjs'), 'utf8'), /retained draft/)
+  assert.equal(workspace.status, 'retained')
+  assert.equal(previous.status, 'returned')
+  assert.equal(f.rt.state.projectHarnessWorkers['old-worker'].releaseProof, proof)
+})

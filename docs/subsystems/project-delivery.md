@@ -396,3 +396,14 @@ S1 routes legacy human delivery operations through the development service while
 S1 shared detail now pages compact Attempt summaries and offers hash-bound context
 retrieval through the service. The internal delivery records and full evidence remain
 unchanged; the live25-Attempt Task previously exceeded the gateway8MiB cap.
+
+
+### Supervisor-confirmed workspace release (#57)
+
+Workspace reuse uses the same `confirmedWorkerExit` predicate as logical Task-role
+Session resumption. It accepts host-confirmed prior systemd invocation exit only
+with the exact released lease/worker/generation/role/resource/process-scope binding.
+The previous Attempt must still be terminal and match the same Project/Task;
+checkpoint HEAD, clean sealed candidates, permitted unsealed Developer drafts and
+all released leases remain required. No role output, task terminal flag or missing
+PID proves exit. Historical workspace ownership and draft contents are retained.
