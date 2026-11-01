@@ -360,3 +360,5 @@ candidate. Resolve the actual PR target ref through the host credential broker,
 pin it before rework, require resolved merge evidence and retain both public
 parents while dropping private worker commits. Recheck target movement before
 and after publication; a model-supplied parent or green test alone is insufficient.
+
+Measure each context component before blaming public knowledge: full repository rules may already be separately injected. Remove only hash/commit-verified duplicate previews, retain all original rule text and audit facts, and release unbound reservations on preparation failure before any SDK starts. Preparation retries must preserve unsealed drafts.

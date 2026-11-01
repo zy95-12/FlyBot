@@ -82,3 +82,5 @@ upstream integration. Host-derived target refs, registered commit availability,
 resolved Git merge evidence and dual-ancestor publication gates implement this
 without granting model authority to choose parents or bypass Test/Review. No
 runtime-policy, model/resource, control-plane or merge authority changes follow.
+
+Context repair retains the 48,000-character boundary and complete separately injected policy. Repository previews become source references only when full policy/source hashes, commit and preview prefix agree. A host-rejected admission with no registered execution can be checkpointed after proven Chief exit; bound or unknown resources cannot qualify. No runtime-policy or task-state bypass is authorized.

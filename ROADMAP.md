@@ -184,3 +184,5 @@ The remaining upstream-sealing blocker now has real Git red/green coverage: reta
 both published and trusted target ancestry after resolved conflicts, not just the
 old seed. Verify this backend head, integrate/deploy it without altering live
 Attempts, then let Chief decide same-PR48 maintenance. #41 remains baseline-held.
+
+Context admission repair is source-tested on the existing PR47 branch. Deploy only after exact-head verification and actual-state recovery proof; then reconcile the reserved lease and let Chief judge routing the same Attempt. This does not select the #41 execution baseline or waive failed M6 CI.

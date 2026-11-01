@@ -6,6 +6,7 @@ owned_paths:
   - core/src/host/project-role-context.js
   - core/src/host/project-role-policy.js
   - core/test/project-role-policy.test.js
+  - core/test/project-role-context.test.js
   - core/src/host/project-credentials.js
   - core/test/project-agents.test.js
   - core/test/project-credentials.test.js
@@ -296,3 +297,8 @@ delegation. Coordination jobs cannot authorize themselves or create arbitrary Ta
 
 Chief coordination retains explicitly published shared Project knowledge alongside
 its role memory; private human notes/history remain excluded.
+
+Repository previews may reference the separately injected complete policy only after
+verifying the policy hash, source commit, full source hash and preview prefix.
+Unverified previews remain inline under the unchanged 48,000-character limit;
+knowledge, memory and complete policy rules are preserved.

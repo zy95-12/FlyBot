@@ -317,3 +317,5 @@ Published rework now pins the actual GitHub target ref through the host broker.
 A resolved merge seals with both the old candidate and trusted upstream parents;
 roles receive that pinned input and publication rejects target movement or lost
 ancestry. Merged content still requires real host tests and independent Review.
+
+Role admission now replaces verified duplicate repository previews with complete-policy references, preserving full rules and all shared knowledge under the existing context cap. Preparation failures release unbound reservations and retain drafts; narrow host-proven rejected-admission checkpoints preserve the same Attempt across restart.

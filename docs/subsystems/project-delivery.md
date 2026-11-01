@@ -325,3 +325,5 @@ blocks delivery with no replacement PR. Existing candidates/receipts are not
 migrated or overwritten. The implementation is tested with local Git conflict
 resolution and a real service-credential read; actual Codex maintenance/publication
 still requires verified integrated deployment and a Chief decision.
+
+Before external execution, failed role-context admission releases only a proven unbound reservation through the resource lifecycle and records preparation failure. Existing developer drafts are never reset on preparation retry. Restart preserves a narrow rejected-admission checkpoint only with the host rejection receipt, completed Chief exit proof, no role Session/history/execution/native worker, and exclusively unbound reservations; unknown execution still interrupts. Resource reconciliation retains responsibility for release.

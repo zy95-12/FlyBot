@@ -463,6 +463,12 @@ export function createProjectDelivery(rt, { publisher } = {}) {
       const tested = attempt.candidateSha && attempt.evidence.tests?.passed === true && attempt.evidence.tests.sha === attempt.candidateSha
       const waiting = c?.status === 'blocked' && claim?.status === 'waiting-human' && claim.botId === `${attempt.projectId}:chief` && state.projectExecutions?.[claim.chiefRunId]?.status === 'done'
       const released = chief?.status === 'released' && state.projectResourceLeases?.[chief.leaseId]?.status === 'released' && !native && leases.every(row => row.status === 'released') && workers.every(row => row.status === 'released')
+      const admission = c?.history?.find(row => row.attemptId === attempt.id && row.to === `${attempt.projectId}:developer` && row.status === 'rejected' && row.execution?.status === 'failed' && row.execution.attemptId === attempt.id && row.execution.taskId === attempt.taskId && !row.execution.workerId && row.execution.failure?.startsWith('Execution admission failed: Role context exceeds '))
+      const neverStarted = !attempt.candidateSha && !Object.keys(attempt.roleSessions ?? {}).length && !(attempt.roleSessionHistory?.length) && !Object.keys(attempt.evidence?.execution ?? {}).length && !workers.length && !native && leases.length > 0 && leases.every(row => ['reserved', 'released'].includes(row.status) && !row.worker && !row.processScope && !row.startedAt) && Object.values(attempt.workspaces ?? {}).every(row => row.status === 'allocated')
+      if (attempt.protocol === 'project-handoff/v1' && attempt.status === 'running' && !attempt.cancelRequested && waiting && chief?.status === 'released' && chief.releaseProof?.kind === 'sdk-stop-ack-and-process-exit' && state.projectResourceLeases?.[chief.leaseId]?.status === 'released' && admission && neverStarted) {
+        (attempt.restartCheckpoints ??= []).push({ kind: 'quiescent-preparation-admission', chiefRunId: claim.chiefRunId, admissionClaimId: admission.execution.id, leaseIds: leases.map(row => row.id), proof: 'registered-before-external-start: no role Session, worker, native Bot or bound lease', at: Date.now() })
+        changed = true; continue
+      }
       if (attempt.protocol === 'project-handoff/v1' && attempt.status === 'running' && !attempt.cancelRequested && tested && waiting && released) {
         (attempt.restartCheckpoints ??= []).push({ kind: 'quiescent-chief-wait', chiefRunId: claim.chiefRunId, candidateSha: attempt.candidateSha, at: Date.now() })
         changed = true; continue
@@ -496,15 +502,25 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     const execution = definition.execution
     const lease = execution.resourceIds?.length ? await rt.projectResources.reserve({ projectId: project.id, attemptId: attempt.id, role, sessionKey: sessionId, ...execution }) : null
     if (lease) attempt.resourceLeases[role] = lease
+    const freshWorkspace = !attempt.workspaces[role]
     await allocate(attempt, project, settings, [role])
     const workspace = attempt.workspaces[role]
     if (lease) workspace.resourceLease = lease
-    if (attempt.seedSha && role === 'developer' && !attempt.candidateSha) await workspaceGit(workspace, ['reset', '--hard', attempt.seedSha])
+    if (attempt.seedSha && role === 'developer' && !attempt.candidateSha && freshWorkspace) await workspaceGit(workspace, ['reset', '--hard', attempt.seedSha])
     if (attempt.candidateSha) {
       if (workspace.kind === 'resource-clone') await resourceWorkspaces.checkout(workspace, attempt)
       else await workspaceGit(workspace, ['reset', '--hard', attempt.candidateSha])
     }
-    const context = roleContext({ policy, projectId: project.id, role, revision: attempt.agentDefinitions.revision, definition, memory: definition.memory, knowledge: ownEntry(state.projectKnowledge ?? {}, project.id) ?? [], requirement: attempt.requirement, feedback: attempt.feedback, projectFacts: { publicationBinding: attempt.publicationBinding ?? null, integrationInstruction: attempt.publicationBinding ? 'Merge the pinned upstreamSha into the published candidate using --no-commit, resolve and stage conflicts before handoff. Host sealing retains both trusted inputs; never fabricate parents or discard backend changes.' : null, workingDraft: !attempt.candidateSha && attempt.workspaces.developer ? { kind: 'unverified-workspace-reference', resourceId: attempt.workspaces.developer.resourceId, path: attempt.workspaces.developer.resourceId === workspace.resourceId ? attempt.workspaces.developer.path : null, note: 'Unsealed source, not candidate or verification evidence. Cross-resource drafts require a sealed artifact before verification.' } : null, handoff: task.collaboration?.history.at(-1) ? { purpose: task.collaboration.history.at(-1).purpose, reason: task.collaboration.history.at(-1).reason } : null, candidateSha: attempt.candidateSha ?? null, tests: attempt.evidence.tests ? { sha: attempt.evidence.tests.sha, passed: attempt.evidence.tests.passed, sha256: attempt.evidence.tests.sha256, command: attempt.evidence.tests.command } : null, review: attempt.evidence.review ? { sha: attempt.evidence.review.sha, verdict: attempt.evidence.review.verdict, summary: attempt.evidence.review.summary } : null }, repository: await repositoryContext(project.id, attempt.baseSha) })
+    let context
+    try {
+      context = roleContext({ policy, projectId: project.id, role, revision: attempt.agentDefinitions.revision, definition, memory: definition.memory, knowledge: ownEntry(state.projectKnowledge ?? {}, project.id) ?? [], requirement: attempt.requirement, feedback: attempt.feedback, projectFacts: { publicationBinding: attempt.publicationBinding ?? null, integrationInstruction: attempt.publicationBinding ? 'Merge the pinned upstreamSha into the published candidate using --no-commit, resolve and stage conflicts before handoff. Host sealing retains both trusted inputs; never fabricate parents or discard backend changes.' : null, workingDraft: !attempt.candidateSha && attempt.workspaces.developer ? { kind: 'unverified-workspace-reference', resourceId: attempt.workspaces.developer.resourceId, path: attempt.workspaces.developer.resourceId === workspace.resourceId ? attempt.workspaces.developer.path : null, note: 'Unsealed source, not candidate or verification evidence. Cross-resource drafts require a sealed artifact before verification.' } : null, handoff: task.collaboration?.history.at(-1) ? { purpose: task.collaboration.history.at(-1).purpose, reason: task.collaboration.history.at(-1).reason } : null, candidateSha: attempt.candidateSha ?? null, tests: attempt.evidence.tests ? { sha: attempt.evidence.tests.sha, passed: attempt.evidence.tests.passed, sha256: attempt.evidence.tests.sha256, command: attempt.evidence.tests.command } : null, review: attempt.evidence.review ? { sha: attempt.evidence.review.sha, verdict: attempt.evidence.review.verdict, summary: attempt.evidence.review.summary } : null }, repository: await repositoryContext(project.id, attempt.baseSha) })
+    } catch (error) {
+      const unbound = lease && !lease.worker && !Object.values(state.projectHarnessWorkers ?? {}).some(row => row.leaseId === lease.id) && !Object.values(attempt.roleSessions ?? {}).some(row => row.id === sessionId)
+      if (unbound) await rt.projectResources.release(lease.id, lease.generation)
+      ;(attempt.preparationFailures ??= []).push({ role, sessionId, leaseId: lease?.id ?? null, message: String(error.message), releasedBeforeExternalStart: Boolean(unbound), at: Date.now() })
+      await rt.save()
+      throw error
+    }
     attempt.rolePolicies[role] = policy
     const session = { id: sessionId, projectId: project.id, taskId: task.id, attemptId: attempt.id, role, execution: cloneExecution(execution), policy, context, generation: claim.generation, poolClaimId: claim.id, status: 'prepared', ...(lease ? { resourceLease: lease } : {}) }
     if (attempt.roleSessions[role]) {

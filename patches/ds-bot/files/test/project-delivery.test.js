@@ -275,7 +275,8 @@ test('temporary role context freezes memory, repository instructions and session
   await fixture.start('session-first')
   const first = fixture.attempt()
   const descriptor = first.roleSessions.developer
-  assert.match(descriptor.context.text, /Repository rule: verify negative inputs/)
+  assert.match(roleExecutionPrompt('Work', descriptor), /Repository rule: verify negative inputs/)
+  assert.match(descriptor.context.text, /complete-policy-reference/)
   assert.match(descriptor.context.text, /Preserve input precision/)
   assert.match(descriptor.context.text, /add\(2,3\) must equal 5/)
   assert.equal(descriptor.attemptId, first.id)
@@ -737,4 +738,67 @@ test('published rework pins the actual target and seals both published and resol
   await f.rt.projectDelivery.completePoolRole({ task, claim: { attemptId: id }, role: 'tester', outputs: {} })
   assert.equal(next.evidence.tests.passed, true)
   })
+})
+
+test('context admission checkpoints require host rejection and no external execution', async t => {
+  for (const variant of ['safe','session','worker','bound','started','receipt','chief','cancel']) {
+    const f=await setup(t,undefined,{pool:true}); f.rt.projectPools.connect({validate:()=>({ok:true})}); await f.start('admission-'+variant)
+    const a=f.attempt(),task=f.rt.state.tasks[f.task.id]
+    const execution={id:'failed-admission',status:'failed',attemptId:a.id,taskId:task.id,failure:'Execution admission failed: Role context exceeds 48000 characters'}
+    task.collaboration.status='blocked'
+    task.collaboration.history=[{attemptId:a.id,to:'p1:developer',status:'rejected',execution}]
+    task.collaboration.claim={botId:'p1:chief',status:'waiting-human',workerId:'chief',chiefRunId:'chief-run'}
+    f.rt.state.projectExecutions['chief-run']={status:'done'}
+    f.rt.state.projectHarnessWorkers={chief:{status:'released',leaseId:'chief-lease',releaseProof:{kind:'sdk-stop-ack-and-process-exit'}}}
+    f.rt.state.projectResourceLeases={'chief-lease':{status:'released'},reserved:{id:'reserved',attemptId:a.id,status:'reserved'}}
+    if(variant==='session')a.roleSessions={developer:{id:'prepared'}}
+    if(variant==='worker')f.rt.state.projectHarnessWorkers.dev={attemptId:a.id,status:'released'}
+    if(variant==='bound')f.rt.state.projectResourceLeases.reserved.worker={kind:'sdk',handle:'unknown'}
+    if(variant==='started')f.rt.state.projectResourceLeases.reserved.startedAt=1
+    if(variant==='receipt')task.collaboration.history=[]
+    if(variant==='chief')f.rt.state.projectHarnessWorkers.chief.releaseProof={kind:'assertion'}
+    if(variant==='cancel')a.cancelRequested=true
+    const before=structuredClone(task)
+    createProjectDelivery(f.rt).recover()
+    assert.equal(a.status,variant==='safe'?'running':'interrupted',variant)
+    if(variant==='safe'){
+      assert.equal(a.restartCheckpoints[0].kind,'quiescent-preparation-admission')
+      assert.deepEqual(task,before)
+      assert.equal(f.rt.state.projectResourceLeases.reserved.status,'reserved','delivery does not release live resources')
+      await f.rt.projectResources.release('reserved',undefined)
+      assert.equal(f.rt.state.projectResourceLeases.reserved.releaseProof.kind,'unbound-reservation-release')
+    }
+  }
+})
+
+test('failed context admission preserves an existing unsealed developer workspace',async t=>{
+  const f=await setup(t,undefined,{pool:true}); f.rt.projectPools.connect({validate:()=>({ok:true})}); await f.start('context-retry')
+  const a=f.attempt(),task=f.rt.state.tasks[f.task.id],dev=f.rt.projectAgents.deliveryDefinitions('p1').roles.find(r=>r.role==='developer')
+  await f.rt.projectDelivery.preparePoolRole(task,{id:'first',attemptId:a.id,generation:1},dev)
+  const path=a.workspaces.developer.path
+  writeFileSync(join(path,'code.mjs'),'export const preserved = true;\n')
+  a.seedSha=a.baseSha
+  f.rt.state.projectKnowledge={p1:[{id:'large',text:'x'.repeat(49000)}]}
+  await assert.rejects(f.rt.projectDelivery.preparePoolRole(task,{id:'second',attemptId:a.id,generation:2},dev),/exceeds/)
+  assert.equal(readFileSync(join(path,'code.mjs'),'utf8'),'export const preserved = true;\n')
+  assert.equal(a.preparationFailures.at(-1).releasedBeforeExternalStart,false)
+  assert.equal(a.roleSessions.developer.poolClaimId,'first')
+})
+
+test('context failure releases an actual unbound reservation before registering any SDK Session',async t=>{
+  const f=await setup(t,undefined,{pool:true});f.rt.projectPools.connect({validate:()=>({ok:true})})
+  f.rt.config.projectResources={one:{type:'local',root:f.directory,capacity:1,allowedProjectOwnerIds:['owner-1'],harnesses:['codex'],profiles:{'owner-1':{codex:{home:join(f.directory,'sdk-home'),configDir:join(f.directory,'sdk-config'),model:'fixture/model'}}}}}
+  f.rt.state.projectResourceHealth={one:{status:'ready',at:Date.now()}};f.rt.state.projectHarnessHealth={'p1:one:codex':{status:'ready'}}
+  await f.rt.projectEndpoint('project-agent-definition',{projectId:'p1',role:'developer',execution:{harness:'codex',resourceIds:['one']}},alice)
+  await f.start('unbound-context-failure')
+  const a=f.attempt(),task=f.rt.state.tasks[f.task.id],dev=f.rt.projectAgents.deliveryDefinitions('p1').roles.find(r=>r.role==='developer')
+  f.rt.state.projectKnowledge={p1:[{id:'large',text:'x'.repeat(49000)}]}
+  await assert.rejects(f.rt.projectDelivery.preparePoolRole(task,{id:'rejected',attemptId:a.id,generation:1},dev),/exceeds/)
+  const lease=Object.values(f.rt.state.projectResourceLeases).find(x=>x.attemptId===a.id)
+  assert.equal(lease.status,'released')
+  assert.equal(lease.releaseProof.kind,'unbound-reservation-release')
+  assert.equal(a.preparationFailures.at(-1).releasedBeforeExternalStart,true)
+  assert.deepEqual(a.roleSessions,{})
+  assert.equal(Object.values(f.rt.state.projectHarnessWorkers??{}).filter(x=>x.attemptId===a.id).length,0)
+  assert.equal(a.workspaces.developer.status,'allocated')
 })
