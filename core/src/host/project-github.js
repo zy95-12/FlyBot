@@ -58,6 +58,9 @@ export function githubPublisher(settings = {}, { run = exec, request = fetch } =
         catch { throw new Error('Rework candidate does not retain the previous published candidate and trusted upstream') }
       }
       const publicationBranch = binding?.branch ?? attempt.branch
+      const existing = binding ? [] : await api(repository, `/pulls?state=all&head=${encodeURIComponent(repository.split('/')[0] + ':' + publicationBranch)}`, token)
+      if (!Array.isArray(existing) || existing.length > 1 || existing[0]?.state === 'closed') throw new Error('Publication branch has a closed or ambiguous PR; reconcile without creating another PR')
+      if (existing[0] && existing[0].head?.sha !== attempt.candidateSha) throw new Error('Existing publication PR changed; reconcile before pushing')
       const authorization = Buffer.from(`x-access-token:${token}`).toString('base64')
       // A fixed URL avoids inheriting a model-edited remote; the credential is environment-only.
       try {
@@ -68,10 +71,9 @@ export function githubPublisher(settings = {}, { run = exec, request = fetch } =
             GIT_CONFIG_KEY_1: 'http.https://github.com/.extraheader', GIT_CONFIG_VALUE_1: `AUTHORIZATION: basic ${authorization}` },
         })
       } catch { throw new Error('Project branch could not be pushed') }
-      const existing = binding ? [] : await api(repository, `/pulls?state=open&head=${encodeURIComponent(repository.split('/')[0] + ':' + publicationBranch)}`, token)
       const pr = binding ? await api(repository, `/pulls/${binding.number}`, token) : existing[0] ?? await api(repository, '/pulls', token, { title: attempt.requirement.title.slice(0, 120), head: attempt.branch,
         base: project.defaultBranch ?? 'main', draft: true,
-        body: `Project delivery artifact.\n\nTask: ${attempt.taskId}\nAttempt: ${attempt.id}\nCommit: ${attempt.candidateSha}\nTests: passed at this commit\nReview: approved at this commit\n\n${attempt.requirement.criteria ?? ''}\n\nGenerated for human acceptance; no automatic merge.` })
+        body: `Project delivery artifact.\n\nTask: ${attempt.taskId}\nAttempt: ${attempt.id}\nCommit: ${attempt.candidateSha}\nTests: passed at this commit\nReview: approved at this commit\n\n${attempt.requirement.criteria ?? ''}\n\nGenerated for human acceptance; no automatic merge.\n\n<!-- flybot-publication:${attempt.publicationEffectId ?? attempt.id ?? attempt.branch} -->` })
       if (binding && (pr.number !== binding.number || pr.state !== 'open' || pr.head?.ref !== publicationBranch || pr.head?.repo?.full_name !== repository)) throw new Error('Existing delivery PR changed during publication')
       if (binding) { const upstream = await upstreamOf(repository, pr, token); if (upstream.baseSha !== binding.upstreamSha || upstream.baseRef !== binding.upstreamRef) throw new Error('Existing PR upstream changed during publication') }
       if (pr.head?.sha !== attempt.candidateSha) throw new Error('PR head does not match the tested candidate')

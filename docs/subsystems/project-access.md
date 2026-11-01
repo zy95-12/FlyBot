@@ -230,3 +230,12 @@ S1 facade has selected its owned operations. Shared-mode admission recognizes bo
 vocabularies, without opening either in legacy mode or bypassing downstream member/
 action checks. The public development facade retains legacy Chief/schedule/delegation
 handlers; integration does not reinstall earlier direct handlers ahead of it.
+
+## Durable effects and outbox (S2)
+
+The versioned service exposes scoped effects status and manager retry. Legacy personal comment writes now enter the same service facade; current Project, own personal credential and safe/watch authority remain mandatory. No generic effect enqueue or raw event authority is exposed to HTTP. See [effect contract](project-effects.md).
+
+
+## Durable Task inbox integration (S3)
+
+S3 exposes input.publish/inputs only through the existing authenticated versioned service. Member removal permanently invalidates that source’s pending inputs; regrant cannot consume or revive them. No caller can supply source/recipient/claim or raw read receipts. See [Task inputs](project-inputs.md).

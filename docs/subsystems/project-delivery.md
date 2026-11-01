@@ -397,6 +397,10 @@ S1 shared detail now pages compact Attempt summaries and offers hash-bound conte
 retrieval through the service. The internal delivery records and full evidence remain
 unchanged; the live25-Attempt Task previously exceeded the gateway8MiB cap.
 
+## Durable effects and outbox (S2)
+
+Sealed PR publication now saves a stable github.publish intent before I/O and records its receipt with delivery state. Recovery verifies current source, principal, exact tests/role evidence and confirmed exit, then reconciles the original PR/branch. First publication searches all PR states; closed/changed/ambiguous artifacts cannot cause replacement PRs. Unresolved prior publication blocks blind rework. Task closure remains Chief/human acceptance. See [effect contract](project-effects.md).
+
 
 ### Supervisor-confirmed workspace release (#57)
 
@@ -407,3 +411,46 @@ The previous Attempt must still be terminal and match the same Project/Task;
 checkpoint HEAD, clean sealed candidates, permitted unsealed Developer drafts and
 all released leases remain required. No role output, task terminal flag or missing
 PID proves exit. Historical workspace ownership and draft contents are retained.
+
+
+## Durable Task inbox integration (S3)
+
+S3 bumps new delivery contracts to v6/pools-v3; historical definitions/Attempts remain readable. Role handoff JSON may declare read/handled ids for exact injected batches. Completed-role gates precede handling, Chief/human acceptance refuses unresolved feedback, and successful closure commits Chief input receipts with Task acceptance. No inbox signal grants candidate/test/Review evidence. See [inputs](project-inputs.md).
+
+
+## Explicit operator integration parents (#60)
+
+Occupancy is scoped to this Attempt and the current Chief claim. Every unreleased
+Project Chief still blocks; a current released Chief needs confirmed exit. A
+released historical Chief turn that never owned this workspace does not block
+admission solely because its old record predates exit-proof recording. Historical
+records stay untouched; unknown exits belonging to this Attempt still block.
+
+attempt.integrationInputs stores immutable versioned Project-repository/ref/SHA
+pins with manager admission/audit records. Active/unknown leases/workers and native
+carriers block admission; workspace snapshot CAS protects the existing staged
+merge. A pinned ref is revalidated before preparation/sealing, and inputs cannot
+be silently removed/replaced. New source registration requires actual Effect
+intent-generation commit proof; failed/no-op saves roll back uncommitted metadata
+and its generation without overriding a later cancellation. Historical replays
+preserve the original receipt.
+
+Developer context includes pins and explicitly leaves shared branch refs to the
+host. Use exact SHAs with no-commit/no-ff; ref names are host provenance and need
+not exist in a resource clone. Approved objects reach clones through the existing
+verified Git bundle adapter, not network/credential fallback. The role still
+returns its normal implementation handoff; admission itself is not execution.
+
+Sealing examines all pending MERGE_HEAD/approved inputs even when the published
+upstream is already an ancestor. Unknown/moved/unresolved inputs refuse before
+index/ref writes. The host retains the exact resolved tree and explicitly trusted
+previous candidate/upstream/operator parents using commit-tree plus supported
+reset-hard merge completion; it never soft-resets an active merge or deletes merge
+metadata by hand. Private worker history is still collapsed. Provenance is stored
+separately in approvedIntegrations; code paths, policy, exact candidate tests,
+independent role Review, same-PR publication and Chief acceptance remain mandatory.
+
+The live staged UI integration is resumed on its original Task/Attempt/PR through
+Chief after safe-checkpoint deployment and explicit manager admission. Additive
+service releases can retain UI component hashes and validate the actual UI/backend
+source pair; they do not require repeatedly restarting healthy frontend workers.

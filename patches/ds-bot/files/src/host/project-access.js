@@ -112,7 +112,7 @@ export function install(rt) {
     if (endpoint === 'project-rooms' || endpoint.startsWith('project-room-') || endpoint === 'project-agent-stop') return rt.projectAgents.endpoint(endpoint, body, actor)
     if (endpoint === 'project-github-read') return rt.projectGithubRead(body, actor)
     if (endpoint === 'project-chief-question') return rt.projectAgents.chiefQuestion(body, actor)
-    if (['project-credential-status', 'project-github-comment'].includes(endpoint)) return rt.projectCredentials.endpoint(endpoint, body, actor)
+    if (endpoint === 'project-credential-status') return rt.projectCredentials.endpoint(endpoint, body, actor)
     if (['project-agents', 'project-agent-message', 'project-agent-history', 'project-agent-memory-write', 'project-role-memory-write', 'project-agent-definition', 'project-knowledge-write'].includes(endpoint)) return rt.projectAgents.endpoint(endpoint, body, actor)
     if (['project-runtime-check', 'project-terminal-open', 'project-terminal-poll', 'project-terminal-input', 'project-terminal-resize', 'project-terminal-close'].includes(endpoint)) return rt.projectRuntimeSetup.endpoint(endpoint, body, actor)
     if (endpoint === 'project-resource-environment-check') {
@@ -179,6 +179,7 @@ export function install(rt) {
       project.roles.members = (project.roles.members ?? []).filter(value => value !== memberId)
       for (const invitation of Object.values(invites())) if (invitation.projectId === id && invitation.createdBy === memberId && !invitation.usedAt) invitation.revokedAt = Date.now()
       rt.projectAgents?.revoke(id, memberId)
+      rt.projectInputs?.revokeSource(id, memberId)
       await rt.projectRuntimeSetup?.revoke(null, id, memberId)
       rt.projectScheduler?.revalidate(id)
       // Accepted project work continues under project authority; removal revokes new requests immediately.

@@ -198,3 +198,18 @@ test('long-lived task detail pages Attempts without retransmitting full role con
   await assert.rejects(service.endpoint('project-task-detail', { taskId: 't', beforeAttemptId: 'unknown' }, actor))
   await assert.rejects(service.endpoint('project-task-detail', { taskId: 't', attemptLimit: 0 }, actor))
 })
+
+test('publication recovery shows its actual wait and stale outbox candidates cannot mask a failure', () => {
+  const { state } = fixture(), task = state.tasks.t
+  task.deliveryAttemptId = 'a'
+  task.collaboration = { status: 'blocked', history: [], block: { reason: 'Publication failed' } }
+  state.projectAttempts.a = { id: 'a', projectId: 'p', taskId: 't', status: 'failed', candidateSha: 'current' }
+  state.projectEffects = { e: { id: 'e', version: 'project-effect/v1', projectId: 'p', taskId: 't', kind: 'github.publish', status: 'pending', waitingFor: 'worker-exit', payload: { attemptId: 'a', candidateSha: 'current' } } }
+  assert.equal(taskView(state, task).phase, 'publishing')
+  assert.equal(taskView(state, task).waitingFor, 'worker-exit')
+  state.projectEffects.e.payload.candidateSha = 'old'
+  assert.equal(taskView(state, task).phase, 'blocked')
+  state.projectEffects.e.payload.candidateSha = 'current'
+  task.chiefQuestion = { reason: 'Human scope decision' }
+  assert.equal(taskView(state, task).phase, 'awaiting-owner')
+})

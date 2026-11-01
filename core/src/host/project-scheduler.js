@@ -142,7 +142,8 @@ export function createProjectScheduler(rt, { preflight = preflightRepository } =
         // One complete pass at a time, including resource reconciliation and dispatch.
         await rt.projectResources?.reconcile?.()
         await serial(drain)
-        await rt.projectPools?.pump()
+        if (rt.projectEffects) await rt.projectEffects.drain()
+        else await rt.projectPools?.pump()
         await rt.projectScheduledTasks?.pump()
         await rt.projectChiefControl?.pump()
       } while (wakeAgain)

@@ -13,6 +13,47 @@ Dated, short lessons from real FlyBot work. Agents read this **before coding**. 
 
 ## Open lessons
 
+### 2026-11-02 — Additional approved merge inputs need a host contract
+
+Seen 1×. A published upstream already in the old candidate does not imply there
+is no other MERGE_HEAD. SDK shared refs must stay restricted. Explicitly admit
+operator-provisioned ref/SHA inputs under manager authority and durable save proof,
+then let the host seal the resolved tree with trusted parents using Git's supported
+reset lifecycle. Reject unknown/moved/conflicted input before index/branch writes;
+a wrapper printf exit0 is not proof the nested git commit succeeded.
+
+
+### 2026-11-02 — Prepared inbox is not an injected SDK turn
+
+Seen 1× (queue regression). A safe-turn remaining count included batches already
+injected earlier in the same claim. Count only sources not actually sent/observed,
+excluding the current prepared batch. An unsent inbox remains eligible after a
+concurrent manual answer or aborted dispatch; it cannot be treated as read.
+
+
+### 2026-11-02 — Model input acknowledgement is not a Task acceptance receipt
+
+Seen 1× (fault regression). Planning a Chief decision must not consume input if
+its evidence or routing later fails. Validate a host-local receipt permit, recheck
+new input/generation at closure, and save handling with acceptance. A model's read
+declaration is distinct from transport/SDK output and independent verification.
+
+### 2026-11-02 — Real SDK probes must use the real workspace contract
+
+Seen 1× (isolated probe). An empty non-Git fixture failed Codex before thread start;
+deterministic protocol workers had hidden that precondition. Initialize the bounded
+Git fixture like the host allocator, keep failed evidence and diagnose without
+printing raw SDK stderr or bypassing the repository check.
+
+
+### 2026-11-01 — Awaited save is not proof an intent reached disk
+
+Seen 1× (fault probe). A reading/no-op store save can resolve without committing,
+while a journal error can reject after state rename already committed. Capture
+intent generation/revision with the exact snapshot and acknowledge the rename;
+only committed intents may dispatch. Preserve ambiguous remote receipts for
+reconciliation, and never let an old callback commit a staged replacement.
+
 ### 2026-11-02 — Consumers must agree on host exit proof kinds
 
 Seen 2×. Resource reconciliation correctly released workers after a prior systemd
@@ -530,6 +571,25 @@ Seen 1×. Native math CSS embedded all font formats as data URLs, adding roughly
 byte-preserved same-origin font assets and retain the restrictive CSP; verify the
 CSS budget, asset existence and bounded gateway paths rather than enabling data URLs.
 
+
+### 2026-11-02 — Finish asynchronous preflight before staging a source batch
+
+Seen 1× in S4's concurrent-save regression. An async principal check between event
+insertion and input/cursor staging lets another host save commit a half-event;
+restart deduplication would then skip undelivered feedback. Finish async preflight
+first, recheck synchronous authority, stage the complete batch without a yield,
+and obtain the existing save/rename proof. A deterministic unrelated-save regression
+fails before the repair and preserves complete event/input/cursor binding after it.
+
+### 2026-11-02 — Occupancy guards must bind to the current owner
+
+Seen 1× during live operator-source admission. Seven released historical Chief
+turns predated exit-proof recording and never owned the current workspace. A
+Project-wide scan treated them as current occupancy and blocked recovery forever.
+Require proof for this Attempt, the current Chief claim and all unreleased Chief
+workers; retain unknown-current refusal and every historical record. Regression
+tests must mix legacy released history with active, unreachable and current-claim
+workers, rather than only using an empty history fixture.
 
 ### 2026-11-01 — Keep memory, logical Session and execution evidence separate
 Seen 1×. A FlyBot48k role-admission cap precedes the SDK; Codex automatic compaction cannot fix inputs rejected before it starts. A1MiB event-size failure is transport, not model context. Use bounded current facts plus exact retrievable source snapshots, preserve full requirements and role rules, and let each Harness manage its own history. Task rework must not throw away its role thread/cwd; resumption requires matching Project/Task/role/principal/resource/profile/model/persona and confirmed process/lease exit. Never reuse a Developer thread for independent Review or carry a verdict across commits. Chief long-term facts reuse original own-memory topics/journal, with no private/team scope fallback.

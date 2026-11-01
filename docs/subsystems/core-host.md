@@ -11,6 +11,15 @@ owned_paths:
   - core/test/reach-policy.test.js
 ---
 
+S4 installs Project Sources after the original logical scheduled-task service and
+before Chief/scheduler recovery. Its Source adapter registers native configurable
+polling and feeds the existing durable Task inbox; it adds no listener, execution
+engine or hardcoded clock. See [Source contract](project-sources.md).
+
+S5 installs an execution-boundary query over the same Project services. Its default
+trust profile does not provision accounts or alter SDK sandbox configuration.
+See [boundary contract](project-execution-boundary.md).
+
 # core-host
 
 The server side of the patched `ds-bot` core (`core/`): the part of [ds-bot-core](ds-bot-core.md) that runs in DSH. Split out of that page so a change to the browser client or to the pin and patch tooling does not have to edit this one. Pin, patch format, `core/dev/` and the invariants about `ds-bot/` and `client.js` stay on [ds-bot-core](ds-bot-core.md).
@@ -932,3 +941,12 @@ No raw attachment route, filesystem path or DSH owner cookie is exposed to the b
 ## Development service (S1)
 
 The authenticated channel and shared-mode authorizer register project-development. Read-only replicas validate a query envelope through the service query predicate; command envelopes remain writes. Legacy endpoint shapes stay compatible. See [service contract](project-development-service.md).
+
+## Durable effects and outbox (S2)
+
+S2 store snapshots capture effect generation/revision metadata and acknowledge it only after state.json rename, before optional journal recording. Project effects remain on the same writer/lock and recover after original delivery/resource/pool recovery; awaiting a no-op save cannot authorize external I/O. See [effect contract](project-effects.md).
+
+
+## Durable Task inbox integration (S3)
+
+S3 installs project-inputs after Effects and before callers. It shares the existing state snapshots, scopes all service input operations to current Project/Task and introduces no timer/executor. See [Task input contract](project-inputs.md).

@@ -17,6 +17,12 @@ owned_paths:
 
 # Project workbench (fork M5)
 
+S5's metadata-only repository preflight first validates the configured execution
+trust profile and includes it in readiness cache identity. The compatibility default
+preserves trusted single-host execution; unsupported profiles refuse before new
+Attempt/workspace allocation. This does not run tests, infer or change the UI.
+See [boundary contract](project-execution-boundary.md).
+
 ## Backend dispatch recovery (R6)
 
 Scheduler wakes coalesce the complete resource reconciliation, admission, pool,
@@ -444,3 +450,17 @@ views both pass current native activity to the S1-derived status mapper. Stored 
 existence remains insufficient evidence of running work. Frontend retained-root,
 attachment, history and authorization contracts continue unchanged; S1's additive
 TaskView does not expose private conversation state through the compact board.
+
+## Durable effects and outbox (S2)
+
+The existing coalesced admission dispatcher drains due committed effects instead of directly scanning all role pools. Batches are bounded, resource/role capacities remain authoritative, and waits defer without sleeping a model. TaskView exposes exact-candidate publication recovery and scoped failed effect references; UI assets remain unchanged. See [effect contract](project-effects.md).
+
+### Task40 S5 composition — 2026-11-02
+
+Compose retained frontend `36147e74` with admitted S5 `17977a1f`. Preserve
+S5 effects, inbox, sources and execution-boundary registration in core/index.js,
+plus its backend authority and memory contracts. Retain scoped native personal,
+room, stream and asset adapters; public Chief memory remains excluded from room
+carriers. Installation expectations include both effects startup and the native
+stream observer. Fresh host verification and independent Review are required;
+operator deployment, three-account and weak-network acceptance remain pending.

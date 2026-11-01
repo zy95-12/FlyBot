@@ -2,6 +2,32 @@
 
 ## Active fork roadmap — 2026-10-31
 
+S5/#54 adds the trusted-private compatibility profile and execution-boundary query,
+without per-Bot OS infrastructure or live identity/sandbox migration. Current-role,
+safe/watch, private-data and concurrency regression suites guard existing rights.
+Exact-head full checks and dedicated-account metadata probes are separate from
+S6/#55 integrated GitHub/SDK/recovery/UI acceptance, which remains required.
+
+S4/#53 implements scoped GitHub feedback→existing Task inputs with persistent
+revisions, bounded source sweeps and native schedule configuration. Full exact-head
+verification, compatible checkpoint rollout and actual GitHub→Bot handoff evidence
+must precede delivery claims. S5/#54 trust/capability boundary and S6/#55 integrated
+fault/recovery acceptance follow. S1–S3/#60 are deployed; original frontend Task40/
+PR48 now advances its new sealed candidate through native Tester/Reviewer roles.
+
+Immediate #60 foreground repair completes approved extra-merge host sealing before
+S2/S3 batch rollout and current frontend Attempt resumption. Keep the existing
+index/MERGE_HEAD, shared-ref restriction, Task/PR and independent candidate gates.
+The first batch is deployed; live source admission found a historical-Chief
+scope regression. PR62 includes its real-state reproduction and focused guard
+repair before resuming the original frontend Attempt. No full frontend acceptance yet.
+
+Service #49 implementation order: S1/#50 (PR56, deployed), S2/#51 (PR58, verified,
+awaiting compatible batch rollout), S3/#52 (PR61,4374 checks and real Codex receipt/pool acceptance verified), then source subscriptions/#53, trusted execution boundary/#54 and
+integrated fault/recovery acceptance/#55. #57/PR59 compatibility repair is deployed;
+original Chief resumed actual frontend Dev without changing Task40/PR48 ownership.
+Each stage keeps memory, architecture and regression evidence with its own PR.
+
 Immediate compatibility repair #57 removes the verified prior-invocation workspace
 and Session resumption blocker before continuing service #51–#55. Preserve the
 current frontend Task/Attempt/PR and unknown-exit protections.
@@ -58,7 +84,10 @@ S2 #51 durable Effects/outbox → S3 #52 input/role receipts → S4 #53 external
 Task subscriptions. S5 #54 trusted deployment/authority follows S1 and applies
 throughout; S6 #55 integrated recovery acceptance follows all five. One PR per
 implementation issue; no extra tracking-only PR. S1 PR56 has a deployed initial facade (673c741b); long-history follow-up
-b9cceb02 passed full4333 verification and awaits a safe live checkpoint.
+b9cceb02 passed full4333 verification, deployed at a released checkpoint and
+passed three-account scoped HTTP/pagination checks, preserving original UI bytes.
+S2/#51 effect/outbox code and fault regressions are implemented; full verification
+and source-bound rollout follow before S3 inputs/read receipts.
 Independent repository review is not claimed. Original #34–#41 residuals remain.
 
 ## Historical upstream roadmap

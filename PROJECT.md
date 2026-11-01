@@ -10,6 +10,78 @@ Current stage and priorities: [ROADMAP.md](ROADMAP.md). How decisions are made:
 
 ## Fork Project State — 2026-10-31
 
+### Trusted execution boundary — S5 / issue54, 2026-11-02
+
+The compatible profile explicitly supports trusted private execution on one
+dedicated service account, without mandatory per-Bot users/containers. A new
+read-only execution.boundary query reports current human rights/delegation, exact
+credential selection, authorized resources and honest preflight/isolation limits.
+Unknown profiles refuse repository/resource admission; watch grants never elevate
+current Project rights. No live account, credential or sandbox change is made.
+See [decision](decisions/2026-11-02-trusted-execution-service.md) and
+[boundary architecture](docs/subsystems/project-execution-boundary.md).
+Private-memory APIs, resource/lease/generation/confirmed-exit/workspace coordination,
+same-candidate tests/Review and Chief adjudication remain mandatory.
+
+### GitHub feedback subscriptions — S4 / issue53, 2026-11-02
+
+Source/Thread/TaskSubscription now feeds the existing durable inbox through scoped
+GitHub reads and configurable native schedules. Stable revisions, cursor replay,
+atomic event/input/Effect persistence and current-Task routing preserve Bot handoff
+choice. Old-SHA checks/Review and remote closure never grant current evidence or
+local closure. Default activation keeps earlier discussion as context, explicit
+history backfill is available; stopped/context Tasks never wake. Long feedback is
+retained losslessly in bounded parts, and unsubmitted Review drafts are excluded.
+See [Source architecture](docs/subsystems/project-sources.md). Source tests and a
+real UID998 scoped GitHub read are recorded; complete live feedback/handoff
+acceptance remains separate until actually run.
+
+Browser-offline polling uses a host-only current-principal Project read port,
+not a browser-session bypass flag. Repository identity is captured before async
+credential lookup; in-flight changes refuse rather than borrowing another scope.
+
+S1/S2/S3 and the #60 host-seal compatibility repair are deployed together at
+e20262ed, with4384 full checks and actual three-account authorization probes.
+Original frontend Task40/PR48 resumed through Chief and sealed a new candidate;
+the native Tester handoff is active, not final UI acceptance. Current backend
+development remains in the foreground session, without frontend Task replacement.
+
+### Approved integration sealing — issue60, 2026-11-02
+
+S3/PR61 is verified (4374 tests and exact-source real Codex inbox→Chief-pool
+acceptance), pending compatible rollout with S2. The autonomous frontend exposed a
+separate host preparation gap: an approved operator merge remained staged while
+SDK shared-ref writes were correctly denied; host sealing only recognized the
+published upstream and attempted a soft reset during that extra merge.
+
+The foreground repair adds manager-only, durable source admission with exact
+operator ref/SHA, workspace snapshot and generation fences. Host sealing retains
+the staged tree and trusted parents without opening refs to SDKs or claiming test/
+Review evidence. Failed/no-op saves cannot authorize a parent. The original
+Task40/PR48/Attempt and merge draft stay intact; resume through Chief after verified
+service deployment. No backend Bot Task or control-plane/sandbox/credential change.
+
+The first compatible S2/S3/60 rollout passed three-account live reads, but source
+admission exposed over-broad historical Chief occupancy. Admission now requires
+exit proof for the current Chief claim, every unreleased Project Chief and this
+Attempt's workers, without treating unrelated released historical Chief turns as
+workspace owners. Their old records remain intact; unknown current exits still block.
+
+### Durable Task inputs — S3 / issue52, 2026-11-02
+
+The service now distinguishes persisted input, durable role inbox, adapter delivery,
+SDK output observation, declared reading and validated handling. Current-claim
+receipts and bounded same-thread safe turns preserve existing Bot handoff authority.
+Chief receipt plans cannot consume inputs on failed decisions; closure and input
+handling share the final state commit. New pending feedback, unknown protocols,
+revoked source and changed hashes keep their fences. See [input contract](docs/subsystems/project-inputs.md).
+
+S1/PR56 and #57/PR59 are deployed with original UI preserved; S2/PR58 passed4350
+checks and fork CI. S3 source/real Codex receipt validation is in progress, not
+live delivery or final UI acceptance. The original frontend Task40/PR48 continues
+through its own Chief/Dev/Reviewer/Tester flow. No backend development Task,
+control-plane edit, merge/queue/release or new per-Bot sandbox is authorized here.
+
 ### Verified supervisor exit compatibility — 2026-11-02
 
 Foreground repair #57 unifies workspace and logical Task-role resumption for
@@ -100,8 +172,21 @@ The initial673c741b service facade was deployed at a proven idle boundary, with
 51 mixed-source UID998 checks and unchanged native UI assets. Live verification
 found the old25-Attempt detail response exceeded8MiB. Follow-up b9cceb02 preserves
 full history with paged summaries/hash-bound context retrieval: full UID1000
-Node24 verify4333 passed,0fail/skip. Its rollout waits for the restored frontend
-Task's next safe checkpoint; current source validation is not final UI acceptance.
+Node24 verify4333 passed,0fail/skip. It was deployed at a tested, released Chief-wait checkpoint. Owner/Maintainer/Member
+actual HTTP probes passed, including full-context paging and denied foreign/mutating
+requests; the original detail response is now about1.45MiB. Native UI bytes remain
+unchanged; frontend integration and final UI acceptance stay with Task40/PR48.
+
+### Durable service actions — S2/#51
+
+S2 stages handoff dispatch and GitHub PR/comment actions with existing state,
+requires an actual rename acknowledgement before I/O, and retains bounded retry/
+reconciliation receipts across restart. Current principals, claim generations,
+worker exit and candidate-specific tests/review remain authoritative. Private
+comment bodies are immutable artifact references, not public context or tokens.
+[Effect architecture](docs/subsystems/project-effects.md). Source implementation
+and fault-injection checks are in progress; no S2 live deployment, real GitHub
+outbox acceptance or independent repository review is claimed by those checks.
 
 ## Historical upstream Project State
 
@@ -569,3 +654,13 @@ integration regression failed before that adaptation; focused integrated suites
 pass 83/83. Neither parent's prior validation is an integration PASS. Host full
 verification, independent Review and actual deployed three-account/weak-network/
 screenshot acceptance remain required. No deployment, push or PR replacement occurs.
+
+### Task40 S5 composition — 2026-11-02
+
+Compose retained frontend `36147e74` with admitted S5 `17977a1f`. Preserve
+S5 effects, inbox, sources and execution-boundary registration in core/index.js,
+plus its backend authority and memory contracts. Retain scoped native personal,
+room, stream and asset adapters; public Chief memory remains excluded from room
+carriers. Installation expectations include both effects startup and the native
+stream observer. Fresh host verification and independent Review are required;
+operator deployment, three-account and weak-network acceptance remain pending.

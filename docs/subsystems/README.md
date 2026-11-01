@@ -58,3 +58,9 @@ Chief arbitration, inspection configuration and original schedule mapping:
 [project-chief-control](project-chief-control.md).
 
 Automatic development service and unified TaskView: [project-development-service](project-development-service.md).
+
+Persistent Project effects and GitHub receipts: [project-effects](project-effects.md).
+
+- [Project Task inputs](project-inputs.md) — S3 durable inbox, current-role receipts and bounded safe turns.
+- [Project Sources](project-sources.md) — S4 scoped GitHub Thread subscriptions, revision replay and current-Task feedback.
+- [Execution boundary](project-execution-boundary.md) — S5 trusted private profile, current authority and honest capability preflight.

@@ -13,6 +13,7 @@ import { roleContext, contextHash } from './project-role-context.js'
 import { githubPublisher } from './project-github.js'
 import { taskSessionId, confirmedWorkerExit } from './project-task-sessions.js'
 import { testFailureExcerpt } from './project-test-diagnostics.js'
+import { EffectCancelled, EffectDeferred } from './project-effects.js'
 
 const exec = promisify(execFile)
 const hash = value => createHash('sha256').update(value).digest('hex')
@@ -54,6 +55,40 @@ export function createProjectDelivery(rt, { publisher } = {}) {
   const projectOf = id => rt.projects.repository.get(id, { includeDeleted: true })
   const settingsOf = project => repositorySettings(rt, project)
   const publisherOf = project => publisher ?? githubPublisher(settingsOf(project).github)
+  async function validatePublication(effect, context) {
+      const attempt = ownEntry(attempts(), effect.payload.attemptId), task = taskOf(effect.taskId)
+      if (!attempt || attempt.projectId !== effect.projectId || task?.deliveryAttemptId !== attempt.id || attempt.candidateSha !== effect.payload.candidateSha || ['accepted', 'cancelled'].includes(task.status) || attempt.cancelRequested) throw new EffectCancelled('Publication candidate was stopped, superseded or ended')
+      try {
+        await rt.projectDelegations?.background(effect.payload.initiatedBy, task.collaboration?.sourceSessionId)
+        rt.requireProjectAccess({ memberId: effect.payload.initiatedBy }, effect.projectId, 'task-write', task)
+      } catch { throw new EffectCancelled('Publication initiator no longer has authority') }
+      if (task.title !== attempt.requirement.title || (task.criteria ?? '') !== attempt.requirement.criteria) throw new EffectCancelled('Publication requirements changed')
+      if (!context.inline) {
+        const workers = Object.values(state.projectHarnessWorkers ?? {}).filter(row => row.attemptId === attempt.id)
+        const leases = Object.values(state.projectResourceLeases ?? {}).filter(row => row.attemptId === attempt.id)
+        if (workers.some(row => row.status !== 'released') || leases.some(row => row.status !== 'released') || Object.values(state.bots ?? {}).some(row => row.ephemeral && row.attemptId === attempt.id)) throw new EffectDeferred('Publication recovery waits for confirmed execution exit', { waitingFor: 'worker-exit' })
+      }
+      await verifyCandidate(attempt)
+      const tests = attempt.evidence.tests, review = attempt.evidence.review
+      if (!tests?.passed || tests.sha !== attempt.candidateSha || review?.sha !== attempt.candidateSha || review.verdict !== 'approve' || await fileDigest(tests.log) !== tests.sha256) throw new EffectCancelled('Publication evidence is missing or stale')
+      for (const role of DELIVERY_ROLES) await verifyExecution(attempt, role)
+      context.assertCurrent()
+      if (task.deliveryAttemptId !== attempt.id || attempt.cancelRequested || attempt.candidateSha !== effect.payload.candidateSha) throw new EffectCancelled('Publication changed during validation')
+  }
+  rt.projectEffects?.register('integration.admit', { run: row => ({ admissionId: row.payload.admissionId, status: 'durable-input-admission' }) }, { replace: true })
+  rt.projectEffects?.register('github.publish', {
+    validate: validatePublication,
+    async run(effect, context) {
+      const publish = async () => {
+        if (!context.inline) await validatePublication(effect, context)
+        context.assertCurrent()
+        const attempt = ownEntry(attempts(), effect.payload.attemptId)
+        await publishNow(attempt)
+        return structuredClone(attempt.pr)
+      }
+      return context.inline ? publish() : serialAttempt(effect.payload.attemptId, publish)
+    },
+  }, { replace: true })
   async function failureContext(attempt) {
     let source = attempt
     const seen = new Set()
@@ -89,6 +124,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
   }
   async function publicationOf(previous, project) {
     if (!previous) return undefined
+    if (previous.publicationEffectId && !previous.pr) throw reject('Previous publication is unresolved; reconcile its existing effect before creating rework')
     const binding = previous.pr ? { number: previous.pr.number, repository: previous.pr.repository, branch: previous.publicationBinding?.branch ?? previous.branch, previousSha: previous.candidateSha } : structuredClone(previous.publicationBinding)
     if (binding && (binding.repository !== project.repository || !Number.isSafeInteger(binding.number) || binding.number < 1 || typeof binding.branch !== 'string' || !binding.branch || !/^[a-f0-9]{40}$/.test(binding.previousSha) || previous.pr && previous.pr.sha !== previous.candidateSha)) throw reject('Existing delivery PR binding is inconsistent; reconcile before rework')
     if (binding) {
@@ -203,7 +239,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
       attempt.agentDefinitions = definitions
       if (config.projectDispatch !== 'workflow') {
         attempt.protocol = 'project-handoff/v1'
-        attempt.workflowVersion = 'project-delivery/pools-v2'
+        attempt.workflowVersion = 'project-delivery/pools-v3'
         attempt.baseSha ??= await git(settings.path, ['rev-parse', 'HEAD'])
         attempt.roleSessions = {}; attempt.rolePolicies = {}; attempt.resourceLeases = {}
         attempt.runId = `pool-run-${randomUUID()}`
@@ -269,9 +305,112 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     const workspace = attempt.workspaces.developer
     if (await workspaceGit(workspace, ['rev-parse', 'HEAD']) !== attempt.candidateSha || await workspaceGit(workspace, ['status', '--porcelain'])) throw reject('Candidate changed; test and Review evidence is stale')
   }
+  async function mergeHeadOf(workspace) {
+    try {
+      const value = await workspaceGit(workspace, ['rev-parse', '--verify', '--quiet', 'MERGE_HEAD'])
+      if (!/^[a-f0-9]{40}$/.test(value)) throw reject('Multiple or invalid merge inputs require operator reconciliation')
+      return value
+    } catch (error) { if (error.code === 1) return null; throw error }
+  }
+  function integrationAttempt(body, actor) {
+    const attempt = ownEntry(attempts(), body.attemptId), task = attempt && taskOf(attempt.taskId)
+    if (!attempt || !task || task.projectId !== body.projectId || task.deliveryAttemptId !== attempt.id) throw reject('Integration input needs the current Project Attempt')
+    rt.requireProjectAccess(actor, task.projectId, 'configure')
+    if (attempt.protocol !== 'project-handoff/v1') throw reject('Integration input admission requires Project Bot pools')
+    return { attempt, task }
+  }
+  function integrationReleased(attempt) {
+    const chief = row => row?.kind === 'chief-control' && row.projectId === attempt.projectId
+    const claim = taskOf(attempt.taskId)?.collaboration?.claim
+    // Old released Chief turns never owned this workspace. The current Chief
+    // claim and any unreleased Project Chief still require exact exit proof.
+    const currentWorker = row => row.attemptId === attempt.id || row.projectId === attempt.projectId && row.chiefRunId && (row.status !== 'released' || row.chiefRunId === claim?.chiefRunId)
+    if (claim?.status === 'active' || Object.values(state.projectExecutions ?? {}).some(row => chief(row) && row.status === 'running') || Object.values(state.projectResourceLeases ?? {}).some(row => (row.attemptId === attempt.id || chief(state.projectExecutions?.[row.attemptId])) && row.status !== 'released') || Object.values(state.projectHarnessWorkers ?? {}).some(row => currentWorker(row) && !confirmedWorkerExit(state, row)) || Object.values(state.bots ?? {}).some(row => row.ephemeral && row.attemptId === attempt.id)) throw reject('Integration input is waiting for confirmed execution exit')
+  }
+  async function integrationSnapshot(attempt) {
+    const workspace = attempt.workspaces.developer
+    if (!workspace) return null
+    if (workspace.status !== 'allocated' || workspace.repository !== await realpath(settingsOf(projectOf(attempt.projectId)).path)) throw reject('Integration workspace or repository binding changed')
+    return { workspaceId: workspace.id, head: await workspaceGit(workspace, ['rev-parse', 'HEAD']), mergeHead: await mergeHeadOf(workspace),
+      indexSha256: hash(await workspaceGit(workspace, ['ls-files', '--stage', '-z'])), statusSha256: hash(await workspaceGit(workspace, ['--no-optional-locks', 'status', '--porcelain=v1', '-z'])) }
+  }
+  async function verifyIntegrationInputs(attempt, { admissionRequired = true } = {}) {
+    const project = projectOf(attempt.projectId), settings = settingsOf(project)
+    const inputs = attempt.integrationInputs ?? []
+    if (!Array.isArray(inputs) || inputs.length > 4) throw reject('Integration input contract is invalid')
+    for (const input of inputs) {
+      if (input.version !== 'project-integration-input/v1' || input.repository !== project.repository || typeof input.ref !== 'string' || !/^refs\/remotes\/operator\/[A-Za-z0-9][A-Za-z0-9._/-]{0,120}$/.test(input.ref) || input.ref.includes('..') || !/^[a-f0-9]{40}$/.test(input.sha)) throw reject('Integration input is not an approved operator source')
+      await git(settings.path, ['check-ref-format', input.ref])
+      if (await git(settings.path, ['rev-parse', '--verify', `${input.ref}^{commit}`]) !== input.sha) throw reject('Approved integration source ref moved; reconcile before execution')
+      const admission = attempt.integrationAdmissions?.findLast(row => row.inputs.some(source => source.ref === input.ref && source.sha === input.sha))
+      if (admissionRequired && (!admission?.effect || !rt.projectEffects?.intentCommitted(admission.effect))) throw reject('Integration source admission has no confirmed durable intent')
+    }
+    return inputs
+  }
+  async function bindIntegrations(body, actor) {
+    const { attempt, task } = integrationAttempt(body, actor)
+    rt.projects.requireActive(task.projectId)
+    if (rt.readOnly?.() !== undefined || !/^[A-Za-z0-9_-]{1,100}$/.test(body.requestId ?? '') || !Array.isArray(body.inputs) || !body.inputs.length || body.inputs.length > 4) throw reject('Integration admission needs a writable host, stable requestId and1–4 pinned sources')
+    const desired = body.inputs.map(row => ({ version: 'project-integration-input/v1', repository: projectOf(task.projectId).repository, ref: row?.ref, sha: row?.sha }))
+    if (new Set(desired.map(row => row.ref)).size !== desired.length || new Set(desired.map(row => row.sha)).size !== desired.length) throw reject('Integration sources must be unique')
+    const expectedWorkspace = body.expectedWorkspace === null ? null : Object.fromEntries(['workspaceId', 'head', 'mergeHead', 'indexSha256', 'statusSha256'].map(key => [key, body.expectedWorkspace?.[key]]))
+    const intentSha256 = hash(JSON.stringify({ inputs: desired, expectedWorkspace, generation: body.generation }))
+    const prior = attempt.integrationAdmissions?.find(row => row.requestId === body.requestId)
+    if (prior) {
+      if (prior.by !== actor.memberId || prior.intentSha256 !== intentSha256) throw reject('Integration admission requestId was reused with different content')
+      return { admission: structuredClone(prior), already: true }
+    }
+    if (!['running', 'interrupted'].includes(attempt.status) || attempt.candidateSha || attempt.cancelRequested || ['accepted', 'cancelled'].includes(task.status)) throw reject('Integration admission needs an unsealed active Attempt')
+    integrationReleased(attempt)
+    if (!Number.isSafeInteger(body.generation) || (task.collaboration?.generation ?? 0) !== body.generation) throw reject('Integration admission generation changed')
+    await rt.projectDelegations?.background(actor.memberId)
+    await verifyIntegrationInputs({ ...attempt, integrationInputs: desired }, { admissionRequired: false })
+    for (const previous of attempt.integrationInputs ?? []) if (!desired.some(row => row.ref === previous.ref && row.sha === previous.sha)) throw reject('Approved integration sources cannot be silently replaced or removed')
+    const snapshot = await integrationSnapshot(attempt)
+    const keys = ['workspaceId', 'head', 'mergeHead', 'indexSha256', 'statusSha256']
+    if (snapshot ? !body.expectedWorkspace || keys.some(key => snapshot[key] !== body.expectedWorkspace[key]) : body.expectedWorkspace !== null) throw reject('Integration workspace changed after the operator snapshot')
+    if (snapshot && await workspaceGit(attempt.workspaces.developer, ['ls-files', '--unmerged'])) throw reject('Integration has unresolved paths; preserve the index for the Developer')
+    await verifyIntegrationInputs({ ...attempt, integrationInputs: desired }, { admissionRequired: false })
+    integrationReleased(attempt); rt.requireProjectAccess(actor, task.projectId, 'configure'); rt.projects.requireActive(task.projectId)
+    if ((task.collaboration?.generation ?? 0) !== body.generation || task.deliveryAttemptId !== attempt.id || attempt.candidateSha || attempt.cancelRequested) throw reject('Integration admission changed during validation')
+    const admission = { id: `integration-admission-${randomUUID()}`, version: 'project-integration-input/v1', requestId: body.requestId, intentSha256, by: actor.memberId, at: Date.now(), inputs: desired, snapshot, previousGeneration: body.generation }
+    if (!rt.projectEffects) throw reject('Integration admission needs durable Effects')
+    const token = rt.projectEffects.stage({ kind: 'integration.admit', key: `${attempt.id}:${body.requestId}`, projectId: task.projectId, taskId: task.id, payload: { attemptId: attempt.id, admissionId: admission.id, intentSha256 } })
+    const previousInputs = attempt.integrationInputs, previousAdmissions = attempt.integrationAdmissions?.slice()
+    admission.effect = token
+    attempt.integrationInputs = desired
+    ;(attempt.integrationAdmissions ??= []).push(admission)
+    if (task.collaboration) ++task.collaboration.generation
+    admission.generation = task.collaboration?.generation ?? 0
+    try { await rt.projectEffects.persist(token) }
+    catch (error) {
+      if (rt.projectEffects.discardUncommitted(token)) {
+        if (previousInputs === undefined) delete attempt.integrationInputs; else attempt.integrationInputs = previousInputs
+        if (previousAdmissions === undefined) delete attempt.integrationAdmissions; else attempt.integrationAdmissions = previousAdmissions
+        if (task.collaboration?.generation === admission.generation) task.collaboration.generation = body.generation
+      }
+      throw error
+    }
+    return { admission: structuredClone(admission), already: false }
+  }
+  async function prepareIntegrations(attempt, workspace) {
+    const inputs = await verifyIntegrationInputs(attempt)
+    for (const input of inputs) {
+      if (workspace.kind !== 'resource-clone') continue
+      try { await workspaceGit(workspace, ['cat-file', '-e', `${input.sha}^{commit}`]); continue } catch { /* Transfer only the pinned operator object through the existing verified bundle adapter. */ }
+      const artifact = await resourceWorkspaces.bundle(workspace.repository, input.sha, join(artifacts, attempt.id))
+      try { await resourceWorkspaces.putBundle(workspace, artifact) } finally { await rm(artifact.path, { force: true }) }
+    }
+    return inputs
+  }
   async function seal(attempt) {
     const settings = settingsOf(projectOf(attempt.projectId))
     const workspace = attempt.workspaces.developer
+    const parent = attempt.seedSha ?? attempt.baseSha, upstream = attempt.publicationBinding?.upstreamSha
+    const approved = await verifyIntegrationInputs(attempt), mergeHead = await mergeHeadOf(workspace)
+    const trusted = [...new Set([upstream, ...approved.map(row => row.sha)].filter(Boolean))]
+    if (mergeHead && !trusted.includes(mergeHead)) throw reject('Merge input is not a pinned upstream or approved operator source; merge the pinned upstream or obtain explicit operator-input admission')
+    if (await workspaceGit(workspace, ['ls-files', '--unmerged'])) throw reject('Trusted integration has unresolved paths')
     const names = [...(await workspaceGit(workspace, ['diff', '--name-only', attempt.baseSha])).split('\n'), ...(await workspaceGit(workspace, ['ls-files', '--others', '--exclude-standard'])).split('\n')].filter(Boolean)
     if (!names.length) throw reject('Developer produced no code change')
     for (const name of names) {
@@ -282,19 +421,21 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     checkDevelopmentEvidence(attempt.rolePolicies?.developer, names)
     const roots = settings.allowedPaths
     if (!Array.isArray(roots) || !roots.length || roots.some(value => typeof value !== 'string' || value.startsWith('/') || value.includes('..')) || names.some(name => !roots.some(prefix => name === prefix || name.startsWith(prefix.endsWith('/') ? prefix : `${prefix}/`)))) throw reject('Code changes exceed the provisioned repository paths')
-    const parent = attempt.seedSha ?? attempt.baseSha, upstream = attempt.publicationBinding?.upstreamSha
     const ancestor = async (a, b) => { try { await workspaceGit(workspace, ['merge-base', '--is-ancestor', a, b]); return true } catch (error) { if (error.code === 1) return false; throw error } }
-    if (upstream && !await ancestor(upstream, parent)) {
+    const needed = []
+    for (const sha of trusted) if (!await ancestor(sha, parent)) needed.push(sha)
+    if (mergeHead || needed.length) {
       const head = await workspaceGit(workspace, ['rev-parse', 'HEAD'])
-      const mergeHead = await workspaceGit(workspace, ['rev-parse', '--verify', 'MERGE_HEAD']).catch(() => null)
-      if (!await ancestor(parent, head) || mergeHead !== upstream && !await ancestor(upstream, head)) throw reject('Developer must merge the pinned upstream before sealing published rework')
-      if (await workspaceGit(workspace, ['ls-files', '--unmerged'])) throw reject('Trusted upstream integration has unresolved paths')
-      // Collapse private worker history while retaining both trusted public inputs.
+      if (!await ancestor(parent, head)) throw reject('Integration no longer descends from the trusted previous candidate')
+      for (const sha of needed) if (!await ancestor(sha, head) && !(mergeHead && await ancestor(sha, mergeHead))) throw reject(sha === upstream ? 'Developer must merge the pinned upstream before sealing published rework' : 'Developer must merge every pinned integration source before sealing')
+      // Use Git's supported reset lifecycle after sealing the exact staged tree;
+      // never soft-reset an active merge or grant the SDK shared-ref writes.
       await workspaceGit(workspace, ['add', '--all', '--', '.'])
       const tree = await workspaceGit(workspace, ['write-tree'])
-      const commit = await workspaceGit(workspace, ['commit-tree', tree, '-p', parent, '-p', upstream, '-m', `Implement Task ${attempt.taskId}`])
+      const commit = await workspaceGit(workspace, ['commit-tree', tree, ...[parent, ...needed].flatMap(sha => ['-p', sha]), '-m', `Implement Task ${attempt.taskId}`])
       await workspaceGit(workspace, ['reset', '--hard', commit])
-      attempt.evidence.upstreamIntegration = { sha: upstream, previousCandidate: parent, ref: attempt.publicationBinding.upstreamRef, method: mergeHead === upstream ? 'resolved-merge-head' : 'merged-ancestry', at: Date.now() }
+      if (upstream && needed.includes(upstream)) attempt.evidence.upstreamIntegration = { sha: upstream, previousCandidate: parent, ref: attempt.publicationBinding.upstreamRef, method: mergeHead === upstream ? 'resolved-merge-head' : 'merged-ancestry', at: Date.now() }
+      if (approved.length) attempt.evidence.approvedIntegrations = { inputs: structuredClone(approved), previousCandidate: parent, mergeHead, tree, at: Date.now() }
     } else {
       await workspaceGit(workspace, ['reset', '--soft', parent]) // Do not transfer unpublished worker history.
       if (await workspaceGit(workspace, ['status', '--porcelain'])) {
@@ -356,6 +497,15 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     await publishVerified(attempt)
   }
   async function publishVerified(attempt) {
+    if (!rt.projectEffects) return publishNow(attempt)
+    const task = taskOf(attempt.taskId)
+    const spec = { kind: 'github.publish', key: `${attempt.id}:${attempt.candidateSha}`, projectId: attempt.projectId, taskId: attempt.taskId,
+      payload: { attemptId: attempt.id, candidateSha: attempt.candidateSha, initiatedBy: task.collaboration?.initiatedBy ?? attempt.initiatedBy } }
+    const token = rt.projectEffects.stage(spec)
+    attempt.publicationEffectId = token.id
+    return rt.projectEffects.perform(spec)
+  }
+  async function publishNow(attempt) {
     const pr = await publisherOf(projectOf(attempt.projectId)).publish(attempt, projectOf(attempt.projectId))
     if (pr.sha !== attempt.candidateSha || attempt.publicationBinding && (pr.number !== attempt.publicationBinding.number || pr.repository !== attempt.publicationBinding.repository)) throw reject('Published PR does not match candidate or existing binding')
     if (attempt.cancelRequested) throw reject('Delivery was stopped')
@@ -443,6 +593,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     if (attempt.status !== 'waiting-acceptance') throw reject('Attempt has not produced delivery evidence')
     await verifyCandidate(attempt)
     const task = taskOf(attempt.taskId)
+    rt.projectInputs?.requireHandled(task.id, actor)
     if (task.status !== 'result-ready') throw reject('Task is not waiting for delivery acceptance')
     if (task.title !== attempt.requirement.title || (task.criteria ?? '') !== attempt.requirement.criteria) throw reject('Requirements changed; delivery evidence is stale')
     if (!attempt.runId || ownEntry(state.projectExecutions, attempt.runId)?.status !== 'done') throw reject('Delivery Run has not finished successfully')
@@ -452,6 +603,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     if (hash(testLog) !== attempt.evidence.tests.sha256) throw reject('Test log changed; evidence is stale')
     const pr = await publisherOf(projectOf(attempt.projectId)).read(attempt.pr)
     if (pr.sha !== attempt.candidateSha || pr.state !== 'open') throw reject('PR changed or closed; evidence is stale')
+    rt.projectInputs?.commitChief(actor)
     attempt.status = 'accepted'
     attempt.acceptedBy = actor.memberId
     attempt.acceptedAt = Date.now()
@@ -532,6 +684,12 @@ export function createProjectDelivery(rt, { publisher } = {}) {
       if (hash(text) !== evidence.sha256) throw reject('Test log changed; evidence is stale')
       return { text, sha: evidence.sha, sha256: evidence.sha256 }
     }
+    if (endpoint === 'project-attempt-integration-state') {
+      const { attempt, task } = integrationAttempt(body, actor)
+      integrationReleased(attempt)
+      return { attemptId: attempt.id, generation: task.collaboration?.generation ?? 0, inputs: structuredClone(attempt.integrationInputs ?? []), snapshot: await integrationSnapshot(attempt) }
+    }
+    if (endpoint === 'project-attempt-integration-bind') return serialAttempt(body.attemptId, () => bindIntegrations(body, actor))
     if (endpoint === 'project-task-run') return serial(() => start(body, actor))
     if (endpoint === 'project-task-reject') return serialAttempt(body.attemptId, async () => {
       const attempt = ownEntry(attempts(), body.attemptId)
@@ -618,7 +776,8 @@ export function createProjectDelivery(rt, { publisher } = {}) {
         else await workspaceGit(workspace, ['reset', '--hard', attempt.candidateSha])
       }
       await prepareWorkspace(attempt, workspace, settings)
-      context = roleContext({ retrieval: true, policy, projectId: project.id, role, revision: attempt.agentDefinitions.revision, definition, memory: definition.memory, knowledge: ownEntry(state.projectKnowledge ?? {}, project.id) ?? [], requirement: attempt.requirement, feedback: attempt.feedback, projectFacts: { testFailure: await failureContext(attempt), publicationBinding: attempt.publicationBinding ?? null, integrationInstruction: attempt.publicationBinding ? 'Merge the pinned upstreamSha into the published candidate using --no-commit, resolve and stage conflicts before handoff. Host sealing retains both trusted inputs; never fabricate parents or discard backend changes.' : null, workingDraft: !attempt.candidateSha && attempt.workspaces.developer ? { kind: 'unverified-workspace-reference', resourceId: attempt.workspaces.developer.resourceId, path: attempt.workspaces.developer.resourceId === workspace.resourceId ? attempt.workspaces.developer.path : null, note: 'Unsealed source, not candidate or verification evidence. Cross-resource drafts require a sealed artifact before verification.' } : null, handoff: task.collaboration?.history.at(-1) ? { purpose: task.collaboration.history.at(-1).purpose, reason: task.collaboration.history.at(-1).reason } : null, candidateSha: attempt.candidateSha ?? null, tests: attempt.evidence.tests ? { sha: attempt.evidence.tests.sha, passed: attempt.evidence.tests.passed, sha256: attempt.evidence.tests.sha256, command: attempt.evidence.tests.command } : null, review: attempt.evidence.review ? { sha: attempt.evidence.review.sha, verdict: attempt.evidence.review.verdict, summary: attempt.evidence.review.summary } : null }, repository: await repositoryContext(project.id, attempt.baseSha) })
+      await prepareIntegrations(attempt, workspace)
+      context = roleContext({ retrieval: true, policy, projectId: project.id, role, revision: attempt.agentDefinitions.revision, definition, memory: definition.memory, knowledge: ownEntry(state.projectKnowledge ?? {}, project.id) ?? [], requirement: attempt.requirement, feedback: attempt.feedback, projectFacts: { integrationInputs: structuredClone(attempt.integrationInputs ?? []), testFailure: await failureContext(attempt), publicationBinding: attempt.publicationBinding ?? null, integrationInstruction: attempt.publicationBinding ? 'Merge the pinned upstreamSha into the published candidate using --no-commit, resolve and stage conflicts before handoff. Host sealing retains both trusted inputs; never fabricate parents or discard backend changes.' : null, workingDraft: !attempt.candidateSha && attempt.workspaces.developer ? { kind: 'unverified-workspace-reference', resourceId: attempt.workspaces.developer.resourceId, path: attempt.workspaces.developer.resourceId === workspace.resourceId ? attempt.workspaces.developer.path : null, note: 'Unsealed source, not candidate or verification evidence. Cross-resource drafts require a sealed artifact before verification.' } : null, handoff: task.collaboration?.history.at(-1) ? { purpose: task.collaboration.history.at(-1).purpose, reason: task.collaboration.history.at(-1).reason } : null, candidateSha: attempt.candidateSha ?? null, tests: attempt.evidence.tests ? { sha: attempt.evidence.tests.sha, passed: attempt.evidence.tests.passed, sha256: attempt.evidence.tests.sha256, command: attempt.evidence.tests.command } : null, review: attempt.evidence.review ? { sha: attempt.evidence.review.sha, verdict: attempt.evidence.review.verdict, summary: attempt.evidence.review.summary } : null }, repository: await repositoryContext(project.id, attempt.baseSha) })
     } catch (error) {
       const registered = lease && ownEntry(state.projectResourceLeases ?? {}, lease.id)
       const unbound = registered && registered.generation === lease.generation && !registered.worker && !registered.processScope && !Object.values(state.projectHarnessWorkers ?? {}).some(row => row.leaseId === lease.id) && !Object.values(attempt.roleSessions ?? {}).some(row => row.id === sessionId)
@@ -638,7 +797,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     rt.taskDeliveryState?.(task.id, attempt.id, 'working', `${definition.name} claimed the Task`)
     rt.bindProject({ kind: 'run', id: attempt.runId, projectId: project.id, taskId: task.id, attemptId: attempt.id, status: 'running' })
     await rt.save()
-    const prompt = `The host already allocated this registered worktree at the pinned base SHA. Do not switch to main, create another worktree, publish a PR, change credentials or edit outside this worktree. The host seals and publishes the candidate. Permitted repository paths: ${JSON.stringify(settings.allowedPaths)}. Configured verification argv: ${JSON.stringify(settings.testCommand)}. The host runs the configured verification outside your SDK sandbox when a Tester returns a handoff/complete decision with outputs.tests. As Tester, outputs.tests may truthfully request that host run and distinguish local Not run checks; the host applies your downstream handoff only if the actual command passes. An arbitrate/transfer decision does not request completed-role verification. If sandbox restrictions block loopback or private host logs, record Not run honestly and request that testing handoff rather than claiming success or repeatedly writing inaccessible paths. Read your assigned Task and role policy. Choose to work, return or transfer based on the actual requirements. You may go directly to another logical Bot without Chief approval. Only Chief can judge overall completion. Never close the Task yourself.\nLogical Bots: ${JSON.stringify(rt.projectAgents.deliveryDefinitions(project.id).roles.map(row => ({ id: row.id, role: row.role })))}\nFinish with OUTPUT handoff: a single-line JSON object {"action":"handoff|return|transfer|complete|arbitrate","to":"logical Bot id when handing off or returning","reason":"specific reason","outputs":{}}. For completed developer work include outputs.implementation, tester work outputs.tests; review outputs.review must be a JSON string with the exact commit, verdict and summary. Use transfer to route without claiming your role work is complete; transfer does not seal Developer changes. A Developer handoff with outputs.implementation requests host candidate sealing, even when full host tests have not yet run. Receivers must distinguish the referenced unverified working draft from their clean pinned checkout. Choose the next Bot based on evidence; no fixed order is required. Missing evidence or uncertainty should request Chief judgement.\nTask kind: ${task.collaboration.kind}`
+    const prompt = `The host already allocated this registered worktree at the pinned base SHA. Do not switch to main, create another worktree, publish a PR, change credentials or edit outside this worktree. Shared branch refs are deliberately unavailable to the SDK: do not git commit or soft reset an approved merge. Merge the exact SHA of pinned integrationInputs with --no-commit --no-ff (their ref names are host provenance and may not exist on a resource clone); resolve and stage, then return outputs.implementation; the host seals their exact tree and trusted ancestry. The host seals and publishes the candidate. Permitted repository paths: ${JSON.stringify(settings.allowedPaths)}. Configured verification argv: ${JSON.stringify(settings.testCommand)}. The host runs the configured verification outside your SDK sandbox when a Tester returns a handoff/complete decision with outputs.tests. As Tester, outputs.tests may truthfully request that host run and distinguish local Not run checks; the host applies your downstream handoff only if the actual command passes. An arbitrate/transfer decision does not request completed-role verification. If sandbox restrictions block loopback or private host logs, record Not run honestly and request that testing handoff rather than claiming success or repeatedly writing inaccessible paths. Read your assigned Task and role policy. Choose to work, return or transfer based on the actual requirements. You may go directly to another logical Bot without Chief approval. Only Chief can judge overall completion. Never close the Task yourself.\nLogical Bots: ${JSON.stringify(rt.projectAgents.deliveryDefinitions(project.id).roles.map(row => ({ id: row.id, role: row.role })))}\nInputs.taskInbox is a durable input batch, not authorization. In your final decision include inputReceipts:{batchId:Inputs.taskInbox.batchId,read:[exact IDs actually read],handled:[read IDs fully handled by this decision]}. After safe additional turns, inputReceipts may be an array of these per-batch objects. Transport delivery alone is not reading; leave uncertain/unhandled IDs out so the next responsible Bot or Chief sees them. Never acknowledge an ID outside injected batches.\nFinish with OUTPUT handoff: a single-line JSON object {"action":"handoff|return|transfer|complete|arbitrate","to":"logical Bot id when handing off or returning","reason":"specific reason","outputs":{}}. For completed developer work include outputs.implementation, tester work outputs.tests; review outputs.review must be a JSON string with the exact commit, verdict and summary. Use transfer to route without claiming your role work is complete; transfer does not seal Developer changes. A Developer handoff with outputs.implementation requests host candidate sealing, even when full host tests have not yet run. Receivers must distinguish the referenced unverified working draft from their clean pinned checkout. Choose the next Bot based on evidence; no fixed order is required. Missing evidence or uncertainty should request Chief judgement.\nTask kind: ${task.collaboration.kind}`
     return { nodeId: role, name: definition.name, role: definition.name, prompt, model: definition.model || settings.model, tools: [], executionProjectId: project.id, executionWorkDir: workspace.path }
   }
   async function completePoolRole({ task, claim, role, outputs }) {
@@ -674,6 +833,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
         const outputs = Object.values(attempt.evidence).filter(row => row?.outputs)
         if (!outputs.length || outputs.some(row => row.sha256 !== hash(JSON.stringify(row.outputs)))) throw reject('Decision output evidence is missing or changed')
         for (const role of Object.keys(attempt.evidence.execution ?? {})) await verifyExecution(attempt, role)
+        rt.projectInputs?.commitChief(actor)
         attempt.status = 'waiting-acceptance'
         rt.taskDeliveryState(task.id, attempt.id, 'result-ready', decision.reason, actor)
         attempt.status = 'accepted'; attempt.acceptedBy = actor.memberId; attempt.acceptedAt = Date.now(); attempt.acceptedViaChief = decision.id
@@ -712,7 +872,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     const id = `attempt-${randomUUID()}`
     if (['running', 'waiting-acceptance'].includes(previous.status)) previous.status = 'returned'
     previous.returned = { at: Date.now(), by: claim.botId, reason }
-    const next = { id, protocol: previous.protocol, projectId: previous.projectId, taskId: task.id, requestKey: hash(`${task.projectId}\n${task.id}\n${claim.id}`), workflowVersion: previous.protocol === 'project-handoff/v1' ? 'project-delivery/pools-v2' : previous.workflowVersion, status: 'running', initiatedBy: previous.initiatedBy, executionOwnerId: previous.executionOwnerId, baseSha: !previous.candidateSha && (force || previous.status === 'interrupted') ? await git(settingsOf(projectOf(task.projectId)).path, ['rev-parse', 'HEAD']) : previous.baseSha, seedSha: previous.candidateSha ?? previous.seedSha, ...(publicationBinding ? { publicationBinding } : {}), requirement: structuredClone(previous.requirement), feedback: { previousAttemptId: previous.id, kind: 'bot-return', reason, candidateSha: previous.candidateSha }, agentDefinitions: rt.projectAgents.deliveryDefinitions(task.projectId), roleSessions: {}, rolePolicies: {}, resourceLeases: {}, workspaces: {}, evidence: {}, createdAt: Date.now(), updatedAt: Date.now(), runId: `pool-run-${randomUUID()}` }
+    const next = { id, protocol: previous.protocol, projectId: previous.projectId, taskId: task.id, requestKey: hash(`${task.projectId}\n${task.id}\n${claim.id}`), workflowVersion: previous.protocol === 'project-handoff/v1' ? 'project-delivery/pools-v3' : previous.workflowVersion, status: 'running', initiatedBy: previous.initiatedBy, executionOwnerId: previous.executionOwnerId, baseSha: !previous.candidateSha && (force || previous.status === 'interrupted') ? await git(settingsOf(projectOf(task.projectId)).path, ['rev-parse', 'HEAD']) : previous.baseSha, seedSha: previous.candidateSha ?? previous.seedSha, ...(publicationBinding ? { publicationBinding } : {}), requirement: structuredClone(previous.requirement), feedback: { previousAttemptId: previous.id, kind: 'bot-return', reason, candidateSha: previous.candidateSha }, agentDefinitions: rt.projectAgents.deliveryDefinitions(task.projectId), roleSessions: {}, rolePolicies: {}, resourceLeases: {}, workspaces: {}, evidence: {}, createdAt: Date.now(), updatedAt: Date.now(), runId: `pool-run-${randomUUID()}` }
     previous.supersededBy = id
     setEntry(attempts(), id, next); task.deliveryAttemptId = id
     rt.bindProject({ kind: 'run', id: previous.runId, projectId: task.projectId, taskId: task.id, attemptId: previous.id, status: 'failed' })

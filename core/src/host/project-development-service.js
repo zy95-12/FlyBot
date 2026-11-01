@@ -2,6 +2,7 @@
 import { ownEntry } from './store.js'
 import { createHash } from 'node:crypto'
 import { inspectionFacts } from './project-chief-control.js'
+import { EFFECT_PROTOCOL } from './project-effects.js'
 
 export const DEVELOPMENT_PROTOCOL = 'project-development/v1'
 const failure = (message, code = 'bot/invalid') => Object.assign(new Error(message), { code })
@@ -13,14 +14,18 @@ const operations = Object.freeze({
   'task.run': 'project-task-run', 'task.detail': 'project-task-detail',
   'task.accept': 'project-task-accept', 'task.reject': 'project-task-reject',
   'attempt.stop': 'project-attempt-stop', 'attempt.cleanup': 'project-attempt-cleanup',
+  'attempt.integration-state': 'project-attempt-integration-state', 'attempt.integration-bind': 'project-attempt-integration-bind',
   'attempt.publication-retry': 'project-attempt-publication-retry', 'attempt.log': 'project-attempt-log',
   'queue.cancel': 'project-queue-cancel', 'queue.retry': 'project-queue-retry',
   'chief.inspect': 'project-chief-inspect', 'chief.configure': 'project-chief-configure', 'chief.state': 'project-chief-state',
   'schedule.configure': 'project-scheduled-task', 'agent.mode': 'project-agent-mode',
   'proposal.publish': 'project-agent-proposal-apply', 'execution.input': 'project-execution-input',
-  'pools': 'project-task-pools',
+  'inputs': 'project-task-inputs', 'input.publish': 'project-task-input',
+  'sources': 'project-sources', 'source.subscribe': 'project-source-subscribe', 'source.disable': 'project-source-disable', 'source.poll': 'project-source-poll',
+  'execution.boundary': 'project-execution-boundary',
+  'pools': 'project-task-pools', 'effect.retry': 'project-effect-retry', 'comment.publish': 'project-github-comment',
 })
-const queries = new Set(['tasks', 'task', 'task.detail', 'attempt.context', 'attempt.log', 'chief.state', 'pools'])
+const queries = new Set(['tasks', 'task', 'task.detail', 'inputs', 'sources', 'execution.boundary', 'effects', 'attempt.context', 'attempt.integration-state', 'attempt.log', 'chief.state', 'pools'])
 const legacy = new Set(Object.values(operations))
 const readEndpoints = new Set([...queries].map(name => operations[name]).filter(Boolean))
 export const developmentQuery = body => record(body) && body.version === DEVELOPMENT_PROTOCOL && body.kind === 'query' && queries.has(body.name)
@@ -57,6 +62,11 @@ export function taskView(state, task, { activity = {} } = {}) {
   else if (run?.status === 'paused') { phase = 'paused'; waitingFor = 'owner' }
   else if (['preparing', 'running'].includes(attempt?.status)) { phase = attempt.status === 'preparing' ? 'starting' : 'running' }
   const sha = attempt?.candidateSha ?? null
+  const pendingEffects = Object.values(state.projectEffects ?? {}).filter(row => row.version === EFFECT_PROTOCOL && sameTask(row, task) && ['pending', 'running', 'failed'].includes(row.status))
+  const publication = pendingEffects.find(row => row.kind === 'github.publish' && row.payload.attemptId === attempt?.id && row.payload.candidateSha === sha)
+  if (publication && ['blocked', 'failed'].includes(phase) && ['pending', 'running'].includes(publication.status)) {
+    phase = 'publishing'; waitingFor = publication.waitingFor ?? 'external'; reason = publication.error ?? 'Reconciling the existing candidate publication'
+  }
   const tests = attempt?.evidence?.tests, review = attempt?.evidence?.review
   const progress = inspectionFacts(state, { ...task, collaboration: c ? { ...c, history: c.history ?? [] } : undefined, ...(attempt ? {} : { deliveryAttemptId: null }) }, { maxHandoffsWithoutProgress: Infinity, longExecutionMs: Infinity, missingHeartbeatMs: Infinity, longWaitMs: Infinity })
   return { version: DEVELOPMENT_PROTOCOL, projectId: task.projectId, taskId: task.id, publication: 'published', phase, waitingFor, reason,
@@ -65,7 +75,9 @@ export function taskView(state, task, { activity = {} } = {}) {
     executionGeneration: sdk?.generation ?? null, inputRequestId: sdk?.pending?.id ?? null,
     lastMeaningfulProgress: progress.lastMeaningfulProgressAt === null ? null : { at: progress.lastMeaningfulProgressAt, evidence: progress.progressEvidence },
     evidence: { tests: tests ? { sha: tests.sha, sha256: tests.sha256, passed: tests.passed === true, current: Boolean(sha && tests.sha === sha) } : null,
-      review: review ? { sha: review.sha, verdict: review.verdict, current: Boolean(sha && review.sha === sha) } : null }, nextActions: [] }
+      review: review ? { sha: review.sha, verdict: review.verdict, current: Boolean(sha && review.sha === sha) } : null },
+    inputs: Object.values(state.projectTaskInputs ?? {}).filter(row => sameTask(row, task) && row.version === 'project-task-input/v1' && row.kind !== 'handoff' && row.status === 'accepted').slice(0, 20).map(row => ({ id: row.id, sha256: row.sha256, createdAt: row.createdAt, deliveries: row.deliveries.length, readConfirmed: row.deliveries.some(d => Boolean(d.readAt)) })),
+    effects: pendingEffects.map(({ id, kind, status, failures, dueAt, error, waitingFor }) => ({ id, kind, status, failures, dueAt, error: error ?? null, waitingFor: waitingFor ?? null })), nextActions: [] }
 }
 
 export function createDevelopmentService(rt) {
@@ -89,6 +101,7 @@ export function createDevelopmentService(rt) {
     const pending = ownEntry(rt.state.projectHarnessWorkers ?? {}, result.workerId)?.pending
     if (result.phase === 'awaiting-input' && allowed('task-write') && (pending?.kind !== 'permission' || allowed('configure'))) result.nextActions.push('execution.input')
     if (result.phase === 'awaiting-acceptance' && allowed('accept')) result.nextActions.push('task.accept', 'task.reject')
+    if (result.effects.some(row => row.status === 'failed') && allowed('configure')) result.nextActions.push('effect.retry')
     if (!['accepted', 'cancelled'].includes(result.phase) && allowed('configure')) result.nextActions.push('chief.inspect')
     return result
   }
@@ -133,6 +146,15 @@ export function createDevelopmentService(rt) {
     return { run: await rt.projectChiefControl.request(body.projectId, 'inspection', { requestId: body.requestId, requestedBy: actor.memberId, ...(task ? { blockedTaskId: task.id } : {}) }) }
   }
   async function invoke(endpoint, body, actor) {
+    if (endpoint === 'project-execution-boundary') return rt.projectExecutionBoundary(body, actor)
+    if (endpoint === 'project-sources') return rt.projectSources.query(body, actor)
+    if (endpoint === 'project-source-subscribe') return rt.projectSources.subscribe(body, actor)
+    if (endpoint === 'project-source-disable') return rt.projectSources.disable(body, actor)
+    if (endpoint === 'project-source-poll') return rt.projectSources.poll(body, actor)
+    if (endpoint === 'project-task-inputs') return rt.projectInputs.list(body, actor)
+    if (endpoint === 'project-task-input') return rt.projectInputs.publish(body, actor)
+    if (endpoint === 'project-github-comment') return rt.projectCredentials.endpoint(endpoint, body, actor)
+    if (endpoint === 'project-effect-retry') return rt.projectEffects.retry(body, actor)
     if (endpoint === 'project-task-run') return rt.projectScheduler.request(body, actor)
     if (endpoint === 'project-queue-cancel') return rt.projectScheduler.cancel(body, actor)
     if (endpoint === 'project-queue-retry') return rt.projectScheduler.retry(body, actor)
@@ -154,7 +176,7 @@ export function createDevelopmentService(rt) {
     if (!record(body) || body.version !== DEVELOPMENT_PROTOCOL || !['command', 'query'].includes(body.kind) || !record(body.payload ?? {})) throw failure('Unsupported Project development request')
     const { name, projectId } = body
     rt.requireProjectAccess(actor, projectId)
-    if (!Object.hasOwn(operations, name) && !['tasks', 'task', 'attempt.context'].includes(name)) throw failure('Unknown Project development operation')
+    if (!Object.hasOwn(operations, name) && !['tasks', 'task', 'attempt.context', 'effects'].includes(name)) throw failure('Unknown Project development operation')
     if (queries.has(name) !== (body.kind === 'query')) throw failure('Operation kind does not match the contract')
     if (body.kind === 'command' && !stableId(body.requestId)) throw failure('A command needs a stable requestId')
     const args = { ...(body.payload ?? {}), projectId, ...(body.requestId !== undefined ? { requestId: body.requestId } : {}) }
@@ -168,10 +190,11 @@ export function createDevelopmentService(rt) {
     }
     if (name === 'execution.input') args.requestId = body.payload?.requestId
     let task
-    for (const [key, table] of [['taskId', rt.state.tasks], ['attemptId', rt.state.projectAttempts], ['queueId', rt.state.projectQueue]]) {
+    for (const [key, table] of [['taskId', rt.state.tasks], ['attemptId', rt.state.projectAttempts], ['queueId', rt.state.projectQueue], ['effectId', rt.state.projectEffects]]) {
       if (args[key] === undefined) continue
       const target = ownEntry(table ?? {}, String(args[key]))
       if (!target || target.projectId !== projectId) throw failure('Target is unavailable in this Project', 'bot/forbidden')
+      if (key === 'effectId' && !target.taskId) { if (task) throw failure('Effect has no Task binding', 'bot/forbidden'); continue }
       const selected = key === 'taskId' ? target : checkedTask(target.taskId, projectId, actor)
       if (task && selected.id !== task.id || args.taskId && selected.id !== args.taskId) throw failure('Targets belong to different Tasks', 'bot/forbidden')
       task = selected
@@ -179,7 +202,8 @@ export function createDevelopmentService(rt) {
     if (body.expectedGeneration !== undefined && (!Number.isSafeInteger(body.expectedGeneration) || body.expectedGeneration < 0 || !task || task.collaboration?.generation !== body.expectedGeneration)) throw failure('Task generation changed', 'bot/conflict')
     if (body.expectedCandidateSha !== undefined && (body.expectedCandidateSha !== null && (typeof body.expectedCandidateSha !== 'string' || !/^[a-f0-9]{40}$/.test(body.expectedCandidateSha)) || !task || taskView(rt.state, task).candidateSha !== body.expectedCandidateSha)) throw failure('Task candidate changed', 'bot/conflict')
     let result
-    if (name === 'task') result = { task: view(checkedTask(args.taskId, projectId, actor), actor) }
+    if (name === 'effects') result = { effects: rt.projectEffects.list(projectId, actor, args) }
+    else if (name === 'task') result = { task: view(checkedTask(args.taskId, projectId, actor), actor) }
     else if (name === 'attempt.context') {
       if (!args.attemptId) throw failure('Attempt context needs an Attempt')
       result = context(args)
@@ -205,6 +229,7 @@ export function createDevelopmentService(rt) {
       return rt.projectPools.decide(body.taskId, body.claim, { ...body.payload, action: body.name, requestId: body.requestId })
     },
     scheduled: work => rt.projectChiefControl.scheduled(work),
+    scheduledSource: (body, actor) => rt.projectSources.poll(body, actor),
     async endpoint(endpoint, body, actor) {
       if (endpoint !== 'project-development' && !legacy.has(endpoint)) return undefined
       access(actor)
