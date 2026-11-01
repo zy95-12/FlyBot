@@ -2,6 +2,15 @@
 
 ## Active fork roadmap — 2026-10-31
 
+Current execution order (Owner, 2026-11-01): repair and verify backend directly in
+the foreground session, then resume the existing #40 Task/PR48 through FlyBot.
+Do not use FlyBot to assign backend repairs. R6 recovery covers serialized wake
+bursts, immediate persisted handoff/Chief events, original-requester queue recovery
+and receiving-workspace preparation before inference and host testing. Remaining
+live integration, frontend restoration and R8 acceptance retain their existing
+issues; no passing unit suite alone completes them.
+
+
 The owner-approved plan is [fork #1](https://github.com/zy95-12/FlyBot/issues/1), recorded
 in [the fork decision](decisions/2026-10-31-project-first-fork.md). Historical upstream
 stages below do not restrict the fork's approved Project and frontend refactor.

@@ -18,6 +18,20 @@ explicit human acceptance. A node reply cannot mark a Task accepted.
 
 ## Provisioning
 
+Pool receivers may use optional operator `workspacePrepareCommand: [node,
+/operator/prepare-worktree.mjs]`. It is a fixed nonempty argv, not a shell string
+or a Project/Task body field. The host runs it with the registered checkout as
+cwd, on that workspace's bound resource, with a 30-second/1-MiB limit, before
+creating its role Session. Independent host testing runs preparation again after
+its candidate reset/clean. No command means existing behavior; metadata preflight
+never executes preparation. Commands must provision ignored dependencies without
+changing tracked code or granting the role additional filesystem authority.
+Receipts retain workspace/resource/role, command hash and time; a preparation
+receipt is not test or inference success. Allocation, checkout and preparation
+failures release only proven unbound reservations before external startup, retain
+workspace cleanup intent/drafts and record the actual preparation failure.
+
+
 The operator configures repository capabilities on the `bot` entry, outside Project
 request bodies. Repository keys must match Project.repository:
 

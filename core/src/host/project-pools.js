@@ -67,6 +67,7 @@ export function createProjectPools(rt) {
     if (task.chiefQuestion) { row.resolvedChiefQuestion = clone(task.chiefQuestion); delete task.chiefQuestion }
     task.handoff = { from: fromRole || 'requester', to: target.role, reason, at: row.createdAt }
     await rt.save()
+    rt.projectScheduler?.wake()
     return clone(row)
   }
   async function admit(attempt, actor, { targetRole = 'developer', kind } = {}) {

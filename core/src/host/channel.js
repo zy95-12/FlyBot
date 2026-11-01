@@ -692,6 +692,7 @@ export function install(rt) {
         case 'project-chief-inspect':
         case 'project-scheduled-task':
         case 'project-queue-cancel':
+        case 'project-queue-retry':
         case 'project-attempt-stop':
         case 'project-credential-status':
         case 'project-github-comment':

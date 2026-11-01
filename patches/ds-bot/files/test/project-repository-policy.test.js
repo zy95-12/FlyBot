@@ -16,6 +16,15 @@ function fixture(t) {
   const settings = { path, allowedPaths: ['code.mjs'], testCommand: [process.execPath, '--test'] }
   return { root, path, project, settings, rt: { home: root, config: { projectRepositories: { 'example/repo': settings }, projectWorkspaceRoot: join(root, 'workspaces') } } }
 }
+test('workspace preparation is operator argv, validated but never executed by readiness', async t => {
+  const { rt, project, settings } = fixture(t)
+  for (const invalid of [[], 'npm ci', [null], [''], ['node', '\0']]) {
+    settings.workspacePrepareCommand = invalid
+    assert.throws(() => repositorySettings(rt, project), /workspacePrepareCommand/)
+  }
+  settings.workspacePrepareCommand = [process.execPath, '-e', 'process.exit(51)']
+  assert.equal(await preflightRepository(rt, project), settings)
+})
 test('repository readiness uses actual Git/command/dependency metadata and never runs the test command', async t => {
   const { rt, project, settings, root } = fixture(t)
   const sentinel = join(root, 'test-executed')

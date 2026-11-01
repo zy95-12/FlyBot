@@ -21,6 +21,15 @@ test('a logical Bot owns its pool and exactly one concurrent claim succeeds', as
   assert.equal(f.task.collaboration.history[0].status, 'accepted')
   assert.throws(() => f.pool.available('p', 'other-project:developer', { memberId: 'owner' }), /Target/)
 })
+
+test('persisted admission and downstream handoff wake the dispatcher without waiting for a timer', async () => {
+  const f = setup(), destinations = []
+  f.rt.projectScheduler = { wake() { destinations.push(f.task.collaboration.botId) } }
+  await f.admit()
+  const claim = await f.claim()
+  await f.pool.decide('task', claim, { action: 'transfer', to: 'p:tester', reason: 'Inspect the candidate' })
+  assert.deepEqual(destinations, ['p:developer', 'p:tester'])
+})
 test('non-DAG handoff, explicit return and Chief completion requests preserve the same Task', async () => {
   const f = setup(); await f.admit()
   const dev = await f.claim()

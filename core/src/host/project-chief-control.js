@@ -97,6 +97,7 @@ export function createProjectChiefControl(rt) {
     const run = ownEntry(rt.state.projectExecutions, id)
     Object.assign(run, { kind: 'chief-control', purpose: kind, sourceKey, source: structuredClone(source), initiatedBy: policy.authorityMemberId, policyRevision: policy.revision, createdAt: Date.now() })
     await rt.save()
+    rt.projectScheduler?.wake()
     return run
   }
   async function scheduled({ row, delivery }) {

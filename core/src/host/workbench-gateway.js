@@ -9,7 +9,7 @@ export const WORKBENCH_ENDPOINTS = new Set([
   'auth-mode', 'platform-login', 'auth-whoami', 'auth-revoke', 'auth-invite', 'auth-redeem', 'workbench-state',
   'projects', 'project-create', 'project-read', 'project-detail', 'project-board', 'project-members', 'project-role',
   'project-invite', 'project-join', 'project-leave', 'project-member-remove', 'project-archive', 'project-delete',
-  'project-quota', 'project-resources', 'project-resource-environment-check', 'project-execution-input', 'project-runtime-check', 'project-terminal-open', 'project-terminal-poll', 'project-terminal-input', 'project-terminal-resize', 'project-terminal-close', 'project-queue-cancel', 'project-workflow',
+  'project-quota', 'project-resources', 'project-resource-environment-check', 'project-execution-input', 'project-runtime-check', 'project-terminal-open', 'project-terminal-poll', 'project-terminal-input', 'project-terminal-resize', 'project-terminal-close', 'project-queue-cancel', 'project-queue-retry', 'project-workflow',
   'task-create', 'task-update', 'task-cancel', 'task-answer-input',
   'project-task-run', 'project-task-detail', 'project-task-accept', 'project-task-reject',
   'project-attempt-stop', 'project-attempt-log', 'project-attempt-cleanup', 'project-attempt-publication-retry',

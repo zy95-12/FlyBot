@@ -112,3 +112,8 @@ from actual deployed shared-service acceptance.
 An already tested, fully released Chief-wait checkpoint can survive host restart
 with an audit entry. Active execution or any unknown worker/lease remains interrupted;
 this exception permits no automatic approval or fabricated progress.
+
+New Chief job requests wake the existing Project dispatcher after durable save.
+An existing source-key receipt returns without a redundant wake; this prevents
+a self-triggering arbitration loop. Scheduled inspection cadence remains original
+DSH configuration, independent of event-driven job execution.

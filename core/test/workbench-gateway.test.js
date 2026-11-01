@@ -71,7 +71,7 @@ test('terminal gateway rejects cross-origin HTTP and every WebSocket upgrade wit
 
 test('repair collaboration endpoints cross the actual shared HTTP entry while raw APIs remain refused', async t => {
   const { post, seen } = await fixture(t)
-  const endpoints = ['project-task-pools', 'project-chief-question', 'project-github-read', 'project-agent-mode', 'project-chief-state', 'project-chief-configure', 'project-chief-inspect', 'project-scheduled-task', 'project-attempt-publication-retry']
+  const endpoints = ['project-queue-retry', 'project-task-pools', 'project-chief-question', 'project-github-read', 'project-agent-mode', 'project-chief-state', 'project-chief-configure', 'project-chief-inspect', 'project-scheduled-task', 'project-attempt-publication-retry']
   for (const endpoint of endpoints) {
     const response = await post(endpoint, { 'x-flybot-member-session': 'current-human-session' })
     assert.equal(response.status, 200, endpoint + ' must reach the Project authorization boundary')

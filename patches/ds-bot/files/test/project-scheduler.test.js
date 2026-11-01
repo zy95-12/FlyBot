@@ -116,3 +116,73 @@ test('a waiting request with invalidated provisioning is blocked before allocati
   assert.match(state.projectQueue[queued.queue.id].reason, /allowedPaths/)
   assert.equal(Object.keys(state.projectAttempts).length, 1)
 })
+
+test('wake bursts share reconciliation and preserve one follow-up after an in-flight event', async () => {
+  const { rt, scheduler } = fixture()
+  let release, reconciles = 0, pools = 0
+  const gate = new Promise(resolve => { release = resolve })
+  rt.projectResources = { async reconcile() { ++reconciles; if (reconciles === 1) await gate } }
+  rt.projectPools = { pump: async () => { ++pools } }
+  const first = scheduler.wake()
+  await new Promise(resolve => setImmediate(resolve))
+  for (let i = 0; i < 40; ++i) scheduler.wake()
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(reconciles, 1, 'Resource reconciliation must never overlap')
+  release()
+  await first
+  assert.equal(reconciles, 2, 'Events arriving during execution need one fresh pass')
+  assert.equal(pools, 2)
+  await scheduler.wake()
+  assert.equal(reconciles, 3)
+})
+
+test('a failed wake releases its lock without allocating against unknown resources', async () => {
+  const { rt, scheduler } = fixture()
+  let broken = true, pools = 0, warnings = 0
+  rt.warn = () => { ++warnings }
+  rt.projectResources = { async reconcile() { if (broken) throw new Error('Resource unavailable') } }
+  rt.projectPools = { pump: async () => { ++pools } }
+  await scheduler.wake()
+  assert.equal(warnings, 1)
+  assert.equal(pools, 0)
+  broken = false
+  await scheduler.wake()
+  assert.equal(pools, 1)
+})
+
+test('provisioning recovery retries the original queue and identity instead of creating another request', async () => {
+  const { rt, scheduler, state } = fixture()
+  await scheduler.request({ taskId: 'one', requestId: 'occupy' }, { memberId: 'bob' })
+  const { queue } = await scheduler.request({ taskId: 'two', requestId: 'recover' }, { memberId: 'bob' })
+  state.projectAttempts['attempt-1'].status = 'failed'; state.projectExecutions['attempt-1'].status = 'failed'
+  delete rt.config.projectRepositories['example/repo'].allowedPaths
+  await scheduler.drain()
+  assert.equal(state.projectQueue[queue.id].status, 'blocked')
+  await assert.rejects(scheduler.retry({ queueId: queue.id }, { memberId: 'owner-1' }), /allowedPaths/)
+  assert.equal(state.projectQueue[queue.id].status, 'blocked')
+  rt.config.projectRepositories['example/repo'].allowedPaths = ['core']
+  await scheduler.retry({ queueId: queue.id }, { memberId: 'owner-1' })
+  await scheduler.wake()
+  const saved = state.projectQueue[queue.id]
+  assert.equal(saved.status, 'started')
+  assert.equal(saved.memberId, 'bob')
+  assert.equal(saved.recoveries[0].by, 'owner-1')
+  assert.match(saved.recoveries[0].previousReason, /allowedPaths/)
+  assert.equal(state.projectAttempts[saved.attemptId].initiatedBy, 'bob')
+  assert.equal(Object.keys(state.projectQueue).length, 1)
+})
+
+test('queue recovery rechecks original requester authority and refuses terminal or allocated work', async () => {
+  const { rt, scheduler, state, revoke } = fixture()
+  state.projectQueue = { q: { id: 'q', status: 'blocked', projectId: 'p1', taskId: 'one', memberId: 'bob', requestId: 'one', reason: 'Provisioning' } }
+  revoke()
+  await assert.rejects(scheduler.retry({ queueId: 'q' }, { memberId: 'owner-1' }), /requester/)
+  assert.equal(state.projectQueue.q.status, 'blocked')
+  await assert.rejects(scheduler.retry({ queueId: 'missing' }, { memberId: 'owner-1' }), /Unknown/)
+  rt.projectCan = () => true
+  state.tasks.one.status = 'accepted'
+  await assert.rejects(scheduler.retry({ queueId: 'q' }, { memberId: 'owner-1' }), /ended/)
+  state.tasks.one.status = 'open'
+  state.projectAttempts.active = { id: 'active', taskId: 'one', status: 'running' }
+  await assert.rejects(scheduler.retry({ queueId: 'q' }, { memberId: 'owner-1' }), /active Attempt/)
+})

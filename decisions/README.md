@@ -74,3 +74,5 @@ keep it to what a reader must act on.
 - [M3 sealed-commit delivery](2026-10-31-m3-code-delivery.md) — implementation authorized, true-model acceptance pending.
 
 - [M4 agent and credential scopes](2026-10-31-m4-agent-scopes.md) — owner-authorized implementation, separate review/acceptance.
+
+- [2026-11-01: direct backend recovery before frontend dogfood](2026-11-01-direct-backend-recovery.md).

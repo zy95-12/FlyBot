@@ -52,6 +52,14 @@ export function createProjectDelivery(rt, { publisher } = {}) {
   const projectOf = id => rt.projects.repository.get(id, { includeDeleted: true })
   const settingsOf = project => repositorySettings(rt, project)
   const publisherOf = project => publisher ?? githubPublisher(settingsOf(project).github)
+  async function prepareWorkspace(attempt, workspace, settings) {
+    if (!settings.workspacePrepareCommand) return
+    const argv = settings.workspacePrepareCommand
+    // Fixed operator argv, never Task/model text; execution stays on the bound resource.
+    if (workspace.resourceLease) await rt.projectResources.command(workspace.projectId, workspace.resourceId, { cwd: workspace.path, argv, timeout: 30_000 })
+    else await exec(argv[0], argv.slice(1), { cwd: workspace.path, env: cleanEnv(), timeout: 30_000, maxBuffer: 1024 * 1024 })
+    ;(attempt.workspacePreparations ??= []).push({ role: workspace.role, workspaceId: workspace.id, commandSha256: hash(JSON.stringify(argv)), resourceId: workspace.resourceId, at: Date.now() })
+  }
   async function publicationOf(previous, project) {
     if (!previous) return undefined
     const binding = previous.pr ? { number: previous.pr.number, repository: previous.pr.repository, branch: previous.publicationBinding?.branch ?? previous.branch, previousSha: previous.candidateSha } : structuredClone(previous.publicationBinding)
@@ -268,6 +276,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     const path = workspace.path
     await workspaceGit(workspace, ['reset', '--hard', attempt.candidateSha])
     await workspaceGit(workspace, ['clean', '-ffdx'])
+    await prepareWorkspace(attempt, workspace, settings)
     const [command, ...args] = settings.testCommand
     let passed = false
     let output = ''
@@ -550,22 +559,24 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     const execution = definition.execution
     const lease = execution.resourceIds?.length ? await rt.projectResources.reserve({ projectId: project.id, attemptId: attempt.id, role, sessionKey: sessionId, ...execution }) : null
     if (lease) attempt.resourceLeases[role] = lease
-    const freshWorkspace = !attempt.workspaces[role]
-    await allocate(attempt, project, settings, [role])
-    const workspace = attempt.workspaces[role]
-    if (lease) workspace.resourceLease = lease
-    if (attempt.seedSha && role === 'developer' && !attempt.candidateSha && freshWorkspace) await workspaceGit(workspace, ['reset', '--hard', attempt.seedSha])
-    if (attempt.candidateSha) {
-      if (workspace.kind === 'resource-clone') await resourceWorkspaces.checkout(workspace, attempt)
-      else await workspaceGit(workspace, ['reset', '--hard', attempt.candidateSha])
-    }
-    let context
+    let context, workspace
     try {
+      const freshWorkspace = !attempt.workspaces[role]
+      await allocate(attempt, project, settings, [role])
+      workspace = attempt.workspaces[role]
+      if (lease) workspace.resourceLease = lease
+      if (attempt.seedSha && role === 'developer' && !attempt.candidateSha && freshWorkspace) await workspaceGit(workspace, ['reset', '--hard', attempt.seedSha])
+      if (attempt.candidateSha) {
+        if (workspace.kind === 'resource-clone') await resourceWorkspaces.checkout(workspace, attempt)
+        else await workspaceGit(workspace, ['reset', '--hard', attempt.candidateSha])
+      }
+      await prepareWorkspace(attempt, workspace, settings)
       context = roleContext({ policy, projectId: project.id, role, revision: attempt.agentDefinitions.revision, definition, memory: definition.memory, knowledge: ownEntry(state.projectKnowledge ?? {}, project.id) ?? [], requirement: attempt.requirement, feedback: attempt.feedback, projectFacts: { publicationBinding: attempt.publicationBinding ?? null, integrationInstruction: attempt.publicationBinding ? 'Merge the pinned upstreamSha into the published candidate using --no-commit, resolve and stage conflicts before handoff. Host sealing retains both trusted inputs; never fabricate parents or discard backend changes.' : null, workingDraft: !attempt.candidateSha && attempt.workspaces.developer ? { kind: 'unverified-workspace-reference', resourceId: attempt.workspaces.developer.resourceId, path: attempt.workspaces.developer.resourceId === workspace.resourceId ? attempt.workspaces.developer.path : null, note: 'Unsealed source, not candidate or verification evidence. Cross-resource drafts require a sealed artifact before verification.' } : null, handoff: task.collaboration?.history.at(-1) ? { purpose: task.collaboration.history.at(-1).purpose, reason: task.collaboration.history.at(-1).reason } : null, candidateSha: attempt.candidateSha ?? null, tests: attempt.evidence.tests ? { sha: attempt.evidence.tests.sha, passed: attempt.evidence.tests.passed, sha256: attempt.evidence.tests.sha256, command: attempt.evidence.tests.command } : null, review: attempt.evidence.review ? { sha: attempt.evidence.review.sha, verdict: attempt.evidence.review.verdict, summary: attempt.evidence.review.summary } : null }, repository: await repositoryContext(project.id, attempt.baseSha) })
     } catch (error) {
-      const unbound = lease && !lease.worker && !Object.values(state.projectHarnessWorkers ?? {}).some(row => row.leaseId === lease.id) && !Object.values(attempt.roleSessions ?? {}).some(row => row.id === sessionId)
+      const registered = lease && ownEntry(state.projectResourceLeases ?? {}, lease.id)
+      const unbound = registered && registered.generation === lease.generation && !registered.worker && !registered.processScope && !Object.values(state.projectHarnessWorkers ?? {}).some(row => row.leaseId === lease.id) && !Object.values(attempt.roleSessions ?? {}).some(row => row.id === sessionId)
       if (unbound) await rt.projectResources.release(lease.id, lease.generation)
-      ;(attempt.preparationFailures ??= []).push({ role, sessionId, leaseId: lease?.id ?? null, message: String(error.message), releasedBeforeExternalStart: Boolean(unbound), at: Date.now() })
+      ;(attempt.preparationFailures ??= []).push({ role, sessionId, leaseId: lease?.id ?? null, message: String(error.message), releasedBeforeExternalStart: Boolean(unbound && registered.status === 'released' && registered.releaseProof?.kind === 'unbound-reservation-release'), at: Date.now() })
       await rt.save()
       throw error
     }

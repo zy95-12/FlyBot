@@ -803,6 +803,67 @@ test('context failure releases an actual unbound reservation before registering 
   assert.equal(a.workspaces.developer.status,'allocated')
 })
 
+test('workspace allocation failure releases an actual reservation before any external execution', async t => {
+  const f = await setup(t, undefined, { pool: true })
+  f.rt.projectPools.connect({ validate: () => ({ ok: true }) })
+  f.rt.projectScheduler.wake = () => {}
+  f.rt.config.projectResources = { one: { type: 'local', root: f.directory, capacity: 1, allowedProjectOwnerIds: ['owner-1'], harnesses: ['codex'], profiles: { 'owner-1': { codex: { home: join(f.directory, 'sdk-home'), configDir: join(f.directory, 'sdk-config'), model: 'fixture/model' } } } } }
+  f.rt.state.projectResourceHealth = { one: { status: 'ready', at: Date.now() } }
+  f.rt.state.projectHarnessHealth = { 'p1:one:codex': { status: 'ready' } }
+  await f.rt.projectEndpoint('project-agent-definition', { projectId: 'p1', role: 'developer', execution: { harness: 'codex', resourceIds: ['one'] } }, alice)
+  await f.start('allocation-failure')
+  const a = f.attempt(), task = f.rt.state.tasks[f.task.id]
+  // A real filesystem obstacle after reservation and before git worktree creation.
+  writeFileSync(join(f.directory, 'delivery'), 'Not a directory')
+  const dev = f.rt.projectAgents.deliveryDefinitions('p1').roles.find(row => row.role === 'developer')
+  await assert.rejects(f.rt.projectDelivery.preparePoolRole(task, { id: 'failed-allocation', attemptId: a.id, generation: 1 }, dev), /ENOTDIR|EEXIST/)
+  const lease = Object.values(f.rt.state.projectResourceLeases).find(row => row.attemptId === a.id)
+  assert.equal(lease.status, 'released')
+  assert.equal(lease.releaseProof.kind, 'unbound-reservation-release')
+  assert.equal(a.preparationFailures.at(-1).releasedBeforeExternalStart, true)
+  assert.deepEqual(a.roleSessions, {})
+  assert.equal(Object.values(f.rt.state.projectHarnessWorkers ?? {}).filter(row => row.attemptId === a.id).length, 0)
+})
+
+test('every pool receiver is host-prepared in its own checkout before registering a role Session', async t => {
+  const f = await setup(t, undefined, { pool: true })
+  f.rt.projectPools.connect({ validate: () => ({ ok: true }) })
+  const settings = f.rt.config.projectRepositories['example/demo']
+  // A real child process verifies the cwd and creates only ignored dependency data.
+  settings.workspacePrepareCommand = [process.execPath, '-e', "const fs=require('fs');if(!fs.existsSync('code.mjs'))process.exit(31);fs.mkdirSync('node_modules',{recursive:true});fs.writeFileSync('node_modules/ready',process.cwd())"]
+  await f.start('prepare-receivers')
+  const a = f.attempt(), task = f.rt.state.tasks[f.task.id]
+  for (const [index, role] of ['developer', 'tester', 'reviewer'].entries()) {
+    const definition = f.rt.projectAgents.deliveryDefinitions('p1').roles.find(row => row.role === role)
+    const node = await f.rt.projectDelivery.preparePoolRole(task, { id: `prepare-${role}`, attemptId: a.id, generation: index + 1 }, definition)
+    assert.equal(readFileSync(join(node.executionWorkDir, 'node_modules/ready'), 'utf8'), node.executionWorkDir)
+    assert.equal(a.workspacePreparations.at(-1).workspaceId, a.workspaces[role].id)
+    assert.equal(a.roleSessions[role].status, 'prepared')
+  }
+  assert.equal(a.workspacePreparations.length, 3)
+  assert.equal(new Set(Object.values(a.workspaces).map(row => row.path)).size, 3)
+  settings.workspacePrepareCommand = [process.execPath, '-e', 'process.exit(37)']
+  const previous = structuredClone(a.roleSessions.reviewer)
+  const reviewer = f.rt.projectAgents.deliveryDefinitions('p1').roles.find(row => row.role === 'reviewer')
+  await assert.rejects(f.rt.projectDelivery.preparePoolRole(task, { id: 'prepare-failed', attemptId: a.id, generation: 9 }, reviewer), error => error.code === 37)
+  assert.deepEqual(a.roleSessions.reviewer, previous)
+  assert.equal(a.workspacePreparations.length, 3)
+  assert.equal(a.preparationFailures.at(-1).role, 'reviewer')
+})
+
+test('independent host tests prepare dependencies after cleaning their exact candidate checkout', async t => {
+  const f = await setup(t, [process.execPath, '-e', "const fs=require('fs');if(fs.readFileSync('node_modules/ready','utf8')!==process.cwd())process.exit(33)"])
+  f.rt.config.projectRepositories['example/demo'].workspacePrepareCommand = [process.execPath, '-e', "const fs=require('fs');fs.mkdirSync('node_modules',{recursive:true});fs.writeFileSync('node_modules/ready',process.cwd())"]
+  await f.start('host-preparation')
+  await implement(f)
+  const a = f.attempt(), path = a.workspaces.tester.path
+  mkdirSync(join(path, 'node_modules')); writeFileSync(join(path, 'node_modules/stale'), 'Must be removed')
+  await f.gate('tester')
+  assert.equal(a.evidence.tests.passed, true)
+  assert.equal(a.workspacePreparations.at(-1).workspaceId, a.workspaces.tester.id)
+  assert.equal((await import('node:fs')).existsSync(join(path, 'node_modules/stale')), false)
+})
+
 test('unstarted bound delivery refreshes a verified descendant target without replacing its draft or Attempt',async t=>{
   for(const variant of ['safe','reserved','unknown','worker','session','history','execution','candidate','cancel','native','unproven-release','released-bound','stale-state','unrelated','missing','moved-head','moved-ref']){
     const f=await setup(t,undefined,{pool:true});f.rt.projectScheduler.wake=()=>{} // Keep deliberate lease snapshots stable during admission checks.

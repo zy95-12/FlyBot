@@ -10,6 +10,19 @@ Current stage and priorities: [ROADMAP.md](ROADMAP.md). How decisions are made:
 
 ## Fork Project State — 2026-10-31
 
+### Direct backend recovery — 2026-11-01
+
+The owner requires backend repairs in the foreground Codex session; do not
+dispatch backend development through FlyBot. Existing frontend work is preserved
+and resumes through FlyBot only after backend verification. See the
+[execution decision](decisions/2026-11-01-direct-backend-recovery.md).
+R6 adds coalesced event-driven dispatch, manager-controlled retry of blocked queue
+entries under the original requester, and operator-selected workspace preparation
+before each pool receiver and after independent test cleanup. Failed allocation,
+checkout or context preparation releases only proven unbound reservations and
+retains its failure audit. These changes do not imply live UI or R8 acceptance.
+
+
 This is `zy95-12/FlyBot`. Current scope is the [shared-project roadmap](https://github.com/zy95-12/FlyBot/issues/1)
 and [fork decision](decisions/2026-10-31-project-first-fork.md). The inherited mission,
 people and stage descriptions below are historical upstream context; upstream accounts

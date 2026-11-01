@@ -13,6 +13,24 @@ Dated, short lessons from real FlyBot work. Agents read this **before coding**. 
 
 ## Open lessons
 
+### 2026-11-01 — Preparation belongs to every receiver, not one successful checkout
+
+Seen 2×. The real Tester lacked native dependencies although Developer preparation
+passed. Prepare each receiving checkout on its bound resource before inference,
+and prepare host tests again after reset/clean. Keep the command operator-selected;
+readiness only validates metadata. Wrap allocation and checkout in the same
+unbound-reservation cleanup as context assembly, preserving failed work and evidence.
+
+### 2026-11-01 — A wake burst is not concurrent permission to dispatch
+
+Seen 1×. A deterministic slow-reconciliation probe reproduced overlapping resource
+reads from repeated scheduler wakes. Coalesce the complete reconciliation/admission/
+pool/schedule/Chief pass, retain one follow-up for in-flight events, and clear the
+lock on failure. Persist handoff receipts before event wake; the timer is fallback.
+Retry blocked provisioning explicitly on its original queue/principal, with fresh
+manager/requester authority and preflight, never by rewriting live task records.
+
+
 ### 2026-11-01 — A browser cookie is not a persistent user grant
 
 Seen 1×. Watch behavior cannot survive browser logout/restart by treating a

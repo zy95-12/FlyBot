@@ -47,6 +47,17 @@ async function controlFixture() {
   const result = overrides => ({ ok: true, text: JSON.stringify({ summary: 'Judgement', decisions: [{ taskId: 't', action: 'close', reason: 'Criteria met', criteria: [{ criterion: task.criteria, passed: true, evidence: 'Verified host facts' }], ...overrides }] }), executionEvidence: { kind: 'native-chief', chiefRunId: request.runId, carrierGeneration: 1, botId: 'chief', sessionId: 'chief' } })
   return { rt, task, control, request, result, accepted: () => accepted, revokeRole() { permitted = false } }
 }
+test('a new Chief request wakes execution and duplicate receipts do not create a wake loop', async () => {
+  const f = await controlFixture()
+  let wakes = 0
+  f.rt.projectScheduler = { wake() { ++wakes } }
+  const first = await f.control.request('p', 'inspection', { requestId: 'host-recovery' })
+  assert.equal(wakes, 1)
+  assert.equal(first.status, 'queued')
+  const repeated = await f.control.request('p', 'inspection', { requestId: 'host-recovery' })
+  assert.equal(first.id, repeated.id)
+  assert.equal(wakes, 1)
+})
 test('Chief results cannot close a Task that progressed during reasoning or whose actor lost permission', async () => {
   const f = await controlFixture(); ++f.task.collaboration.generation
   await f.request.onResult(f.result())

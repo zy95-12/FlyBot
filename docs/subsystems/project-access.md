@@ -9,6 +9,14 @@ owned_paths:
 
 # Shared Project access (fork M2)
 
+R6 `project-queue-retry {queueId}` passes through the restricted gateway and HTTP
+dispatcher to scheduler authorization. It requires current Owner/Maintainer
+run-control permission on the queue's Project, then independently validates the
+original initiating human before requeueing the same request. Body identity and
+management of another Project grant no recovery authority. Read-only/query agents
+gain no access to this operation.
+
+
 M2 is an explicitly configured Project workbench path. It reuses unchanged
 control-plane `/api/auth/login`, `/api/auth/session`, `/api/auth/logout` and account
 administration. FlyBot owns the subject adapter, Project roles/invites/policy and
