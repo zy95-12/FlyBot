@@ -9,6 +9,16 @@ owned_paths:
 
 # Durable Project effects and external receipts
 
+S4's real-store regression also proves GitHub event/input/notification/cursor state
+shares the existing rename acknowledgement. The source.record receipt carries
+thread/event identifiers; input.notify remains the only feedback wake path. All
+async source preflight precedes staging, preventing unrelated saves from committing
+partial events. See [Source contract](project-sources.md).
+
+The same real-store suite covers native scheduled Source polling after browser
+identity closure through the explicit background-principal broker, with one input
+on the original Task and no ambient/personal credential fallback.
+
 S2 (#51, parent #49) adds `project-effect/v1` records to the existing locked
 state.json snapshot. There is no second database, message broker, executor or
 Chief timer. The admission dispatcher drains due effects, at most two per batch;

@@ -62,3 +62,4 @@ Automatic development service and unified TaskView: [project-development-service
 Persistent Project effects and GitHub receipts: [project-effects](project-effects.md).
 
 - [Project Task inputs](project-inputs.md) — S3 durable inbox, current-role receipts and bounded safe turns.
+- [Project Sources](project-sources.md) — S4 scoped GitHub Thread subscriptions, revision replay and current-Task feedback.

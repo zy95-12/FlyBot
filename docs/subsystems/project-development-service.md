@@ -13,6 +13,11 @@ executor, permission policy or workflow engine. Existing pools, admission,
 delivery, delegation and Chief modules remain the authoritative implementations.
 No storage migration, external dependency or new service listener is required.
 
+S4 adds sources query and source.subscribe/source.disable/source.poll commands,
+plus a trusted scheduledSource host adapter over the same Source implementation.
+Current Project configuration and Task-write authority bind subscriptions, and
+ordinary feedback uses the existing inbox/pools. See [Source contract](project-sources.md).
+
 ## Transport contract
 
 The existing authenticated `POST /api/bot` accepts endpoint `project-development`:

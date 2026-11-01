@@ -21,6 +21,12 @@ content returns the same input, changed content refuses. Callers cannot select
 source provenance, recipient or execution claim. Future source adapters must use a
 trusted host port, not interpret external text as authority. Input text is data.
 
+S4 implements the first such host port for scoped GitHub subscriptions. Source
+events and lossless bounded input parts commit with their notify Effects and
+cursor. GitHub inputs carry their admission principal; current authority and
+membership cancellation apply to them just as to human feedback. Public callers
+still cannot set external provenance. See [Source contract](project-sources.md).
+
 Human admission checks the current Project/Task write authority and active Project.
 The input and its input.notify Effect are saved together; execution requires S2's
 actual snapshot/rename acknowledgement. Failed or no-op commits cannot authorize a

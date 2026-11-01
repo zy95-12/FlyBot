@@ -4,14 +4,25 @@ import { resolveGithubIdentity } from './project-github.js'
 const refuse = message => Object.assign(new Error(message), { code: 'bot/forbidden' })
 const bounded = value => typeof value === 'string' ? value.slice(0, 1200) : null
 export function createProjectGithubRead(rt, { identity = resolveGithubIdentity, request = fetch } = {}) {
-  return async function read(body, actor) {
-    const project = rt.requireProjectAccess(actor, String(body.projectId ?? ''))
+  const backgroundActors = new WeakMap()
+  async function validActor(actor, project) {
+    const binding = backgroundActors.get(actor)
+    if (!binding) return rt.validateHumanActor ? rt.validateHumanActor(actor) : rt.validatePlatformActor(actor)
+    if (binding.projectId !== project.id || binding.memberId !== actor.memberId || !rt.projectDelegations?.background) throw refuse('Background Project principal proof is unavailable')
+    rt.requireProjectAccess(actor, project.id, 'configure')
+    await rt.projectDelegations.background(actor.memberId, actor.sessionId)
+    rt.requireProjectAccess(actor, project.id, 'configure')
+    return true
+  }
+  async function read(body, actor) {
+    const project = { ...rt.requireProjectAccess(actor, String(body.projectId ?? '')) }
     if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(project.repository ?? '')) throw refuse('Project repository is unavailable')
     if (body.scope !== undefined && !['personal', 'project'].includes(body.scope)) throw refuse('Unknown GitHub read scope')
-    if (rt.platformIdentityEnabled && !await (rt.validateHumanActor ? rt.validateHumanActor(actor) : rt.validatePlatformActor(actor))) throw refuse('Human platform session was revoked')
+    if ((rt.platformIdentityEnabled || backgroundActors.has(actor)) && !await validActor(actor, project)) throw refuse('Human platform session was revoked')
     const operation = body.operation ?? 'issues'
     const number = body.number
-    if (!['issues', 'pulls', 'pull', 'reviews', 'checks'].includes(operation) || ['pull', 'reviews', 'checks'].includes(operation) && (!Number.isSafeInteger(number) || number < 1)) throw refuse('Unsupported bounded GitHub read')
+    if (!['issues', 'pulls', 'pull', 'reviews', 'checks', 'thread-events'].includes(operation) || ['pull', 'reviews', 'checks', 'thread-events'].includes(operation) && (!Number.isSafeInteger(number) || number < 1)) throw refuse('Unsupported bounded GitHub read')
+    if (operation === 'thread-events' && (!['issue', 'pull'].includes(body.threadKind) || body.pages !== undefined && (typeof body.pages !== 'object' || body.pages === null || Array.isArray(body.pages) || Object.entries(body.pages).some(([key, page]) => !['comments', 'reviews', 'inline', 'checks'].includes(key) || !Number.isSafeInteger(page) || page < 1 || page > 1_000_000)))) throw refuse('Invalid GitHub thread cursor')
     // Explicit automation identity is appropriate for shared Project reads. Personal reads
     // require an explicit personal selection; there is no ambient-token fallback.
     const scope = body.scope === 'personal' ? 'personal' : 'project'
@@ -20,9 +31,8 @@ export function createProjectGithubRead(rt, { identity = resolveGithubIdentity, 
     const selected = await identity(settings)
     if (selected.login.toLowerCase() !== settings.login.toLowerCase()) throw refuse('Scoped GitHub read identity mismatch')
     const validate = async () => {
-      if (rt.platformIdentityEnabled && !await (rt.validateHumanActor ? rt.validateHumanActor(actor) : rt.validatePlatformActor(actor))) throw refuse('Human platform session was revoked')
-      rt.requireProjectAccess(actor, project.id)
-      if (rt.readProject?.(project.id)?.repository && rt.readProject(project.id).repository !== project.repository) throw refuse('Project repository changed during the read')
+      if ((rt.platformIdentityEnabled || backgroundActors.has(actor)) && !await validActor(actor, project)) throw refuse('Human platform session was revoked')
+      if (rt.requireProjectAccess(actor, project.id).repository !== project.repository) throw refuse('Project repository changed during the read')
     }
     await validate()
     const get = async suffix => {
@@ -35,7 +45,33 @@ export function createProjectGithubRead(rt, { identity = resolveGithubIdentity, 
     }
     let data
     const summary = row => ({ number: row.number, title: bounded(row.title), state: row.state, url: row.html_url, updatedAt: row.updated_at, isPullRequest: Boolean(row.pull_request) })
-    if (operation === 'issues' || operation === 'pulls') data = (await get(`/${operation}?state=open&per_page=20&sort=updated&direction=desc`)).slice(0, 20).map(summary)
+    if (operation === 'thread-events') {
+      const pull = body.threadKind === 'pull', root = await get(`/${pull ? 'pulls' : 'issues'}/${number}`)
+      if (root.number !== number || !pull && root.pull_request || pull && (root.base?.repo?.full_name !== project.repository || !/^[a-f0-9]{40}$/.test(root.head?.sha ?? ''))) throw refuse('GitHub thread repository or kind mismatch')
+      const canonical = `https://github.com/${project.repository}/${pull ? 'pull' : 'issues'}/${number}`
+      if (root.html_url !== canonical) throw refuse('GitHub thread URL mismatch')
+      const events = [{ id: `thread:${number}`, type: 'thread', modifiedAt: root.updated_at ?? root.created_at, url: canonical, state: root.state, merged: Boolean(root.merged), sha: pull ? root.head.sha : null, text: JSON.stringify({ title: root.title, state: root.state, merged: Boolean(root.merged), head: root.head?.sha ?? null }) }], pages = {}
+      const page = async (kind, path, projectRow) => {
+        const n = kind === 'checks' && body.headSha !== root.head.sha ? 1 : body.pages?.[kind] ?? 1, response = await get(`${path}${path.includes('?') ? '&' : '?'}per_page=20&page=${n}`)
+        const rows = kind === 'checks' ? response.check_runs : response
+        if (!Array.isArray(rows) || rows.length > 20) throw refuse('GitHub event page is invalid')
+        pages[kind] = rows.length === 20 ? n + 1 : 1
+        for (const row of rows) {
+          if (kind === 'reviews' && (row.state === 'PENDING' || !row.submitted_at)) continue
+          if (!Number.isSafeInteger(row.id) || row.id < 1) throw refuse('GitHub event identity is invalid')
+          events.push({ id: `${kind}:${row.id}`, type: kind, ...projectRow(row) })
+        }
+      }
+      const comment = row => ({ modifiedAt: row.updated_at ?? row.created_at, author: row.user?.login ?? null, url: row.html_url, sha: row.commit_id ?? null, text: String(row.body ?? ''), ...(row.path ? { path: row.path, line: row.line ?? null, replyTo: row.in_reply_to_id ?? null } : {}) })
+      await page('comments', `/issues/${number}/comments`, comment)
+      if (pull) {
+        await page('reviews', `/pulls/${number}/reviews`, row => ({ ...comment(row), modifiedAt: row.submitted_at ?? null, state: row.state }))
+        await page('inline', `/pulls/${number}/comments`, comment)
+        await page('checks', `/commits/${root.head.sha}/check-runs`, row => ({ modifiedAt: row.completed_at ?? row.started_at, sha: row.head_sha, state: row.status, conclusion: row.conclusion, url: row.html_url, text: JSON.stringify({ name: row.name, status: row.status, conclusion: row.conclusion, output: row.output }) }))
+        if ((await get(`/pulls/${number}`)).head?.sha !== root.head.sha) throw refuse('GitHub PR head moved during source polling')
+      }
+      data = { threadKind: body.threadKind, number, events, pages, headSha: pull ? root.head.sha : null, observation: 'bounded-rotating-pages; intermediate unseen edits are not recoverable' }
+    } else if (operation === 'issues' || operation === 'pulls') data = (await get(`/${operation}?state=open&per_page=20&sort=updated&direction=desc`)).slice(0, 20).map(summary)
     else if (operation === 'reviews') data = (await get(`/pulls/${number}/reviews?per_page=20`)).slice(0, 20).map(row => ({ id: row.id, state: row.state, commit: row.commit_id, author: row.user?.login, url: row.html_url, body: bounded(row.body) }))
     else {
       const pr = await get(`/pulls/${number}`)
@@ -48,5 +84,12 @@ export function createProjectGithubRead(rt, { identity = resolveGithubIdentity, 
     }
     return { repository: project.repository, operation, scope, executorLogin: selected.login, at: Date.now(), limit: 20, pagination: 'bounded-first-page', data }
   }
+  read.background = async (body, actor) => {
+    if (body.scope === 'personal') throw refuse('Background Source reads require Project automation credentials')
+    const project = rt.requireProjectAccess(actor, String(body.projectId ?? ''), 'configure'), scoped = { ...actor }
+    backgroundActors.set(scoped, { projectId: project.id, memberId: actor.memberId })
+    try { return await read({ ...body, scope: 'project' }, scoped) } finally { backgroundActors.delete(scoped) }
+  }
+  return read
 }
 export function install(rt) { rt.projectGithubRead = createProjectGithubRead(rt) }

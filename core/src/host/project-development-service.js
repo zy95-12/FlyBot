@@ -21,9 +21,10 @@ const operations = Object.freeze({
   'schedule.configure': 'project-scheduled-task', 'agent.mode': 'project-agent-mode',
   'proposal.publish': 'project-agent-proposal-apply', 'execution.input': 'project-execution-input',
   'inputs': 'project-task-inputs', 'input.publish': 'project-task-input',
+  'sources': 'project-sources', 'source.subscribe': 'project-source-subscribe', 'source.disable': 'project-source-disable', 'source.poll': 'project-source-poll',
   'pools': 'project-task-pools', 'effect.retry': 'project-effect-retry', 'comment.publish': 'project-github-comment',
 })
-const queries = new Set(['tasks', 'task', 'task.detail', 'inputs', 'effects', 'attempt.context', 'attempt.integration-state', 'attempt.log', 'chief.state', 'pools'])
+const queries = new Set(['tasks', 'task', 'task.detail', 'inputs', 'sources', 'effects', 'attempt.context', 'attempt.integration-state', 'attempt.log', 'chief.state', 'pools'])
 const legacy = new Set(Object.values(operations))
 const readEndpoints = new Set([...queries].map(name => operations[name]).filter(Boolean))
 export const developmentQuery = body => record(body) && body.version === DEVELOPMENT_PROTOCOL && body.kind === 'query' && queries.has(body.name)
@@ -144,6 +145,10 @@ export function createDevelopmentService(rt) {
     return { run: await rt.projectChiefControl.request(body.projectId, 'inspection', { requestId: body.requestId, requestedBy: actor.memberId, ...(task ? { blockedTaskId: task.id } : {}) }) }
   }
   async function invoke(endpoint, body, actor) {
+    if (endpoint === 'project-sources') return rt.projectSources.query(body, actor)
+    if (endpoint === 'project-source-subscribe') return rt.projectSources.subscribe(body, actor)
+    if (endpoint === 'project-source-disable') return rt.projectSources.disable(body, actor)
+    if (endpoint === 'project-source-poll') return rt.projectSources.poll(body, actor)
     if (endpoint === 'project-task-inputs') return rt.projectInputs.list(body, actor)
     if (endpoint === 'project-task-input') return rt.projectInputs.publish(body, actor)
     if (endpoint === 'project-github-comment') return rt.projectCredentials.endpoint(endpoint, body, actor)
@@ -222,6 +227,7 @@ export function createDevelopmentService(rt) {
       return rt.projectPools.decide(body.taskId, body.claim, { ...body.payload, action: body.name, requestId: body.requestId })
     },
     scheduled: work => rt.projectChiefControl.scheduled(work),
+    scheduledSource: (body, actor) => rt.projectSources.poll(body, actor),
     async endpoint(endpoint, body, actor) {
       if (endpoint !== 'project-development' && !legacy.has(endpoint)) return undefined
       access(actor)
