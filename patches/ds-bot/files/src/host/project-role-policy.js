@@ -69,7 +69,7 @@ export function checkDevelopmentEvidence(policy, paths) {
 }
 
 // Assemble after Workflow prompt cleaning, from the host-owned Session snapshot.
-export function roleExecutionPrompt(prompt, session) {
+export function roleExecutionPrompt(prompt, session, continuedPolicyHash) {
   if (session?.policy) verifyRolePolicy(session.policy, session.context.sources.policy?.sha256)
-  return [prompt, session?.policy?.text, session?.context?.text].filter(Boolean).join('\n\n')
+  return [prompt, session?.policy?.sha256 === continuedPolicyHash ? `Continue the bound Task-role thread. Previously supplied complete policy remains ${continuedPolicyHash}; current candidate and requirements below supersede earlier execution facts. A prior review is never evidence for a changed candidate.` : session?.policy?.text, session?.context?.text, session?.context?.archivePath ? `Exact scoped context archive: ${session.context.archivePath}; SHA256 ${session.context.archiveSha256}. Read necessary sources with bounded output before acting on missing knowledge or attached role memory.` : null].filter(Boolean).join('\n\n')
 }

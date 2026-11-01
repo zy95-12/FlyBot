@@ -10,13 +10,14 @@ export function createProjectScheduler(rt, { preflight = preflightRepository } =
   const entries = () => (state.projectQueue ??= {})
   let recovered = false
   let tail = Promise.resolve()
+  let waking = null, wakeAgain = false
   const serial = fn => { const result = tail.then(fn, fn); tail = result.then(() => {}, () => {}); return result }
   function slots(projectId) {
     const keys = new Set()
-    for (const run of Object.values(state.projectExecutions ?? {})) if (run.projectId === projectId && ACTIVE.has(run.status)) keys.add(run.attemptId ?? run.id)
+    for (const run of Object.values(state.projectExecutions ?? {})) if (run.projectId === projectId && run.kind !== 'chief-control' && ACTIVE.has(run.status)) keys.add(run.attemptId ?? run.id)
     for (const attempt of Object.values(state.projectAttempts ?? {})) if (attempt.projectId === projectId && ['preparing', 'running'].includes(attempt.status)) keys.add(attempt.id)
     for (const bot of Object.values(state.bots)) if (bot.projectId === projectId && bot.ephemeral && bot.attemptId) keys.add(bot.attemptId)
-    for (const lease of Object.values(state.projectResourceLeases ?? {})) if (lease.projectId === projectId && lease.status !== 'released' && lease.attemptId) keys.add(lease.attemptId)
+    for (const lease of Object.values(state.projectResourceLeases ?? {})) if (lease.projectId === projectId && lease.role !== 'chief' && lease.status !== 'released' && lease.attemptId) keys.add(lease.attemptId)
     return keys.size
   }
   const quota = project => project.quota?.maxConcurrent ?? 2
@@ -98,6 +99,28 @@ export function createProjectScheduler(rt, { preflight = preflightRepository } =
     await rt.save()
     return { queue: structuredClone(entry) }
   }
+  async function retry(body, actor) {
+    const entry = ownEntry(entries(), String(body.queueId ?? ''))
+    if (!entry) throw error('Unknown queued request')
+    const task = ownEntry(state.tasks, entry.taskId)
+    rt.requireProjectAccess(actor, entry.projectId, 'run-control')
+    if (!task || task.projectId !== entry.projectId || ['accepted', 'cancelled'].includes(task.status)) throw error('Task has ended or is unavailable')
+    if (entry.status !== 'blocked') throw error('Only a blocked queue request can be retried')
+    // Recovery must not replace the initiating human with the operator's authority.
+    const requester = { memberId: entry.memberId }
+    if (!rt.projectCan(requester, entry.projectId, 'task-write', task)) throw error('Original requester no longer has Project authority')
+    await rt.projectDelegations?.background(entry.memberId)
+    const project = rt.requireProjectAccess(actor, entry.projectId, 'run-control')
+    await preflight(rt, project)
+    rt.requireProjectAccess(actor, entry.projectId, 'run-control')
+    if (['accepted', 'cancelled'].includes(task.status)) throw error('Task has ended')
+    if (!rt.projectCan(requester, entry.projectId, 'task-write', task)) throw error('Original requester no longer has Project authority')
+    if (Object.values(state.projectAttempts ?? {}).some(attempt => attempt.taskId === task.id && ['preparing', 'running', 'waiting-acceptance'].includes(attempt.status))) throw error('Task already has an active Attempt')
+    ;(entry.recoveries ??= []).push({ by: actor.memberId, previousReason: entry.reason ?? null, at: Date.now() })
+    entry.status = 'waiting'; delete entry.reason; entry.updatedAt = Date.now()
+    await rt.save()
+    return { queue: structuredClone(entry) }
+  }
   function recover() {
     if (recovered || rt.readOnly?.()) return false
     recovered = true
@@ -110,8 +133,28 @@ export function createProjectScheduler(rt, { preflight = preflightRepository } =
     }
     return changed
   }
-  const wake = () => { void serial(drain).then(() => rt.projectPools?.pump()).catch(failure => rt.warn('Project queue: %s', failure.message)) }
+  function wake() {
+    wakeAgain = true
+    if (waking) return waking
+    waking = Promise.resolve().then(async () => {
+      do {
+        wakeAgain = false
+        // One complete pass at a time, including resource reconciliation and dispatch.
+        await rt.projectResources?.reconcile?.()
+        await serial(drain)
+        await rt.projectPools?.pump()
+        await rt.projectScheduledTasks?.pump()
+        await rt.projectChiefControl?.pump()
+      } while (wakeAgain)
+    }).catch(failure => { wakeAgain = false; rt.warn('Project queue: %s', failure.message) }).finally(() => {
+      waking = null
+      // Preserve an event arriving between the final pass and promise settlement.
+      if (wakeAgain) void wake()
+    })
+    return waking
+  }
   return { request: (body, actor) => serial(() => request(body, actor)), cancel: (body, actor) => serial(() => cancel(body, actor)),
+    retry: (body, actor) => serial(() => retry(body, actor)).then(result => { void wake(); return result }),
     slots, revalidate, recover, drain: () => serial(drain), wake }
 }
 export function install(rt) {

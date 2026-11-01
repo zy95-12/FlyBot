@@ -9,11 +9,13 @@ export const WORKBENCH_ENDPOINTS = new Set([
   'auth-mode', 'platform-login', 'auth-whoami', 'auth-revoke', 'auth-invite', 'auth-redeem', 'workbench-state',
   'projects', 'project-create', 'project-read', 'project-detail', 'project-board', 'project-members', 'project-role',
   'project-invite', 'project-join', 'project-leave', 'project-member-remove', 'project-archive', 'project-delete',
-  'project-quota', 'project-resources', 'project-resource-environment-check', 'project-execution-input', 'project-runtime-check', 'project-terminal-open', 'project-terminal-poll', 'project-terminal-input', 'project-terminal-resize', 'project-terminal-close', 'project-queue-cancel', 'project-workflow',
+  'project-quota', 'project-resources', 'project-resource-environment-check', 'project-execution-input', 'project-runtime-check', 'project-terminal-open', 'project-terminal-poll', 'project-terminal-input', 'project-terminal-resize', 'project-terminal-close', 'project-queue-cancel', 'project-queue-retry', 'project-workflow',
   'task-create', 'task-update', 'task-cancel', 'task-answer-input',
   'project-task-run', 'project-task-detail', 'project-task-accept', 'project-task-reject',
-  'project-attempt-stop', 'project-attempt-log', 'project-attempt-cleanup',
+  'project-attempt-stop', 'project-attempt-log', 'project-attempt-cleanup', 'project-attempt-publication-retry',
   'project-agents', 'project-agent-message', 'project-agent-history', 'project-agent-memory-write', 'project-role-memory-write', 'project-agent-definition',
+  'project-task-pools', 'project-chief-question', 'project-github-read', 'project-agent-mode',
+  'project-chief-state', 'project-chief-configure', 'project-chief-inspect', 'project-scheduled-task',
   'project-agent-proposal-apply', 'project-knowledge-write', 'project-credential-status', 'project-github-comment',
 ])
 const LIMIT = 1024 * 1024

@@ -2,6 +2,15 @@
 
 ## Active fork roadmap — 2026-10-31
 
+Current execution order (Owner, 2026-11-01): repair and verify backend directly in
+the foreground session, then resume the existing #40 Task/PR48 through FlyBot.
+Do not use FlyBot to assign backend repairs. R6 recovery covers serialized wake
+bursts, immediate persisted handoff/Chief events, original-requester queue recovery
+and receiving-workspace preparation before inference and host testing. Remaining
+live integration, frontend restoration and R8 acceptance retain their existing
+issues; no passing unit suite alone completes them.
+
+
 The owner-approved plan is [fork #1](https://github.com/zy95-12/FlyBot/issues/1), recorded
 in [the fork decision](decisions/2026-10-31-project-first-fork.md). Historical upstream
 stages below do not restrict the fork's approved Project and frontend refactor.
@@ -142,3 +151,69 @@ Broader Claude/mixed-resource/browser-auth/restart checks remain separate future
 ## Owner-authorized collaboration repairs — 2026-11-01
 
 [Tracking #33](https://github.com/zy95-12/FlyBot/issues/33): #34 repository preflight → #35 role contracts → #36 per-Bot pools/handoff → #37 ordinary Chief queries → #38 safe/watch delegation → #39 Chief arbitration/configurable schedules → #40 native UI/multi-Bot reuse → #41 actual shared-service acceptance. Component/UI inventory may proceed alongside its foundations; each implementation has its own PR and tested evidence. Public hosting is deferred. A 30-minute Chief inspection is a configurable scheduled-task default, never framework logic. R1 PR #42 passed full local verification; configured-service acceptance is pending. R2 implements complete role-policy delivery and evidence separation and is under verification. R3 dynamic pool/claim/handoff implementation is under verification, including non-DAG SDK contract-process rework. R4 conversation/query/status repair is under verification; R5 persistent safe/watch delegation is under verification; R6–R8 remain pending; R4 integrates conversation bridging and R6 completes Chief arbitration/configurable schedules. The owner requests backend repairs first, then real human-style assignment through FlyBot to exercise role handoffs and Chief fallback.
+
+R6 implementation checkpoint: Chief now adjudicates completion/uncertainty and may
+intervene through audited routes. Inspection reuses original configurable DSH
+schedules; there is no Chief cadence in framework timers. After exact-tip full
+verification and its own draft PR, upgrade the backed-up shared backend, assign
+#40 through actual FlyBot and collect real Codex/handoff/Chief/restart evidence in
+#41. Protocol fixtures alone do not satisfy those integration criteria.
+
+R6 real-service integration now exercises ordinary Chief queries without Tasks,
+original scheduled wake after logout, editable pause/resume and actual Dev→Chief
+return on one Task. Dogfood exposed HTTP registration, release/reconcile race and
+failed-admission status defects; fixes remain in R6 PR #47 with regressions. R7
+completion and all remaining #41 acceptance are still pending.
+
+R6 actual persistent 30-minute wake and restart-preserved cadence passed on source
+59635b2. Shared issue #40 code delivery is still exercising SDK Git permissions
+and handoff preparation; final role-chain/browser acceptance remains incomplete.
+
+R6 real recovery exposed an exhausted lifetime Chief→Dev edge and partial routing
+mutation. Regression coverage now checks bounded epochs after audited intervention,
+unchanged admission on refusal, preserved quotas and recoverable preparation failure.
+R7 remains unsealed until actual Developer completion and downstream evidence.
+
+R7 real Dev→Tester→Reviewer handoff reached a host-verified candidate and passing
+Chromium fixture. Reviewer truthfully returned INC for sandbox temporary writes.
+R6 repairs host-bound scratch allocation, explicit permissions and exit-gated cleanup;
+retry independent Review at the same candidate after environment preparation.
+
+R6 restart recovery now distinguishes a fully released, tested Chief-wait checkpoint
+from active or unknown execution, so environment upgrades can retry Review at the
+same candidate without manufacturing a new implementation Attempt.
+
+Current same-PR maintenance blocker: fix host publication continuation in R6 PR47,
+validate against a real local Git remote and mocked forge, then deploy only after
+current checks. Chief may then judge PR48 conflict rework on the same Task/PR.
+The #41 Task remains execution-blocked until its registered baseline includes R6+R7;
+no duplicate PR or runtime-policy change substitutes for that prerequisite.
+
+The remaining upstream-sealing blocker now has real Git red/green coverage: retain
+both published and trusted target ancestry after resolved conflicts, not just the
+old seed. Verify this backend head, integrate/deploy it without altering live
+Attempts, then let Chief decide same-PR48 maintenance. #41 remains baseline-held.
+
+Context admission repair is source-tested on the existing PR47 branch. Deploy only after exact-head verification and actual-state recovery proof; then reconcile the reserved lease and let Chief judge routing the same Attempt. This does not select the #41 execution baseline or waive failed M6 CI.
+
+The same-Attempt target-refresh host repair needs exact-head verification and integration/deployment before Chief routes the existing #40 Task. Owner UI feedback remains unaccepted work on #40/PR48: match the original polished demo and native FlyBot interactions using real API state; functional browser checks alone do not establish visual acceptance.
+
+P0 now includes the reproduced M6 fixture/contract mismatch: complete actual safe-mode approval in browser and preserve negative authorization/duplicate checks, then assess current-head CI. Target refresh166 is integrated/deployed independently; UI remains unaccepted and P1 efficiency work remains queued until its real path is executed.
+
+Chief inspection may explicitly select one existing Task in its authorized Project. The host validates Project configuration authority and Task ownership before using the existing scoped snapshot mechanism. Other-Project/missing Tasks are rejected; unscoped inspection is unchanged. This reduces unrelated facts without dropping policy/knowledge or raising context limits.
+
+Owner basic-CI policy is implemented on the existing PR47 local branch: default pinned install/lint/build/canonical/core and plugin unit checks; heavy browser/runtime/package checks explicit extended dispatch. Independent Review and actual UI acceptance remain. Publish only at a safe upstream-binding checkpoint; this local change does not claim live workflow activation.
+
+Current frontend recovery blocker: shared operational history exceeded role context
+admission. R6 adds explicit manager-published knowledge checkpoints preserving all
+source records; test and deploy the current projection, publish an authorized concise
+checkpoint, then restore the same086 Attempt through scoped Chief judgement. Original
+PR48/native styles/composer/legacy interactions remain accepted frontend work.
+
+R6 follow-up from real UI64 return: supply exact-source failed-test diagnostics
+to the next role so a hash-only Chief return does not require manual log hunting.
+Keep independent full logs, redaction, same-Task/SHA checks and bounded excerpts.
+
+
+### Resident Chief and Task-role context — 2026-11-01
+Implemented Task-role logical identity, binding-checked SDK resume across rework, retained cwd ownership/cleanup and current candidate inputs. Added original-store Chief topic-memory read/write/replace and same-thread scoped retrieval rounds, plus immutable context archives instead of re-sending unbounded history. Native DSH keeps its original parts/steward/compaction; SDK uses its own runtime compaction. Verification must include real resource-user/runtime continuation and Chief memory before claiming live delivery. Current native workflow carriers remain per execution; their logical Task identity and retrievable facts are retained, not falsely described as SDK backend threads.

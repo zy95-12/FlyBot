@@ -224,7 +224,7 @@ export function install(rt) {
   // What a host that only reads the team may still answer.
   // Updates change the dsh profile, not the team, so a reading host may run them too.
   // auth-whoami is a read of the already-resolved actor; invite/redeem/revoke/remove-member write.
-  const READS = new Set(['auth-mode', 'workbench-state', 'project-resources', 'projects', 'project-read', 'project-board', 'project-members', 'project-task-detail', 'project-attempt-log', 'project-detail', 'state', 'models', 'efforts', 'earlier', 'room-progress', 'room-history', 'exchange', 'usage', 'schedules', 'memory-view', 'browser-wait', 'browser-result', 'diagnostics', 'diagnostics-log', 'diagnostics-clear', 'update-check', 'update-install', 'dsh-update-install', 'repo-stars', 'approval-answer', 'auth-whoami', 'workflows'])
+  const READS = new Set(['project-task-pools', 'project-chief-state', 'project-github-read', 'auth-mode', 'workbench-state', 'project-resources', 'projects', 'project-read', 'project-board', 'project-members', 'project-task-detail', 'project-attempt-log', 'project-detail', 'state', 'models', 'efforts', 'earlier', 'room-progress', 'room-history', 'exchange', 'usage', 'schedules', 'memory-view', 'browser-wait', 'browser-result', 'diagnostics', 'diagnostics-log', 'diagnostics-clear', 'update-check', 'update-install', 'dsh-update-install', 'repo-stars', 'approval-answer', 'auth-whoami', 'workflows'])
 
   // A chat reference chip names a Session whose snapshot rides to every recipient of
   // the message, so the author must be able to read what they share (#53, #106).
@@ -683,7 +683,16 @@ export function install(rt) {
         case 'project-execution-input':
         case 'project-resource-environment-check':
         case 'projects':
+        case 'project-task-pools':
+        case 'project-chief-question':
+        case 'project-github-read':
+        case 'project-agent-mode':
+        case 'project-chief-state':
+        case 'project-chief-configure':
+        case 'project-chief-inspect':
+        case 'project-scheduled-task':
         case 'project-queue-cancel':
+        case 'project-queue-retry':
         case 'project-attempt-stop':
         case 'project-credential-status':
         case 'project-github-comment':
@@ -701,6 +710,7 @@ export function install(rt) {
         case 'project-task-reject':
         case 'project-attempt-log':
         case 'project-attempt-cleanup':
+        case 'project-attempt-publication-retry':
         case 'project-members':
         case 'project-invite':
         case 'project-join':

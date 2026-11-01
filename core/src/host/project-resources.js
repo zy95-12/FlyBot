@@ -1,4 +1,5 @@
 // Operator-provisioned execution capabilities; Project configuration only references IDs.
+import { captureProcessScope, priorScopeExited } from './project-process-proof.js'
 import { execFile, spawn } from 'node:child_process'
 import { realpath, copyFile, stat } from 'node:fs/promises'
 import { randomUUID, createHash } from 'node:crypto'
@@ -108,7 +109,9 @@ export function createProjectResources(rt) {
     const lease = requireLease(id, generation)
     if (lease.status === 'released') throw failure('Execution resource lease was released')
     if (lease.worker && JSON.stringify(lease.worker) !== JSON.stringify(worker)) throw failure('Execution resource worker is already bound')
+    const scope = setting(lease.projectId, lease.resourceId).type === 'local' ? await captureProcessScope() : null
     lease.worker = structuredClone(worker); lease.status = 'running'
+    if (scope) lease.processScope = scope
     await rt.save()
   }
   async function release(id, generation, confirmation) {
@@ -117,7 +120,7 @@ export function createProjectResources(rt) {
     const worker = lease.worker
     const confirmed = !worker || worker.kind === 'native' && !ownEntry(state.bots ?? {}, worker.botId) || confirmation?.handle === worker.handle && confirmation?.exited === true
     lease.status = confirmed ? 'released' : 'stopping'
-    if (confirmed) lease.releasedAt = Date.now()
+    if (confirmed) { lease.releasedAt = Date.now(); lease.releaseProof ??= confirmation?.proof ?? { kind: worker ? 'host-confirmed-worker-exit' : 'unbound-reservation-release', at: lease.releasedAt } }
     await rt.save()
     if (confirmed) rt.projectScheduler?.wake()
   }
@@ -132,11 +135,33 @@ export function createProjectResources(rt) {
     return changed
   }
   async function reconcile() {
+    let changed = false
     for (const lease of Object.values(leases()).filter(active)) {
-      if ((!lease.worker || lease.worker.kind === 'native') && !ownEntry(state.bots ?? {}, lease.worker.botId)) await release(lease.id, lease.generation)
-      else if (lease.worker?.kind !== 'native' && lease.worker) lease.status = 'unreachable'
+      if (lease.processScope?.hostPid === process.pid && (lease.worker?.kind === 'native' || lease.worker?.kind === 'sdk' && rt.projectHarness?.hasController(lease.worker.handle) || lease.worker?.kind === 'native-turn' && rt.projectAgents?.hasExchange(lease.worker.handle))) continue
+      const priorExited = lease.processScope && await priorScopeExited(lease.processScope)
+      // The supervisor read yields: a confirmed concurrent release is final.
+      if (!active(lease)) continue
+      if (priorExited) {
+        requireBinding(lease.projectId, lease)
+        if (lease.worker?.kind === 'native' && ownEntry(rt.state.bots ?? {}, lease.worker.botId)) {
+          const bot = rt.state.bots[lease.worker.botId]
+          if (!bot.ephemeral || !bot.attemptId) continue
+          await rt.flybot.scope('flybot-workflow').bot.remove(bot.id)
+        }
+        lease.releaseProof = { kind: 'systemd-prior-invocation-exited', previousInvocationId: lease.processScope.invocationId, at: Date.now() }
+        await release(lease.id, lease.generation, { handle: lease.worker?.handle, exited: true })
+        const row = rt.state.projectHarnessWorkers?.[lease.worker?.handle]
+        if (row) { row.status = 'released'; row.releasedAt = Date.now(); row.releaseProof = lease.releaseProof; await rt.projectDelivery?.releaseSession(row.id); changed = true }
+        continue
+      }
+      if (lease.processScope?.hostPid === process.pid) {
+        if (lease.worker?.kind === 'native' || lease.worker?.kind === 'sdk' && rt.projectHarness?.hasController(lease.worker.handle) || lease.worker?.kind === 'native-turn' && rt.projectAgents?.hasExchange(lease.worker.handle)) continue
+      }
+      if (!lease.worker) { if (lease.status === 'unreachable') await release(lease.id, lease.generation); continue }
+      if (lease.worker.kind === 'native' && !ownEntry(state.bots ?? {}, lease.worker.botId)) await release(lease.id, lease.generation)
+      else if (lease.worker.kind !== 'native' && lease.status !== 'unreachable') { lease.status = 'unreachable'; changed = true }
     }
-    await rt.save()
+    if (changed) await rt.save()
   }
   function startProcess(projectId, resourceId, { argv, cwd }) {
     const item = setting(projectId, resourceId)

@@ -17,6 +17,26 @@ owned_paths:
 
 # Project workbench (fork M5)
 
+## Backend dispatch recovery (R6)
+
+Scheduler wakes coalesce the complete resource reconciliation, admission, pool,
+scheduled-task and Chief pass. Only one pass executes at a time; events during
+a pass request one fresh follow-up. Failure clears the lock and preserves unknown
+resource occupancy. Persisted handoff/Chief requests and confirmed releases wake
+the dispatcher directly; the existing one-second admission timer is a fallback,
+separate from the configurable Chief inspection schedule.
+
+`project-queue-retry {queueId}` is an explicit current Owner/Maintainer operation
+for blocked queue entries after provisioning repair. It rechecks the original
+requester's current authority/background grant and repository preflight, refuses
+ended Tasks or active Attempts, and retains the queue/request ID and initiator.
+Recovery records the manager and old reason, requeues through normal admission
+and wakes execution; it does not fabricate a worker, reset evidence, replace the
+requester with the manager or start a second Task. Failed preflight leaves the
+entry blocked. Optional operator workspace preparation is validated as argv;
+readiness never runs it. See [delivery](project-delivery.md).
+
+
 The shared entry is a separate browser application, built with esbuild into committed
 `core/workbench.js` and `.css`. The legacy operator UI remains available at the private
 Harness entry. Members receive only the restricted gateway URL. Never share the Harness
@@ -168,3 +188,12 @@ and allows its human to change or revoke it. Safe mode still requires Task
 publication approval. Watch mode uses current human rights with no extra
 agent-only confirmation; grant/account/role revocation remains effective.
 See [delegation contract](project-delegations.md).
+
+Repair R6 exposes Chief configuration in the scoped workbench: editable schedule
+prompt/cadence, enable/pause, thresholds, inspect-now and recent actual Runs.
+The resource response includes minimal Chief state without an additional gateway
+call. This does not replace issue #40 native rich multi-Bot UI restoration.
+
+Actual shared-entry repair: the explicit HTTP allowlist now includes pool, query,
+GitHub read, delegation mode and Chief/schedule endpoints. Project authorization
+still executes downstream; raw schedule/state/DSH APIs remain refused.

@@ -13,6 +13,24 @@ Dated, short lessons from real FlyBot work. Agents read this **before coding**. 
 
 ## Open lessons
 
+### 2026-11-01 — Preparation belongs to every receiver, not one successful checkout
+
+Seen 2×. The real Tester lacked native dependencies although Developer preparation
+passed. Prepare each receiving checkout on its bound resource before inference,
+and prepare host tests again after reset/clean. Keep the command operator-selected;
+readiness only validates metadata. Wrap allocation and checkout in the same
+unbound-reservation cleanup as context assembly, preserving failed work and evidence.
+
+### 2026-11-01 — A wake burst is not concurrent permission to dispatch
+
+Seen 1×. A deterministic slow-reconciliation probe reproduced overlapping resource
+reads from repeated scheduler wakes. Coalesce the complete reconciliation/admission/
+pool/schedule/Chief pass, retain one follow-up for in-flight events, and clear the
+lock on failure. Persist handoff receipts before event wake; the timer is fallback.
+Retry blocked provisioning explicitly on its original queue/principal, with fresh
+manager/requester authority and preflight, never by rewriting live task records.
+
+
 ### 2026-11-01 — A browser cookie is not a persistent user grant
 
 Seen 1×. Watch behavior cannot survive browser logout/restart by treating a
@@ -240,3 +258,153 @@ record its exact source and distinguish scripted owner acceptance from human rev
 ### 2026-11-01 — preflight the actual deployed delivery configuration
 
 Seen 1×: the shared service omitted allowedPaths. Login, SDK code smoke and an independent verify passed, but actual Project execution failed after consuming Dev inference. Validate required repository policy before admission, share metadata readiness with the UI, and distinguish missing configuration, out-of-scope changes and no code change. Prove the configured Project path, not only an isolated SDK primitive.
+
+### 2026-11-01 — credential masking must preserve Task identifiers (Seen 1×)
+
+An unanchored `sk-...` secret pattern matched inside `task-UUID`, corrupting actual
+Chief routing JSON. Match credential tokens at a word boundary and test both a
+credential-shaped token and unchanged Task IDs through saved Harness events.
+
+### 2026-11-01 — restart recovery needs supervisor scope evidence (Seen 1×)
+
+A missing PID or terminal Task status does not prove external work exited. Record
+the actual supervisor invocation/control group before starting execution. Only a
+verified manager boundary with control-group termination can release old local
+capacity; unknown/remote/different-boot evidence remains held.
+
+### 2026-11-01 — an empty inbox is a valid native tool continuation (Seen 1×)
+
+A schedule interceptor rejected empty pre-step messages even when it consumed no
+reminder. Actual DSH executed the shell tool but never submitted the final Workflow
+result. Reject only a consumed managed-only delivery, preserve ordinary empty
+continuations, and verify the actual native runtime as well as fake schedule hooks.
+
+### 2026-11-01 — test collaboration through the restricted gateway (Seen 1×)
+
+Real shared-service Chief configuration returned HTTP 403: host endpoints were
+registered but the gateway allowlist still lacked R3–R6 APIs. Exercise actual HTTP
+forwarding with current member credentials and retain raw-owner API refusal.
+
+The same live HTTP probe then caught a second missing registration: channel.js
+needed explicit dispatcher cases. Gateway forwarding and direct service tests
+alone cannot prove end-to-end reachability; cover the actual authenticated route.
+
+### 2026-11-01 — supervisor reconciliation must fence concurrent release (Seen 1×)
+
+During real issue #40, Dev and Chief exited correctly but the next Dev queued:
+reconcile had captured an active lease, awaited supervisor metadata, then marked
+the now-released lease unreachable. Recheck terminal lease status after the await
+and skip currently controlled workers before supervisor I/O. A concurrent
+release/reconcile regression reproduces this race; never edit live status by hand.
+
+### 2026-11-01 — failed admission is not an active worker (Seen 1×)
+
+After the real repair restart, an interrupted Attempt failed preparation but left
+its claim active. Chief correctly refused blind retry because host facts conflicted.
+Fence failed admission, retain unconfirmed occupancy, route the failure to Chief,
+and include actual resource exit proof and handoff reason in judgement context.
+A pre-candidate Chief retry may pin a fresh repaired base; keep the old Attempt.
+
+Chief correctly held a legacy interrupted claim when its snapshot omitted whether
+that Attempt had ever allocated execution. Expose the bind-before-start host
+registration proof (with all lease/worker/session/workspace counts), not a missing
+PID inference. Any registered/unknown record prevents the never-allocated claim.
+
+### 2026-11-01 — SDK worktree writes need the registered Git index (Seen 1×)
+
+Real Dev produced source/tests but sandboxed Git could not stage new canonical
+files: a local worktree stores its index outside cwd. Select only that registered
+worktree Git directory and the repository object store as Codex writable roots.
+Shared refs/config and network remain outside the grant. Loopback/private host
+verification remains a host testing operation; report sandbox Not run honestly.
+
+A service restart also marked a paused, unsealed Attempt interrupted after Dev had
+exited. Preserve the existing code on Chief route only when every recorded lease
+and worker is released, no native worker remains, cancellation was not requested
+and the registered workspace contains changes. Record a resumption with the old
+failure and Chief decision. Unknown exits never permit working-directory reuse.
+
+### 2026-11-01 — deny external network without breaking local process IPC (Seen 1×)
+
+Actual CLI sandbox probes and strace showed Node spawnSync returning EPERM even
+when Git exited 0: raw network denial also denied Unix setsockopt/shutdown/getsockname
+used by libuv pipes. Node 22 and 24 both reproduced. A named constrained filesystem
+profile plus the enabled limited proxy with an empty outbound allowlist restored
+Node/Git children; actual proxy requests were 403 blocked-by-allowlist, direct DNS
+failed and outside-workspace writes remained EROFS. Never call a Git grant alone
+a proven remedy, or switch to unrestricted filesystem/network access.
+
+Actual Tester correctly saw no candidate in its clean receiving checkout, but the
+unfinished Developer source still existed elsewhere. Pass a labelled draft
+reference with transfers; never equate clean recipient cwd with no implementation.
+A valid raw JSON decision lacking only OUTPUT framing must not leave an idle SDK
+Session waiting indefinitely; preserve its raw evidence and validate its meaning.
+
+### 2026-11-01 — Chief recovery must be admitted before changing execution (Seen 1×)
+
+Real Chief recovery prepared a new Run before a lifetime handoff counter refused it,
+leaving the Task stopping and its Attempt running. Check routing admission before
+fencing or rework. Audited Chief intervention starts a new bounded autonomous epoch,
+retaining lifetime history and global quotas; it cannot bypass evidence or authority.
+Failures after fencing need an explicit block and decision ID, never indefinite stopping.
+
+### 2026-11-01 — read-only verification still needs writable temporary fixtures (Seen 1×)
+
+Actual Reviewer twice returned INC: its source stayed read-only but temporary
+fixtures failed EROFS. A real CLI probe reproduced failure with the :tmp alias and
+success with an explicit scratch path, while source writes still failed. Bind a
+unique host-created directory per command worker, set TMPDIR/npm cache to it and
+clean only after confirmed exit. Prepare fixed dependencies outside the sandbox;
+never turn source writable or waive independent checks to compensate for provisioning.
+
+An idle tested pool waiting for Chief is not interrupted execution. Preserve that
+checkpoint only with completed Chief judgement, released Chief lease and every
+registered delivery worker/lease released, no native worker and no cancellation.
+Unknown occupancy or an active claim must retain conservative interruption.
+
+### 2026-11-01 — Attempt branches are not delivery PR identity (Seen 1×)
+
+Actual PR48 maintenance was blocked because rework creates a fresh Attempt branch
+and publication only searched that branch. Carry the host-verified PR binding across
+rework/retry; validate it before mutation and again before/after publication. Keep
+published candidates in Git ancestry while collapsing unpublished worker commits.
+A normal fast-forward push must refuse concurrent contributors' commits. Never
+create a replacement PR after a stale/closed binding or rewrite history to get green.
+
+### 2026-11-01 — Preserve trusted upstream ancestry when sealing rework (Seen 1×)
+
+The correct integration tree still conflicted after squash onto only the old
+candidate. Resolve the actual PR target ref through the host credential broker,
+pin it before rework, require resolved merge evidence and retain both public
+parents while dropping private worker commits. Recheck target movement before
+and after publication; a model-supplied parent or green test alone is insufficient.
+
+Measure each context component before blaming public knowledge: full repository rules may already be separately injected. Remove only hash/commit-verified duplicate previews, retain all original rule text and audit facts, and release unbound reservations on preparation failure before any SDK starts. Preparation retries must preserve unsealed drafts.
+
+A backend repair can advance the stacked PR target while an unstarted rework Attempt still pins the previous target. Re-read actual refs through the host broker before allocation; refresh only a verified descendant on a proven pre-execution boundary, audit both inputs, retain draft/seed/history, and keep later publication movement checks strict.
+
+When browser acceptance stalls waiting for a side effect, inspect host proposals and authorization state before blaming model transport or retrying. A safe-mode proposal requires explicit human publication; align the real browser scenario with that contract and retain no-early-effect, cross-user and duplicate-publication assertions.
+
+Chief inspection may explicitly select one existing Task in its authorized Project. The host validates Project configuration authority and Task ownership before using the existing scoped snapshot mechanism. Other-Project/missing Tasks are rejected; unscoped inspection is unchanged. This reduces unrelated facts without dropping policy/knowledge or raising context limits.
+
+Owner basic-CI policy is implemented on the existing PR47 local branch: default pinned install/lint/build/canonical/core and plugin unit checks; heavy browser/runtime/package checks explicit extended dispatch. Independent Review and actual UI acceptance remain. Publish only at a safe upstream-binding checkpoint; this local change does not claim live workflow activation.
+
+### 2026-11-01 — Append-only history must not become an unbounded prompt
+
+Seen 1×. Actual41-entry shared knowledge blocked Developer before SDK registration
+and Chief failed without execution evidence. Preserve source records/authors and
+publish a current manager checkpoint bound to exact prior hashes. Project only
+verified covered history to digests, retain newer facts, and reject stale references
+without hiding originals. Do not raise caps, truncate criteria or blindly retry.
+
+### 2026-11-01 — A failed-test hash alone cannot drive autonomous repair
+
+Seen 1×. Actual UI64 failed a popup z-index test, but the host wrapper returned
+only its log tail and Developer could not find the requested receipt. Preserve
+early failure details in verifier output and feed a bounded, hash-verified excerpt
+from the same Task/candidate into rework. Redact before truncating long lines;
+retain full originals and never confuse diagnostic text with verification PASS.
+
+
+### 2026-11-01 — Keep memory, logical Session and execution evidence separate
+Seen 1×. A FlyBot48k role-admission cap precedes the SDK; Codex automatic compaction cannot fix inputs rejected before it starts. A1MiB event-size failure is transport, not model context. Use bounded current facts plus exact retrievable source snapshots, preserve full requirements and role rules, and let each Harness manage its own history. Task rework must not throw away its role thread/cwd; resumption requires matching Project/Task/role/principal/resource/profile/model/persona and confirmed process/lease exit. Never reuse a Developer thread for independent Review or carry a verdict across commits. Chief long-term facts reuse original own-memory topics/journal, with no private/team scope fallback.

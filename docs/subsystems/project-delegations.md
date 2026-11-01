@@ -67,3 +67,7 @@ Project membership. With no principal checker, a nonpersistent Task may use its
 still-live initiating platform session; that is not a watch grant. Revocation
 fences claims before stopping workers and keeps unconfirmed capacity. Published
 Task history and previous Attempts remain intact.
+
+Repair R6 background Chief jobs use the explicitly configured current human and
+fresh principal checks, separate from private watch grants and browser cookies.
+Revoked authority or policy revision rejects late decisions.

@@ -113,3 +113,16 @@ advertises native capability on Docker. Local and remote Git gates both validate
 captured resource binding before acting; a physical target change cannot retarget evidence.
 An SDK role without any selected authorized resource pool remains queued before allocation;
 it cannot consume an Attempt/workspace merely because the default Project quota is free.
+
+Repair R6 captures verified local supervisor scope before external execution.
+Only confirmed exit or a proven prior systemd control-group invocation exit
+releases capacity; missing PID and unknown supervisor evidence do not. Actual
+Chief jobs count against resource capacity while avoiding delivery quota deadlock.
+
+Live dogfood regression: supervisor inspection yields to release callbacks.
+Reconciliation rechecks terminal status afterward and cannot resurrect a confirmed
+released lease. Current owned controllers avoid unnecessary supervisor I/O.
+
+Confirmed releases record their evidence kind. SDK releases carry bound worker
+and generation proof from stop acknowledgement plus process exit; unknown releases
+still retain capacity. Historical matching SDK released records remain host facts.

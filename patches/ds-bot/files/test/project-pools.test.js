@@ -21,6 +21,15 @@ test('a logical Bot owns its pool and exactly one concurrent claim succeeds', as
   assert.equal(f.task.collaboration.history[0].status, 'accepted')
   assert.throws(() => f.pool.available('p', 'other-project:developer', { memberId: 'owner' }), /Target/)
 })
+
+test('persisted admission and downstream handoff wake the dispatcher without waiting for a timer', async () => {
+  const f = setup(), destinations = []
+  f.rt.projectScheduler = { wake() { destinations.push(f.task.collaboration.botId) } }
+  await f.admit()
+  const claim = await f.claim()
+  await f.pool.decide('task', claim, { action: 'transfer', to: 'p:tester', reason: 'Inspect the candidate' })
+  assert.deepEqual(destinations, ['p:developer', 'p:tester'])
+})
 test('non-DAG handoff, explicit return and Chief completion requests preserve the same Task', async () => {
   const f = setup(); await f.admit()
   const dev = await f.claim()
@@ -113,4 +122,103 @@ test('revocation fences an active worker before stopping it and retains unconfir
   assert.equal(stopped, true); assert.equal(f.task.collaboration.claim.exitConfirmed, false)
   assert.equal(f.task.collaboration.status, 'blocked')
   await assert.rejects(f.pool.decide('task', token, { action: 'complete', reason: 'Late result after revocation' }), /stale/)
+})
+
+test('execution admission failure retires the claim and reaches Chief instead of leaving a phantom active worker', async () => {
+  const f = setup(); await f.admit()
+  f.adapter.execute = async () => { throw new Error('Pool Attempt is unavailable') }
+  await f.pool.pump()
+  assert.equal(f.task.collaboration.status, 'arbitration')
+  assert.equal(f.task.collaboration.claim, undefined)
+  const failed = f.task.collaboration.history[0]
+  assert.equal(failed.status, 'rejected')
+  assert.equal(failed.execution.status, 'failed')
+  assert.equal(failed.execution.exitConfirmed, false, 'Failure before binding must not invent exit proof')
+  assert.match(f.task.collaboration.history.at(-1).reason, /Pool Attempt is unavailable/)
+})
+
+test('dispatch failure fences late results and retains unconfirmed worker occupancy for Chief', async () => {
+  const f = setup(); await f.admit()
+  f.adapter.execute = async () => 'live-worker'
+  f.adapter.dispatch = async () => { throw new Error('dispatch rejected') }
+  f.adapter.release = async () => false
+  await f.pool.pump()
+  const failed = f.task.collaboration.history[0].execution
+  assert.equal(failed.status, 'failed'); assert.equal(failed.exitConfirmed, false)
+  assert.equal(failed.workerId, 'live-worker')
+  assert.equal(f.task.collaboration.status, 'arbitration')
+  await assert.rejects(f.pool.decide('task', failed, { action: 'complete', reason: 'Late result' }), /stale/)
+})
+
+test('a successful new handoff clears stale blocking UI facts while retaining their audit', async () => {
+  const f = setup(); await f.admit(); const claim = await f.claim()
+  f.task.collaboration.block = { reason: 'Old failure' }; f.task.chiefQuestion = { decisionId: 'old-question' }
+  await f.pool.decide('task', claim, { action: 'transfer', to: 'p:tester', reason: 'Prerequisite repaired' })
+  assert.equal(f.task.collaboration.block, undefined); assert.equal(f.task.chiefQuestion, undefined)
+  assert.equal(f.task.collaboration.history.at(-1).resolvedBlock.reason, 'Old failure')
+  assert.equal(f.task.collaboration.history.at(-1).resolvedChiefQuestion.decisionId, 'old-question')
+})
+
+test('Chief route can resume pre-candidate work while explicit return requests a fresh Attempt', async () => {
+  for (const rework of [false, true]) {
+    const f = setup(); await f.admit(); await f.claim()
+    f.rt.state.projectAttempts = { attempt: { id: 'attempt', status: 'running' } }
+    f.rt.projectChiefControl = { requireJobActor() {}, validateActor: async () => true }
+    let force
+    f.adapter.rework = async input => { force = input.force; return 'attempt' }
+    await f.pool.chiefRoute({ taskId: 'task', targetBotId: 'p:developer', expectedGeneration: f.task.collaboration.generation, reason: 'Host preparation repaired', decisionId: 'resume-' + rework, rework }, { memberId: 'owner' })
+    assert.equal(force, rework)
+  }
+})
+
+test('an audited Chief intervention starts a new bounded routing epoch without erasing history', async () => {
+  const f = setup(); await f.admit(); await f.claim()
+  f.rt.projectChiefControl = { requireJobActor() {}, validateActor: async () => true }
+  f.rt.config.projectHandoff = { cycleMax: 0 }
+  for (let i = 0; i < 4; i++) f.task.collaboration.history.push({ from: 'p:chief', to: 'p:developer', requestId: 'old-' + i, purpose: 'chief-intervention' })
+  const oldHistory = structuredClone(f.task.collaboration.history)
+  await f.pool.chiefRoute({ taskId: 'task', targetBotId: 'p:developer', expectedGeneration: f.task.collaboration.generation, reason: 'A verified environment repair permits recovery', decisionId: 'new-epoch', rework: false }, { memberId: 'owner' })
+  assert.deepEqual(f.task.collaboration.history.slice(1, oldHistory.length), oldHistory.slice(1))
+  assert.equal(f.task.collaboration.history[0].id, oldHistory[0].id)
+  assert.equal(f.task.collaboration.history[0].status, 'intervened')
+  assert.equal(f.task.collaboration.history.at(-1).purpose, 'chief-intervention')
+  const dev = await f.claim()
+  await f.pool.decide('task', dev, { action: 'transfer', to: 'p:tester', reason: 'Test the repaired implementation' })
+  const tester = await f.pool.claim('task', 'p:tester')
+  await f.pool.decide('task', tester, { action: 'transfer', to: 'p:developer', reason: 'A source correction is needed' })
+  const dev2 = await f.claim()
+  await assert.rejects(f.pool.decide('task', dev2, { action: 'transfer', to: 'p:tester', reason: 'Repeat without Chief intervention' }), /cycle-budget/)
+  assert.equal(f.task.collaboration.status, 'blocked')
+})
+
+test('Chief routing admission refusal leaves the original claim and Attempt untouched', async () => {
+  const f = setup(); await f.admit(); await f.claim()
+  f.rt.projectChiefControl = { requireJobActor() {}, validateActor: async () => true }
+  f.task.poolAcceptance = { tester: { requires: [{ pr: 99, checks: 'tests-ok' }] } }
+  const before = structuredClone(f.task)
+  let reworked = false
+  f.adapter.rework = async () => { reworked = true; return 'new-attempt' }
+  await assert.rejects(f.pool.chiefRoute({ taskId: 'task', targetBotId: 'p:tester', expectedGeneration: f.task.collaboration.generation, reason: 'Route with missing evidence', decisionId: 'refused-route' }, { memberId: 'owner' }), /missing-evidence/)
+  assert.deepEqual(f.task, before)
+  assert.equal(reworked, false)
+})
+
+test('a failed Chief rework records a recoverable block instead of leaving stopping forever', async () => {
+  const f = setup(); await f.admit(); await f.claim()
+  f.rt.projectChiefControl = { requireJobActor() {}, validateActor: async () => true }
+  f.adapter.rework = async () => { throw new Error('Registered workspace could not be prepared') }
+  await assert.rejects(f.pool.chiefRoute({ taskId: 'task', targetBotId: 'p:developer', expectedGeneration: f.task.collaboration.generation, reason: 'Resume after repair', decisionId: 'failed-rework', rework: false }, { memberId: 'owner' }), /could not be prepared/)
+  assert.equal(f.task.collaboration.status, 'blocked')
+  assert.equal(f.task.collaboration.block.decisionId, 'failed-rework')
+  assert.match(f.task.collaboration.block.reason, /could not be prepared/)
+})
+
+
+test('Chief intervention does not reset global usage or bypass quota', async () => {
+  const f = setup(); await f.admit(); await f.claim()
+  f.rt.projectChiefControl = { requireJobActor() {}, validateActor: async () => true }
+  f.rt.config.projectHandoff = { quota: { steps: 0 } }
+  const before = structuredClone(f.task)
+  await assert.rejects(f.pool.chiefRoute({ taskId: 'task', targetBotId: 'p:developer', expectedGeneration: f.task.collaboration.generation, reason: 'No quota remains', decisionId: 'quota-chief' }, { memberId: 'owner' }), /quota/)
+  assert.deepEqual(f.task, before)
 })

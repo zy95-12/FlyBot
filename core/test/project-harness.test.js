@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, mkdir, writeFile, readFile, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createProjectResources } from '../src/host/project-resources.js'
-import { createProjectHarness } from '../src/host/project-harness.js'
+import { createProjectHarness, handoffFrame } from '../src/host/project-harness.js'
 
 async function fixture(t) {
   const root = await mkdtemp(join(tmpdir(), 'flybot-harness-contract-'))
@@ -19,7 +19,7 @@ lines.on('line',line=>{const m=JSON.parse(line);
  if(m.type==='stop'){write({type:'stopped',released:true});setTimeout(()=>process.exit(0),20);}
  if(m.type==='start') {
   write({type:'sdk-event',event:{type:'thread.started',thread_id:'bound-thread'}});
-  write({type:'sdk-event',event:{type:'debug',value:m.settings.env.OPENAI_API_KEY}});
+  write({type:'sdk-event',event:{type:'debug',noTools:m.settings.noTools,readOnly:m.settings.readOnly,value:m.settings.env.OPENAI_API_KEY,taskId:'task-1234567890abcdef',unknownCredential:'sk-unitsecret123456789012345'}});
   write({type:'completed',sessionId:'bound-thread',text:'OUTPUT implementation: actual contract worker output',usage:{input_tokens:1}});
  }
 });`)
@@ -47,6 +47,8 @@ test('SDK process contract preserves evidence, redacts credentials and confirms 
   assert.equal(row.backendSessionId, 'bound-thread')
   const evidence = await readFile(row.eventLog, 'utf8')
   assert.match(evidence, /REDACTED/)
+  assert.match(evidence, /task-1234567890abcdef/, 'Task IDs must survive credential redaction')
+  assert.equal(evidence.includes('sk-unitsecret123456789012345'), false)
   assert.equal(evidence.includes(process.env.FLYBOT_TEST_HARNESS_SECRET), false)
   assert.equal(rt.projectResources.occupied('r'), 1)
   await harness.release(id)
@@ -90,4 +92,80 @@ test('missing SDK bridge is an environment failure with no inference or leaked r
   rt.config.projectResources.r.runtimeDir = join(rt.home, 'missing-runtime')
   await assert.rejects(harness.spawn({ executionProjectId: 'p', executionWorkDir: cwd, prompt: 'Must not be dispatched' }), /runtime exited before/)
   assert.equal(rt.projectResources.occupied('r'), 0)
+})
+
+test('a raw JSON handoff gains only its missing framing, preserving the actual model decision', () => {
+  const value = { action: 'arbitrate', reason: 'No sealed candidate is available', outputs: { tests: 'Not run' } }
+  assert.equal(handoffFrame(JSON.stringify(value), ['handoff']), 'OUTPUT handoff: ' + JSON.stringify(value))
+  assert.equal(handoffFrame('OUTPUT handoff: ' + JSON.stringify(value), ['handoff']), 'OUTPUT handoff: ' + JSON.stringify(value))
+  assert.equal(handoffFrame(JSON.stringify(value), ['tests']), JSON.stringify(value))
+  for (const text of ['Please decide for me', '{}', '{"action":"close","reason":"done"}', 'null']) assert.equal(handoffFrame(text, ['handoff']), text)
+})
+
+
+test('command workers bind distinct scratch directories and clean them only after confirmed exit', async t => {
+  const { rt, harness, cwd } = await fixture(t)
+  rt.projectDelivery.sessionFor().role = 'reviewer'
+  const id = await harness.spawn({ executionProjectId: 'p', executionWorkDir: cwd, prompt: 'Review candidate' })
+  const row = rt.state.projectHarnessWorkers[id]
+  assert.equal((await stat(row.scratchDirectory)).isDirectory(), true)
+  assert.equal((await stat(row.scratchDirectory)).mode & 0o777, 0o700)
+  assert.notEqual(row.scratchDirectory, cwd)
+  assert.ok(row.scratchDirectory.endsWith('.flybot-scratch-' + id))
+  await harness.release(id)
+  assert.ok(row.scratchCleanedAt)
+  await assert.rejects(stat(row.scratchDirectory), { code: 'ENOENT' })
+  assert.equal(row.releaseProof.kind, 'sdk-stop-ack-and-process-exit')
+})
+
+
+test('SDK Chief context requests continue the same worker before final judgement and retain memory effects', async t => {
+  const {rt,harness}=await fixture(t)
+  const {roleContext,readContextArchive}=await import('../src/host/project-role-context.js')
+  const path=join(rt.config.projectResources.r.runtimeDir,'src/host/project-harness-worker.mjs')
+  await writeFile(path,`
+import{createInterface}from'node:readline';
+const write=v=>process.stdout.write(JSON.stringify(v)+'\\n');write({type:'ready',sdk:{codex:'0.166.0'}});
+createInterface({input:process.stdin}).on('line',line=>{const m=JSON.parse(line);
+if(m.type==='stop'){write({type:'stopped',released:true});setTimeout(()=>process.exit(0),20)}
+if(m.type==='start'){write({type:'sdk-event',event:{type:'thread.started',thread_id:'chief-context-thread'}});write({type:'completed',sessionId:'chief-context-thread',text:JSON.stringify({contextRequests:[{kind:'knowledge',id:'fact'}]})})}
+if(m.type==='input'){if(!m.prompt.includes('Verified pnpm decision'))process.exit(2);write({type:'completed',sessionId:'chief-context-thread',text:JSON.stringify({reply:'Retained the project decision',actions:[],memoryUpdates:[{text:'Project uses pnpm',topic:'development'}]})})}
+});`)
+  const context=roleContext({projectId:'p',role:'chief',definition:{},knowledge:[{id:'fact',text:'Verified pnpm decision'}],retrieval:true})
+  let memoryWrites=0,exchanges=0,finish
+  const done=new Promise(resolve=>{finish=resolve})
+  rt.projectAgents={isDelegationActive:()=>true,contextExchange:async(agentId,delegationId,data,snapshot)=>{
+    assert.equal(agentId,'public-p');assert.equal(delegationId,'d');exchanges++
+    if(data.memoryUpdates?.length)memoryWrites+=data.memoryUpdates.length
+    return {reads:data.contextRequests?.length?readContextArchive(snapshot,data.contextRequests):[],writes:[]}
+  }}
+  rt.config.projectResources.r.harnesses=['codex'];rt.state.projectResourceHealth={r:{status:'ready',at:Date.now()}};rt.state.projectHarnessHealth={'p:r:codex':{status:'ready'}};delete rt.state.projectResourceLeases.l
+  const agent={id:'public-p',projectId:'p',lastRequest:{}}
+  const id=await harness.chiefTurn({agent,delegation:{id:'d',definitionRevision:1},definition:{execution:{harness:'codex',resourceIds:['r'],model:'test-model'}},context,text:'Read the saved decision',onResult:finish})
+  const result=await done
+  assert.equal(result.ok,true)
+  assert.equal(result.backendSessionId,'chief-context-thread')
+  assert.equal(JSON.parse(result.text).reply,'Retained the project decision')
+  assert.equal(exchanges,2);assert.equal(memoryWrites,1)
+  await harness.release(id)
+  assert.equal(rt.projectResources.occupied('r'),0)
+  assert.match(await readFile(rt.state.projectHarnessWorkers[id].sealedLog,'utf8'),/contextRequests/)
+})
+
+
+test('conversation carriers for non-Chief roles cannot gain development shell or write capabilities', async t => {
+  const {rt,harness}=await fixture(t)
+  rt.config.projectResources.r.harnesses=['codex'];rt.state.projectResourceHealth={r:{status:'ready',at:Date.now()}};rt.state.projectHarnessHealth={'p:r:codex':{status:'ready'}};delete rt.state.projectResourceLeases.l
+  rt.projectAgents={isDelegationActive:()=>true}
+  for(const role of ['developer','reviewer']) {
+    const agent={id:'room-'+role,projectId:'p',role,roomId:'room',lastRequest:{}}
+    let finish;const done=new Promise(resolve=>{finish=resolve})
+    const id=await harness.chiefTurn({agent,delegation:{id:'d-'+role,definitionRevision:1,readOnly:true},definition:{instructions:'Room conversation only',execution:{harness:'codex',resourceIds:['r'],model:'test-model'}},context:{text:'Scoped room context'},text:'Answer this ordinary room question',onResult:finish})
+    assert.equal((await done).ok,true)
+    const events=(await readFile(rt.state.projectHarnessWorkers[id].sealedLog,'utf8')).trim().split('\n').map(line=>JSON.parse(line))
+    const flags=events.find(row=>row.event?.type==='debug').event
+    assert.equal(flags.noTools,true,'A role label does not authorize tools for a conversation carrier')
+    assert.equal(flags.readOnly,true)
+    await harness.release(id)
+  }
 })

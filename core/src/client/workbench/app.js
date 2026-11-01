@@ -181,6 +181,26 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
       node.append(box('Private notes', ...agents.privateMemory.map(note => el('p', note.text)), form('memory', [['text', 'Remember privately', 'textarea']], values => scoped('project-agent-memory-write', values))))
       for (const proposal of agents.proposals) node.append(box(proposal.taskId ? 'Published Task' : 'Unpublished proposal', el('p', proposal.taskId ? 'Published; execution requires a separate run request.' : 'Private proposal; it has not been published or assigned.'), json(proposal.fields), button(proposal.taskId ? 'Published' : 'Publish as shared Task', () => act(() => scoped('project-agent-proposal-apply', { proposalId: proposal.id })), Boolean(proposal.taskId) || busy)))
     } else {
+      const chief = resources.chief, settings = chief?.policy.inspection ?? chief?.template
+      if (chief && settings) {
+        const card = box('Chief arbitration and scheduled inspection', el('p', `Arbitration ${chief.policy.enabled ? 'enabled' : 'disabled'} · inspection ${chief.schedule?.status ?? 'not configured'}`))
+        for (const run of chief.runs.slice(-3)) card.append(el('p', `${run.purpose}: ${run.status}${run.summary ? ' · ' + run.summary : run.failure ? ' · ' + run.failure : ''}`))
+        if (detail.permissions.configure) {
+          const timing = chief.schedule?.config.when ?? settings.when, limits = settings.thresholds
+          card.append(form('chief-policy', [
+            ['enabled', 'Chief arbitration', 'select', ['true', 'false'], String(Boolean(chief.policy.enabled))],
+            ['inspectionEnabled', 'Scheduled inspection', 'select', ['true', 'false'], String(Boolean(settings.enabled))],
+            ['minutes', 'Repeat minutes (blank keeps other timing)', 'optional', null, timing.kind === 'every' ? String(timing.seconds / 60) : ''],
+            ['prompt', 'Inspection instructions', 'textarea', null, chief.schedule?.config.prompt ?? settings.prompt],
+            ['handoffs', 'Handoffs without verified progress', 'number', null, String(limits.maxHandoffsWithoutProgress)],
+            ['execution', 'Execution warning minutes', 'number', null, String(limits.longExecutionMs / 60000)],
+            ['heartbeat', 'Heartbeat warning minutes', 'number', null, String(limits.missingHeartbeatMs / 60000)],
+            ['wait', 'Waiting warning minutes', 'number', null, String(limits.longWaitMs / 60000)],
+          ], values => scoped('project-chief-configure', { enabled: values.enabled === 'true', inspection: { enabled: values.inspectionEnabled === 'true', prompt: values.prompt, when: values.minutes.trim() ? { kind: 'every', seconds: Number(values.minutes) * 60 } : timing, thresholds: { maxHandoffsWithoutProgress: Number(values.handoffs), longExecutionMs: Number(values.execution) * 60000, missingHeartbeatMs: Number(values.heartbeat) * 60000, longWaitMs: Number(values.wait) * 60000 } } }), 'Save Chief configuration'))
+          card.append(button('Inspect now', () => act(() => scoped('project-chief-inspect', { requestId: win.crypto.randomUUID() })), !chief.policy.enabled || busy))
+        }
+        node.append(card)
+      }
       for (const role of agents.definitions.roles) {
         const card = box(role.role, el('p', `Model: ${role.model ?? 'Project default'} · revision ${role.revision ?? agents.definitions.revision}`), el('p', role.instructions))
         if (detail.permissions.configure) {

@@ -36,6 +36,28 @@ async function setup(t) {
 const get = (rt, actor, projectId = 'p1') => rt.projectEndpoint('project-agents', { projectId }, actor)
 const message = (rt, actor, visibility = 'private', text = 'Read my Project context') => rt.projectEndpoint('project-agent-message', { projectId: 'p1', visibility, text, publicationApproved: visibility === 'public' }, actor)
 
+test('knowledge checkpoints require current manager authority and exact same-Project source hashes', async t => {
+  const {rt} = await setup(t)
+  const {contextHash} = await import('../src/host/project-role-context.js')
+  await rt.projectEndpoint('project-knowledge-write', {projectId: 'p1', text: 'Old public fact'}, alice)
+  const old = rt.state.projectKnowledge.p1[0]
+  const supersedes = [{id: old.id, sha256: contextHash(JSON.stringify(old))}]
+  const body = {projectId: 'p1', text: 'Current reviewed summary', supersedes}
+  await assert.rejects(rt.projectEndpoint('project-knowledge-write', body, bob), /access denied/)
+  await assert.rejects(rt.projectEndpoint('project-knowledge-write', {...body, projectId: 'p2'}, alice), /checkpoint/i)
+  await assert.rejects(rt.projectEndpoint('project-knowledge-write', {...body, supersedes: [{...supersedes[0], sha256: 'wrong'}]}, alice), /checkpoint/i)
+  await assert.rejects(rt.projectEndpoint('project-knowledge-write', {...body, supersedes: [...supersedes, ...supersedes]}, alice), /checkpoint/i)
+  for (const invalid of [[], [null], 'all', Array(513).fill(supersedes[0])]) await assert.rejects(rt.projectEndpoint('project-knowledge-write', {...body, supersedes: invalid}, alice), /checkpoint/i)
+  assert.equal(rt.state.projectKnowledge.p1.length, 1)
+  await rt.projectEndpoint('project-knowledge-write', body, alice)
+  assert.deepEqual(rt.state.projectKnowledge.p1[0], old)
+  assert.equal(rt.state.projectKnowledge.p1[1].checkpoint.version, 'project-knowledge-checkpoint/v1')
+  assert.deepEqual(rt.state.projectKnowledge.p1[1].checkpoint.supersedes, supersedes)
+  assert.equal((await get(rt, bob)).knowledge.length, 2, 'Current members retain full public history')
+  await rt.projectEndpoint('project-knowledge-write', {projectId: 'p1', text: 'Member may still append an ordinary fact'}, bob)
+  assert.equal(rt.state.projectKnowledge.p1.length, 3)
+})
+
 test('private agents have stable per-user/project identities and only shared public facts overlap', async t => {
   const { rt } = await setup(t)
   const a = await get(rt, alice)
@@ -403,4 +425,30 @@ test('safe Chief publication approval cannot be fabricated in model tool argumen
   const result = await rt.projectAgents.task(rt.botOf(original.public.botId), { title: 'Model-proposed Task', publicationApproved: true, watchGrantId: 'forged' })
   assert.equal(result.publishRequired, true)
   assert.equal(Object.keys(rt.state.tasks).length, 0)
+})
+
+
+test('Chief uses original topic memory across turns and restart without reading private or team scopes', async t => {
+  const {rt} = await setup(t)
+  const sent = await message(rt, alice, 'public', 'Remember the project uses pnpm')
+  const agent = rt.state.projectAgents[sent.agent.id], bot = rt.botOf(agent.botId)
+  const response = await rt.projectAgents.context(bot, {memoryUpdates:[{text:'本项目统一使用 pnpm。',topic:'development'}]})
+  assert.equal(response.writes[0].changed,true)
+  assert.ok((await get(rt,bob)).chiefMemory.topics.includes('development'))
+  assert.ok((await rt.projectEndpoint('project-agents',{projectId:'p1',memoryTopic:'development'},bob)).chiefMemory.entries[0].text.includes('pnpm'))
+  assert.equal(rt.memoryDigest(bot.id).topics.includes('development'),true)
+  assert.ok(rt.botMemoryRecall(bot.id,{topic:'development'}).entries.some(row=>row.text.includes('pnpm')))
+  assert.equal((await rt.projectAgents.context(bot,{memoryRequests:[{topic:'development'}]})).memories[0].entries.length,1)
+  await rt.projectAgents.context(bot,{memoryUpdates:[{text:'本项目统一使用 npm。',topic:'development',replace:'pnpm'}]})
+  assert.equal(rt.botMemoryRecall(bot.id,{topic:'development'}).entries[0].text,'本项目统一使用 npm。')
+  await assert.rejects(rt.projectAgents.context(bot,{memoryUpdates:[{text:'sk-abcdefghijklmnopqrstuv'}]}),/key|token|password/)
+  await assert.rejects(rt.projectAgents.context(bot,{memoryRequests:[{topic:'../private'}]}),/topic/)
+  const privateAgent = (await get(rt,alice)).mine
+  await assert.rejects(rt.projectAgents.context(rt.botOf(privateAgent.botId),{memoryUpdates:[{text:'Private fact'}]}),/delegation|unavailable/)
+  const {install} = await import('../src/host/memory.js')
+  install(rt)
+  assert.equal(rt.botMemoryRecall(bot.id,{topic:'development'}).entries[0].text,'本项目统一使用 npm。','Memory is read from the original durable files after reinstall')
+  assert.equal(rt.botMemoryRecall(bot.id,{query:'npm',scope:'team',botId:'foreign'}).entries.length,1,'Caller-supplied scope cannot retarget own memory')
+  rt.projectAgents.revoke('p1',alice.memberId)
+  await assert.rejects(rt.projectAgents.context(bot,{memoryRequests:[{}]}),/delegation|revoked/)
 })

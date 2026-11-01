@@ -42,3 +42,53 @@ configured FlyBot-owned read-only principal projection in the SQLite deployment;
 no broad admin credential or control-plane source change is introduced.
 
 Written-by: Codex
+
+R6 stacks on R5 `5ce90bf89bb192ac445c2afa14eec6c3456ca829`. Chief receives
+completion/uncertainty and proposes bounded evidence-gated effects using the
+explicit configuring human's current Project authority. Original DSH schedules
+provide cadence; a logical mapping supplies durable Project/Chief targeting and
+occurrence deduplication. Default configuration lives in JSON, not a framework
+clock. Supervisor-backed local restart proof does not weaken unknown-exit holds.
+
+Actual SDK sandbox debugging established that CLI raw network denial also denies
+Unix pipe lifecycle syscalls needed by Node. Preserve the external-access boundary
+with a mandatory limited proxy and an empty domain allowlist, plus named scoped
+filesystem permissions. Actual probe children run while proxied/direct outbound
+and outside-workspace writes fail. This changes process IPC handling, not provider,
+credentials, Project authority, public hosting or control-plane.
+
+Actual Chief recovery exhausted a lifetime Chief→Dev edge budget despite a newly
+verified environment repair. Apply the loop budget between audited Chief interventions,
+keep global quotas and history, and preflight routing before changing execution state.
+This permits explicit Chief recovery without granting ordinary workers a budget bypass.
+
+Real Reviewer temporary-fixture failures require an explicit worker-owned scratch
+grant and host-prepared dependencies while the review checkout remains read-only.
+Use the existing resource and confirmed-exit lifecycle for provisioning/cleanup;
+retry the same candidate and preserve prior INC evidence.
+
+Preserve fully released, tested Chief-wait checkpoints across controlled backend
+updates, with explicit restart audit and unchanged candidate/test evidence. This
+exception excludes active claims, unknown exits, native workers and cancellation.
+
+Existing owner scope requires one PR per issue through rework. The host delivery
+repair in R6 preserves the same Task's PR binding and published candidate ancestry
+across successor Attempts; independent worktree branch names are not remote PR
+identity. Verified fast-forward continuation does not grant merge authority,
+force-push rights, a new baseline or permission to attach unrelated Tasks.
+
+Existing PR maintenance must retain both published candidate history and trusted
+upstream integration. Host-derived target refs, registered commit availability,
+resolved Git merge evidence and dual-ancestor publication gates implement this
+without granting model authority to choose parents or bypass Test/Review. No
+runtime-policy, model/resource, control-plane or merge authority changes follow.
+
+Context repair retains the 48,000-character boundary and complete separately injected policy. Repository previews become source references only when full policy/source hashes, commit and preview prefix agree. A host-rejected admission with no registered execution can be checkpointed after proven Chief exit; bound or unknown resources cannot qualify. No runtime-policy or task-state bypass is authorized.
+
+A Chief route keeps the existing unstarted Attempt. Host preparation may refresh its stale trusted upstream only after authenticated original-PR/head/ref checks, provisioned object/descendant proof and absence of registered execution with all leases released. Old/new bindings and claim generation are audited; no manual live-state edit, new Attempt, workspace reset or relaxed publisher check is an alternative. Owner feedback that the UI still looks old remains an explicit #40 residual requiring demo comparison and real interaction evidence.
+
+Owner-approved P0 proceeds through supported target refresh and the reproduced M6 failure. Preserve production safe-mode gates: repair the stale browser expectation by actually publishing the requester’s proposal through UI, not by granting watch mode, forging a Task or weakening assertions. Platform maintenance, actual delivery, CI and UI acceptance remain separately evidenced.
+
+Chief inspection may explicitly select one existing Task in its authorized Project. The host validates Project configuration authority and Task ownership before using the existing scoped snapshot mechanism. Other-Project/missing Tasks are rejected; unscoped inspection is unchanged. This reduces unrelated facts without dropping policy/knowledge or raising context limits.
+
+Owner basic-CI policy is implemented on the existing PR47 local branch: default pinned install/lint/build/canonical/core and plugin unit checks; heavy browser/runtime/package checks explicit extended dispatch. Independent Review and actual UI acceptance remain. Publish only at a safe upstream-binding checkpoint; this local change does not claim live workflow activation.

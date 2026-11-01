@@ -194,7 +194,7 @@ export function install(rt) {
   const sourceOf = (sessionId, actor) => {
     const owner = ownerOf(sessionId)
     if (owner === undefined) return undefined
-    if (rt.authzEnforced?.() && (!actor || !ownedByActor(owner, actor))) return undefined
+    if (rt.authzEnforced?.() && (!actor || !ownedByActor(owner, actor) && !rt.projectScheduledTasks?.ownsSession(sessionId, actor))) return undefined
     return owner
   }
   // Paused tasks, by their DSH id: { id, sessionId, record, pausedAt }. DSH ids are
@@ -534,7 +534,7 @@ export function install(rt) {
 
   // Resume: DSH gets the task again, on the Bot's current part, before FlyBot forgets
   // the paused copy. A one-time task whose time has passed waits for an edit.
-  async function resumeSchedule(body) {
+  async function resumeSchedule(body, recordOnly = false) {
     ensureService()
     const sessionId = String(body.sessionId ?? '')
     const held = pausedEntry(sessionId, String(body.id ?? ''))
@@ -546,10 +546,10 @@ export function install(rt) {
     const request = requestOf(held.record)
     if (request === null) throw invalid('No such task')
     if (request.at !== undefined && Date.parse(request.at) <= Date.now()) throw invalid('Its time has passed. Edit the task to pick a new one')
-    await service.create(sessionFor(owner), request)
+    const created = await service.create(sessionFor(owner), request)
     delete paused()[held.id]
     await rt.save()
-    return schedulesView()
+    return recordOnly ? created : schedulesView()
   }
 
   // Retry: the task's prompt once now, to the Bot's current part or the group, as a run of
@@ -717,6 +717,29 @@ export function install(rt) {
     } catch (error) {
       rt.warn('ds-bot: tasks of %s not moved: %s', fromId, error?.message ?? error)
     }
+  }
+
+  rt.logicalScheduleBackend = {
+    async create(body) {
+      ensureService()
+      const { sessionId, title, prompt } = contentOf(body), timing = selectorOf(body.when)
+      refuseDuringQuietHours(timing, body.when?.timeZone)
+      return service.create(sessionId, { title, prompt, ...timing })
+    },
+    async catalog() { ensureService(); return service.catalog() },
+    update: (body, actor) => updateSchedule(body, actor),
+    pause: body => pauseSchedule(body),
+    resume: body => resumeSchedule(body, true),
+    delete: body => endpoints['schedule-delete'](body),
+    async retarget(id, sessionId) {
+      ensureService()
+      if (state.pausedSchedules?.[id]) { state.pausedSchedules[id].sessionId = sessionId; await rt.save(); return }
+      await service.serialize(async () => {
+        const tasks = (await service.getDomain()).table('tasks'), task = tasks.get(id)
+        if (!task) throw invalid('No such logical scheduled task')
+        await tasks.put(id, { ...task, sessionId })
+      })
+    },
   }
 
   Object.assign(rt, {

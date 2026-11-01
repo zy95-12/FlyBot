@@ -6,6 +6,7 @@ owned_paths:
   - core/src/host/project-role-context.js
   - core/src/host/project-role-policy.js
   - core/test/project-role-policy.test.js
+  - core/test/project-role-context.test.js
   - core/src/host/project-credentials.js
   - core/test/project-agents.test.js
   - core/test/project-credentials.test.js
@@ -287,3 +288,50 @@ mode. Full scoped human operations are exposed through `project_agent_action`
 with current Project checks and audit. SDK Chief may reference `$lastTask` only
 for the immediately preceding host-created Task; a proposal cannot be run.
 See [delegation contract](project-delegations.md).
+
+Repair R6: resident Chief runs bounded arbitration jobs through native or actual
+SDK execution with complete pinned policy. Private tokens bind current Run and
+policy revision; native job prompts restore after completion and new human turns
+replace both instruction fields. Stale persisted inputs cannot reuse a revoked
+delegation. Coordination jobs cannot authorize themselves or create arbitrary Tasks.
+
+Chief coordination retains explicitly published shared Project knowledge alongside
+its role memory; private human notes/history remain excluded.
+
+Repository previews may reference the separately injected complete policy only after
+verifying the policy hash, source commit, full source hash and preview prefix.
+Unverified previews remain inline under the unchanged 48,000-character limit;
+knowledge, memory and complete policy rules are preserved.
+
+
+## Explicit knowledge checkpoints (R6 context recovery)
+
+`project-knowledge-write {projectId,text,kind,supersedes:[{id,sha256}]}` optionally
+publishes a manager-authored current summary. Ordinary append remains available
+to current Project members; checkpoint publication additionally requires configure
+permission. Each reference must name a distinct existing record in this Project
+with SHA256 of its exact JSON representation. Missing/foreign/changed records,
+malformed references or more than512 entries fail before appending. No record is
+deleted, rewritten or attributed to a different human. The full public history
+remains available in project-agents/context under existing Project authorization;
+private memory is never a checkpoint source. A summary is human-published task
+data, not proof or additional authority.
+
+Role context verifies each checkpoint against earlier source records. Only valid
+explicitly covered entries leave the inline view; checkpoint text and later facts
+remain. The context carries covered-history count/digest/retention source and
+bounded checkpoint reference metadata. Snapshot sources retain every input ID and
+hash. Stale/invalid references retain original records and the existing48,000-char
+limit still rejects overflow. Requirements, memory and full repository policy are
+unchanged. No automatic lossy model summary or privilege widening is introduced.
+
+Regressions cover actual API manager/member/Project boundaries, no side effects on
+refusal, immutable history, invalid/forward/duplicate/tampered refs, subsequent facts
+and both Developer/Chief admission below the unchanged cap. Live publication and
+actual execution recovery are separate acceptance evidence.
+
+
+## Resident Chief memory and context retrieval
+Chief memory index/head comes from the original resident Bot's own MEMORY.md/topic files. Scoped project_agent_context accepts memoryRequests and memoryUpdates (topic, text, replace) only for the active public Chief; SDK uses the same host contextExchange. Normal platform/delegation and Project membership checks still run. No requested Bot ID, team scope, another Project or private agent can retarget the store; private/read-only conversations cannot publish shared memory. Source references name the actual Chief request and journal preserves replaced facts. SDK instructions request short durable public facts rather than execution logs, repository rules or credentials.
+
+RoleContext retrieval mode retains the48k admission ceiling and all original requirements/persona. Recent public knowledge is inline within8k; older/large rows and oversized attached memory remain in a content-hashed immutable archive. Exact source IDs/hashes stay in evidence. Chief reads paginated index/source pages through contextRequests; command-enabled roles read only needed archive entries. Each page is6000characters, maximum4 per request. Unknown kinds/IDs, negative offsets and changed archives fail closed. This is source retrieval before execution, separate from model-history compaction. Legacy explicit checkpoint records remain valid and retained.

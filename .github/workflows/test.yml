@@ -14,6 +14,11 @@ on:
   # (as a docs-only pull request does), and `push` above is limited to main, so an entry does not run twice.
   merge_group:
   workflow_dispatch:
+    inputs:
+      extended:
+        description: Run heavy browser, SDK/runtime and packaging checks
+        type: boolean
+        default: false
 
 # On main a run finishes: a release waits for a green run on its commit, and one cancelled
 # by every next push would leave none to wait for. A PR's run is cancelled by its next push.
@@ -25,7 +30,7 @@ permissions:
   contents: read
 
 jobs:
-  # The PR gate: one job (see #31). Its name is the required check on main: keep it exactly.
+  # Fork basic validation; this does not assert GitHub branch protection.
   # Windows, Node 22 and the next DSH run in the Compatibility workflow (nightly.yml).
   test:
     name: ubuntu-latest · Node 24 · DSH 0.2.0-rc.2
@@ -40,11 +45,20 @@ jobs:
         with:
           node: '24'
           dsh: 0.2.1-rc.2
-          coverage: 'true'
-          plugins: 'false'
+          coverage: ${{ github.event_name == 'workflow_dispatch' && inputs.extended && 'true' || 'false' }}
+          plugins: ${{ github.event_name == 'workflow_dispatch' && inputs.extended && 'false' || 'true' }}
+      - name: Fork basic generated consistency and demo regressions
+        run: |
+          node scripts/ds-bot-patches.mjs check
+          node scripts/ds-bot-patches.mjs canonical
+          npm run lint:demo && npm run test:demo
+          node --test .github/scripts/fork-ci-result.test.mjs .github/scripts/test-workflow.test.mjs
+
       - name: M0 regression and real DSH runtime checks
+        if: github.event_name == 'workflow_dispatch' && inputs.extended
         run: npm run lint:demo && npm run test:demo && npm run test:demo:runtime
       - name: Read unchanged control-plane baseline
+        if: github.event_name == 'workflow_dispatch' && inputs.extended
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           repository: zy95-12/flybot-control-plane
@@ -52,6 +66,7 @@ jobs:
           path: .demo-control-plane
           persist-credentials: false
       - name: M0 HTTP checks against unchanged platform
+        if: github.event_name == 'workflow_dispatch' && inputs.extended
         run: |
           python3 -m venv "$RUNNER_TEMP/flybot-demo-python"
           "$RUNNER_TEMP/flybot-demo-python/bin/python" -m pip install -r .demo-control-plane/control_plane/requirements.txt -r dev/demo/requirements.txt
@@ -60,6 +75,7 @@ jobs:
           test -z "$(git -C .demo-control-plane status --porcelain)"
 
       - name: M6 two-account browser acceptance through shared entry
+        if: github.event_name == 'workflow_dispatch' && inputs.extended
         env:
           FLYBOT_DEMO_CONTROL_PLANE: .demo-control-plane
         run: |
@@ -74,6 +90,7 @@ jobs:
   # harness. DSH_HARNESS points the frontend (web entry) tests at real Cordis; a skipped test
   # fails the job, so they cannot silently stop running.
   plugins:
+    if: github.event_name == 'workflow_dispatch' && inputs.extended
     name: plugins (${{ matrix.plugin }})
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -116,6 +133,7 @@ jobs:
   # The core pin (ds-bot.pin.json + patches/ds-bot/ -> core/), then what a DSH profile installs: each package packs with everything its main/exports/files
   # name, and no tests or dev tools. The release job ships these same tarballs.
   package:
+    if: github.event_name == 'workflow_dispatch' && inputs.extended
     name: package
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -162,11 +180,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Every job passed
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Validate selected suite results
         env:
           TEST: ${{ needs.test.result }}
           PLUGINS: ${{ needs.plugins.result }}
           PACKAGE: ${{ needs.package.result }}
+          EXTENDED: ${{ github.event_name == 'workflow_dispatch' && inputs.extended }}
         run: |
           echo "test: $TEST, plugins: $PLUGINS, package: $PACKAGE"
-          [ "$TEST" = success ] && [ "$PLUGINS" = success ] && [ "$PACKAGE" = success ]
+          node .github/scripts/fork-ci-result.mjs

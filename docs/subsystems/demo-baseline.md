@@ -132,3 +132,5 @@ The owner-authorized scripted return/retry/accept sequence keeps both Attempts a
 only registered workspaces. It asserts zero calls to the deterministic native transport.
 This API acceptance is separate from browser, Claude and multi-resource acceptance; none
 is inferred from a Codex-only run. Routine verify remains key-free.
+
+The M6 browser fixture exercises safe-mode proposals before Task publication: the native public Chief creates an unpublished proposal, even the Project owner cannot publish another member’s proposal, and the original member approves through the actual private-agent UI. Repeated approval reuses one Task, whose requester remains the original member. A missing unapproved Task is expected authorization behavior, not a timeout to bypass. Existing role/worktree/browser checks remain required.

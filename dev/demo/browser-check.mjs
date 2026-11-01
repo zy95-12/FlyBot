@@ -9,6 +9,6 @@ const result = spawnSync(process.env.FLYBOT_DEMO_PYTHON ?? 'python3', [resolve(i
 if (result.status !== 0) throw new Error(result.stderr || 'Workbench browser runner failed')
 const report = JSON.parse(result.stdout)
 assert.equal(report.milestone, 'M6')
-for (const check of ['private Project notes isolated', 'public Chief tool creates shared Task', 'browser retry preserves history', 'owner cookie absent in both browsers', 'revocation clears stale page']) assert.ok(report.checks.includes(check), check)
+for (const check of ['safe mode waits for human Task publication', 'another member cannot publish the proposal', 'repeated proposal publication creates one Task', 'private Project notes isolated', 'public Chief tool creates shared Task', 'browser retry preserves history', 'owner cookie absent in both browsers', 'revocation clears stale page']) assert.ok(report.checks.includes(check), check)
 assert.ok(report.notRun.includes('real model'))
 process.stdout.write(JSON.stringify(report, null, 2) + '\n')

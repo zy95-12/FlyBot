@@ -7,6 +7,12 @@ owned_paths:
 
 # Per-Bot Project task pools and handoff
 
+After saving a new handoff receipt, the pool wakes the existing Project dispatcher
+immediately. Dispatch coalesces concurrent events; it does not await a scheduler
+wake from inside the pool's serialized mutation. Duplicate receipts do not emit
+another wake, and confirmed-exit/authority/evidence gates remain unchanged.
+
+
 New shared deliveries default to `project-handoff/v1`, with
 `project-delivery/pools-v1` Attempts. `projectDispatch: workflow` explicitly selects
 the historical fixed DAG; saved v1–v4 Attempts are unchanged. The existing Workflow
@@ -76,3 +82,33 @@ initiating human account outside the browser when the operator principal checker
 is configured; otherwise only a live initiating platform session suffices.
 Revocation fences the claim before worker shutdown; unknown exits retain capacity.
 See [delegation contract](project-delegations.md).
+
+Repair R6: Chief admission no longer demands final completion evidence. Chief
+claims its receipt, validates closure through existing gates or routes/returns
+with an explicit reason. Confirmed worker exit precedes intervention; unknown
+capacity remains held. Failed host verification offers the same Task to Chief.
+See [Chief control](project-chief-control.md).
+
+Failed execute/dispatch admission fences the old claim and records a rejected
+receipt before entering Chief arbitration. Unknown worker exits retain occupancy;
+absence of a returned worker handle does not fabricate exit confirmation. Late
+results against failed receipts are stale, not idempotent successful decisions.
+
+A successful new handoff clears stale active block/question fields and archives
+them on its receipt, preserving audit without reporting repaired work as blocked.
+
+Chief route to Dev may resume a running pre-candidate Attempt in its existing
+workspace after a preparation fix. Explicit return, interrupted Attempts and
+candidate-backed rework create a new Attempt, retaining prior evidence.
+
+Route forwards explicit resume intent; delivery validates release proof before
+reusing an interrupted unsealed workspace. Explicit return still requests rework.
+
+## Audited intervention and routing budgets
+
+Autonomous per-edge repetitions are counted since the last admitted Chief intervention.
+Only the privileged Chief routing path starts a new epoch; normal role decisions
+cannot request one. Historical receipts and global token/time/step usage remain.
+Chief routes still satisfy evidence, current authority, quotas and worker-exit gates.
+Admission is preflighted before fencing a claim or creating/resuming an Attempt.
+A later preparation/authority failure records a blocked state with its decision ID.

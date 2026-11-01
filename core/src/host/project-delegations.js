@@ -66,6 +66,7 @@ export function createProjectDelegations(rt, { principal = principalChecker(rt) 
   function publicGrant(grant) { return { id: grant.id, projectId: grant.projectId, memberId: grant.memberId, generation: grant.generation, status: grant.status, createdAt: grant.createdAt } }
   function view(agentId) { const grant = forAgent(agentId); return { mode: grant ? 'watch' : 'safe', grant: grant ? publicGrant(grant) : null } }
   async function human(actor) {
+    if (actor?.chiefJobId) return rt.projectChiefControl.validateActor(actor)
     if (actor?.watchGrantId) return validateActor(actor)
     return !rt.platformIdentityEnabled || Boolean(await rt.validatePlatformActor(actor))
   }
@@ -87,6 +88,7 @@ export function install(rt) {
   rt.validateHumanActor = actor => rt.projectDelegations.human(actor)
   const requireAccess = rt.requireProjectAccess
   rt.requireProjectAccess = (actor, projectId, ...args) => {
+    if (actor?.chiefJobId) rt.projectChiefControl.requireJobActor(actor, projectId)
     if (actor?.watchGrantId) {
       const grant = rt.projectDelegations.validateGrant(actor)
       if (grant.projectId !== projectId) throw refuse('Watch delegation belongs to another Project')

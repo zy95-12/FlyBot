@@ -9,6 +9,14 @@ owned_paths:
 
 # Shared Project access (fork M2)
 
+R6 `project-queue-retry {queueId}` passes through the restricted gateway and HTTP
+dispatcher to scheduler authorization. It requires current Owner/Maintainer
+run-control permission on the queue's Project, then independently validates the
+original initiating human before requeueing the same request. Body identity and
+management of another Project grant no recovery authority. Read-only/query agents
+gain no access to this operation.
+
+
 M2 is an explicitly configured Project workbench path. It reuses unchanged
 control-plane `/api/auth/login`, `/api/auth/session`, `/api/auth/logout` and account
 administration. FlyBot owns the subject adapter, Project roles/invites/policy and
@@ -195,3 +203,12 @@ current account and Project. Watch actors carry a bound grant/generation checked
 at every Project boundary. Membership removal revokes grants and stops affected
 claims. Scoped GitHub and runtime setup accept validated persistent actors, without
 falling back to another browser or credential. See [delegation contract](project-delegations.md).
+
+Repair R6 Chief job actors must validate a private active-job token, current
+configured policy revision and configuring human's current account/Project rights.
+A Chief role name alone grants no access. New control endpoints remain Project scoped.
+
+Authenticated HTTP route regressions cover every R3–R6 collaboration endpoint
+and reject a nonmember at the real Project boundary, beyond direct service tests.
+
+Chief inspection may explicitly select one existing Task in its authorized Project. The host validates Project configuration authority and Task ownership before using the existing scoped snapshot mechanism. Other-Project/missing Tasks are rejected; unscoped inspection is unchanged. This reduces unrelated facts without dropping policy/knowledge or raising context limits.

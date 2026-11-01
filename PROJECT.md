@@ -10,6 +10,19 @@ Current stage and priorities: [ROADMAP.md](ROADMAP.md). How decisions are made:
 
 ## Fork Project State — 2026-10-31
 
+### Direct backend recovery — 2026-11-01
+
+The owner requires backend repairs in the foreground Codex session; do not
+dispatch backend development through FlyBot. Existing frontend work is preserved
+and resumes through FlyBot only after backend verification. See the
+[execution decision](decisions/2026-11-01-direct-backend-recovery.md).
+R6 adds coalesced event-driven dispatch, manager-controlled retry of blocked queue
+entries under the original requester, and operator-selected workspace preparation
+before each pool receiver and after independent test cleanup. Failed allocation,
+checkout or context preparation releases only proven unbound reservations and
+retains its failure audit. These changes do not imply live UI or R8 acceptance.
+
+
 This is `zy95-12/FlyBot`. Current scope is the [shared-project roadmap](https://github.com/zy95-12/FlyBot/issues/1)
 and [fork decision](decisions/2026-10-31-project-first-fork.md). The inherited mission,
 people and stage descriptions below are historical upstream context; upstream accounts
@@ -259,3 +272,97 @@ supply fresh account status through a FlyBot-owned read-only operator helper,
 without storing browser cookies or admin credentials. Regression tests cover
 logout, restart, current rights, revocation, forged status evidence and fresh WAL
 reads. Shared-service provisioning and real-model acceptance are still pending.
+
+R6 (#39) adds evidence-gated Chief arbitration, audited intervention and configurable
+inspection on original DSH scheduled tasks. The JSON template defaults to 30 minutes;
+content, cadence, thresholds and pause/enable are editable. Current configured human
+authority and generation fences apply to each effect. Unknown process exits retain
+capacity; a verified systemd invocation boundary permits local restart recovery.
+Deterministic protocol tests return incomplete coverage to Dev then close the same
+Task after a fresh Attempt. Real shared-service Codex/timer acceptance remains #41.
+
+Real shared-service R6 probes passed an actual Codex Chief ordinary inquiry with
+zero Tasks and an original DSH 60-second wake after browser logout, then pause/
+resume and restoration to 30 minutes. R7 actual Dev requested Chief arbitration;
+Chief returned the same Task to Dev with a fresh Attempt. This exposed a concurrent
+resource-release reconciliation race, fixed with a red/green regression. Actual
+full R7 delivery and persistent 30-minute/restart acceptance remain in progress.
+
+R7 dogfood also exposed sandbox Git-index and host-test boundary failures. Scoped
+Codex writable roots support canonical generation; Chief route may resume a
+running pre-candidate Attempt without discarding uncommitted work. Explicit
+return or interrupted/candidate-backed work still creates a fresh Attempt. SDK
+release records carry actual stop-ack/process-exit proof, not terminal Task inference.
+
+The original DSH 1800-second schedule actually fired at 2026-10-31T21:54:39.260Z
+after browser logout and multiple backend restarts; exactly one actual Codex
+Chief Run completed. This proves the persistent 30-minute wake, not just a
+shortened-clock fixture. Remaining shared delivery/browser acceptance is separate.
+
+A real SDK sandbox/strace probe identified Unix pipe syscall denial as the remaining
+Node/Git subprocess blocker. Command roles use a named filesystem profile and the
+limited network proxy with no allowed destinations; Chief remains tool-free. Actual
+probe children succeed while outbound requests and outside-workspace writes fail.
+
+Chief recovery found a lifetime edge-budget refusal after several real environment
+repairs. Audited Chief intervention now begins a fresh bounded autonomous routing
+epoch while preserving full history and global quotas. Admission is checked before
+claim fencing or Attempt preparation; later preparation failure is explicitly blocked.
+
+Actual R7 candidate `56d14be` passed host full verification and complete deterministic
+Chromium/backend clicks. Independent Review was blocked by read-only temporary
+fixtures; command workers now bind a unique scratch directory and offline npm cache,
+without granting review-source writes. Cleanup follows confirmed SDK exit. Actual
+deployed three-account acceptance and independent approval remain separate.
+
+A tested pool checkpoint waiting for Chief/human input survives host restart only
+with a completed Chief Run and all registered SDK workers/leases confirmed released.
+It retains the candidate and test receipt; active claims or unknown exits still
+interrupt delivery. A checkpoint audit records the restart without inventing progress.
+
+Published delivery rework now carries the host's existing PR binding through Chief
+returns and human retries. Sealing keeps the old published candidate as an ancestor;
+publication rechecks the original PR/head and fast-forwards its branch, refusing
+concurrent/closed/mismatched artifacts rather than creating another PR. Actual
+PR48 remains unchanged until verified backend deployment and Chief-directed rework.
+
+Published rework now pins the actual GitHub target ref through the host broker.
+A resolved merge seals with both the old candidate and trusted upstream parents;
+roles receive that pinned input and publication rejects target movement or lost
+ancestry. Merged content still requires real host tests and independent Review.
+
+Role admission now replaces verified duplicate repository previews with complete-policy references, preserving full rules and all shared knowledge under the existing context cap. Preparation failures release unbound reservations and retain drafts; narrow host-proven rejected-admission checkpoints preserve the same Attempt across restart.
+
+Unstarted bound delivery now revalidates the live PR target before Developer allocation and audits a descendant-only target refresh on the same Attempt, preserving the original PR, candidate seed and unsealed draft. Active, unknown or previously recorded execution cannot silently retarget.
+
+Recurring M6 browser timeout reproduced at166: the native Chief correctly generated a safe-mode proposal, while the old fixture waited for an unapproved Task. Acceptance now verifies no early Task, cross-user rejection, explicit requester UI approval and idempotent publication before existing delivery checks; production authorization is unchanged.
+
+Chief inspection may explicitly select one existing Task in its authorized Project. The host validates Project configuration authority and Task ownership before using the existing scoped snapshot mechanism. Other-Project/missing Tasks are rejected; unscoped inspection is unchanged. This reduces unrelated facts without dropping policy/knowledge or raising context limits.
+
+Owner basic-CI policy is implemented on the existing PR47 local branch: default pinned install/lint/build/canonical/core and plugin unit checks; heavy browser/runtime/package checks explicit extended dispatch. Independent Review and actual UI acceptance remain. Publish only at a safe upstream-binding checkpoint; this local change does not claim live workflow activation.
+
+- R6/#39 existing-PR publication recovery now has a manager-scoped endpoint that
+  revalidates original sealed role/test evidence and uses the guarded publisher.
+  It repairs read-after-push receipt gaps without a new Attempt, fabricated Review
+  or overall Task acceptance; see Project delivery architecture and regressions.
+- Chief resource context retains current/uncertain lease details and digests only
+  proven released history, preserving original records and the 48k admission limit.
+
+- Fork basic CI checks out source in its tests-ok aggregation job and validates the current basic/extended policy in default workflow tests. The prior missing-script runner failure and stale inherited heavy-job assertions are repaired together, without bypassing failed verification.
+
+R6 context recovery: managers may publish an exact-source knowledge checkpoint
+through project-knowledge-write with hashed supersedes references. Original facts,
+versions and authors remain readable; role snapshots contain the current summary,
+newer facts and history digests under the unchanged48k cap. Invalid/stale checkpoints
+never hide original records. See Project agents architecture.
+
+Preparation-only retries retain an inherited sealed seed even when no new candidate
+was produced, so restarting after context repair cannot silently discard prior UI.
+
+Failed-test rework now receives a bounded, redacted, hash-verified diagnostic from
+its own current or inherited candidate; unavailable private logs are not a model
+debugging prerequisite. Complete host logs remain retained and cannot mint PASS.
+
+
+### Task-scoped SDK context and resident Chief memory — 2026-11-01
+Owner requires a resident Chief with durable Project memory and one logical Session per Task/role. Codex/Claude own their supported conversation persistence and automatic compaction; FlyBot does not inject a second model-history compactor. SDK role rework reuses a confirmed released Task-role cwd/thread under the same principal/resource/profile/model/persona binding, while preserving separate immutable Attempt/claim/log/test/Review evidence. Changed bindings rotate backend threads with recorded lineage. Chief memory uses the original own-Bot MEMORY.md/topics/journal, never global team or private-user memory. Context admission keeps current bounded facts and hash-bound full source archives for scoped retrieval. Backend changes are foreground work; frontend Task40/PR48 resumes through FlyBot after validation.
