@@ -427,6 +427,106 @@ test('safe Chief publication approval cannot be fabricated in model tool argumen
   assert.equal(Object.keys(rt.state.tasks).length, 0)
 })
 
+test('Project rooms route mentions to independent scoped roles and retain isolated attachments', async t => {
+  const { rt } = await setup(t)
+  const room = await rt.projectEndpoint('project-room-create', { projectId: 'p1', name: 'Implementation', memberIds: ['owner-1'], roles: ['developer', 'tester', 'reviewer'] }, alice)
+  assert.ok(room.id)
+  await assert.rejects(rt.projectEndpoint('project-room-read', { projectId: 'p1', roomId: room.id }, bob), /room|Room/)
+  await assert.rejects(rt.projectEndpoint('project-room-read', { projectId: 'p2', roomId: room.id }, alice), /room|Room/)
+  const attachment = await rt.projectEndpoint('project-room-attachment', { projectId: 'p1', roomId: room.id, name: 'spec.md', text: '# Scope' }, alice)
+  await assert.rejects(rt.projectEndpoint('project-room-attachment', { projectId: 'p1', roomId: room.id, attachmentId: attachment.id }, bob), /room|Room/)
+  const sent = await rt.projectEndpoint('project-room-message', { projectId: 'p1', roomId: room.id, text: '@developer @tester @reviewer inspect this', attachmentIds: [attachment.id] }, alice)
+  assert.equal(sent.deliveries.length, 3)
+  for (const delivery of sent.deliveries) {
+    const bot = rt.botOf(delivery.agent.botId)
+    assert.equal(bot.projectId, 'p1')
+    const context = await rt.projectAgents.context(bot)
+    assert.equal(context.privateMemory, undefined)
+    await assert.rejects(rt.projectAgents.task(bot, { title: 'Implicit work' }), /conversation/)
+    rt.projectAgents.onEvent({ id: bot.sessionId }, { type: 'assistant/message', data: { turn: 1, message: { content: [{ type: 'text', text: `${delivery.agent.role} reply` }] } } })
+    rt.projectAgents.onEvent({ id: bot.sessionId }, { type: 'turn/end', data: { turn: 1 } })
+  }
+  const view = await rt.projectEndpoint('project-room-read', { projectId: 'p1', roomId: room.id }, alice)
+  assert.equal(view.messages.filter(row => row.kind === 'agent').length, 3)
+  assert.equal(view.attachments[0].name, 'spec.md')
+  assert.equal((await rt.projectEndpoint('project-room-attachment', { projectId: 'p1', roomId: room.id, attachmentId: attachment.id }, alice)).text, '# Scope')
+  assert.equal(JSON.stringify(await rt.projectEndpoint('project-rooms', { projectId: 'p1' }, bob)).includes('Implementation'), false)
+})
+
+test('room callbacks and scoped tools are fenced after session revocation', async t => {
+  const { rt } = await setup(t)
+  const actor = { ...alice, sessionId: 'room-session' }
+  rt.state.authSessions['room-session'] = { memberId: alice.memberId }
+  const room = await rt.projectEndpoint('project-room-create', { projectId: 'p1', name: 'Public', roles: ['chief'], memberIds: [] }, actor)
+  const result = await rt.projectEndpoint('project-room-message', { projectId: 'p1', roomId: room.id, text: '@chief help' }, actor)
+  const bot = rt.botOf(result.deliveries[0].agent.botId)
+  rt.projectAgents.revokeSession('room-session')
+  rt.projectAgents.onEvent({ id: bot.sessionId }, { type: 'assistant/message', data: { message: { content: [{ type: 'text', text: 'late secret' }] } } })
+  const view = await rt.projectEndpoint('project-room-read', { projectId: 'p1', roomId: room.id }, alice)
+  assert.equal(JSON.stringify(view).includes('late secret'), false)
+  await assert.rejects(rt.projectAgents.context(bot), /delegation|revoked|authority/)
+})
+
+test('native public text streaming excludes reasoning and is revoked with its exact delegation', async t => {
+  const { rt } = await setup(t)
+  const sent = await message(rt, alice, 'public', 'Stream answer')
+  const id = sent.agent.sessionId
+  const source = async function* () { yield { type: 'reasoning-delta', text: 'private reasoning' }; yield { type: 'text-delta', text: '**Public** answer' } }
+  for await (const chunk of rt.projectAgents.stream(id, source)) assert.ok(chunk.type)
+  const view = await rt.projectEndpoint('project-agent-history', { projectId: 'p1', visibility: 'public' }, alice)
+  assert.equal(view.live.text, '**Public** answer')
+  assert.equal(JSON.stringify(view).includes('private reasoning'), false)
+  rt.projectAgents.revoke('p1', alice.memberId)
+  const revoked = await rt.projectEndpoint('project-agent-history', { projectId: 'p1', visibility: 'public' }, bob)
+  assert.equal(revoked.live, null)
+})
+
+test('SDK room replies share the same room read model without exporting private agent memory', async t => {
+  const { rt } = await setup(t)
+  await get(rt, alice)
+  await rt.projectEndpoint('project-agent-memory-write', { projectId: 'p1', text: 'PRIVATE-MEMORY-SENTINEL' }, alice)
+  rt.state.projectAgentDefinitions.p1.roles.find(row => row.role === 'tester').execution = { harness: 'codex', resourceIds: ['fixture'] }
+  let input
+  rt.projectHarness.chiefTurn = async options => { input = options; return 'fixture-sdk' }
+  const room = await rt.projectEndpoint('project-room-create', { projectId: 'p1', name: 'SDK', memberIds: [], roles: ['tester'] }, alice)
+  const result = await rt.projectEndpoint('project-room-message', { projectId: 'p1', roomId: room.id, text: '@tester inspect facts' }, alice)
+  assert.ok(result.deliveries[0].agent)
+  assert.equal(input.definition.role, 'tester')
+  assert.equal(input.delegation.readOnly, true)
+  assert.equal(JSON.stringify(input.context).includes('PRIVATE-MEMORY-SENTINEL'), false)
+  await input.onResult({ ok: true, text: JSON.stringify({ reply: 'SDK room answer', actions: [] }) })
+  const view = await rt.projectEndpoint('project-room-read', { projectId: 'p1', roomId: room.id }, bob)
+  assert.equal(view.messages.at(-1).text, 'SDK room answer')
+  assert.equal(view.sessions[0].phase, 'completed')
+  assert.equal(Object.keys(rt.state.tasks).length, 0)
+})
+
+test('attachments cannot be selected through another permitted room and restricted rooms survive reload', async t => {
+  const { rt } = await setup(t)
+  const room = await rt.projectEndpoint('project-room-create', { projectId: 'p1', name: 'Owner documents', memberIds: ['owner-1'], roles: ['chief'] }, alice)
+  const other = await rt.projectEndpoint('project-room-create', { projectId: 'p1', name: 'Shared room', memberIds: [], roles: ['chief'] }, alice)
+  const doc = await rt.projectEndpoint('project-room-attachment', { projectId: 'p1', roomId: room.id, name: 'private.txt', text: 'PRIVATE-ARTIFACT' }, alice)
+  await assert.rejects(rt.projectEndpoint('project-room-attachment', { projectId: 'p1', roomId: other.id, attachmentId: doc.id }, bob), /unavailable/)
+  await assert.rejects(rt.projectEndpoint('project-room-message', { projectId: 'p1', roomId: other.id, text: '@chief read it', attachmentIds: [doc.id] }, bob), /another room/)
+  await rt.load()
+  const view = await rt.projectEndpoint('project-room-read', { projectId: 'p1', roomId: room.id }, alice)
+  assert.equal(view.attachments[0].name, 'private.txt')
+  await assert.rejects(rt.projectEndpoint('project-room-read', { projectId: 'p1', roomId: room.id }, bob), /unavailable/)
+})
+
+test('board agent summaries exclude private state and do not allocate a private carrier', async t => {
+  const { rt } = await setup(t)
+  const summary = await rt.projectEndpoint('project-agents', { projectId: 'p1', view: 'summary' }, bob)
+  assert.equal(summary.public.visibility, 'public')
+  assert.equal(summary.privateMemory, undefined)
+  assert.equal(summary.proposals, undefined)
+  assert.equal(summary.definitions, undefined)
+  assert.equal(Object.values(rt.state.projectAgents).some(agent => agent.memberId === 'bob' && agent.visibility === 'private'), false)
+  const full = await get(rt, bob)
+  assert.equal(full.public.botId, summary.public.botId)
+  assert.ok(full.mine)
+  assert.equal(rt.state.bots.legacy.instructions, 'Old private owner context')
+})
 
 test('Chief uses original topic memory across turns and restart without reading private or team scopes', async t => {
   const {rt} = await setup(t)

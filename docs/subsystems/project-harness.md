@@ -144,6 +144,11 @@ lease generation and carrier evidence. Event timestamps support heartbeat
 inspection. Credential redaction uses token boundaries so Task UUIDs survive.
 Current worker-controller lookup supports conservative resource reconciliation.
 
+R7 conversation carriers may represent a room's Developer/Tester/Reviewer as well as
+Chief. They reuse the existing no-tools, read-only conversation adapter and live human
+delegation. SDK worker metadata records the actual selected model and room binding;
+scoped resource projections omit other members' restricted-room workers. Host-parsed
+SDK replies share the native transcript read model; partial SDK JSON is not displayed.
 Local Codex developers receive host-derived writable roots for their registered
 Git worktree directory and common object store, so staging new canonical files
 works without access to shared refs/config. Reviewer/Tester/Chief get no extra

@@ -34,6 +34,13 @@ export function install(rt) {
     const id = String(body.projectId ?? '')
     const project = rt.requireProjectAccess(actor, id)
     const repository = await repositoryReadiness(rt, project)
+    const activity = rt.activityView?.() ?? {}
+    if (body.view === 'summary') return {
+      projectId: id, quota: project.quota ?? { maxConcurrent: 2 }, activeSlots: rt.projectScheduler.slots(id), repository,
+      queue: Object.values(rt.state.projectQueue ?? {}).filter(row => row.projectId === id && ['waiting', 'blocked'].includes(row.status)).map(({ id, taskId, status, reason }) => ({ id, taskId, status, reason })),
+      taskExecution: Object.values(rt.state.tasks).filter(task => task.projectId === id).map(task => taskExecutionStatus(rt.state, task, { activity })),
+      metrics: deliveryMetrics(rt.state, id),
+    }
     const workers = Object.values(rt.state.bots).filter(bot => bot.projectId === id && bot.ephemeral).map(bot => ({ id: bot.id, role: bot.role, attemptId: bot.attemptId ?? null, workspaceId: bot.workspaceId ?? null, createdAt: bot.createdAt }))
     const nowCpu = process.cpuUsage(), now = process.hrtime.bigint()
     const elapsedMicros = Number(now - measured) / 1000
@@ -44,11 +51,11 @@ export function install(rt) {
     return { projectId: id, quota: project.quota ?? { maxConcurrent: 2 }, activeSlots: rt.projectScheduler.slots(id),
       queue: Object.values(rt.state.projectQueue ?? {}).filter(entry => entry.projectId === id).map(entry => structuredClone(entry)), workers,
       workspaces: Object.values(rt.state.projectWorkspaces ?? {}).filter(workspace => workspace.projectId === id),
-      harnessWorkers: Object.values(rt.state.projectHarnessWorkers ?? {}).filter(row => row.projectId === id && (row.visibility !== 'private' || row.memberId === actor.memberId)).map(({ eventLog: _log, sealedLog: _sealedLog, cwd: _cwd, ...row }) => structuredClone(row)),
+      harnessWorkers: Object.values(rt.state.projectHarnessWorkers ?? {}).filter(row => row.projectId === id && (row.visibility !== 'private' || row.memberId === actor.memberId) && (!row.roomId || (() => { const room = ownEntry(rt.state.projectRooms ?? {}, row.roomId); return room?.projectId === id && (!room.memberIds.length || room.memberIds.includes(actor.memberId)) })())).map(({ eventLog: _log, sealedLog: _sealedLog, cwd: _cwd, ...row }) => structuredClone(row)),
       executionResources: rt.projectResources?.list(id, actor) ?? [],
       resourceLeases: Object.values(rt.state.projectResourceLeases ?? {}).filter(row => row.projectId === id).map(({ worker: _worker, ...row }) => structuredClone(row)),
       chief: rt.projectChiefControl?.view(id, actor) ?? null,
-      taskExecution: Object.values(rt.state.tasks).filter(task => task.projectId === id).map(task => taskExecutionStatus(rt.state, task, { activity: rt.activityView?.() ?? {} })),
+      taskExecution: Object.values(rt.state.tasks).filter(task => task.projectId === id).map(task => taskExecutionStatus(rt.state, task, { activity })),
       taskViews: Object.values(rt.state.tasks).filter(task => task.projectId === id).map(task => rt.projectDevelopment.view(task, actor)),
       repository, host, metrics: deliveryMetrics(rt.state, id), platformInstance: rt.platformInstance ? await rt.platformInstance(actor).catch(() => null) : null }
   }

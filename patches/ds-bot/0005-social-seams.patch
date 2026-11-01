@@ -6,7 +6,7 @@ diff --git a/src/client/characters.js b/src/client/characters.js
 @@ -63,17 +63,130 @@ export function defaultShape(id) {
    return DEFAULT_SHAPES[((value ^ (value >>> 16)) >>> 0) % DEFAULT_SHAPES.length]
  }
- 
+
 -// A stored shape or color wins; then the id. With no Bot it is a black gumdrop.
 -export const colorOf = bot => (isColor(bot?.color) ? bot.color : bot?.id ? defaultColor(String(bot.id)) : 'black')
 +// A remote Bot's default look is seeded by its handle, not its session id: the handle is
@@ -71,7 +71,7 @@ diff --git a/src/client/characters.js b/src/client/characters.js
      color: colorOf(bot),
    }
  }
- 
+
 +// Fingerprints of a drawn look: shape+color, or a custom image/emoji. Used to keep a friend's
 +// fallback avatar from matching one of my own Bots exactly (#384) until real look sync lands.
 +// A named ink and its rendered hex (light or dark, any case) count as the same color, since
@@ -148,10 +148,10 @@ diff --git a/src/client/mark.js b/src/client/mark.js
  import { t } from './i18n.js'
 +import { clusterOrder } from './cluster-order.js'
 +import { rosterBot } from './sources.js'
- 
+
 -export { colorOf, lookOf } from './characters.js'
 +export { colorOf, lookOf, lookKey, lookKeys, lookAvoidingLocals, remoteSeed, lookBotForRemote, markBotForMention } from './characters.js'
- 
+
  // -------------------------------------------------------------------------
  // Bot mark: the Bot's character (or its uploaded photo), looked up by lookOf.
 @@ -47,7 +47,9 @@ function useGaze(ref, enabled) {
@@ -217,7 +217,7 @@ diff --git a/src/client/mark.js b/src/client/mark.js
 @@ -130,10 +130,46 @@ function clusterSeats(count, frame) {
    return [[0, 0, half], [half, 0, half], [0, half, half], [half, half, half]]
  }
- 
+
 +export function roomAvatarPeople(room, roster) {
 +  const members = (room?.members ?? []).map(id => rosterBot(roster, id)).filter(Boolean)
 +  const seen = new Set(members.map(bot => bot.id))
@@ -267,8 +267,9 @@ diff --git a/src/client/mark.js b/src/client/mark.js
 diff --git a/src/host/channel.js b/src/host/channel.js
 --- a/src/host/channel.js
 +++ b/src/host/channel.js
-@@ -1,10 +1,20 @@
+@@ -1,10 +1,21 @@
  // Client channel: the team view the browser renders, and the POST /api/bot endpoints.
++import { personalRoster, requirePersonalSession, personalToolRows, personalMessageAttachments, personalUploadContent, personalQuestion, createPersonalStreams } from './workbench-personal.js'
  import { randomUUID } from 'node:crypto'
  import { createUserMessage } from '@deepseek-ai/dsh-llm'
 +import { isApprovalWaiting } from '../shared/approval-waiting.js'
@@ -278,18 +279,25 @@ diff --git a/src/host/channel.js b/src/host/channel.js
 +import { readQuietHours } from '../shared/quiet-hours.js'
 +import { faceMentions } from './face-mentions.js'
 +import { visibleText } from '../shared/preview.js'
- 
+
 +const NOTIFY_KINDS = ['approval', 'finished', 'failed']
  const LANGUAGES = { zh: 'Chinese (简体中文)', en: 'English' }
 +// How long a burst of the user's lines is collected before it opens one turn (#642).
 +const SETTLE_MS = 1_500
 +// How many windows a held burst is retried on its own before it waits for the user's next line.
 +const SETTLE_RETRIES = 3
- 
+
  const invalid = message => Object.assign(new Error(message), { code: 'bot/invalid' })
  // Programming and file system errors are DS Bot's own faults, logged with their stack;
-@@ -21,32 +21,154 @@ export function install(rt) {
- 
+@@ -18,35 +18,161 @@ export function errorCode(error) {
+
+ export function install(rt) {
+   const { ctx, state } = rt
++  const personalStreams = createPersonalStreams(rt)
++  // The personal projection belongs to the explicitly configured shared entry.
++  // Legacy profiles keep their existing stream pipeline and registration order.
++  if (rt.sharedProjectMode()) ctx.on('llm/stream', (options, next) => options.purpose === undefined ? personalStreams.stream(options.sessionId, next) : next())
+
    // The DSH interface language of the last browser that asked for the team.
    let uiLocale
 -  rt.uiLanguage = () => (uiLocale === undefined ? undefined : LANGUAGES[uiLocale.split('-')[0].toLowerCase()] ?? uiLocale)
@@ -377,7 +385,7 @@ diff --git a/src/host/channel.js b/src/host/channel.js
 +    for (const held of settling.values()) clearTimeout(held.timer)
 +    settling.clear()
 +  }, 'ds-bot: settle window')
- 
+
    const ok = value => ({ ok: true, value })
 -  const fail = (message, code = 'bot/error') => ({ ok: false, error: { code, message, details: {} } })
 +  const fail = (message, code = 'bot/error', details = {}) => ({ ok: false, error: { code, message, details } })
@@ -503,7 +511,7 @@ diff --git a/src/host/channel.js b/src/host/channel.js
    // Updates change the dsh profile, not the team, so a reading host may run them too.
 -  const READS = new Set(['state', 'models', 'efforts', 'earlier', 'room-progress', 'exchange', 'usage', 'schedules', 'memory-view', 'browser-wait', 'browser-result', 'diagnostics', 'diagnostics-log', 'diagnostics-clear', 'update-check', 'update-install', 'dsh-update-install', 'repo-stars', 'approval-answer'])
 +  // auth-whoami is a read of the already-resolved actor; invite/redeem/revoke/remove-member write.
-+  const READS = new Set(['project-task-pools', 'project-chief-state', 'project-github-read', 'auth-mode', 'workbench-state', 'project-resources', 'projects', 'project-read', 'project-board', 'project-members', 'project-task-detail', 'project-attempt-log', 'project-detail', 'state', 'models', 'efforts', 'earlier', 'room-progress', 'room-history', 'exchange', 'usage', 'schedules', 'memory-view', 'browser-wait', 'browser-result', 'diagnostics', 'diagnostics-log', 'diagnostics-clear', 'update-check', 'update-install', 'dsh-update-install', 'repo-stars', 'approval-answer', 'auth-whoami', 'workflows'])
++  const READS = new Set(['project-rooms', 'project-room-read', 'project-task-pools', 'project-chief-state', 'project-github-read', 'auth-mode', 'workbench-state', 'project-resources', 'projects', 'project-read', 'project-board', 'project-members', 'project-task-detail', 'project-attempt-log', 'project-detail', 'state', 'models', 'efforts', 'earlier', 'room-progress', 'room-history', 'exchange', 'usage', 'schedules', 'memory-view', 'browser-wait', 'browser-result', 'diagnostics', 'diagnostics-log', 'diagnostics-clear', 'update-check', 'update-install', 'dsh-update-install', 'repo-stars', 'approval-answer', 'auth-whoami', 'workflows'])
 +
 +  // A chat reference chip names a Session whose snapshot rides to every recipient of
 +  // the message, so the author must be able to read what they share (#53, #106).
@@ -521,10 +529,10 @@ diff --git a/src/host/channel.js b/src/host/channel.js
 +    }
 +    return undefined
 +  }
- 
+
    function setPrefs(body) {
      if (body.theme !== undefined) {
-@@ -97,28 +97,70 @@ export function install(rt) {
+@@ -97,28 +97,203 @@ export function install(rt) {
        else if (body.motion === 'quiet' || body.motion === 'lively') state.prefs.motion = body.motion
        else throw invalid('Motion must be quiet, normal or lively')
      }
@@ -556,7 +564,7 @@ diff --git a/src/host/channel.js b/src/host/channel.js
 +    }
      return rt.save()
    }
- 
+
 -  const handle = async (endpoint, payload, signal) => {
 +  const handle = async (endpoint, payload, signal, sessionToken) => {
      try {
@@ -578,6 +586,139 @@ diff --git a/src/host/channel.js b/src/host/channel.js
 +        case 'workbench-state':
 +        case 'project-resources':
 +          return ok(await rt.workbenchEndpoint(endpoint, body, actor))
++        case 'personal-space': {
++          if (!rt.sharedProjectMode() || !actor?.memberId) return fail('Sign in first', 'bot/unauthorized')
++          const operation = body.operation ?? 'list'
++          if (operation === 'list') return ok(personalRoster(rt, actor))
++          let sessionId = requirePersonalSession(rt, actor, String(body.id ?? ''))
++          if (body.partId !== undefined) {
++            const bot = rt.botOf(sessionId)
++            if (!['read', 'attachment-read'].includes(operation) || !bot || !rt.partsOf(bot.id).some(part => part.sessionId === body.partId)) return fail('Unknown personal conversation part', 'bot/forbidden')
++            sessionId = body.partId
++          }
++          if (operation === 'send' && (body.images?.length || body.files?.length)) {
++            const bot = rt.botOf(sessionId), room = rt.roomOf(sessionId), text = String(body.text ?? '').trim()
++            if ((!room && (!bot || !rt.botOwnedBy(actor, bot.id))) || unshareableReference(actor, text) !== undefined) return fail('Select an authorized current conversation', 'bot/forbidden')
++            await rt.ensureCapabilities(sessionId)
++            const agent = await rt.resolveAgent(sessionId)
++            requirePersonalSession(rt, await rt.authenticate(sessionToken), String(body.id ?? ''))
++            const content = await personalUploadContent(ctx.attachments, text, body.images ?? [], body.files ?? [])
++            const freshActor = await rt.authenticate(sessionToken)
++            if (requirePersonalSession(rt, freshActor, String(body.id ?? '')) !== sessionId) return fail('Conversation changed', 'bot/stale')
++            if (room) {
++              const label = text || content.filter(block => block.attachment).map(block => block.attachment.name ?? 'Attachment').join(', ')
++              const line = await rt.postRoomMessage(room.id, { text: label, displayName: freshActor.displayName }, freshActor)
++              line.nativeAttachments = content.filter(block => block.attachment)
++              await rt.save()
++            }
++            const message = createUserMessage({ content, source: { kind: 'user', authorId: freshActor.memberId, authorKind: 'human', authorName: freshActor.displayName } })
++            if (admission(sessionId) === 'steer') agent.steer(message)
++            else agent.followup(message)
++            await ctx.sessions.flush(agent.session)
++            return ok({ accepted: true })
++          }
++          if (operation === 'send') return handle('send', { sessionId, text: body.text }, signal, sessionToken)
++          if (operation === 'member-stop') {
++            const room = rt.roomOf(sessionId), bot = rt.botOf(String(body.botId ?? ''))
++            if (!room || !room.members.includes(bot?.id) || !rt.botOwnedBy(actor, bot.id)) return fail('This group worker is not yours', 'bot/forbidden')
++            return handle('stop-member-work', { roomId: sessionId, botId: bot.id }, signal, sessionToken)
++          }
++
++          if (rt.roomOf(sessionId) && ['answer', 'dismiss', 'approval'].includes(operation)) {
++            if (operation === 'approval') {
++              const approval = (rt.approvalsView?.() ?? []).find(row => row.id === body.approvalId && row.roomId === sessionId && rt.botOwnedBy(actor, row.botId))
++              if (!approval || !['allow', 'reject'].includes(body.choice)) return fail('Approval is not yours in this group', 'bot/forbidden')
++              return handle('approval-answer', { id: approval.id, choice: body.choice }, signal, sessionToken)
++            }
++            const question = personalQuestion(rt, sessionId, actor)
++            if (!question || question.id !== body.questionId) return fail('Question is not yours in this group', 'bot/stale')
++            return handle(operation === 'answer' ? 'answer-question' : 'dismiss-question', { sessionId, questionId: question.id, answer: body.answer }, signal, sessionToken)
++          }
++          if (['stop', 'answer', 'dismiss', 'approval'].includes(operation)) {
++            // These controls operate only on a currently owned native Bot. A
++            // group membership cannot grant control of another owner's worker.
++            const bot = rt.botOf(sessionId)
++            if (!bot || !rt.botOwnedBy(actor, bot.id)) return fail('Select your own personal Bot', 'bot/forbidden')
++            if (operation === 'stop') {
++              const agent = await rt.resolveAgent(sessionId)
++              const freshActor = await rt.authenticate(sessionToken)
++              if (requirePersonalSession(rt, freshActor, String(body.id ?? '')) !== sessionId) return fail('Conversation changed', 'bot/stale')
++              if (typeof agent.cancel !== 'function') return fail('Conversation cannot be stopped', 'bot/unavailable')
++              agent.cancel({ kind: 'hook', reason: 'Human stopped personal conversation' })
++              return ok({ stopRequested: true })
++            }
++            if (operation === 'approval') {
++              const approval = (rt.approvalsView?.() ?? []).find(row => row.id === body.approvalId && row.sessionId === sessionId && row.botId === bot.id)
++              if (!approval || !['allow', 'reject'].includes(body.choice)) return fail('Approval is not open in this conversation', 'bot/forbidden')
++              return handle('approval-answer', { id: approval.id, choice: body.choice }, signal, sessionToken)
++            }
++            const question = state.questions[sessionId]
++            if (!question || question.id !== body.questionId || question.botId && question.botId !== bot.id) return fail('Question is not open in this conversation', 'bot/stale')
++            return handle(operation === 'answer' ? 'answer-question' : 'dismiss-question', { sessionId, questionId: question.id, answer: body.answer }, signal, sessionToken)
++          }
++
++          if (operation === 'memory') {
++            const bot = rt.botOf(sessionId)
++            if (!bot) return fail('Select a personal Bot', 'bot/invalid')
++            const memory = await rt.memoryEndpoint('memory-view', { botId: bot.id })
++            requirePersonalSession(rt, await rt.authenticate(sessionToken), String(body.id ?? ''))
++            return ok({ entries: memory.entries.filter(entry => entry.scope === 'own') })
++          }
++
++          if (operation === 'attachment-read') {
++            if (!Number.isSafeInteger(body.seq) || body.seq < 0 || typeof body.attachmentId !== 'string') return fail('Unknown attachment', 'bot/invalid')
++            const room = rt.roomOf(sessionId)
++            let event
++            if (room) {
++              const line = rt.roomHistory(sessionId, actor).find(row => row.seq === body.seq)
++              if (line) event = { type: 'user/message', seq: line.seq, data: { content: line.nativeAttachments ?? [] } }
++            } else {
++              const page = await ctx.sessionController.page({ address: { kind: 'session', sessionId }, throughSeq: body.seq, beforeSeq: body.seq + 1, maxMessages: 1 }, AbortSignal.timeout(10000))
++              event = page.records.find(row => row.event.seq === body.seq)?.event
++            }
++            const hidden = state.exchangeTurns[sessionId] ?? []
++            const metadata = event && !hidden.includes(event.data?.turn) && personalMessageAttachments(event).find(row => row.id === body.attachmentId)
++            if (!metadata) return fail('Attachment is not in this visible message', 'bot/forbidden')
++            const freshActor = await rt.authenticate(sessionToken)
++            requirePersonalSession(rt, freshActor, String(body.id ?? ''))
++            if (!Number.isSafeInteger(metadata.bytes) || metadata.bytes > 512 * 1024) return fail('Attachment exceeds the shared download limit', 'bot/invalid')
++            let data
++            if (metadata.kind === 'image') data = (await ctx.sessionController.attachment({ sessionId, attachmentId: metadata.id })).data
++            else {
++              const ref = (event.data?.message?.content ?? event.data?.content).find(block => block.type === 'file' && block.attachment?.attachmentId === metadata.id).attachment
++              const chunks = []; let size = 0
++              for await (const chunk of ctx.attachments.readFileStream(ref, AbortSignal.timeout(10000))) { size += chunk.length; if (size > 512 * 1024) throw invalid('Attachment is too large'); chunks.push(chunk) }
++              data = Buffer.concat(chunks).toString('base64')
++            }
++            requirePersonalSession(rt, await rt.authenticate(sessionToken), String(body.id ?? ''))
++            if (room && !rt.roomHistory(sessionId, await rt.authenticate(sessionToken)).some(row => row.seq === body.seq && row.nativeAttachments?.some(block => block.attachment?.attachmentId === metadata.id))) return fail('Attachment is no longer visible', 'bot/forbidden')
++            return ok({ ...metadata, data })
++          }
++          if (operation !== 'read') return fail('Unknown personal operation', 'bot/invalid')
++          if (rt.roomOf(sessionId)) return ok({ messages: rt.roomHistory(sessionId, actor).filter(line => typeof line.text === 'string' && line.text).map(line => ({ id: `${sessionId}:${line.seq}`, botId: line.botId ?? line.authorId, kind: line.authorKind === 'human' ? 'human' : 'assistant', speaker: line.who, text: line.text, attachments: personalMessageAttachments({ type: 'user/message', seq: line.seq, data: { content: line.nativeAttachments ?? [] } }) })), hasMore: false, question: personalQuestion(rt, sessionId, actor),
++            approvals: (rt.approvalsView?.() ?? []).filter(row => row.roomId === sessionId && rt.botOwnedBy(actor, row.botId)).map(({ id, tool, reason, answerable }) => ({ id, tool, reason, answerable })),
++            groupWork: (rt.roomWorkView?.()[sessionId] ?? []).filter(row => rt.roomOf(sessionId).members.includes(row.botId)).map(row => ({ botId: row.botId, name: rt.botOf(row.botId)?.name, tool: row.tool, since: row.since, canStop: rt.botOwnedBy(actor, row.botId) })) })
++          const agent = await rt.resolveAgent(sessionId)
++          const page = await ctx.sessionController.page({ address: { kind: 'session', sessionId }, throughSeq: Number(agent.session.seq) - 1,
++            ...(Number.isInteger(body.beforeSeq) ? { beforeSeq: body.beforeSeq } : {}), maxMessages: 100 }, AbortSignal.timeout(10000))
++          // A removed member cannot receive an in-flight page after revocation.
++          const currentActor = await rt.authenticate(sessionToken)
++          requirePersonalSession(rt, currentActor, String(body.id ?? ''))
++          const hidden = new Set(state.exchangeTurns[sessionId] ?? [])
++          const messages = page.records.flatMap(({ event }) => {
++            if (hidden.has(event.data?.turn)) return []
++            const attachments = personalMessageAttachments(event)
++            const entry = rt.historyEntry(event, Boolean(rt.roomOf(sessionId))) ?? (event.type === 'assistant/message' && attachments.length ? { answer: true, text: '' } : undefined)
++            return entry && (entry.text || attachments.length) ? [{ attachments, seq: event.seq, id: `${sessionId}:${event.seq}`, botId: entry.answer ? rt.botOf(sessionId)?.id : null, kind: entry.answer ? 'assistant' : 'human', speaker: entry.answer ? rt.botOf(sessionId)?.name ?? 'Bot' : currentActor.displayName ?? 'You', text: entry.text }] : []
++          })
++          return ok({ messages, hasMore: page.hasMore, beforeSeq: page.records[0]?.event.seq ?? null,
++            busy: rt.live?.get(sessionId)?.turn !== undefined,
++            tools: personalToolRows(page.records, hidden, rt.redactSecrets),
++            live: body.partId ? null : personalStreams.read(sessionId),
++            question: body.partId ? null : personalQuestion(rt, sessionId, currentActor),
++            approvals: body.partId ? [] : (rt.approvalsView?.() ?? []).filter(row => row.sessionId === sessionId && row.botId === rt.botOf(sessionId)?.id)
++              .map(({ id, tool, reason, answerable }) => ({ id, tool, reason, answerable })) })
++        }
          case 'state':
            if (typeof body.locale === 'string' && /^[a-z]{2,3}(-[\w-]+)?$/i.test(body.locale)) uiLocale = body.locale
 +          if (body.watching !== false) watchedAt = Date.now()
@@ -709,7 +850,7 @@ diff --git a/src/host/channel.js b/src/host/channel.js
          }
          case 'folders':
          case 'folder-pick':
-@@ -203,17 +203,19 @@ export function install(rt) {
+@@ -203,21 +203,24 @@ export function install(rt) {
          case 'remove-agent':
            await rt.load()
            await rt.removeAgent(body.agentId)
@@ -732,6 +873,11 @@ diff --git a/src/host/channel.js b/src/host/channel.js
          case 'stop-member-work':
            return ok(await rt.stopMemberWork(String(body.roomId ?? ''), String(body.botId ?? '')))
          case 'dismiss-question':
+           await rt.load()
++          if (body.questionId !== undefined && state.questions[body.sessionId]?.id !== body.questionId) return fail('This question is no longer open', 'bot/stale')
+           if (state.questions[body.sessionId] !== undefined) {
+             delete state.questions[body.sessionId]
+             await rt.save()
 @@ -231,8 +231,14 @@ export function install(rt) {
            await rt.load()
            return ok(await rt.secretEndpoint(endpoint, body))
@@ -847,7 +993,7 @@ diff --git a/src/host/channel.js b/src/host/channel.js
              content: [{ type: 'text', text }],
            }, AbortSignal.timeout(30_000))
            return ok(true)
-@@ -319,32 +319,185 @@ export function install(rt) {
+@@ -319,32 +319,192 @@ export function install(rt) {
          case 'diagnostics-clear':
            await rt.diagnostics.clear()
            return ok(true)
@@ -894,6 +1040,13 @@ diff --git a/src/host/channel.js b/src/host/channel.js
 +        case 'project-attempt-stop':
 +        case 'project-credential-status':
 +        case 'project-github-comment':
++        case 'project-rooms':
++        case 'project-room-create':
++        case 'project-room-read':
++        case 'project-room-message':
++        case 'project-room-attachment':
++        case 'project-room-stop':
++        case 'project-agent-stop':
 +        case 'project-agents':
 +        case 'project-agent-message':
 +        case 'project-agent-history':
@@ -983,7 +1136,7 @@ diff --git a/src/host/channel.js b/src/host/channel.js
 +      return fail(message, code, details)
      }
    }
- 
+
    // An exact Fetch route on the shared /api channel; the browser authenticates with its session cookie.
 -  ctx.effect(() => ctx.connection.fetch.register({
 +  const route = {
@@ -1100,7 +1253,7 @@ diff --git a/src/host/delivery.js b/src/host/delivery.js
 +  if (out.includes('dsh-session:')) out = out.replace(/dsh-session:/g, '')
 +  return out
 +}
- 
+
  export function install(rt) {
    const { ctx, state } = rt
 @@ -10,27 +10,98 @@ export function install(rt) {
@@ -1111,7 +1264,7 @@ diff --git a/src/host/delivery.js b/src/host/delivery.js
 +    rt.hideConnectorTools?.(resolved.agent)
      return resolved.agent
    }
- 
+
 -  const headerFor = (role, fromName, roomName, audience, note = 'new message', deferred = false, { resumed = false, retried = false } = {}) => {
 +  const headerFor = (role, fromName, roomName, audience, note = 'new message', deferred = false, { resumed = false, retried = false, rateLimited = false, answeredIn } = {}) => {
 +    if (answeredIn !== undefined) return `[The user answered your question card in the group "${answeredIn}" · your reply goes back to ${fromName} there]`
@@ -1130,7 +1283,7 @@ diff --git a/src/host/delivery.js b/src/host/delivery.js
      if (audience === 'user') return `[Message from ${fromName} · the user sees your reply here]`
      return `[Message from ${fromName}]`
    }
- 
+
 +  // Whose request a relay is (turn-origin.js). A friend's message is someone else's; the host's own
 +  // (no sender: the user through the UI, a group round, a secret card) is the owner's; a Bot's is the
 +  // request that Bot's own turn answered, and only when both Bots have one owner. A Bot that cannot say
@@ -1179,7 +1332,7 @@ diff --git a/src/host/delivery.js b/src/host/delivery.js
 +
    // Roles recorded as team exchanges.
    const EXCHANGE_ROLES = new Set(['request', 'reply', 'stopped'])
- 
+
 +  // A Bot-to-Bot line that arrives again within a minute becomes one turn (#641): a specialist's
 +  // conclusion relayed up the chain reached the same Session twice and the queue showed both. The
 +  // key is sender + recipient Session + the text with its whitespace collapsed, so two Bots saying
@@ -1307,7 +1460,7 @@ diff --git a/test/rounds.test.js b/test/rounds.test.js
 -  return { call, emit, userMessage, compose, relay, inboxOf, answer, stop, sent, ctx, home, rt }
 +  return { call, emit, userMessage, compose, relay, inboxOf, answer, stop, sent, steered, ctx, home, rt }
  }
- 
+
  const settle = () => new Promise(resolve => setTimeout(resolve, 20))
 @@ -114,6 +114,8 @@ const waitFor = async (check) => {
    return undefined
@@ -1315,13 +1468,13 @@ diff --git a/test/rounds.test.js b/test/rounds.test.js
  const turnFor = (sent, ...earlier) => waitFor(() => sent.find(entry => !earlier.includes(entry) && entry.message.source.role === 'room'))
 +// The group's standing rules for a member: its system-prompt section, read the way DSH renders it per call.
 +const standingOf = (ctx, sessionId) => ctx.sections.get('bot-room').text({ agent: { id: sessionId } })
- 
+
  test('a new group Session waits for capabilities before its first member prompt', async (t) => {
    const { call, emit, userMessage, relay, answer, stop, sent, rt } = start()
 @@ -180,6 +180,158 @@ test('a message the composer queues mid-round joins the round and leaves the Ses
    assert.deepEqual(inboxOf(room.id).nextTurn, [])
  })
- 
+
 +test('#1267: a line the user sends while a member speaks reaches that member at its next step, not after its turn', async (t) => {
 +  const { call, emit, userMessage, compose, relay, answer, stop, sent, steered, rt } = start()
 +  t.after(stop)
@@ -1480,7 +1633,7 @@ diff --git a/test/rounds.test.js b/test/rounds.test.js
 @@ -253,32 +253,6 @@ test('in admin mode a plain mid-round message goes to the admin', async (t) => {
    assert.deepEqual(result.replies.map(reply => reply.name ?? 'User'), ['Chief', 'Writer', 'User', 'Chief'])
  })
- 
+
 -test('a mid-round user line resets the room\'s bot-round budget', async (t) => {
 -  const { call, emit, userMessage, compose, relay, answer, stop, sent, ctx, home } = start()
 -  t.after(stop)
@@ -1513,7 +1666,7 @@ diff --git a/test/rounds.test.js b/test/rounds.test.js
 @@ -300,19 +300,26 @@ test('a message with an image or a chat reference waits for its own round, and s
    assert.equal(inboxOf(room.id).nextStep.length, 1)
  })
- 
+
 -test('the greeting round leaves a waiting message for its own round', async (t) => {
 -  const { call, emit, compose, relay, inboxOf, answer, stop, sent } = start()
 +test('creating a team starts no turn, and the user\'s first message opens one round (#645)', async (t) => {
@@ -1527,7 +1680,7 @@ diff --git a/test/rounds.test.js b/test/rounds.test.js
 +  await settle()
 +  // Three Bots and a group cost no model turn.
 +  assert.deepEqual(sent, [])
- 
+
 -  await emit(room.id, { type: 'user/message', data: { source: { kind: 'bot', role: 'kickoff' }, content: [{ type: 'text', text: '[Group chat created]' }] } })
 +  // The user's first message opens the round, and the admin speaks first, once.
 +  await emit(room.id, userMessage('Hello team'))
@@ -1542,12 +1695,12 @@ diff --git a/test/rounds.test.js b/test/rounds.test.js
    assert.deepEqual(result.replies.map(reply => reply.name ?? 'User'), ['Chief'])
 -  assert.equal(inboxOf(room.id).nextTurn.length, 1)
  })
- 
+
  test('a stopped round leaves a waiting message for the next round', async (t) => {
 @@ -331,6 +331,377 @@ test('a stopped round leaves a waiting message for the next round', async (t) =>
    assert.equal(inboxOf(room.id).nextTurn.length, 1)
  })
- 
+
 +test('a face-to-face send posts the human line once and runs the opening Bot (#287)', async (t) => {
 +  const { call, stop, sent, ctx, rt } = start()
 +  t.after(stop)

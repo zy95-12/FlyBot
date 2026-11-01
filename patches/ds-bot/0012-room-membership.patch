@@ -40,11 +40,11 @@ diff --git a/src/client/composer.js b/src/client/composer.js
 +import { BotMark, markBotForMention } from './mark.js'
  import { useLinger } from './motion.js'
  import { t } from './i18n.js'
- 
+
 @@ -53,6 +53,20 @@ export function useDictation(onText) {
    return { listening, note, start, stop }
  }
- 
+
 +export function ComposerIdentity({ sessionId, useRoster }) {
 +  const roster = useRoster(value => value)
 +  const room = roster.roomsById?.[sessionId]
@@ -71,6 +71,72 @@ diff --git a/src/client/composer.js b/src/client/composer.js
      return marks.get(id)
    }
  }
+@@ -155,3 +155,65 @@ export function ComposerPlus({ sessionId, inputActions, useRoster, actions }) {
+     canReference ? h('button', { type: 'button', role: 'menuitem', onMouseDown: keepComposerFocus, onClick: reference }, h(ChatsIcon), h('span', { className: 'bt-menu-label' }, t('Reference a chat'))) : null,
+     h('button', { type: 'button', role: 'menuitem', onClick: schedule }, h(ClockIcon), h('span', { className: 'bt-menu-label' }, t('Scheduled task')))), document.body) : null)
+ }
++
++// The shared entry supplies a captured, authorized chat handle rather than the
++// owner shell's global actions. Keep dictation and mention routing shared.
++export function ScopedComposer({ chat, mentions = [], initialText = '', attachments = [], initialImages = [], allowImages = false, onImages, onDraft, onError }) {
++  const [text, setText] = useState(initialText)
++  const [sending, setSending] = useState(false)
++  const pending = useRef(false)
++  const [included, setIncluded] = useState([])
++  const [images, setImages] = useState(initialImages)
++  const alive = useRef(true), reading = useRef(false)
++  const [readingFiles, setReadingFiles] = useState(false)
++  useEffect(() => () => { alive.current = false }, [])
++  const upload = async event => {
++    if (reading.current) return
++    reading.current = true; setReadingFiles(true)
++    const files = [...event.target.files], win = event.target.ownerDocument.defaultView
++    event.target.value = ''
++    try {
++      if (files.length + images.length > 4 || files.some(file => file.size > 256 * 1024) || files.reduce((size, file) => size + file.size, images.reduce((size, image) => size + image.bytes, 0)) > 512 * 1024) throw new Error('Choose up to four files, at most 256 KiB each and 512 KiB total')
++      const encoded = await Promise.all(files.map(file => new Promise((resolve, reject) => {
++        const reader = new win.FileReader()
++        reader.onerror = () => reject(new Error('Image could not be read'))
++        reader.onload = () => resolve({ name: file.name, mediaType: file.type, bytes: file.size, data: String(reader.result).split(',')[1] })
++        reader.readAsDataURL(file)
++      })))
++      if (alive.current) { const next = [...images, ...encoded]; setImages(next); onImages?.(next); setFailure('') }
++    } catch (error) { if (alive.current) setFailure(error.message) }
++    finally { reading.current = false; if (alive.current) setReadingFiles(false) }
++  }
++  const [failure, setFailure] = useState('')
++  const input = useRef(null)
++  const current = useRef(text); current.current = text
++  const update = value => { setText(value); onDraft?.(value) }
++  const dictation = useDictation((value, final) => { if (final) update(current.current + value) })
++  const query = text.match(/(?:^|\s)@([^\s@]*)$/)?.[1]
++  const rows = query === undefined ? [] : mentions.filter(row => row.name.toLowerCase().includes(query.toLowerCase())).slice(0, 8)
++  const send = async event => {
++    event.preventDefault()
++    if (pending.current || reading.current || !text.trim() && !images.length) return
++    pending.current = true
++    setSending(true); setFailure('')
++    try { await chat.send(text, images.length ? { images: images.filter(file => ['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(file.mediaType)), files: images.filter(file => !['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(file.mediaType)) } : included.length ? { attachmentIds: included } : undefined); update(''); setIncluded([]); setImages([]); onImages?.([]) } catch (error) { setFailure(error.message); onError?.(error) }
++    finally { pending.current = false; setSending(false) }
++  }
++  return h('form', { className: 'bt-scoped-composer', onSubmit: send, 'data-composer-card': '' },
++    h('textarea', { ref: input, name: 'text', 'aria-label': t('Message'), value: text, disabled: sending,
++      onInput: event => update(event.target.value), onKeyDown: event => {
++        if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) send(event)
++      } }),
++    allowImages ? h('label', null, h(PaperclipIcon), 'Add files', h('input', { type: 'file', multiple: true, disabled: readingFiles || sending, onChange: upload })) : null,
++    images.map((image, index) => h('div', { key: index }, image.name, h('button', { type: 'button', onClick: () => { const next = images.filter((_row, i) => i !== index); setImages(next); onImages?.(next) } }, 'Remove'))),
++    attachments.length ? h('fieldset', null, h('legend', null, 'Include registered documents'), attachments.map(row => h('label', { key: row.id },
++      h('input', { type: 'checkbox', checked: included.includes(row.id), onChange: event => setIncluded(value => event.target.checked ? [...value, row.id] : value.filter(id => id !== row.id)) }), row.name))) : null,
++    rows.length ? h('div', { role: 'listbox', 'aria-label': t('Bots') }, rows.map(row => h('button', {
++      key: row.id, type: 'button', role: 'option', onClick: () => { update(text.slice(0, text.length - query.length) + row.name + ' '); input.current?.focus() },
++    }, row.name))) : null,
++    h('button', { type: 'button', 'aria-label': dictation.listening ? t('Stop dictation') : t('Dictate'),
++      onClick: () => dictation.listening ? dictation.stop() : dictation.start() }, h(MicIcon)),
++    h('button', { type: 'submit', disabled: sending || readingFiles || !text.trim() && !images.length }, t('Send')),
++    failure ? h('p', { role: 'alert' }, failure) : null,
++    dictation.note ? h('p', { role: 'status' }, dictation.note) : null)
++}
 diff --git a/src/client/details-drawer.js b/src/client/details-drawer.js
 --- a/src/client/details-drawer.js
 +++ b/src/client/details-drawer.js
@@ -109,11 +175,11 @@ diff --git a/src/client/details-drawer.js b/src/client/details-drawer.js
 +import { remoteBotTitle, roomTitle, copiedToClipboard } from '../shared/remote-label.js'
 +import { FlyBotRoomOverview, FlyBotDetails } from './flybot-slots.js'
 +import { call } from './api.js'
- 
+
  const TAB_LABELS = { details: 'Details', browser: 'Browser' }
- 
+
 @@ -113,16 +113,100 @@ function About({ text, title = 'About' }) {
- 
+
  // A group's overview: what members read, who is in it, and who answers. Changes are
  // made in its settings.
 +function SharedRoomApprovals({ room }) {
@@ -234,7 +300,7 @@ diff --git a/src/client/details-drawer.js b/src/client/details-drawer.js
 +      h('div', { className: 'bt-kv' }, h('span', null, room.name), h('span', null, usage))),
    ]
  }
- 
+
 @@ -164,19 +164,27 @@ export function DetailsDrawer({ sessionId, startRenaming, startTab, hasStrip, ro
    const bot = owner
    const running = useSessionStatus(map => map.get(part)?.running === true)
@@ -359,13 +425,13 @@ diff --git a/src/client/group-settings.js b/src/client/group-settings.js
 +import { StandingApprovalsCard } from './standing-approvals.js'
 +import { FlyBotRoomMembers } from './flybot-slots.js'
 +import { remoteBotTitle } from '../shared/remote-label.js'
- 
+
  export const ROOM_MODES = [
    ['admin', 'Admin leads', 'Plain messages go to the admin, who calls others with @Name.'],
 @@ -15,9 +15,136 @@ export const ROOM_MODES = [
  // Without an admin the host answers as everyone, whatever the stored mode says.
  export const shownMode = (room, roster) => (roster.byId[room.admin] ? room.mode : 'everyone')
- 
+
 +// faceSeats, faceSeatLabel and facePeople live in face-seats.js so the chat bubble can name a mention the same way.
 +import { faceSeats, faceSeatLabel, facePeople, facePersonLabel } from './face-seats.js'
 +
@@ -498,7 +564,7 @@ diff --git a/src/client/group-settings.js b/src/client/group-settings.js
 +  const count = seatedCount(room)
 +  return [t(count === 1 ? '{count} member' : '{count} members', { count }), admin ? t('Admin {name}', { name: admin.name }) : t('No admin')].join(' · ')
  }
- 
+
  // A group chat's settings as grouped cards: its name and notice, who answers, its
 @@ -31,8 +31,22 @@ export function GroupSettingsForm({ room, roster, actions, run, onDeleted }) {
      const timer = setTimeout(() => setConfirming(false), 4000)
@@ -657,13 +723,13 @@ diff --git a/src/client/header.js b/src/client/header.js
 +import { call } from './api.js'
 +import { ProjectAgentEntry, projectAgentFor } from './project-board.js'
 +import { friendBotTitle, roomTitle } from '../shared/remote-label.js'
- 
+
  // -------------------------------------------------------------------------
  // Conversation header
 @@ -42,7 +42,7 @@ function MemoryNotice({ shown }) {
      h('span', { className: 'bt-pill-mem-in', ref: inner }, h('span', { className: 'bt-pill-mem-ico' }, h(MemoryIcon)), label))
  }
- 
+
 -export function HeaderPill({ sessionId, useRoster, useSessions, useSessionStatus, useSession, useActivity, useMemoryNews, useTurnClock, useUi, useLive, actions }) {
 +export function HeaderPill({ sessionId, useRoster, useSessions, useSessionStatus, useSession, useActivity, useBusyAcks, useMemoryNews, useTurnClock, useUi, useLive, actions }) {
    const roster = useRoster(value => value)
@@ -741,12 +807,12 @@ diff --git a/src/client/header.js b/src/client/header.js
 +    h(ActivityIndicator, { key: `activity:${sessionId}`, sessionId, useRoster, useSessionStatus, useSession, useLive, actions }),
 +    h(BusyAckBubble, { key: `busy-ack:${sessionId}`, sessionId, useRoster, useBusyAcks, useSessionStatus, useSession, useLive }))
  }
- 
+
  // New-message pills. "N new messages ↓" takes Back to bottom's place when
 @@ -156,7 +156,7 @@ function useTranscriptView() {
    return view
  }
- 
+
 -function NewMessagePills({ sessionId, useSessions, useUi, useTurnClock }) {
 +function NewMessagePills({ sessionId, hiddenTurns, useSessions, useUi, useTurnClock, actions }) {
    const replies = useSessions((list) => {
@@ -766,22 +832,34 @@ diff --git a/src/client/header.js b/src/client/header.js
 diff --git a/src/client/sources.js b/src/client/sources.js
 --- a/src/client/sources.js
 +++ b/src/client/sources.js
-@@ -1,3 +1,6 @@
+@@ -1,22 +1,12 @@
 +import { setLocalBots } from './characters.js'
 +import { setPluginTools } from './text.js'
 +
  // -------------------------------------------------------------------------
  // Small observable sources for the inject `hooks` compartment.
- 
-@@ -16,7 +16,7 @@ export function createSource(initial) {
-   }
- }
- 
+
+-export function createSource(initial) {
+-  let value = initial
+-  const listeners = new Set()
+-  return {
+-    getSnapshot: () => value,
+-    subscribe: (listener) => { listeners.add(listener); return () => { listeners.delete(listener) } },
+-    set(next) {
+-      const resolved = typeof next === 'function' ? next(value) : next
+-      if (resolved === value) return
+-      value = resolved
+-      for (const listener of [...listeners]) listener()
+-    },
+-  }
+-}
++export { createSource } from './observable-source.js'
+
 -export const EMPTY_ROSTER = { revision: -1, mainBotId: null, mainBotIds: [], bots: [], rooms: [], agents: [], exchangeTurns: {}, questions: {}, secrets: [], capabilities: [], capabilityStatuses: {}, secretRequests: {}, models: [], defaultModel: null, modelsKey: null, prefs: {}, byId: {}, roomsById: {}, agentsById: {}, agentOf: {}, ready: false }
 +export const EMPTY_ROSTER = { revision: -1, mainBotId: null, mainBotIds: [], bots: [], rooms: [], humans: [], self: null, agents: [], exchangeTurns: {}, remoteTypedTurns: {}, remoteAwaiting: {}, questions: {}, secrets: [], capabilities: [], capabilityStatuses: {}, secretRequests: {}, models: [], defaultModel: null, modelsKey: null, prefs: {}, byId: {}, roomsById: {}, agentsById: {}, agentOf: {}, ready: false }
  // Any Main Bot holds the Main Bot powers; `mainBotId`, the first one, is the sidebar tile.
  export const isMainOf = (roster, id) => id !== undefined && (roster.mainBotIds ?? []).includes(id)
- 
+
 @@ -24,9 +24,20 @@ export const isMainOf = (roster, id) => id !== undefined && (roster.mainBotIds ?
  // and `sessionId` its current one. Every part id finds the Bot; Session state
  // (running, unread, turns) is read from the current part, team state from the Bot id.
@@ -807,7 +885,7 @@ diff --git a/src/client/sources.js b/src/client/sources.js
 @@ -40,6 +40,25 @@ export function indexRoster(value) {
    return { ...value, agents: value.agents ?? [], byId, roomsById, agentsById, agentOf, ready: true }
  }
- 
+
 +// A member id, session id, or part id. A local Bot wins when a friend's chat
 +// was indexed under the same key (#963).
 +export function rosterBot(roster, id) {
@@ -889,7 +967,7 @@ diff --git a/src/host/groups.js b/src/host/groups.js
 +  const step = claimLine(task?.note, CLAIM_CUE_STEP_MAX) || claimLine(rest, CLAIM_CUE_STEP_MAX)
 +  return step === '' ? `接了 ${ref}` : `接了 ${ref}，第一步是 ${step}`
 +}
- 
+
  const ROOM_LOG_MAX = 60
  const ROOM_FIRST_LOOK = 12
 @@ -31,6 +31,10 @@ const ROOM_EXTRA_TURNS = 4
@@ -900,13 +978,13 @@ diff --git a/src/host/groups.js b/src/host/groups.js
 +const FACE_PLAIN_SPEAKERS = 6
 +// Nobody whose call the per-member cap does not bound (see callMembers).
 +const NOBODY = new Set()
- 
+
  // Logs written before rooms were versioned get sequence numbers in place.
  const ensureRoomLog = (room) => {
 @@ -41,9 +41,67 @@ const ensureRoomLog = (room) => {
    room.seen ??= {}
  }
- 
+
 +let fanoutRoomLine = async () => {}
 +// Every group-round line passes here before it is stored, so a Bot's line can carry the hop of the room
 +// it answers in (#825); the channel and seat lines take the other writer, `room-membership.js` `append`,
@@ -970,7 +1048,7 @@ diff --git a/src/host/groups.js b/src/host/groups.js
 +  postedLines.set(roomId, list.toSpliced(at, 1))
 +  return true
  }
- 
+
  // A member's own lines are already in its Session, so only the others' are news.
 @@ -58,6 +58,9 @@ const lineText = (line) => {
    if (line.kind === 'resumed') return `[${line.who}'s work here was cut off when DeepSeek Harness restarted; it is picking it back up and posts when done]`
@@ -984,7 +1062,7 @@ diff --git a/src/host/groups.js b/src/host/groups.js
  const transcript = lines => lines.map(lineText).join('\n')
 @@ -86,12 +86,33 @@ export const referenceNote = references => (references?.length
    : '')
- 
+
  const ROOM_REPLY = 'Reply with your message for the group, no name prefix: in a discussion, one or two short messages. When you are asked to do something, do it now with your tools. The group does not wait for you, and your final reply is posted here when you finish, so give the result, never a promise to do it later. Reply [PASS] to stay silent when you have nothing new to add or the message is for someone else.'
 +// A group that has a board. Assigning, claiming, and progress are board writes.
 +// @Name only wakes. A face-to-face room has no board, so it keeps ROOM_REPLY.
@@ -1007,7 +1085,7 @@ diff --git a/src/host/groups.js b/src/host/groups.js
  const ROOM_CALLS = 'Writing "@Name" calls that member next, to answer or to do what you ask; when it finishes work you gave it, you answer its result. To only mention a member, write its name without "@".'
 +// Same wake, on a room that has a board: the call does not assign or record progress.
 +const ROOM_CALLS_BOARD = 'Writing "@Name" wakes that member to answer, or to do the card the board already assigned to it. It does not assign work or record progress. When it finishes that card, you answer its result. To only mention a member, write its name without "@".'
- 
+
  const slotLabel = (slot) => {
    if (slot.status === 'speaking') return `${slot.name} (you, now)`
    if (slot.status === 'posted') return `${slot.name} (posted)`
@@ -1019,7 +1097,7 @@ diff --git a/src/host/groups.js b/src/host/groups.js
 @@ -100,162 +100,247 @@ const slotLabel = (slot) => {
    return slot.name
  }
- 
+
 -const adminNote = room => [
 +// A face-to-face room's admin is its lead (#476), with the lead's rules instead.
 +const adminNote = room => isFaceRoom(room) ? FACE_LEAD_NOTE : [
@@ -1027,7 +1105,7 @@ diff --git a/src/host/groups.js b/src/host/groups.js
    room.mode === 'admin' ? 'Plain messages come to you first: answer them, or call the members who should answer with @Name.' : '',
    '"@all" calls every member. When the user asks, change the group with update_group.',
  ].filter(Boolean).join(' ')
- 
+
 -// The opening turn of a group the user just made without a first message.
 -const roomKickoff = language => `The user just created this group and has not written yet. Greet the user in one short message and ask what they want this group to work on. Do not call members with @ yet, and do not reply [PASS]. No name prefix. Write in ${language ?? 'the user\'s language if known; otherwise Chinese'}.`
 -
@@ -1037,7 +1115,7 @@ diff --git a/src/host/groups.js b/src/host/groups.js
 +const ROOM_SECTION_ORDER = 10150
 +// What a member last saw of the notice, so its next turn says when the notice changed.
 +const noticeMark = notice => createHash('sha256').update(String(notice ?? '')).digest('hex').slice(0, 16)
- 
+
  export function install(rt) {
    const { ctx } = rt
 +  const participant = createRoomParticipants(rt)
@@ -1054,7 +1132,7 @@ diff --git a/src/host/groups.js b/src/host/groups.js
 +    await rt.save().catch(error => rt.warn?.('ds-bot: the state line of an external Bot was not saved: %s', error))
 +    return posted
 +  }
- 
+
    // A member's group Session, created on its first turn there. A new one starts with
    // a fresh look at the log and a brief of the member's own chat; the brief is the
    // first message, so it stays fixed and the prefix stays cacheable.
@@ -1156,7 +1234,7 @@ diff --git a/src/host/groups.js b/src/host/groups.js
 +    const name = String(rt.botOf(leadId)?.name ?? 'The task lead').replace(/[\r\n]+/g, ' ').slice(0, 80)
 +    return `${name} is this room's task lead (总负责人) for the board: it assigns the parts on the board. Claim the card it assigns you by setting its column to in-progress with track_tasks, and update that card's column and progress as the work moves. Do not record a new plan, assign work, or post a status in the group. @Name only wakes someone; it does not assign. Start the work in your own chat; do not wait for a confirmation. A question a person has to decide is one short post in this group; do not @ a Bot to hand the work on.`
    }
- 
+
 -  // Lines from before the round's opening message are kept apart from this round, so
 -  // an earlier round (an old count-off, say) never reads as part of the current one.
 -  function roomPrompt(room, member, round) {
@@ -1271,7 +1349,7 @@ diff --git a/src/host/groups.js b/src/host/groups.js
 +      round.route?.forced === member.id ? ROOM_REPLY_FORCED : ROOM_REPLY_NOW,
      ].filter(Boolean).join('\n\n')
    }
- 
+
    // Members whose turn in this group is running, and since when.
    const workingIn = room => room.members.flatMap((id) => {
 -    const entry = rt.live.get(room.sessions?.[id])
@@ -1281,7 +1359,7 @@ diff --git a/src/host/groups.js b/src/host/groups.js
 +    return entry.working && bot !== undefined ? [{ bot, since: entry.since ?? Date.now() }] : []
    })
    const minutesSince = at => Math.max(1, Math.round((Date.now() - at) / 60000))
- 
+
 -  // One member turn inside the room; resolves to its final text, `{ failure }` when its
 -  // model call failed, `{ missed }` when it went quiet for too long, `{ approval }` when
 -  // it waits for the user's approval, `{ working }` when it goes on working without the
@@ -1350,7 +1428,7 @@ diff --git a/src/host/groups.js b/src/host/groups.js
 +  // call, an @all can sweep in, or whose own line can call others. Its chat and history stay
 +  // readable; only the turn is gone, so nothing is delivered and no Session starts.
 +  const roomBots = room => room.members.map(rt.botOf).filter(bot => bot !== undefined && !retiredBot(bot))
- 
+
    // A called member moves up if it is still waiting, or gets one more turn if it
    // already spoke; either way it goes right after slot `index`. `cap` is the caller's
    // per-member turn bound for the round; `by` is the calling member, if a member called.
@@ -1562,7 +1640,7 @@ diff --git a/src/host/groups.js b/src/host/groups.js
 +    }
      return round.slots.length - before
    }
- 
+
 @@ -310,9 +310,17 @@ export function install(rt) {
      const turns = new Map()
      // The inbox check keeps a message sent during the last speaker's turn inside
@@ -1663,7 +1741,7 @@ diff --git a/src/host/groups.js b/src/host/groups.js
 +      if (!round.single) callMembers(round, turns, index, callees, `${member.name} mentioned you`, leads ? ROOM_ADMIN_TURNS_EACH : ROOM_TURNS_EACH, member.id, uncapped, typeof reply === 'string' ? reply : undefined)
      }
    }
- 
+
 @@ -397,38 +397,52 @@ export function install(rt) {
        rt.roomInbox.delete(room.id)
        const posts = queued.length > 0 ? queued : [{ text: '' }]
@@ -1775,7 +1853,7 @@ diff --git a/src/host/groups.js b/src/host/groups.js
 @@ -471,6 +471,41 @@ export function install(rt) {
      },
    }))
- 
+
 +  // A friend's Bot named this home's Bot in the group it projects here (#825): one turn, in this room,
 +  // and its answer goes back as a room line (room-membership's fanoutRoomLine). One answer per line is
 +  // kept by the caller, keyed by (remoteRoomId, seq, botId).
@@ -1921,7 +1999,7 @@ diff --git a/src/host/groups.js b/src/host/groups.js
      if (!all && room.mode === 'admin' && admin) return [admin]
      return admin ? [admin, ...members.filter(bot => bot !== admin)] : members
    }
- 
+
 +  // A post's line in the room log, as the relay writes it: a Bot's (mine or another home's) or a person's.
 +  function logPost(room, post, text) {
 +    return appendRoom(room, rt.authoredRoomLine?.(room, post.botId
@@ -2028,7 +2106,7 @@ diff --git a/src/host/groups.js b/src/host/groups.js
      await ctx.sessions.flush(agent.session)
    }
    rt.postToRoom = postToRoom
- 
+
 +  // A shared-room or ticket-seat line is already in room.log. Put it in the Session so the pane
 +  // draws it, without logging it again (that would fan it out) and without opening a round.
 +  rt.showSharedLine = async function showSharedLine(room, spec = {}) {
@@ -2121,7 +2199,7 @@ diff --git a/src/host/groups.js b/src/host/groups.js
      }).catch(error => rt.warn('ds-bot: late group failure from %s failed: %s', member.name, error))
    }
    rt.lateRoomFailure = lateRoomFailure
- 
+
 -  // A group the user just made opens with its admin asking what the group is for.
 -  async function greetRoom(roomId) {
 -    const room = rt.roomOf(roomId)
@@ -2166,7 +2244,7 @@ diff --git a/src/host/groups.js b/src/host/groups.js
 +    await rt.deliver({ toId: post.botId, role: 'report', roomId: room.id, text, hop: (post.hop ?? 0) + 1, origin })
        .catch(error => rt.warn('ds-bot: group report to %s failed: %s', post.name, error))
    }
- 
+
 @@ -665,7 +665,7 @@ export function install(rt) {
        // message from the user, a scheduled task, or a Bot's post after the last model or
        // tool step starts a relay.
@@ -2184,13 +2262,13 @@ diff --git a/test/at-menu.test.js b/test/at-menu.test.js
  import { BOTS_SOURCE, CHATS_SOURCE, atSources, chatRows, mentionRows, sessionMention } from '../src/client/at-menu.js'
  import { indexRoster } from '../src/client/sources.js'
 +import { remoteBotTitle, remoteCallName } from '../src/shared/remote-label.js'
- 
+
  const roster = indexRoster({
    bots: [
 @@ -22,6 +22,25 @@ test('a session mention is the one DSH writes and reads back', () => {
    }
  })
- 
+
 +test('"@" in a shared room lists humans and Chiefs', () => {
 +  const shared = indexRoster({
 +    bots: [

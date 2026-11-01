@@ -903,9 +903,40 @@ See [Chief control](project-chief-control.md) for authority and restart invarian
 Repair HTTP integration: register the pool/query/GitHub/delegation/Chief/schedule
 APIs in the concrete channel dispatcher, with Project rights checked downstream.
 
+R7 Project collaboration adds explicit authenticated room and conversation-stop channel
+cases and workbench-only authorization vocabulary. The gateway never forwards raw DSH
+room/Session routes. Rooms reuse existing Project agent delegation and documented native
+llm/stream middleware; they cannot authorize Task effects. See
+[Project collaboration](project-collaboration.md) for ownership and scope boundaries.
+
+The shared workbench's `personal-space` capability projects original owned local
+Bots and authorized internal room history without opening raw owner routes.
+`workbench-personal.js` excludes Project carriers and retains original identities;
+room history retains membership-window filtering and async own-chat/memory reads
+reauthenticate before returning. Sends reuse channel `send` authorization.
+
 
 ## Project Chief memory adapter
 `memory.js` exposes botMemoryRecall/botMemoryRemember for an already host-bound own Bot. They reuse original topic validation, entry/file limits, secret scan, replace handling, serialized writes and journal. Caller-supplied scope/Bot IDs are ignored; Project adapter derives the resident public Chief. Memory index is supplied per request and topic details are retrieved on demand; files survive SDK process release and host restart. The original DSH parts/steward implementation is unchanged.
+
+Task40 personal-space controls delegate to existing native question/approval/group
+stop handlers after checking the selected owned personal Session. Stop revalidates
+after resolving the native agent. Original dismiss-question accepts an optional
+question ID fence for scoped callers. The channel's native personal stream hook uses
+current-turn checks and excludes hidden exchanges; only the authorized personal read
+returns its redacted buffer. Workbench personal tool projection never returns raw
+arguments/non-text content or a result without its visible call.
+
+The native personal stream observer is registered only when shared-workbench mode
+is explicitly enabled at installation. Legacy profiles retain their existing listener
+count and order. The shared observer still passes non-conversation purposes and
+unknown Sessions through unchanged; this does not alter secrets or usage accounting.
+
+The native attachment personal-space adapter admits uploaded bytes using public
+AttachmentStore APIs, then uses an identified native Agent message and flush. It does
+not trust browser-supplied existing references. Reads require a reference recorded in
+the selected message or membership-visible group line and recheck current access.
+No raw attachment route, filesystem path or DSH owner cookie is exposed to the browser.
 
 ## Development service (S1)
 

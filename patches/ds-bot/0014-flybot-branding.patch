@@ -17,12 +17,12 @@ diff --git a/src/client/about.js b/src/client/about.js
 -import { BotMark } from './mark.js'
 -import { MAIN_LOOK } from './characters.js'
  import { showsDshRow } from './dsh-offer.js'
- 
+
 -// The length of the mark's `done` hop (bt-done in styles.js).
 -const CHEER_MS = 1800
 -
  const starCount = count => new Intl.NumberFormat(dateLocale(), { notation: 'compact', maximumFractionDigits: 1 }).format(count)
- 
+
  function botHint(update) {
 -  if (update.phase === 'installing') return t('Updating DS Bot…')
 -  if (update.phase === 'installed') return t('Restart DSH to start using DS Bot {version}.', { version: update.installed ?? update.latest })
@@ -40,7 +40,7 @@ diff --git a/src/client/about.js b/src/client/about.js
    const checked = t('Checked {time}', { time: whenText(update.checkedAt) })
    return `${update.latest ? t('Up to date') : t('Could not check for updates.')} · ${checked}`
  }
- 
+
 +// A git install that follows a branch (the README's `#main`): nothing is offered to install, so the row says
 +// where it came from, how far the branch has moved on when that is known, and how it is updated.
 +function branchHint({ build, behind, checkedAt }) {
@@ -120,7 +120,7 @@ diff --git a/src/client/about.js b/src/client/about.js
        repo ? h(Row, { label: t('Source code'), hint: repo.replace(/^https:\/\//, '') }, h('a', linkProps(repo), h(GitHubMark), t('Open'))) : null,
        update.notesUrl ? h(Row, { label: t('Release notes') }, h('a', linkProps(update.notesUrl), t('Open'))) : null,
 @@ -105,11 +105,7 @@ export function AboutPage({ useUpdate, actions, run, Section, Row }) {
- 
+
  export const ABOUT_CSS = `
  .bt-about-hero{display:flex;align-items:center;gap:14px;padding:16px;border:1px solid var(--bt-line);border-radius:12px;background:var(--bt-card)}
 -.bt-about-mark{flex:none;display:inline-flex;position:relative}
@@ -138,7 +138,7 @@ diff --git a/src/client/diagnostics.js b/src/client/diagnostics.js
 @@ -32,6 +32,17 @@ export function noteClientError(where, error) {
    if (entries.length > MAX) entries.splice(0, entries.length - MAX)
  }
- 
+
 +// A move of the main view with no click or key behind it is the kind of jump a user cannot explain (#261):
 +// keep who moved it and where from, in the diagnostics and the console, so the next report says.
 +export function noteNavigation(how, target, from) {
@@ -152,9 +152,9 @@ diff --git a/src/client/diagnostics.js b/src/client/diagnostics.js
 +
  // A catch handler that keeps the failure without bothering the user.
  export const quietly = where => error => noteClientError(where, error)
- 
+
 @@ -63,14 +63,19 @@ const FAILURES = {
- 
+
  export function failureLabel(code, message) {
    if (FAILURES[code]) return t(FAILURES[code])
 -  return message || code || t('Unknown error')
@@ -165,7 +165,7 @@ diff --git a/src/client/diagnostics.js b/src/client/diagnostics.js
 +  if (raw || code) return t('This Bot could not answer right now.')
 +  return t('Unknown error')
  }
- 
+
  // GitHub refuses very long addresses; past this the diagnostics go by the clipboard.
  const URL_LIMIT = 7000
  export const WHAT_MAX = 2000
@@ -173,7 +173,7 @@ diff --git a/src/client/diagnostics.js b/src/client/diagnostics.js
 -const REST_NOTE = 'The recent errors do not fit in the link. DS Bot copied the diagnostics to the clipboard: paste them below this line.'
 +const PASTE_NOTE = 'FlyBot copied the diagnostics to the clipboard. Paste them here.'
 +const REST_NOTE = 'The recent errors do not fit in the link. FlyBot copied the diagnostics to the clipboard: paste them below this line.'
- 
+
  export function issueUrl(base, { what = '', diagnostics }) {
    const text = what.trim().slice(0, WHAT_MAX)
 diff --git a/src/client/secret-card.js b/src/client/secret-card.js
@@ -181,7 +181,7 @@ diff --git a/src/client/secret-card.js b/src/client/secret-card.js
 +++ b/src/client/secret-card.js
 @@ -27,7 +27,7 @@ const insecure = () => typeof location !== 'undefined' && location.protocol ===
    && !/^(localhost|127(?:\.\d{1,3}){3}|\[::1\])$/.test(location.hostname)
- 
+
  const scopeLabel = (scope, roster) => {
 -  if (scope === 'all') return t('All Bots')
 +  if (scope === 'all') return t('All my Bots')
@@ -190,7 +190,7 @@ diff --git a/src/client/secret-card.js b/src/client/secret-card.js
  }
 @@ -60,7 +60,7 @@ export function MaskedInput({ value, onChange, onEnter, label, autoFocus = false
  }
- 
+
  function ScopeSwitch({ value, onChange, bot }) {
 -  const options = [['all', t('All Bots')], ['bot', t('Only {name}', { name: bot.name })]]
 +  const options = [['all', t('All my Bots')], ['bot', t('Only {name}', { name: bot.name })]]
@@ -200,7 +200,7 @@ diff --git a/src/client/secret-card.js b/src/client/secret-card.js
 @@ -170,21 +170,25 @@ export function SecretDock({ sessionId, useRoster, useCards, useSession, actions
  // -------------------------------------------------------------------------
  // Settings page
- 
+
 -function ScopeEditor({ secret, roster, onSave }) {
 -  const [mode, setMode] = useState(secret.scope === 'all' ? 'all' : 'some')
 +// All my Bots (the default for every key the owner saves, #545), chosen Bots, or none.
@@ -226,7 +226,7 @@ diff --git a/src/client/secret-card.js b/src/client/secret-card.js
 -      h('button', { type: 'button', className: 'bt-soft bt-soft-sm', disabled: same, onClick: () => onSave(mode === 'all' ? 'all' : picked) }, t('Save access'))))
 +      h('button', { type: 'button', className: 'bt-soft bt-soft-sm', disabled: same, onClick: () => onSave(next) }, t('Save access'))))
  }
- 
+
  function ValueEditor({ secret, onSave }) {
 @@ -217,7 +217,7 @@ function SecretRow({ secret, roster, actions, run, open, onToggle }) {
          h('span', { className: 'bt-secret-title' }, h(KeyIcon), h('code', { className: 'bt-secret-name' }, secret.name), secret.purpose ? h('span', { className: 'bt-secret-purpose' }, secret.purpose) : null),
@@ -276,22 +276,22 @@ diff --git a/src/client/settings.js b/src/client/settings.js
 +import { FolderMenu } from './folder-menu.js'
  import { AboutPage } from './about.js'
  import { t } from './i18n.js'
- 
+
 @@ -23,8 +23,8 @@ const capitalize = word => word[0].toUpperCase() + word.slice(1)
- 
+
  // Settings dialog: a 198px page list beside the page. Bots and group chats each list
  // their members, and one opens on its own settings form. Usage widens the dialog.
 -const SETTINGS_PAGES = [['general', 'General'], ['bots', 'Bots'], ['groups', 'Group chats'], ['connectors', 'Connectors'], ['capabilities', 'Capabilities'], ['schedules', 'Scheduled tasks'], ['usage', 'Usage'], ['secrets', 'Secrets'], ['feedback', 'Feedback'], ['about', 'About DS Bot']]
 -const PAGE_ICONS = { ...SETTINGS_ICONS, connectors: ConnectorIcon, capabilities: PlugIcon, schedules: ClockIcon, secrets: KeyIcon, feedback: FeedbackIcon, about: InfoIcon }
 +const SETTINGS_PAGES = [['general', 'General'], ['bots', 'Bots'], ['groups', 'Group chats'], ['projects', 'Projects'], ['connectors', 'Connectors'], ['capabilities', 'Capabilities'], ['schedules', 'Scheduled tasks'], ['workflows', 'Workflows'], ['usage', 'Usage'], ['secrets', 'Secrets'], ['feedback', 'Feedback'], ['about', 'About FlyBot']]
 +const PAGE_ICONS = { ...SETTINGS_ICONS, projects: FolderIcon, connectors: ConnectorIcon, workflows: WorkflowIcon, capabilities: PlugIcon, schedules: ClockIcon, secrets: KeyIcon, feedback: FeedbackIcon, about: InfoIcon }
- 
+
  function SetSection({ title, children }) {
    return h('section', { className: 'bt-set-section' }, h('h3', null, title), h('div', { className: 'bt-set-card' }, children))
 @@ -35,6 +35,13 @@ function SetRow({ label, hint, children }) {
      children ? h('div', { className: 'bt-set-control' }, children) : null)
  }
- 
+
 +// The notification kinds with a switch of their own (#469).
 +const NOTIFY_KINDS = [
 +  ['approval', 'Waiting for approval', 'Once more if it still waits after 15 min.'],
@@ -322,7 +322,7 @@ diff --git a/src/client/settings.js b/src/client/settings.js
 +      }))),
    ]
  }
- 
+
 @@ -72,7 +72,9 @@ function GeneralPage({ roster, actions, run }) {
  function MainBotsSection({ roster, actions, run }) {
    const mains = (roster.mainBotIds ?? []).map(id => roster.byId[id]).filter(Boolean)
@@ -531,17 +531,17 @@ diff --git a/src/host/browser.js b/src/host/browser.js
 -import { defineTool } from '@deepseek-ai/dsh-tools'
 +import { defineTool } from './tool-schema.js'
  import { output } from './tools.js'
- 
+
  // A waiting client counts as present; one that has not polled for this long is gone.
 @@ -124,7 +124,7 @@ export function createBrowserChannel({ now = Date.now, waitMs = WAIT_MS, staleMs
- 
+
    function dispose() {
      for (const client of clients.values()) client.end?.()
 -    for (const id of [...pending.keys()]) settle(id, { error: 'DS Bot stopped before the page was read.' })
 +    for (const id of [...pending.keys()]) settle(id, { error: 'FlyBot stopped before the page was read.' })
      clients.clear()
    }
- 
+
 diff --git a/src/host/dsh-update.js b/src/host/dsh-update.js
 --- a/src/host/dsh-update.js
 +++ b/src/host/dsh-update.js
@@ -564,7 +564,7 @@ diff --git a/src/host/parts.js b/src/host/parts.js
 +import { settled } from './turn-origin.js'
  import { CHECKPOINT_PROMPT, STEWARD_SYSTEM, checkpointCount, checkpointTail, checkpointTailNote, checkpointText, linesFor, parseDecision, stewardRequest } from './steward.js'
  import { clip, createClock, escapeRegExp, estimateTokens, splitRef, textOf } from './text.js'
- 
+
 @@ -40,9 +40,9 @@ export function cardText(args) {
  // What one event adds to a Bot's chat history: an answer of the Bot's (its text, or a
  // question card), or a message from the user (`who: 'user'`) or another Bot
@@ -581,7 +581,7 @@ diff --git a/src/host/parts.js b/src/host/parts.js
 @@ -121,6 +121,20 @@ export function canonicalHeadings(note, names) {
    return lines.join('\n')
  }
- 
+
 +// The model a fresh part starts on. The Bot's own model wins. The previous request
 +// is only a fallback when the Bot has none, so a sticky group route is not copied
 +// onto the next part (#1127).
@@ -598,7 +598,7 @@ diff --git a/src/host/parts.js b/src/host/parts.js
 +
  export function install(rt) {
    const { ctx, config, state } = rt
- 
+
 @@ -144,26 +144,64 @@ export function install(rt) {
    const STEWARD_MAX_TOKENS = 4_096
    const STEWARD_TIMEOUT_MS = 120_000
@@ -619,7 +619,7 @@ diff --git a/src/host/parts.js b/src/host/parts.js
 +  // no turn end, `load: 1` until a human stops it (#1285). Its own deadline ends
 +  // that park; the next turn tries again.
 +  const COMPACT_DEADLINE_MS = config.compactDeadlineMs ?? 300_000
- 
+
    // A broken provider adapter must not crash every turn; estimate from the
    // derived messages instead, with one warning.
    let measureWarned = false
@@ -664,7 +664,7 @@ diff --git a/src/host/parts.js b/src/host/parts.js
 +    return Math.min(anchored, measured.surfaceTokens + toolTokens)
 +  }
    const clock = createClock(config.timeZone)
- 
+
    // Lines for the model the Session last routed to; undefined while it has not
 @@ -500,43 +500,137 @@ export function install(rt) {
        signal: AbortSignal.timeout(STEWARD_TIMEOUT_MS),
@@ -674,7 +674,7 @@ diff --git a/src/host/parts.js b/src/host/parts.js
 +    if (finish.kind === 'error' || finish.kind === 'aborted') throw stewardFailure(finish)
      return parseDecision(assembler.blocks().filter(block => block.type === 'text').map(block => block.text).join('\n'))
    }
- 
+
 +  // A failure as this side needs it: the provider's facts on the Error, not only its
 +  // message. A route reports a failed request as a terminal finish chunk, and the `code`
 +  // that says whether asking again can help, the `status` and the `providerRetryAfterMs`
@@ -765,7 +765,7 @@ diff --git a/src/host/parts.js b/src/host/parts.js
 +    rt.warn('ds-bot: the context steward failed for %s; moving on to a fresh part: %s', agent.id, failure ?? 'no usable answer')
      return 'switch'
    }
- 
+
 +  // Puts a step's claimed input back in the queue. A turn that ends in an error keeps
 +  // nothing: DSH claimed these messages durably before the pre-step hook ran and does
 +  // not return them, so the batch goes back as ordinary queued input. The loop starts
@@ -834,7 +834,7 @@ diff --git a/src/host/parts.js b/src/host/parts.js
        ? `${head} There was no earlier note to carry over. Go by the messages below, and look up anything else.)`
        : `${head} It is the note written at the end of part ${segment.noteFrom}, carried over unchanged; anything newer is in the messages below, and read_own_chat finds the rest.)\n\n${segment.note}`
    }
- 
+
 -  function handoffPackage({ room, segment, lines, number, resume, overflow, failed, bare, folder }) {
 +  function handoffPackage({ room, segment, lines, number, resume, overflow, failed, bare, folder, steward }) {
      const where = room ? `your conversation in the group chat "${room.name}"` : 'your own chat with the user'
@@ -862,7 +862,7 @@ diff --git a/src/host/parts.js b/src/host/parts.js
 @@ -610,17 +610,24 @@ export function install(rt) {
      ].join('\n')
    }
- 
+
 +  // `origin`: whose request the stopped turn answered (turn-origin.js), so the fresh part keeps the
 +  // same answer to "may it use the owner's connectors"; unknown stays unknown (the guard fails closed).
 +  const HANDOFF = { kind: SOURCE_KIND, form: 'relay', role: 'handoff', senderName: 'FlyBot', hop: 0 }
@@ -880,7 +880,7 @@ diff --git a/src/host/parts.js b/src/host/parts.js
      ...(resume ? { resume: true } : {}),
      ...(resume && job.joined?.length ? { joined: job.joined } : {}),
    })
- 
+
 -  /** @type {Map<string, {botId:string, roomId?:string, carry:any[], info?:any, joined?:any[], resume:boolean, overflow:boolean, failed?:string, bare?:boolean, folder?:boolean, hard:boolean, started?:boolean, moved?:boolean, noteFailed?:boolean}>} */
 +  /** @type {Map<string, {botId:string, roomId?:string, origin?:string, carry:any[], info?:any, joined?:any[], resume:boolean, overflow:boolean, failed?:string, bare?:boolean, folder?:boolean, hard:boolean, started?:boolean, moved?:boolean, noteFailed?:boolean}>} */
    const switches = new Map()
@@ -905,11 +905,11 @@ diff --git a/src/host/parts.js b/src/host/parts.js
 +  // backstop for a host that never reports the end: such a part is dropped, never forced
 +  // (#896).
 +  const PENDING_ARCHIVE_MAX = 32
- 
+
    const placeOf = (sessionId) => {
      const botId = rt.chatOwners.get(sessionId)
 @@ -670,10 +670,10 @@ export function install(rt) {
- 
+
    // `hard`: past the hard line or the window, the part moves on even without a note
    // from the model. `folder`: the part moves on because its working folder changed.
 -  function startSwitch(agent, { resume = false, carry = [], info, joined, overflow = false, failed, bare = false, folder = false, hard = overflow || folder } = {}) {
@@ -936,7 +936,7 @@ diff --git a/src/host/parts.js b/src/host/parts.js
        })
 +    return true
    }
- 
+
    async function runSwitch(agent, job) {
 @@ -716,8 +716,31 @@ export function install(rt) {
      }
@@ -970,7 +970,7 @@ diff --git a/src/host/parts.js b/src/host/parts.js
 +        })
      }
    }
- 
+
 @@ -765,16 +765,43 @@ export function install(rt) {
      const dir = rt.workDirOf(job)
      const intended = dir !== undefined && await rt.isFolder(dir) ? dir : rt.teamFolder()
@@ -1106,7 +1106,7 @@ diff --git a/src/host/parts.js b/src/host/parts.js
 +    if (await decide(agent, { midTurn: payload.step > 1, hard: true }) === 'compact' && await condense(agent, lines, { inTurn: true, signal: payload.signal, keep: payload.messages })) return next()
 +    return switchBeforeStep(agent, payload, { hard: true, steward: stewardBlame(agent.id) }, next)
    }, { prepend: true })
- 
+
    // `messages` left the inbox for this step, so the switch carries them along.
 -  function switchBeforeStep(agent, payload, options) {
 +  function switchBeforeStep(agent, payload, options, next) {
@@ -1125,7 +1125,7 @@ diff --git a/src/host/parts.js b/src/host/parts.js
 -    startSwitch(agent, { resume: midTurn, carry: payload.messages, info: midTurn ? entry.info : undefined, joined: midTurn ? [...(entry.joined ?? [])] : undefined, ...options })
      return { kind: 'reject' }
    }
- 
+
 @@ -927,15 +927,19 @@ export function install(rt) {
      const tokens = tokensOf(agent.session)
      if (lines === undefined || tokens === undefined || tokens < lines.check || !grown(agent.id, tokens, lines)) return
@@ -1152,7 +1152,7 @@ diff --git a/src/host/parts.js b/src/host/parts.js
 @@ -957,11 +957,74 @@ export function install(rt) {
      if (end !== undefined && end.data?.reason?.kind !== 'error') rescued.delete(agent.id)
    }
- 
+
 +  function rememberPendingArchive(sessionId) {
 +    pendingArchive.add(sessionId)
 +    while (pendingArchive.size > PENDING_ARCHIVE_MAX) pendingArchive.delete(pendingArchive.values().next().value)
@@ -1226,7 +1226,7 @@ diff --git a/src/host/parts.js b/src/host/parts.js
 +    releaseRescued(agent)
 +    void checkContext(agent).catch(error => rt.warn('ds-bot: context check for %s failed: %s', agent.id, error))
    })
- 
+
    // The handoff package opens a part as a turn of its own, so it is the first message
 diff --git a/src/host/secrets.js b/src/host/secrets.js
 --- a/src/host/secrets.js
@@ -1238,11 +1238,11 @@ diff --git a/src/host/secrets.js b/src/host/secrets.js
 -import { defineTool } from '@deepseek-ai/dsh-tools'
 +import { defineTool } from './tool-schema.js'
  import { output } from './tools.js'
- 
+
  export const SECRET_NAME = /^[A-Z][A-Z0-9_]{0,63}$/
 @@ -20,6 +20,17 @@ const MAX_REQUESTS = 20
  const USED_SAVE_MS = 5000
- 
+
  export const envName = name => `${ENV_PREFIX}${name}`
 +// A shell that cannot use a saved key says so instead of looking empty (#651): names and a reason,
 +// never a value. Owner decision 2026-10-22 (#601): the owner's own Bots get the owner's keys on every
@@ -1257,11 +1257,11 @@ diff --git a/src/host/secrets.js b/src/host/secrets.js
 +})
  export const canUse = (secret, botId) => secret !== undefined && botId !== undefined
    && (secret.scope === 'all' || (Array.isArray(secret.scope) && secret.scope.includes(botId)))
- 
+
 @@ -81,7 +81,9 @@ export function install(rt) {
    const { ctx, home, state } = rt
    const path = join(home, 'secrets.json')
- 
+
 -  /** @type {Map<string, {name:string, value:string, purpose:string, scope:'all'|string[], requestedBy:string|null, createdAt:number, updatedAt:number, lastUsedAt?:number}>} */
 +  // `scopeSet` marks a scope the owner chose (Secrets page, a card's "only this Bot", a Bot
 +  // removed from the list); without it an empty list is the old connector default (#545).
@@ -1363,7 +1363,7 @@ diff --git a/src/host/secrets.js b/src/host/secrets.js
 +      await persist().catch(() => { /* the change stays in memory and the next save writes it */ })
      }
    }
- 
+
 @@ -380,7 +380,10 @@ export function install(rt) {
        const name = normalizeName(args.name)
        if (!SECRET_NAME.test(name)) return 'Name the key with capitals, digits, and underscores, starting with a letter (for example GITHUB_TOKEN).'
@@ -1396,7 +1396,7 @@ diff --git a/src/host/secrets.js b/src/host/secrets.js
 @@ -465,14 +465,43 @@ export function install(rt) {
      return ctx.llm.stream({ ...options, messages: fresh, ...(system !== undefined ? { system } : {}) })
    })
- 
+
 +  // The Bot a shell call works for: its own chat, a group Session and an earlier part resolve
 +  // through selfOf; a sub-agent's call is followed up to its parent, the same chain the connector
 +  // guard uses (connector-access.js `whoseAgent`). `{ unknown }` is a chain that cannot be followed
@@ -1448,7 +1448,7 @@ diff --git a/src/host/secrets.js b/src/host/secrets.js
 +    if (withheld.length) values[WITHHELD_VAR] = withheld.join(',')
      return values
    }
- 
+
 @@ -499,7 +499,12 @@ export function install(rt) {
        try {
          unregister = sub.shellEnv.register({
@@ -1485,7 +1485,7 @@ diff --git a/src/host/update.js b/src/host/update.js
 +import { readFileSync, realpathSync } from 'node:fs'
  import { join } from 'node:path'
 +import { fileURLToPath } from 'node:url'
- 
+
  const PKG = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'))
  export const OFFICIAL_REGISTRY = 'https://registry.npmjs.org/'
 @@ -14,6 +14,7 @@ export const FETCH_TIMEOUT_MS = 8000
@@ -1493,7 +1493,7 @@ diff --git a/src/host/update.js b/src/host/update.js
  const STARTUP_DELAY_MS = 15_000
  const VERSION = /^v?(\d+\.\d+\.\d+(?:-[\w.]+)?)(?:\+[\w.]+)?$/
 +const COMMIT = /^[0-9a-f]{40}$/i
- 
+
  /** A release version without its `v` and build metadata, or null. */
  export const cleanVersion = value => VERSION.exec(String(value ?? '').trim())?.[1] ?? null
 @@ -48,9 +48,14 @@ export function sourceOf(spec) {
@@ -1514,7 +1514,7 @@ diff --git a/src/host/update.js b/src/host/update.js
 @@ -95,6 +95,63 @@ export async function installSpecOf(ctx) {
    } catch { return undefined }
  }
- 
+
 +// The commit a git install runs, when the profile says so. pnpm keeps a git dependency in a directory
 +// named after the tarball address it resolved (`...codeload.github.com+ThinkFlowLab+FlyBot+tar.gz+<sha>...`)
 +// so a 40-hex commit next to the repository's name in the running package's real path is its commit. The
@@ -1592,11 +1592,11 @@ diff --git a/src/host/update.js b/src/host/update.js
 +    build: status.build, behind: status.behind,
      available: status.phase !== 'installed' && target !== null && status.latest !== null && newer(status.latest, status.current),
    })
- 
+
 @@ -169,9 +169,35 @@ export function install(rt) {
      return { version, spec: `github:${owner}/${repo}#${fragment}` }
    }
- 
+
 +  // Which commit a git install runs and, for one that follows a branch, how far the branch has moved on.
 +  // One unauthenticated compare call; a failed answer leaves "unknown", never a guess.
 +  async function describeBuild(source) {
@@ -1648,7 +1648,7 @@ diff --git a/test/capabilities.test.js b/test/capabilities.test.js
 -  for (const name of ['github', 'with_underscore', 'with--dash', '1tool', 'A', 'a'.repeat(33)]) assert.throws(() => validateCapabilityName(name))
 +  for (const name of ['github', 'composio', 'with_underscore', 'with--dash', '1tool', 'A', 'a'.repeat(33)]) assert.throws(() => validateCapabilityName(name))
  })
- 
+
  test('packs expand only to MCP and skill items', () => {
 @@ -173,7 +173,7 @@ test('capability tool descriptions and attach results explain approval', async t
      { name: 'blocked' },
@@ -1657,7 +1657,7 @@ diff --git a/test/capabilities.test.js b/test/capabilities.test.js
 -  assert.ok(attached.endsWith(' The user must allow blocked in DS Bot settings before it can work.'))
 +  assert.ok(attached.endsWith(' The user must allow blocked in FlyBot settings before it can work.'))
  })
- 
+
  test('read-only secret reload does not requeue capability reconciliation', async t => {
 @@ -425,3 +425,25 @@ test('mounts agent-only MCP and skills, remounts changed config, resolves scoped
    assert.equal(mounts.findLast(mount => mount.sessionId === 'chief' && mount.plugin.inject?.includes('skills')).disposed, true)
@@ -1689,7 +1689,7 @@ diff --git a/test/dsh-update.test.js b/test/dsh-update.test.js
 --- a/test/dsh-update.test.js
 +++ b/test/dsh-update.test.js
 @@ -51,8 +51,8 @@ function fakeChild(code) {
- 
+
  const registryLatest = dsBot => ({ [`https://registry.npmjs.org/${PKG.name}/latest`]: { version: PKG.version, dsBot } })
  const githubLatest = (tag, manifest) => ({
 -  'https://api.github.com/repos/Fei2411/DeepSeek-Bot/releases/latest': { tag_name: tag },
@@ -1697,11 +1697,11 @@ diff --git a/test/dsh-update.test.js b/test/dsh-update.test.js
 +  'https://api.github.com/repos/ThinkFlowLab/FlyBot/releases/latest': { tag_name: tag },
 +  [`https://raw.githubusercontent.com/ThinkFlowLab/FlyBot/${tag}/core/package.json`]: manifest,
  })
- 
+
  test('the newest released bot declares the verified DSH, offered to an older npm install', async () => {
 @@ -98,13 +98,13 @@ test('a minBot newer than the running bot gates the DSH update until the bot goe
  })
- 
+
  test('a git or local install asks the public repo\'s latest release for its declaration', async () => {
 -  for (const source of ['github:Fei2411/DeepSeek-Bot#v0.1.0&path:/ds-bot', 'link:/work/ds-bot', undefined]) {
 +  for (const source of ['github:ThinkFlowLab/FlyBot#v0.1.0&path:/core', 'link:/work/ds-bot', undefined]) {
@@ -1726,11 +1726,11 @@ diff --git a/test/secrets.test.js b/test/secrets.test.js
 +import { SOURCE_KIND } from '../src/host/constants.js'
  import { canUse, normalizeName, redactDeep, redactor, SECRET_NAME } from '../src/host/secrets.js'
  import { fakeContext } from './fake-ctx.js'
- 
+
 @@ -73,9 +73,10 @@ const TEAM = {
    questions: {},
  }
- 
+
 -function start() {
 +function start({ secrets, team = TEAM } = {}) {
    const home = mkdtempSync(join(tmpdir(), 'ds-bot-secrets-'))
@@ -1771,7 +1771,7 @@ diff --git a/test/secrets.test.js b/test/secrets.test.js
 -  assert.equal(live[0].variables.DSH_SECRET_DEMO_TOKEN.description, 'DS Bot secret DEMO_TOKEN: 测试')
 +  assert.deepEqual(Object.keys(live[0].variables), ['DSH_SECRET_DEMO_TOKEN', 'DSH_SECRETS_WITHHELD'])
 +  assert.equal(live[0].variables.DSH_SECRET_DEMO_TOKEN.description, 'FlyBot secret DEMO_TOKEN: 测试')
- 
+
    // Asking again only names the variable.
    const again = await bench.tool('request_secret', { name: 'DEMO_TOKEN', purpose: 'x' }, 'b2')
 @@ -191,7 +191,7 @@ test('a Bot outside the scope gets an allow card, and allowing resolves it', asy
@@ -1780,13 +1780,13 @@ diff --git a/test/secrets.test.js b/test/secrets.test.js
    assert.equal((await bench.call('secret-set', { requestId: request.id, value, scope: 'bot' })).value.scope.join(), 'b2')
 -  assert.deepEqual(bench.env('c3'), {})
 +  assert.deepEqual(bench.env('c3'), { DSH_SECRETS_WITHHELD: 'DEMO_TOKEN:not-in-scope' })
- 
+
    // Coder asks too, while a second Writer card would be superseded by the first answer.
    const asked = await bench.tool('request_secret', { name: 'DEMO_TOKEN', purpose: 'build' }, 'c3')
 @@ -267,6 +267,54 @@ test('a deleted Bot leaves every scope list and takes its cards along', async (t
    assert.deepEqual(JSON.parse(readFileSync(join(bench.home, 'secrets.json'), 'utf8')).secrets[0].scope, ['b2'])
  })
- 
+
 +// A connector used to save its key for no Bot, and the Secrets page could not tell that from a
 +// choice the owner made. Such a key now belongs to all of the owner's Bots; one the owner
 +// narrowed on purpose (marked scopeSet) stays as it was.
@@ -2014,7 +2014,7 @@ diff --git a/test/update.test.js b/test/update.test.js
  import { afterEach, test } from 'node:test'
 -import { cleanVersion, install, newer, sourceOf } from '../src/host/update.js'
 +import { cleanVersion, commitIn, commitOf, install, installedCommit, lockedCommit, newer, sourceOf } from '../src/host/update.js'
- 
+
  const PKG = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
  const flush = async () => { for (let index = 0; index < 8; index += 1) await Promise.resolve() }
 @@ -58,11 +58,26 @@ test('the install source decides where a newer version is looked for', () => {
@@ -2029,7 +2029,7 @@ diff --git a/test/update.test.js b/test/update.test.js
    assert.deepEqual(sourceOf('https://example.com/ds-bot-0.1.0.tgz'), { kind: 'tarball' })
    assert.deepEqual(sourceOf(undefined), { kind: 'unknown' })
  })
- 
+
 +test('a 40-hex ref in the spec is a commit, not a branch or a tag (#379)', () => {
 +  const sha = '6d04db6682fa87033e58a176121f878b3ba293ce'
 +  assert.deepEqual(sourceOf(`github:ThinkFlowLab/FlyBot#${sha}&path:/core`),
@@ -2065,7 +2065,7 @@ diff --git a/test/update.test.js b/test/update.test.js
    assert.equal((await rt.updateCheck({ fresh: true })).available, false)
 @@ -148,10 +148,10 @@ test('a linked checkout, an unversioned git install, or a disabled check never a
  })
- 
+
  test('the star count comes from the repository, is kept for an hour, and survives a failed answer', async () => {
 -  const repo = 'https://api.github.com/repos/Fei2411/DeepSeek-Bot'
 +  const repo = 'https://api.github.com/repos/ThinkFlowLab/FlyBot'

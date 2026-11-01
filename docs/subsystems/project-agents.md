@@ -298,10 +298,19 @@ delegation. Coordination jobs cannot authorize themselves or create arbitrary Ta
 Chief coordination retains explicitly published shared Project knowledge alongside
 its role memory; private human notes/history remain excluded.
 
+R7 #40 extends existing delegated conversations to independent room/role carriers.
+Room execution snapshots current public role definitions, Skills and published memory;
+restricted room history never enters the public Chief or a human's private agent.
+Conversation-only delegation rejects Task/run effects for native and SDK roles.
+Native text streams are bounded, process-local and tied to the exact live delegation;
+reasoning is excluded. Scoped stop fences callbacks before awaiting owned worker exit.
+See [collaboration contract](project-collaboration.md).
 Repository previews may reference the separately injected complete policy only after
 verifying the policy hash, source commit, full source hash and preview prefix.
 Unverified previews remain inline under the unchanged 48,000-character limit;
 knowledge, memory and complete policy rules are preserved.
+
+Board-only `project-agents {view: summary}` returns the current public Chief identity after the same membership checks; it neither creates a private carrier nor returns private notes/proposals or role-policy bodies. Full settings/conversation responses retain their existing ownership scope.
 
 
 ## Explicit knowledge checkpoints (R6 context recovery)

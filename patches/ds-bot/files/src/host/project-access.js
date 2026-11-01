@@ -109,6 +109,7 @@ export function install(rt) {
     if (!actor?.memberId || !ownEntry(state.members, actor.memberId)) throw refusal('Sign in first')
     const development = await rt.projectDevelopment.endpoint(endpoint, body, actor)
     if (development !== undefined) return development
+    if (endpoint === 'project-rooms' || endpoint.startsWith('project-room-') || endpoint === 'project-agent-stop') return rt.projectAgents.endpoint(endpoint, body, actor)
     if (endpoint === 'project-github-read') return rt.projectGithubRead(body, actor)
     if (endpoint === 'project-chief-question') return rt.projectAgents.chiefQuestion(body, actor)
     if (endpoint === 'project-credential-status') return rt.projectCredentials.endpoint(endpoint, body, actor)
@@ -145,7 +146,11 @@ export function install(rt) {
     const bound = ['project-bind', 'project-of'].includes(endpoint) ? rt.projectOfMember(body.kind, body.id) : null
     const id = String(body.projectId ?? bound?.id ?? body.id ?? '')
     const project = rt.requireProjectAccess(actor, id)
-    if (endpoint === 'project-detail') return safeDetail(id, actor)
+    if (endpoint === 'project-detail') {
+      const result = safeDetail(id, actor)
+      if (body.view !== 'summary') return result
+      return { project: result.project, permissions: result.permissions, tasks: result.tasks.map(({ id, title, priority, status, requesterId, createdAt, collaboration }) => ({ id, title, priority, status, requesterId, createdAt, collaboration: collaboration ? { botId: collaboration.botId, status: collaboration.status } : undefined })) }
+    }
     if (endpoint === 'project-of') return { project: safeProject(project, actor) }
     if (endpoint === 'project-read') return { project: safeProject(project, actor), canManage: rt.projectCan(actor, id, 'manage') }
     if (endpoint === 'project-members') {

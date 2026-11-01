@@ -399,6 +399,23 @@ Chief returned the same Task to Dev with a fresh Attempt. This exposed a concurr
 resource-release reconciliation race, fixed with a red/green regression. Actual
 full R7 delivery and persistent 30-minute/restart acceptance remain in progress.
 
+### R7 (#40) collaboration candidate — 2026-11-01
+
+Scoped internal rooms now route @mentions to independent native/SDK role conversations,
+with member-bound histories/documents, public native text streaming and explicit stop.
+The shared UI adds safe Markdown, real pools/Timeline and readable role/evidence cards.
+[Capability inventory](docs/subsystems/project-collaboration.md) records restored paths,
+operator-only surfaces and limits. Tests use deterministic execution where stated.
+Loopback listening is refused in this worker sandbox, so Chromium/backend and real
+shared-service acceptance are pending; no completion, review PASS or deployment is claimed.
+
+R7 rework at prior candidate `f03f89d5b933fe315ad3fc937b3702533125bcb3` repairs
+the native stream listener registration expectation and browser fixture session-token
+adapter. Channel authentication checks run in verify without sockets or Chromium;
+actual browser and operator shared-service acceptance remain pending.
+
+
+Rework of the c9f9b5d candidate fixes the browser fixture through the real runtime save boundary and checks every rooms-page bootstrap endpoint for all three human roles before opening sockets. The current full-run log also exposed an invalid two-paragraph changelog fragment; the existing validator reproduces it and passes after consolidation. Chromium and deployed-service acceptance remain pending independent execution.
 R7 dogfood also exposed sandbox Git-index and host-test boundary failures. Scoped
 Codex writable roots support canonical generation; Chief route may resume a
 running pre-candidate Attempt without discarding uncommitted work. Explicit
@@ -448,6 +465,21 @@ Unstarted bound delivery now revalidates the live PR target before Developer all
 
 Recurring M6 browser timeout reproduced at166: the native Chief correctly generated a safe-mode proposal, while the old fixture waited for an unapproved Task. Acceptance now verifies no early Task, cross-user rejection, explicit requester UI approval and idempotent publication before existing delivery checks; production authorization is unchanged.
 
+R7 P0 maintenance now resolves the pinned `e3ff1d26` upstream into the original
+`56d14be` candidate, retaining both collaboration and backend repairs. This is an
+unsealed integration draft until host tests and independent Review; Owner visual
+feedback remains outstanding and no overall completion is claimed.
+
+### R7 visual rework — 2026-11-01
+
+Issue #40/PR48 now separates the shared chat workspace from Settings, with persistent
+Project/room navigation, dedicated transcript/composer and expandable Task groups.
+The reference demo guides layout only; metrics, role configuration and execution
+summaries continue to come from scoped Project APIs. Failed/blocked Tasks remain
+visible under Needs attention. DOM regression is red on f5eb916 and green locally.
+Chromium screenshots and actual shared-service acceptance for this rework are pending;
+prior functional acceptance does not establish the owner's visual acceptance.
+
 Chief inspection may explicitly select one existing Task in its authorized Project. The host validates Project configuration authority and Task ownership before using the existing scoped snapshot mechanism. Other-Project/missing Tasks are rejected; unscoped inspection is unchanged. This reduces unrelated facts without dropping policy/knowledge or raising context limits.
 
 Owner basic-CI policy is implemented on the existing PR47 local branch: default pinned install/lint/build/canonical/core and plugin unit checks; heavy browser/runtime/package checks explicit extended dispatch. Independent Review and actual UI acceptance remain. Publish only at a safe upstream-binding checkpoint; this local change does not claim live workflow activation.
@@ -459,7 +491,45 @@ Owner basic-CI policy is implemented on the existing PR47 local branch: default 
 - Chief resource context retains current/uncertain lease details and digests only
   proven released history, preserving original records and the 48k admission limit.
 
+### R7 UI continuation — slow connections and public Bot inspection
+
+The same #40/PR48 continuation joins in-flight same-route loads, requests board/resource summaries without discarding audit history, and loads Settings/Workflow/member data only where displayed. Public Bot cards expose persona and attached same-Project/same-role public memory with revision/source. Settings retain existing permission checks. Native personal Chief/Bots/groups coexistence remains required and unfinished; Project rooms do not satisfy it. Browser throttling and current deployed three-account/visual acceptance remain separate from local unit evidence.
+
+
+The returned 653ebc2 candidate failed two repository workflow-shape assertions, not dependency preparation: they still required unconditional extended jobs and the retired shell gate. The #40 continuation aligns these assertions with the authorized basic/extended CI contract while retaining executable failure/cancellation coverage. UI/native-personal compatibility and new candidate host verification remain separate outstanding evidence.
+
+#40 continuation: Chief/private Project transcript now mounts original React
+Bubbles/Markdown and identity marks from scoped history, in lazy named assets.
+This is a partial native component slice, not personal-space/native-group compatibility
+or Owner visual acceptance. Exact checks and remaining adapter work travel with handoff.
+
+
+The current #40 continuation wires the original reply renderer to the Project/room observable source, including concurrent room streams and revocation clearing. It replaces the parallel room Markdown renderer. Personal Chief/Bots/native groups, complete Harness service adapters and current-source desktop/narrow/live acceptance remain unfinished; this is implementation progress, not Task acceptance.
+
+R7 continuation in the preserved #40 draft adds original personal Bot/group identity
+and history navigation, native sends and own-memory reads through a restricted
+adapter, plus original AssistantCell rendering. Focused HTTP/component checks are
+separate from pending full Harness shell/composer integration and actual deployed
+visual acceptance; #40 remains unfinished and no acceptance is claimed.
+
+Attempt8a continuation repaired native bundle/patch whitespace generation with
+red/green regression evidence and 36 focused passing checks. The draft remains
+unsealed; native shell/composer/tool/approval restoration and current-candidate
+verification/visual acceptance remain outstanding.
+
 - Fork basic CI checks out source in its tests-ok aggregation job and validates the current basic/extended policy in default workflow tests. The prior missing-script runner failure and stale inherited heavy-job assertions are repaired together, without bypassing failed verification.
+
+#40 recovered native UI draft continuation preserves original personal identities,
+history and native reply/list components; personal parent trees now use the original
+collapse renderer. This is unaccepted implementation, not full native shell parity.
+Native composer/services, complete personal controls and current browser/three-account
+visual acceptance remain outstanding and must not be inferred from unit checks.
+
+R7 pagination repair: personal Bot/archived-part history now has an earlier-page
+control instead of stopping at the latest 100 messages. Loaded pages survive
+polling and stay scoped to the opened identity/part; targeted regressions cover
+navigation and revocation. New candidate host verification and deployed acceptance
+remain separate.
 
 R6 context recovery: managers may publish an exact-source knowledge checkpoint
 through project-knowledge-write with hashed supersedes references. Original facts,
@@ -470,10 +540,117 @@ never hide original records. See Project agents architecture.
 Preparation-only retries retain an inherited sealed seed even when no new candidate
 was produced, so restarting after context repair cannot silently discard prior UI.
 
+#40 CSS/logout slice: original shell/conversation/sidebar rules now ship in the same-origin native stylesheet under the existing CSP. Sign out invalidates pending work immediately, including when an action is busy. Focused local tests are distinct from deployed visual acceptance; native composer/tool/approval and full legacy interaction parity remain outstanding.
+
 Failed-test rework now receives a bounded, redacted, hash-verified diagnostic from
 its own current or inherited candidate; unavailable private logs are not a model
 debugging prerequisite. Complete host logs remain retained and cannot mint PASS.
 
+#40 verification repair: the popup layering regression now follows the canonical extracted sidebar stylesheet, preserving its z-index assertions and checking the native sidebar re-export. Local red/green evidence is 11/12 → 12/12; this does not complete native composer or deployed three-account/weak-network acceptance.
+
+
+Task #40 rework: the inherited candidate failed the fragment validator because
+`40.fixed.md` contained multiple paragraphs. Keep one entry per fragment. The
+native conversation script now uses production React configuration and full
+minification, guarded by a 4.6 MB script budget (previous asset: 5.37 MB). This
+is a bounded reduction, not completed weak-network acceptance: embedded math
+fonts/CSS and the full native composer, tools, approval, stop/continue and
+personal/group interaction integration still require work. Operator deployment,
+three-account browser checks and actual screenshots remain pending.
+
+Task40 continuation moves native math fonts from CSP-blocked inline data URLs to
+individually loaded same-origin build assets. The stylesheet is 217104 bytes; local
+render regressions pass. Full host verification and actual shared-browser evidence
+remain pending; native composer/tool/approval integration remains unfinished.
+
 
 ### Task-scoped SDK context and resident Chief memory — 2026-11-01
 Owner requires a resident Chief with durable Project memory and one logical Session per Task/role. Codex/Claude own their supported conversation persistence and automatic compaction; FlyBot does not inject a second model-history compactor. SDK role rework reuses a confirmed released Task-role cwd/thread under the same principal/resource/profile/model/persona binding, while preserving separate immutable Attempt/claim/log/test/Review evidence. Changed bindings rotate backend threads with recorded lineage. Chief memory uses the original own-Bot MEMORY.md/topics/journal, never global team or private-user memory. Context admission keeps current bounded facts and hash-bound full source archives for scoped retrieval. Backend changes are foreground work; frontend Task40/PR48 resumes through FlyBot after validation.
+
+Task40 continuation integrates trusted backend `91792c1b` into preserved candidate
+`25607404` without committing or publishing. Room-scoped messages/streaming and role
+identity are retained alongside Chief retrieval/memory and binding-checked SDK resume.
+The inherited changelog failure reproduces (6/7) and the single-entry repair passes
+(7/7). Generated patches match canonical core. Direct integration testing requires
+DSH's registered loader: plain node cannot resolve `@deepseek-ai/dsh-llm` from the
+new scheduled-task module. This is not a passing integration result. Native composer,
+tool/approval/stop/stream, personal/group interactions, CSS-load synchronization and
+actual deployed three-account/weak-network acceptance remain open.
+
+Follow-up local check used the required harness loader:
+`cd core && node --import ./test/harness-resolve.mjs --test test/project-agents.test.js test/project-harness.test.js`
+passed 40/40 on the staged merge draft. The earlier plain-node failure was a loader
+invocation error, not a missing prepared dependency. Full verify, smoke, independent
+Review and deployed acceptance are Not run for this draft.
+
+Task40 adds a CSS/JS readiness barrier (defect tests 0/2 → 2/2) and mounts the scoped
+composer from original composer.js for Project agents and personal conversations.
+The original dictation hook is reused with disposal; captured chat handles retain
+scope revocation. A base-bundle composer test fails because the capability is absent;
+current native render/client/asset checks pass 27/27. These are local draft checks,
+not host full verification, independent Review or deployed three-account acceptance.
+
+The room composer now shares that native mount and existing registered-document
+IDs, while personal groups restrict mention choices to their visible members.
+Actual native workText labels render scoped live tool names. Final focused UI
+checks pass 33/33. Full verify was attempted during editing and is not valid final
+verification; a later process-control/result request was refused by sandbox
+loopback policy. Request actual configured host verification through Tester, then
+return this partial implementation to Developer for remaining tool-result,
+approval, personal live/stop and full interaction work. Do not close Task40.
+
+Task40 continuation at base cbcad4c4 adds actual native question/approval/stop/continue
+controls, original group MemberWork controls, bounded redacted tool results and current
+own-chat streaming. Existing original components are reused; standing grants and raw
+owner APIs are not exposed. SDK permission/message inputs now use the same original
+approval/composer components with existing host worker-generation/current-rights gates.
+The new personal HTTP capability test failed at base (1/2) before implementation and
+passed afterward; additional boundary tests cover foreign approvals/workers, retired
+handles, hidden turns, historical parts and stale questions. Host full verification,
+independent Review and deployed three-account/weak-network screenshots remain required.
+
+The continuation also restores answerable group question/approval cards through
+original handlers, exposing only public question fields rather than replyTo/origin.
+Group member-stop tests use actual native membership and reject another owner's Bot.
+Final local interaction checks, build/patch/lint results and outstanding host/browser
+validation are reported at handoff; no candidate recommendation closes this Task.
+
+Task40 host verification at `33e482d6` reported four failures in install, secrets
+and usage suites. All four reproduced locally (28/32). The personal stream observer
+was also installed in legacy mode, shifting the established listener order used by
+those protocol tests. Register it only for explicit shared-workbench mode; keep its
+purpose/Session guards. The new mode-boundary regression fails without that fix;
+affected suites plus personal-workbench coverage now pass 38/38. Final host full
+verification and independent Review remain required; no deployed acceptance is claimed.
+
+Review return at `846378bf` reproduced current-part navigation leaving the live
+conversation read-only; picker and explicit current-part links now normalize to the
+live route (defect regression red→green). Human Markdown/mentions reuse original
+PersonMessage. Attachment-only messages, scoped image preview/file download and
+native file/image sends use public DSH attachment/Agent APIs with current-user checks.
+The new human/attachment render test fails against the base bundle and passes on the
+working build. Boundary tests cover foreign IDs, batch validation, historical reads,
+revocation during admission and late download callbacks. Final host verification,
+independent Review and real-service screenshots/weak-network acceptance remain open.
+
+Review return at `bde2cf7c` reproduced native composer remount/focus loss on same-route
+refresh. The mounted regression now uses bounded boolean DOM-identity diagnostics
+(the former object diff exhausted memory before reporting failure) and reproduces
+red at that source. Native roots now update in place within the same scoped route and
+source, retaining input, cursor and focus; navigation/revocation still dispose them.
+Mounted personal/public/private/room regressions cover retained sends and scope teardown.
+No resource limit was raised. Exact-candidate host verification, independent Review
+and deployed three-account/weak-network/screenshot acceptance remain separate gates.
+
+### Task40 S1 compatibility integration — 2026-11-02
+
+The preserved `0e72dc60` frontend is integrated with trusted operator backend
+`b920cae8` (including S1/34918fb3 and the shared verified-exit-proof repair).
+Legacy delivery/Chief/schedule/delegation requests enter the S1 facade; native
+personal/room/attachment routes and retained-root behavior remain intact. The
+compact board now supplies live native activity to the shared status mapper:
+stored Bot existence alone still cannot establish running execution. The new
+integration regression failed before that adaptation; focused integrated suites
+pass 83/83. Neither parent's prior validation is an integration PASS. Host full
+verification, independent Review and actual deployed three-account/weak-network/
+screenshot acceptance remain required. No deployment, push or PR replacement occurs.

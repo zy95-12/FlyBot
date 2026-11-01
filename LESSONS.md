@@ -377,6 +377,27 @@ that Attempt had ever allocated execution. Expose the bind-before-start host
 registration proof (with all lease/worker/session/workspace counts), not a missing
 PID inference. Any registered/unknown record prevents the never-allocated claim.
 
+### 2026-11-01 — a room needs its own scoped conversation carrier (Seen 1×)
+
+The shared entry exposed only final Chief/private text, while global room APIs carried
+owner-wide authority. Route internal roles through existing scoped delegation, bind each
+room/role to an independent Session and check participants on documents as well as chat.
+Exclude reasoning and raw tool arguments from public streams; fence action responses as
+well as refreshes after route changes. Loopback-listen refusal is blocked browser evidence,
+never an excuse to call a fixture the actual shared-service acceptance.
+
+### 2026-11-01 — Browser fixtures must implement the channel token contract (Seen 1×)
+
+The actual channel extracts the member-session header before calling authenticate.
+A fixture expecting Headers failed before any UI assertion. Exercise the real route
+with valid, invalid and revoked tokens before starting Chromium; keep these checks
+in verify and report browser assertions separately. Update registration-order tests
+when adding a native stream observer rather than removing the observer to satisfy them.
+
+
+### 2026-11-01 — Bootstrap the full browser fixture before launching Chromium
+
+Seen 2×. A rooms-only channel preflight missed lazy Project agent creation calling a nonexistent runtime index method. Use the actual save boundary to refresh indexes and exercise every rooms-page bootstrap endpoint for each human role before sockets. Keep one changelog entry per fragment; read the current complete verification log rather than attributing a new failure to the prior run.
 ### 2026-11-01 — SDK worktree writes need the registered Git index (Seen 1×)
 
 Real Dev produced source/tests but sandboxed Git could not stage new canonical
@@ -452,9 +473,62 @@ A backend repair can advance the stacked PR target while an unstarted rework Att
 
 When browser acceptance stalls waiting for a side effect, inspect host proposals and authorization state before blaming model transport or retrying. A safe-mode proposal requires explicit human publication; align the real browser scenario with that contract and retain no-early-effect, cross-user and duplicate-publication assertions.
 
+### 2026-11-01 — Functional chat checks do not establish visual acceptance
+
+Seen 1×. Room routing passed while the main workspace still presented administrative
+forms. Compare the actual desktop/narrow-screen pages with the owner's reference;
+keep conversation/composer primary and configuration in Settings. Screenshots and
+real-service clicks must name their source, independently of deterministic DOM tests.
+
 Chief inspection may explicitly select one existing Task in its authorized Project. The host validates Project configuration authority and Task ownership before using the existing scoped snapshot mechanism. Other-Project/missing Tasks are rejected; unscoped inspection is unchanged. This reduces unrelated facts without dropping policy/knowledge or raising context limits.
 
 Owner basic-CI policy is implemented on the existing PR47 local branch: default pinned install/lint/build/canonical/core and plugin unit checks; heavy browser/runtime/package checks explicit extended dispatch. Independent Review and actual UI acceptance remain. Publish only at a safe upstream-binding checkpoint; this local change does not claim live workflow activation.
+
+### 2026-11-01 — Polling must let slow responses finish
+
+Seen 1×. Refreshing every four seconds while aborting the prior same-route request starved the workbench on slow connections. Join the pending load, cancel only on scope changes/disposal, and test a response lasting beyond the poll interval. Keep board payloads separate from full execution/audit history and retain authorization on summary reads.
+
+
+### 2026-11-01 — Update workflow contract regressions with the authorized CI split
+
+Seen 1×. The basic/extended workflow and executable result gate were updated, but two historical shape tests still required unconditional jobs and the old shell expression. Read the actual host failure log, assert the new job/result wiring and preserve failure/cancellation tests; do not restore obsolete heavy-job policy just to satisfy stale assertions.
+
+### 2026-11-01 — Mount the native component, not its imitation
+
+Seen 1×. A safe scoped renderer still failed the requested native UI reuse contract.
+Mount original components using actual member-visible identities and dispose roots on
+route changes. Keep native dependency assets out of board startup; missing published
+capabilities require explicit version guards, never invented Harness providers.
+
+
+### 2026-11-01 — Mounting a component is not connecting its live source
+
+Seen 1×. A constant snapshot mounted original reply bubbles while room streams still used a second renderer. Bind all Project conversation surfaces to the authenticated observable source, clear it on scope/revocation/logout, and test concurrent room streams plus actual component refresh. This is not proof of full native service or personal-space compatibility.
+
+### 2026-11-01 — Personal groups retain membership history windows
+
+Seen 1×. A personal-space adapter must not page a group's raw Session merely
+because the caller currently belongs to the room. Reuse roomHistory's visible-line
+projection; own-chat async reads must reauthenticate before returning after logout.
+
+### 2026-11-01 — Bound generated-file diagnostics without hiding failures
+
+Seen 1×. A minified native bundle made five whitespace findings produce over
+8 MB of diagnostic output. Retain the full private output and actual exit code,
+report bounded labels, then fix string generation and blank patch context.
+Never strip whitespace from generated string values or waive the failing check.
+
+### 2026-11-01 — Preserve native tree relationships in the scoped list
+
+Seen 1×. Reusing BotRow alone flattened original personal parent relationships.
+Mount the original TreeNode/botTree over the authorized roster and test actual
+collapse/expansion and current-part selection, not merely presence of a Bot name.
+
+### 2026-11-01 — A history cursor needs a reachable UI action
+
+Seen 1×. Returning hasMore/beforeSeq alone left personal history capped at the
+latest page. Wire the earlier-page control through the scoped source, retain
+loaded pages during polling, and fence navigation/revocation before merging replies.
 
 ### 2026-11-01 — Append-only history must not become an unbounded prompt
 
@@ -464,6 +538,10 @@ publish a current manager checkpoint bound to exact prior hashes. Project only
 verified covered history to digests, retain newer facts, and reject stale references
 without hiding originals. Do not raise caps, truncate criteria or blindly retry.
 
+### 2026-11-01 — Native component styles must survive the shared CSP
+
+Seen 1×. Mounting original components with an inline style silently lost mark dimensions under style-src self. Generate shared shell/conversation/sidebar rules into the same-origin asset, keep extracted animation dependencies explicit, and assert the generated asset. Logout must invalidate pending actions before awaiting remote revocation.
+
 ### 2026-11-01 — A failed-test hash alone cannot drive autonomous repair
 
 Seen 1×. Actual UI64 failed a popup z-index test, but the host wrapper returned
@@ -471,6 +549,27 @@ only its log tail and Developer could not find the requested receipt. Preserve
 early failure details in verifier output and feed a bounded, hash-verified excerpt
 from the same Task/candidate into rework. Redact before truncating long lines;
 retain full originals and never confuse diagnostic text with verification PASS.
+
+### 2026-11-01 — Extracted styles keep their behavioral assertions
+
+Seen 1×. Moving sidebar CSS to a shared same-origin module left the layering regression reading its former file and reporting NaN. Follow the canonical stylesheet and verify its consumer import; retain the z-index boundary assertion rather than weakening it.
+
+
+Task #40 rework: the inherited candidate failed the fragment validator because
+`40.fixed.md` contained multiple paragraphs. Keep one entry per fragment. The
+native conversation script now uses production React configuration and full
+minification, guarded by a 4.6 MB script budget (previous asset: 5.37 MB). This
+is a bounded reduction, not completed weak-network acceptance: embedded math
+fonts/CSS and the full native composer, tools, approval, stop/continue and
+personal/group interaction integration still require work. Operator deployment,
+three-account browser checks and actual screenshots remain pending.
+
+### 2026-11-01 — Bundled font data can violate the serving CSP
+
+Seen 1×. Native math CSS embedded all font formats as data URLs, adding roughly
+1.5 MB while the shared gateway correctly allowed only same-origin fonts. Emit
+byte-preserved same-origin font assets and retain the restrictive CSP; verify the
+CSS budget, asset existence and bounded gateway paths rather than enabling data URLs.
 
 
 ### 2026-11-02 — Finish asynchronous preflight before staging a source batch
@@ -494,3 +593,45 @@ workers, rather than only using an empty history fixture.
 
 ### 2026-11-01 — Keep memory, logical Session and execution evidence separate
 Seen 1×. A FlyBot48k role-admission cap precedes the SDK; Codex automatic compaction cannot fix inputs rejected before it starts. A1MiB event-size failure is transport, not model context. Use bounded current facts plus exact retrievable source snapshots, preserve full requirements and role rules, and let each Harness manage its own history. Task rework must not throw away its role thread/cwd; resumption requires matching Project/Task/role/principal/resource/profile/model/persona and confirmed process/lease exit. Never reuse a Developer thread for independent Review or carry a verdict across commits. Chief long-term facts reuse original own-memory topics/journal, with no private/team scope fallback.
+
+### 2026-11-01 — Script readiness does not imply native style readiness
+
+Seen 1×. A slow connection delivered native JS before its stylesheet and mounted
+unstyled controls. Await both fixed same-origin assets, test script-first ordering
+and stylesheet failure, and retain scope fences for late load callbacks.
+
+### 2026-11-01 — Scope interactive controls to their displayed conversation
+
+Seen 1×. Reusing a renderer without questions, approvals or live controls leaves native
+behavior unavailable. Reuse the original cards with captured handles, match approval
+and question IDs to the current owned Session, revalidate after awaits, and exclude
+hidden exchange/tool data. A group seat cannot grant control of another owner's Bot.
+
+### 2026-11-01 — Optional workbench observers must preserve legacy registration
+
+Seen 1×. An always-installed pass-through stream listener shifted the legacy fixed
+installation protocol and listener selections used by secrets/usage tests. Install
+workbench-only observation only in explicitly configured shared mode and test both
+modes, rather than weakening existing assertions or changing token accounting.
+
+### 2026-11-01 — Current conversation parts are live routes
+
+Seen 1×. Treating every part selection as historical left the current Session read-only.
+Canonicalize current-part selections and deep links to the live Bot route; older parts
+stay immutable. Native attachment-only messages also need recorded reference projection,
+not text-only filtering or arbitrary object-ID reads.
+
+### 2026-11-01 — Keep native input roots mounted across refresh
+
+Seen 1×. Rebuilding a page every poll lost browser focus, cursor and component state
+even when the draft text was restored. Update scoped native roots in place and retain
+their ancestors; replace them on scope/source changes. Test mounted identity with a
+boolean comparison: printing unequal React/DOM graphs can exhaust memory before the
+failure is reported. Keep diagnostics bounded; do not raise execution resource limits.
+
+### 2026-11-02 — Compact status adapters need the same runtime evidence
+
+Seen 1×. Integrating S1's shared TaskView left the compact board calling its status
+mapper without live activity, so actual native execution appeared as starting.
+Supply the same activity snapshot to compact and full adapters. Test both an active
+native claim and an idle stored Bot; never infer execution from Bot existence.

@@ -111,7 +111,7 @@ export async function checkWorkbench({ credentials, port, cookie, saved, waitFor
     await alice.getByLabel('Private terminal input (not saved)', { exact: true }).waitFor({ state: 'hidden' })
     await waitFor(() => Object.values(saved().projectTerminalAudit ?? {}).some(row => row.projectId === projectId && row.released === true), 'browser PTY release acknowledgement')
     assert.equal(JSON.stringify(saved().projectTerminalAudit).includes('BROWSER_PTY_READY'), false)
-    await click(alice, 'Public Bots')
+    await click(alice, 'Settings')
     const roleForm = alice.locator('#role-developer-instructions').locator('xpath=ancestor::form')
     await roleForm.getByLabel('Execution Harness', { exact: true }).selectOption('codex')
     await roleForm.getByLabel('SDK model identifier', { exact: true }).fill('fixture-sdk-probe')

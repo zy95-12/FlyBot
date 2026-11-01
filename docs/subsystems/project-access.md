@@ -211,7 +211,15 @@ A Chief role name alone grants no access. New control endpoints remain Project s
 Authenticated HTTP route regressions cover every R3–R6 collaboration endpoint
 and reject a nonmember at the real Project boundary, beyond direct service tests.
 
+R7 room list/create/read/message/document/stop and agent-stop endpoints pass the actual
+channel dispatcher and restricted gateway into current Project membership checks.
+Restricted rooms additionally require an explicit participant; document IDs are scoped
+to that room. No primary-owner or ambient raw Session bypass exists. SDK resource read
+models hide workers bound to rooms the caller cannot read.
+
 Chief inspection may explicitly select one existing Task in its authorized Project. The host validates Project configuration authority and Task ownership before using the existing scoped snapshot mechanism. Other-Project/missing Tasks are rejected; unscoped inspection is unchanged. This reduces unrelated facts without dropping policy/knowledge or raising context limits.
+
+Board reads may request `project-detail {view: summary}`. The same Project/member policy runs first; the response contains Project/permissions and card fields only, omitting Task results/claim contexts and Run/Workspace history. Full detail remains unchanged.
 
 ## Development service compatibility (S1)
 
@@ -225,3 +233,9 @@ The versioned service exposes scoped effects status and manager retry. Legacy pe
 ## Durable Task inbox integration (S3)
 
 S3 exposes input.publish/inputs only through the existing authenticated versioned service. Member removal permanently invalidates that source’s pending inputs; regrant cannot consume or revive them. No caller can supply source/recipient/claim or raw read receipts. See [Task inputs](project-inputs.md).
+
+Task40 room/conversation-stop routes remain in the Project-scoped fallback after the
+S1 facade has selected its owned operations. Shared-mode admission recognizes both
+vocabularies, without opening either in legacy mode or bypassing downstream member/
+action checks. The public development facade retains legacy Chief/schedule/delegation
+handlers; integration does not reinstall earlier direct handlers ahead of it.

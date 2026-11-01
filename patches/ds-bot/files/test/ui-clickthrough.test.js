@@ -162,7 +162,9 @@ test('#1347: the thread cannot paint above a dialog, a sheet or a scrim', () => 
   // popover opened after it tied and painted over the dialog.
   assert.equal(rule(css, '.bt-settings-layer').match(/z-index:(\d+)/)?.[1], '120')
   assert.equal(rule(css, '.bt-mem-layer').match(/z-index:(\d+)/)?.[1], '121')
-  for (const [file, selector] of [['styles.js', '.bt-menu'], ['styles.js', '.bt-react-strip'], ['sidebar.js', '.bt-update-pop'], ['remote-bot-settings.js', '.bt-remote-sheet-layer']]) {
+  // Sidebar rules are shared with the same-origin workbench stylesheet.
+  assert.match(read('sidebar.js'), /export \{ SIDEBAR_CSS \} from '\.\/sidebar-styles\.js'/)
+  for (const [file, selector] of [['styles.js', '.bt-menu'], ['styles.js', '.bt-react-strip'], ['sidebar-styles.js', '.bt-update-pop'], ['remote-bot-settings.js', '.bt-remote-sheet-layer']]) {
     const z = Number(ruleLine(read(file), selector).match(/z-index:(\d+)/)?.[1])
     assert.ok(z >= 120, `${selector} floats above the chat and the panel (was ${z})`)
   }

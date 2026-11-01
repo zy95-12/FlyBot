@@ -4,7 +4,7 @@ import { once } from 'node:events'
 import { test } from 'node:test'
 import { createWorkbenchGateway } from '../src/host/workbench-gateway.js'
 
-async function fixture(t) {
+async function fixture(t, asset = 'built asset') {
   const seen = []
   const upstream = createServer(async (req, res) => {
     let raw = ''; for await (const chunk of req) raw += chunk
@@ -14,7 +14,7 @@ async function fixture(t) {
     res.end(JSON.stringify({ ok: true, value: { actor: req.headers['x-flybot-member-session'] ?? null } }))
   })
   upstream.listen(0, '127.0.0.1'); await once(upstream, 'listening')
-  const gateway = createWorkbenchGateway({ upstreamOrigin: `http://127.0.0.1:${upstream.address().port}`, upstreamCookie: 'dsh=private-owner-credential', readAsset: async () => 'built asset' })
+  const gateway = createWorkbenchGateway({ upstreamOrigin: `http://127.0.0.1:${upstream.address().port}`, upstreamCookie: 'dsh=private-owner-credential', readAsset: async () => asset })
   gateway.listen(0, '127.0.0.1'); await once(gateway, 'listening')
   t.after(async () => { upstream.closeAllConnections(); gateway.closeAllConnections(); await Promise.all([new Promise(done => upstream.close(done)), new Promise(done => gateway.close(done))]) })
   const base = `http://127.0.0.1:${gateway.address().port}`
@@ -81,4 +81,32 @@ test('repair collaboration endpoints cross the actual shared HTTP entry while ra
   assert.ok(seen.every(row => row.actor === 'current-human-session'))
   assert.equal((await post('schedule-create')).status, 403)
   assert.equal((await post('state')).status, 403)
+})
+
+
+test('large assets negotiate gzip without caching private responses', async t => {
+  const asset = '/* original workbench */'.repeat(100)
+  const { base } = await fixture(t, asset)
+  const response = await fetch(`${base}/workbench.js`, { headers: { 'accept-encoding': 'gzip' } })
+  assert.equal(response.headers.get('content-encoding'), 'gzip')
+  assert.equal(response.headers.get('cache-control'), 'no-store')
+  assert.equal(response.headers.get('vary'), 'Accept-Encoding')
+  assert.equal(await response.text(), asset)
+  const identity = await fetch(`${base}/workbench.js`, { headers: { 'accept-encoding': 'gzip;q=0' } })
+  assert.equal(identity.headers.get('content-encoding'), null)
+  assert.equal(await identity.text(), asset)
+})
+
+test('gateway serves bounded same-origin math font assets without opening filesystem reads', async t => {
+  const { base, seen } = await fixture(t, Buffer.from([0, 1, 2, 255]))
+  const font = await fetch(`${base}/workbench-fonts/KaTeX_Main-Regular-ABCDEFG2.woff2`)
+  assert.equal(font.status, 200)
+  assert.equal(font.headers.get('content-type'), 'font/woff2')
+  assert.deepEqual(Buffer.from(await font.arrayBuffer()), Buffer.from([0, 1, 2, 255]))
+  assert.equal(font.headers.get('set-cookie'), null)
+  assert.equal(font.headers.get('content-security-policy').includes('data:font'), false)
+  for (const path of ['/workbench-fonts/config.json', '/workbench-fonts/KaTeX_Main-Regular-ABCDEFG2.woff2?file=secret', '/workbench-fonts/%2e%2e%2fpackage.json', '/workbench-fonts/Other-ABCDEFG2.woff2']) {
+    assert.equal((await fetch(`${base}${path}`)).status, 404)
+  }
+  assert.equal(seen.length, 0)
 })

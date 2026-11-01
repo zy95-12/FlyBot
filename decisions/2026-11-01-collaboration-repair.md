@@ -89,6 +89,41 @@ A Chief route keeps the existing unstarted Attempt. Host preparation may refresh
 
 Owner-approved P0 proceeds through supported target refresh and the reproduced M6 failure. Preserve production safe-mode gates: repair the stale browser expectation by actually publishing the requester’s proposal through UI, not by granting watch mode, forging a Task or weakening assertions. Platform maintenance, actual delivery, CI and UI acceptance remain separately evidenced.
 
+Owner visual feedback takes priority for R7 rework: retain original Task/PR and scoped
+collaboration APIs, align the workspace with the supplied polished reference, separate
+Settings from chat and use actual data throughout. Existing functional checks cannot
+stand in for desktop/narrow-screen visual or live shared-service acceptance. This
+implements the recorded scope without authorizing publication, deployment or merges.
+
 Chief inspection may explicitly select one existing Task in its authorized Project. The host validates Project configuration authority and Task ownership before using the existing scoped snapshot mechanism. Other-Project/missing Tasks are rejected; unscoped inspection is unchanged. This reduces unrelated facts without dropping policy/knowledge or raising context limits.
 
 Owner basic-CI policy is implemented on the existing PR47 local branch: default pinned install/lint/build/canonical/core and plugin unit checks; heavy browser/runtime/package checks explicit extended dispatch. Independent Review and actual UI acceptance remain. Publish only at a safe upstream-binding checkpoint; this local change does not claim live workflow activation.
+
+R7 continuation applies the existing Owner slow-network/public-role inspection scope: preserve history while projecting card data, join in-flight refreshes and retain scope-change cancellation. Public details use existing published role memory and exclude private context. Native personal compatibility remains required, not replaced by Project rooms; the current slice and deterministic checks cannot establish overall UI acceptance.
+
+#40 native-component continuation implements a bounded first mount of original
+Bubbles/identity marks on existing scoped Project history. It leaves personal native
+sessions/groups and sessions/uiConversation/slots adapters explicitly incomplete;
+no owner API exposure, new authorization or overall acceptance follows from this slice.
+
+The owner-authorized #40 draft recovery keeps the published PR48 seed and trusted
+pinned upstream as integration inputs. This continuation reuses original personal
+sidebar tree controls, without adding global owner-shell access. The scoped slice
+is not full native shell parity or Owner visual acceptance; remaining native
+composer/tool/approval integration and browser evidence stay on the same Task.
+
+#40 CSS/logout continuation retains the existing CSP and native canonical styles through a generated same-origin asset. Immediate local logout fences pending actions while remote revocation settles. This implements an authorized frontend slice, not a new permission or a claim of full UI acceptance.
+
+
+Task #40 rework: the inherited candidate failed the fragment validator because
+`40.fixed.md` contained multiple paragraphs. Keep one entry per fragment. The
+native conversation script now uses production React configuration and full
+minification, guarded by a 4.6 MB script budget (previous asset: 5.37 MB). This
+is a bounded reduction, not completed weak-network acceptance: embedded math
+fonts/CSS and the full native composer, tools, approval, stop/continue and
+personal/group interaction integration still require work. Operator deployment,
+three-account browser checks and actual screenshots remain pending.
+
+Task40 font continuation keeps the original math renderer and self-only CSP.
+Build-generated same-origin fonts replace embedded data URLs; this is a bounded
+asset-loading repair within the authorized UI scope, not completion or deployment.
