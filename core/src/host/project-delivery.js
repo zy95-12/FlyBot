@@ -54,11 +54,19 @@ export function createProjectDelivery(rt, { publisher } = {}) {
   const settingsOf = project => repositorySettings(rt, project)
   const publisherOf = project => publisher ?? githubPublisher(settingsOf(project).github)
   async function failureContext(attempt) {
-    const source = attempt.evidence.tests ? attempt : ownEntry(attempts(), attempt.feedback?.previousAttemptId)
+    let source = attempt
+    const seen = new Set()
+    while (source && !source.evidence?.tests && source.feedback?.previousAttemptId) {
+      if (seen.has(source.id)) throw reject('Failure diagnostic lineage is cyclic')
+      seen.add(source.id)
+      source = ownEntry(attempts(), source.feedback.previousAttemptId)
+      if (source && (source.projectId !== attempt.projectId || source.taskId !== attempt.taskId)) throw reject('Failure diagnostic belongs to another Task or Project')
+    }
     const tests = source?.evidence?.tests
     if (!tests || tests.passed !== false) return null
     if (source.projectId !== attempt.projectId || source.taskId !== attempt.taskId) throw reject('Failure diagnostic belongs to another Task or Project')
-    if (tests.sha !== source.candidateSha || source !== attempt && tests.sha !== attempt.seedSha) throw reject('Failure diagnostic candidate is stale')
+    if (tests.sha !== source.candidateSha) throw reject('Failure diagnostic candidate is stale')
+    if (source !== attempt && tests.sha !== attempt.seedSha) return null
     const text = await readFile(tests.log, 'utf8')
     if (hash(text) !== tests.sha256) throw reject('Failure diagnostic log changed')
     return { sourceAttemptId: source.id, sha: tests.sha, logSha256: tests.sha256, excerpt: testFailureExcerpt(text, process.env), completeLogRetained: true, source: 'project-attempt-log; bounded host-verified diagnostic, not a passing result' }

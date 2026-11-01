@@ -845,10 +845,13 @@ test('a rework receiver gets hash-verified bounded failed-test facts instead of 
   assert.ok(context.includes('popup layer regression'))
   assert.ok(context.includes(a.evidence.tests.sha256))
   assert.ok(context.length < 48000)
+  const deepId = await f.rt.projectDelivery.reworkPool({task, claim: {attemptId: id, id: 'preparation-only-return', botId: 'chief'}, reason: 'Preserve failure across preparation retry', force: true})
+  await f.rt.projectDelivery.preparePoolRole(task, {id: 'deep-repair', attemptId: deepId, generation: 4}, dev)
+  assert.ok(f.rt.state.projectAttempts[deepId].roleSessions.developer.context.text.includes('popup layer regression'))
   writeFileSync(a.evidence.tests.log, 'tampered failure')
-  await assert.rejects(f.rt.projectDelivery.preparePoolRole(task, {id: 'stale-log', attemptId: id, generation: 4}, dev), /log changed/)
+  await assert.rejects(f.rt.projectDelivery.preparePoolRole(task, {id: 'stale-log', attemptId: deepId, generation: 5}, dev), /log changed/)
   a.projectId = 'another-project'
-  await assert.rejects(f.rt.projectDelivery.preparePoolRole(task, {id: 'foreign-log', attemptId: id, generation: 5}, dev), /another Task or Project/)
+  await assert.rejects(f.rt.projectDelivery.preparePoolRole(task, {id: 'foreign-log', attemptId: deepId, generation: 6}, dev), /another Task or Project/)
 })
 
 test('workspace allocation failure releases an actual reservation before any external execution', async t => {
