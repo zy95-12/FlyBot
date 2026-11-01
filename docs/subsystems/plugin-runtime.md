@@ -173,3 +173,10 @@ Repair R3 (#36): The trusted Workflow namespace connects its lifecycle and pure 
 Repair R6: scoped host tools expose Chief control only through current Project
 authority. Managed native schedule envelopes are consumed before ordinary agent
 turn admission, preventing an extra uncontrolled Chief turn on the same delivery.
+
+## Project development result adapter
+
+The authorized Workflow poolResult host hook now enters the application service
+roleResult port and then the same fenced Project pool. Other plugins still cannot
+submit pool results. No new public event authority is introduced; see
+[development service](project-development-service.md).

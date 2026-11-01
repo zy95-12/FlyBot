@@ -78,3 +78,5 @@ keep it to what a reader must act on.
 - [2026-11-01: direct backend recovery before frontend dogfood](2026-11-01-direct-backend-recovery.md).
 
 - [Task-role context and resident Chief memory](2026-11-01-task-role-context.md)
+
+- [2026-11-01: backend service alongside autonomous frontend](2026-11-01-development-service.md).

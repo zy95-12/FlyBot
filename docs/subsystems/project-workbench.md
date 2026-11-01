@@ -197,3 +197,7 @@ call. This does not replace issue #40 native rich multi-Bot UI restoration.
 Actual shared-entry repair: the explicit HTTP allowlist now includes pool, query,
 GitHub read, delegation mode and Chief/schedule endpoints. Project authorization
 still executes downstream; raw schedule/state/DSH APIs remain refused.
+
+## Development service compatibility (S1)
+
+S1 adds project-development to the restricted gateway and authenticated HTTP dispatcher. Existing UI assets remain unchanged. The old taskExecution DTO and additive taskViews derive from the service TaskView; stored native Bot existence no longer counts as active execution. Read-only hosts permit only validated query operations, not arbitrary command envelopes. See [service contract](project-development-service.md).

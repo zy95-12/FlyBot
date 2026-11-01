@@ -1411,7 +1411,7 @@ export function install(rt) {
           })
         },
         poolOwns(id) { return plugin === 'flybot-workflow' && rt.projectPools.owns(id) },
-        poolResult(row) { return plugin === 'flybot-workflow' ? rt.projectPools.result(row) : false },
+        poolResult(row) { return plugin === 'flybot-workflow' ? rt.projectDevelopment.roleResult(row) : false },
         spawn(spec) { return plugin === 'flybot-workflow' ? rt.projectHarness?.spawn(spec) : null },
         dispatch(step) { return plugin === 'flybot-workflow' ? rt.projectHarness?.dispatch(step) : null },
         release(id) { return plugin === 'flybot-workflow' ? rt.projectHarness?.release(id) : false },

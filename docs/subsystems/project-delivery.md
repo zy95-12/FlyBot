@@ -388,3 +388,11 @@ A resumed Reviewer remains a separate role/thread from Dev and must inspect the 
 An unsealed same-base Developer draft may also be retained after confirmed exit; it is explicitly marked retainedDraft and never reset to its seed. A changed sealed candidate, dirty read-only checkout, unexpected HEAD or incomplete allocation refuses reuse. Retained drafts remain unverified and subject to ordinary path/commit/test/Review gates.
 
 Alias cleanup updates both the Attempt snapshot and workspace catalog after JSON reload; these records do not share object identity across a host restart. The resumed physical cwd remains protected.
+
+## Development service compatibility (S1)
+
+S1 routes legacy human delivery operations through the development service while retaining this module as the sole Attempt/evidence writer. Detail adds the shared TaskView; unchanged tests, publication and acceptance gates remain authoritative. See [service contract](project-development-service.md).
+
+S1 shared detail now pages compact Attempt summaries and offers hash-bound context
+retrieval through the service. The internal delivery records and full evidence remain
+unchanged; the live25-Attempt Task previously exceeded the gateway8MiB cap.

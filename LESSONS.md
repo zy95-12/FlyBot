@@ -13,6 +13,23 @@ Dated, short lessons from real FlyBot work. Agents read this **before coding**. 
 
 ## Open lessons
 
+### 2026-11-01 — Poll summaries, retrieve complete context on demand
+
+Seen 1×. Actual Task40 accumulated25 Attempts and40MiB state; the legacy detail
+response exceeded the unchanged8MiB gateway cap. Page Attempt summaries with
+original context/policy hashes and hash-bound full retrieval. Keep all original
+history; raising response limits or silently deleting archive text is not recovery.
+
+
+### 2026-11-01 — A stored worker record is not a running turn
+
+Seen 1×. Service status inspection found the old workbench projection treated any
+stored native Bot as running. Derive status from current scoped SDK execution or
+native live activity, retain starting/waiting states, and share one projection
+between service/detail/workbench readers. Test stale records and wrong-Project
+candidate/worker references; heartbeat alone is not meaningful progress.
+
+
 ### 2026-11-01 — Preparation belongs to every receiver, not one successful checkout
 
 Seen 2×. The real Tester lacked native dependencies although Developer preparation

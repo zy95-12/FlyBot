@@ -212,3 +212,7 @@ Authenticated HTTP route regressions cover every R3–R6 collaboration endpoint
 and reject a nonmember at the real Project boundary, beyond direct service tests.
 
 Chief inspection may explicitly select one existing Task in its authorized Project. The host validates Project configuration authority and Task ownership before using the existing scoped snapshot mechanism. Other-Project/missing Tasks are rejected; unscoped inspection is unchanged. This reduces unrelated facts without dropping policy/knowledge or raising context limits.
+
+## Development service compatibility (S1)
+
+Versioned project-development requests and legacy delivery/queue/Chief/delegation endpoints now enter the shared application facade after authentication. Both retain current Project/action checks; unsupported versions, wrong operation kinds, foreign targets and stale admission preconditions are refused. Task detail adds the same derived view used by the workbench. See [service contract](project-development-service.md).

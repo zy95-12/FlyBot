@@ -123,3 +123,10 @@ M7.5 adds [resource workspaces](subsystems/project-resource-workspaces.md): boun
 Repair R6: [Chief control](subsystems/project-chief-control.md) composes existing
 Task pools, Runs, Harnesses and original DSH schedules. Logical schedule mappings
 retain durable Project/Chief targets; completion decisions remain host validated.
+
+## Fork automatic development application service
+
+The [development service](subsystems/project-development-service.md) routes versioned
+commands, trusted host events and queries to existing Project modules. Legacy HTTP,
+agent and schedule adapters share the same business implementations and derived
+TaskView; no second executor/store or new control-plane component is introduced.

@@ -117,3 +117,7 @@ New Chief job requests wake the existing Project dispatcher after durable save.
 An existing source-key receipt returns without a redundant wake; this prevents
 a self-triggering arbitration loop. Scheduled inspection cadence remains original
 DSH configuration, independent of event-driven job execution.
+
+## Development service compatibility (S1)
+
+The original logical schedule handler enters the development service scheduled port after occurrence persistence and authority checks, then invokes the existing Chief implementation. Occurrence IDs, request deduplication, configurable timing and Chief adjudication are retained. See [service contract](project-development-service.md).

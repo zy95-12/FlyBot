@@ -31,13 +31,13 @@ test('revocation while reading withholds data and a revoked platform session pre
 
 test('published, queued and started are distinct server-derived states', async () => {
   const { taskExecutionStatus } = await import('../src/host/workbench-state.js')
-  const task = { id: 't', projectId: 'p', status: 'open', deliveryAttemptId: 'a' }, state = { projectAttempts: { a: { status: 'running' } } }
+  const task = { id: 't', projectId: 'p', status: 'open', deliveryAttemptId: 'a' }, state = { projectAttempts: { a: { id: 'a', taskId: 't', projectId: 'p', status: 'running' } } }
   assert.equal(taskExecutionStatus({}, { id: 't', status: 'open' }).phase, 'published')
   task.collaboration = { status: 'queued', botId: 'p:dev' }
   assert.equal(taskExecutionStatus(state, task).phase, 'queued')
-  task.collaboration.status = 'claimed'; task.collaboration.claim = { workerId: 'w' }
+  task.collaboration.status = 'claimed'; task.collaboration.claim = { workerId: 'w', status: 'active' }
   assert.equal(taskExecutionStatus(state, task).phase, 'starting')
-  state.projectHarnessWorkers = { w: { status: 'running' } }
+  state.projectHarnessWorkers = { w: { projectId: 'p', attemptId: 'a', status: 'running' } }
   assert.equal(taskExecutionStatus(state, task).phase, 'running')
   task.collaboration.status = 'arbitration'
   assert.equal(taskExecutionStatus(state, task).phase, 'awaiting-chief')

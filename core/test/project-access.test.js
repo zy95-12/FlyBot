@@ -207,3 +207,24 @@ test('queue recovery reaches live HTTP manager checks and cannot borrow a forged
   await rt.projectScheduler.wake()
   assert.equal(rt.state.projectQueue.q.status, 'waiting')
 })
+
+test('development v1 reaches HTTP authorization, preserves legacy details and refuses forged commands', async t => {
+  const rt = await setup(t)
+  const task = await rt.taskEndpoint('task-create', { botId: 'a', projectId: 'p1', title: 'Service boundary' }, alice)
+  rt.authenticate = async () => bob
+  const query = { version: 'project-development/v1', kind: 'query', name: 'task', projectId: 'p1', payload: { taskId: task.id } }
+  const result = await rt.testHttp('project-development', query)
+  assert.equal(result.ok, true, JSON.stringify(result.error))
+  assert.equal(result.value.result.task.phase, 'published')
+  assert.deepEqual(result.value.result.task.nextActions, [])
+  assert.equal((await rt.projectEndpoint('project-task-detail', { taskId: task.id }, bob)).view.taskId, task.id)
+  const wrongProject = await rt.testHttp('project-development', { ...query, projectId: 'p2' })
+  assert.equal(wrongProject.error.code, 'bot/forbidden')
+  const command = await rt.testHttp('project-development', { ...query, kind: 'command', name: 'chief.inspect', requestId: 'r', payload: { memberId: alice.memberId } })
+  assert.equal(command.error.code, 'bot/forbidden')
+  rt.readOnly = () => 'Read replica'
+  assert.equal((await rt.testHttp('project-development', query)).ok, true)
+  assert.equal((await rt.testHttp('project-development', { ...query, kind: 'command', name: 'task.run', requestId: 'r' })).error.code, 'bot/read-only')
+  rt.state.projects.p1.roles.members = []
+  assert.equal((await rt.testHttp('project-development', query)).error.code, 'bot/forbidden')
+})
