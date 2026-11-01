@@ -136,3 +136,13 @@ Once the host supports the pinned merge, route Developer with rework=false to
 resume the current unsealed Attempt; do not ask a role to bypass shared-ref
 restrictions or replace merge/index metadata. Ordinary autonomous handoffs and
 configured inspection timing remain unchanged.
+
+
+### Completed deferral claim lifecycle (#60 follow-up)
+
+An arbitration `continue` decision blocks completion but marks only its own Chief
+execution claim waiting-human, as needs-human/missing-decision already do. Keeping
+it active after the job/SDK exited falsely blocks manager source admission. This
+is not execution-exit proof: running jobs, held leases, unknown workers and other
+current claims still block through their existing checks. Task/Attempt/generation,
+audit and workspace remain intact; no ownership is granted by the status change.

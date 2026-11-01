@@ -635,3 +635,12 @@ Seen 1×. Integrating S1's shared TaskView left the compact board calling its st
 mapper without live activity, so actual native execution appeared as starting.
 Supply the same activity snapshot to compact and full adapters. Test both an active
 native claim and an idle stored Bot; never infer execution from Bot existence.
+
+
+### 2026-11-02 — Deferral is responsibility, not a live execution claim
+
+Seen 1× in real Source feedback recovery. Chief completed and released its SDK,
+but arbitration continue left claim active while Task was blocked. Operator source
+admission correctly refused. Mark only that completed Chief claim waiting-human;
+retain actual exit/lease checks and every other claim. A regression reproduces the
+old active label and verifies Task/Attempt/generation and blocked state survive.

@@ -87,7 +87,7 @@ The tables below are generated: edit `docs/testing-layers.json`, then run
 | `patch-payload` | none (see reason) | `patches/ds-bot/files/**` | — Generated copies of the files the patches carry. They are compared against `core/` by `node scripts/ds-bot-patches.mjs check` (L2) and never run on their own; the code under test is the copy in `core/`. |
 | `upstream` | none (see reason) | `ds-bot/test/**` | — The pristine upstream checkout at the pinned version. FlyBot never edits or runs it directly — `core/` is `ds-bot/` plus the patches, and the `core` suite runs the patched copies. |
 | `live-e2e-unit` | none (see reason) | `dev/live-e2e/test/**` | — Offline unit tests for the live end-to-end harness (a fake adapter, no model). They run in the root `npm run verify` only; no CI gate runs them today. Moving them into L1 is a separate change, and the layer that does drive a real model is `live-e2e.yml`, whose row is below. |
-| `demo-contract` | L1 | `dev/demo/test/artifact.test.mjs`<br>`dev/demo/test/control-plane-guards.test.mjs` | `npm run test:demo` |
+| `demo-contract` | L1 | `dev/demo/test/artifact.test.mjs`<br>`dev/demo/test/control-plane-guards.test.mjs`<br>`dev/demo/test/service-recovery.test.mjs`<br>`dev/demo/test/worktree-preparation.test.mjs` | `npm run test:demo` |
 | `demo-runtime` | L2 | `dev/demo/test/runtime.test.mjs` | `npm run test:demo:runtime` |
 
 | Workflow | Kind | Layer | Gate | Runs on | What it guarantees, or why it is not a layer |

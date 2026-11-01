@@ -454,3 +454,10 @@ The live staged UI integration is resumed on its original Task/Attempt/PR throug
 Chief after safe-checkpoint deployment and explicit manager admission. Additive
 service releases can retain UI component hashes and validate the actual UI/backend
 source pair; they do not require repeatedly restarting healthy frontend workers.
+
+
+Chief route with rework=false resumes an interrupted allocated pre-candidate
+Attempt after all role workers/leases/native occupancy are confirmed released,
+whether its worktree is clean or dirty. A clean operator-restart checkpoint must
+not manufacture a successor and discard its Attempt-scoped integration admission.
+Explicit returns/rework and unknown worker occupancy retain existing isolation.

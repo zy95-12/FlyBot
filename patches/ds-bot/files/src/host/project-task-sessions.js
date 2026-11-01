@@ -20,7 +20,13 @@ export function backendBindingKey({ harness, resourceId, principalId, cwd, model
 // Both lifecycle proofs are produced by the host, never by role output. A prior
 // service exit must be tied to the exact lease the supervisor reconciled.
 export function confirmedWorkerExit(state, worker) {
-  if (worker?.status !== 'released' || !Number.isSafeInteger(worker.generation) || worker.generation < 1) return false
+  if (!worker || !Number.isSafeInteger(worker.generation) || worker.generation < 1) return false
+  if (worker.status !== 'released') {
+    const lease = ownEntry(state.projectResourceLeases ?? {}, worker.leaseId), proof = worker.releaseProof
+    return Boolean(worker.status === 'failed' && worker.releasedAt && worker.exit?.code === 0 && proof?.kind === 'sdk-stop-ack-and-process-exit' && proof.workerId === worker.id && proof.generation === worker.generation &&
+      lease?.status === 'released' && lease.projectId === worker.projectId && lease.attemptId === worker.attemptId && lease.role === worker.role && lease.resourceId === worker.resourceId && lease.generation === worker.generation &&
+      lease.worker?.kind === 'sdk' && lease.worker.handle === worker.id && lease.releaseProof?.kind === proof.kind && lease.releaseProof.workerId === worker.id && lease.releaseProof.generation === worker.generation && lease.releaseProof.at === proof.at)
+  }
   const proof = worker.releaseProof
   if (proof?.kind === 'sdk-stop-ack-and-process-exit') return proof.generation === worker.generation
   if (proof?.kind !== 'systemd-prior-invocation-exited' || !/^[a-f0-9]{32}$/.test(proof.previousInvocationId ?? '')) return false

@@ -2,6 +2,12 @@
 
 ## Active fork roadmap — 2026-10-31
 
+S6/#55 integrates current service stages with original native frontend work and
+adds repeatable isolated fault/replay acceptance. Actual PR feedback→original Task→
+Codex Dev→Tester has run; final candidate/Review/Chief evidence and compatible UI
+rollout are recorded separately. Do not replace #41 or claim its whole visual/
+dual-mode matrix from this backend service acceptance.
+
 S5/#54 adds the trusted-private compatibility profile and execution-boundary query,
 without per-Bot OS infrastructure or live identity/sandbox migration. Current-role,
 safe/watch, private-data and concurrency regression suites guard existing rights.
@@ -362,3 +368,8 @@ including S1 and verified workspace/Session exit proofs. Compact board status
 uses the same live-activity evidence as the full S1 view. Integrated focused tests
 pass; exact sealed candidate host verification and independent Review come next.
 Actual shared-service browser/weak-network/screenshot acceptance stays outstanding.
+
+
+Issue60 follow-up restores the completed-Chief deferral checkpoint discovered by
+real S4 frontend recovery. Keep all exit/lease guards and the current unsealed
+Attempt; recovery uses supported admission after a verified service checkpoint.

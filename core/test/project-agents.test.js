@@ -552,3 +552,24 @@ test('Chief uses original topic memory across turns and restart without reading 
   rt.projectAgents.revoke('p1',alice.memberId)
   await assert.rejects(rt.projectAgents.context(bot,{memoryRequests:[{}]}),/delegation|revoked/)
 })
+
+test('dormant native end cannot consume an SDK Chief job before worker registration', async t => {
+  const { rt } = await setup(t)
+  const original = await get(rt, alice)
+  rt.state.projectAgentDefinitions.p1.roles.find(row => row.role === 'chief').execution = { harness: 'codex', resourceIds: ['local'] }
+  let callbacks = 0, request
+  rt.projectChiefControl.validateActor = async () => {} // Isolate adapter event ownership; authority has its own real-service suite.
+  rt.projectHarness.chiefTurn = async input => {
+    request = input
+    assert.equal(input.agent.lastRequest.workerId, undefined)
+    rt.projectAgents.onEvent({ id: input.agent.sessionId }, { type: 'turn/end', data: { turn: 999 } })
+    await new Promise(resolve => setImmediate(resolve))
+    assert.equal(callbacks, 0, 'Dormant DSH events cannot complete or fail an SDK-owned job')
+    assert.equal(rt.projectAgents.isDelegationActive(input.agent.id, input.delegation.id), true)
+    return 'delayed-sdk-worker'
+  }
+  await rt.projectAgents.startChiefJob({ projectId: 'p1', actor: alice, runId: 'chief-window', prompt: 'Inspect', projectFacts: {}, onResult: async () => { callbacks++ } })
+  await request.onResult({ ok: true, text: '{}' })
+  assert.equal(callbacks, 1)
+  assert.equal(rt.state.projectAgents[original.public.id].lastRequest.phase, 'completed')
+})

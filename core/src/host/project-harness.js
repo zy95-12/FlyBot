@@ -206,7 +206,7 @@ export function createProjectHarness(rt) {
         }
         if (event.type === 'failure') { row.status = 'failed'; await report(row, false, event.reason) }
         await rt.save()
-      }).catch(error => { row.status = 'failed'; failAsync(row, error.code === 'bot/harness' ? error.message : 'SDK event protocol failed') })
+      }).catch(error => { if (row.status === 'released') return; row.status = 'failed'; failAsync(row, error.code === 'bot/harness' ? error.message : 'SDK event protocol failed') })
     })
     void control.exit.then(async () => {
       if (!['completed', 'released', 'stopping', 'failed'].includes(row.status)) { row.status = 'failed'; await report(row, false, 'SDK stream terminated before a validated completion') }

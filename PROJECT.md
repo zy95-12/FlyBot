@@ -10,6 +10,18 @@ Current stage and priorities: [ROADMAP.md](ROADMAP.md). How decisions are made:
 
 ## Fork Project State — 2026-10-31
 
+### Service recovery acceptance — S6 / issue55, 2026-11-02
+
+The final stage composes the verified S5 service with the native frontend candidate
+from original Task40/PR48, preserving both source histories. An operator CLI repeats
+isolated real-store/Git/controlled-adapter recovery scenarios; it never injects
+production faults or represents mocks as vendor execution. Real GitHub feedback
+has automatically reached the original Task's actual Codex Developer, with explicit
+read/handled receipts and downstream Tester handoff, without manual relay/new Task.
+Matching candidate test/Review/PR and Chief decisions remain separately recorded.
+See [runbook](docs/service-recovery-demo.md). Integration/real UI screenshots and
+#41's remaining visual/dual-mode matrix are not established by this CLI.
+
 ### Trusted execution boundary — S5 / issue54, 2026-11-02
 
 The compatible profile explicitly supports trusted private execution on one
@@ -654,3 +666,40 @@ integration regression failed before that adaptation; focused integrated suites
 pass 83/83. Neither parent's prior validation is an integration PASS. Host full
 verification, independent Review and actual deployed three-account/weak-network/
 screenshot acceptance remain required. No deployment, push or PR replacement occurs.
+
+
+Issue60 live follow-up: a completed arbitration deferral now leaves its own Chief
+claim waiting-human instead of active. Actual released SDK/lease proof remains
+required before source admission. This fixes the observed current-Attempt operator
+checkpoint without changing Task history, source trust or workspace ownership.
+
+
+S6 dependency preparation uses the complete deployed release graph, including native
+React/UI packages, rather than mixing the old private native cache. The versioned
+`dev/demo/prepare-worktree.mjs` adapter refuses unknown existing entries. For legacy
+managed workspaces, first prove SDK/leases released and preserve Git HEAD/index/status;
+back up their untracked dependency directory outside the worktree, then prepare as
+the service UID. Preserve the original Task/PR and source-admit the current Attempt
+through the Owner API. This operator migration does not edit task state or Git code.
+
+
+S6 live recovery also fences SDK-owned Chief delegations before asynchronous worker
+registration. Dormant native DSH turn/end events must not consume the scheduled SDK
+job during that setup window; only its fenced SDK callback may finish it. The
+regression injects that event before a worker ID exists, then requires exactly one
+completion from the actual bound callback. Native-only execution retains its events.
+
+
+A late result-handler failure cannot overwrite a confirmed released SDK lifecycle.
+Historical failed-status rows with a successful process exit may still prove exit
+only when worker ID/generation, Project/Attempt/role/resource and both worker/lease
+stop proofs match a released SDK lease exactly. Unknown/unreachable exits, missing
+proofs and mismatched leases remain refused. This preserves historical failure
+attribution without blocking every future integration admission for the same Task.
+
+
+Chief route with rework=false resumes an interrupted allocated pre-candidate
+Attempt after all role workers/leases/native occupancy are confirmed released,
+whether its worktree is clean or dirty. A clean operator-restart checkpoint must
+not manufacture a successor and discard its Attempt-scoped integration admission.
+Explicit returns/rework and unknown worker occupancy retain existing isolation.
