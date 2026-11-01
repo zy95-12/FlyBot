@@ -1,9 +1,10 @@
+import { fileSize } from '../flybot-slots.js'
 import { PendingQuestion } from '../questions.js'
 import { ApprovalCard, MemberWork, MEMBER_CSS } from '../member-status.js'
 import { ScopedComposer } from '../composer.js'
-import { createElement as h, useSyncExternalStore, useState } from 'react'
+import { createElement as h, useSyncExternalStore, useState, useEffect, useRef } from 'react'
 import { createRoot } from 'react-dom/client'
-import { AssistantCell, workText } from '../cells.js'
+import { AssistantCell, PersonMessage, workText } from '../cells.js'
 import { BotMark, PersonMark } from '../mark.js'
 import { ScopedChatList, SIDEBAR_CSS } from '../sidebar.js'
 import { SHELL_CSS, CONVERSATION_CSS } from '../styles.js'
@@ -21,16 +22,15 @@ function Conversation({ source, roster, openBot, onQuote }) {
     return h('article', { key, 'data-native-message': row.kind ?? 'assistant' },
       h('header', null, bot ? h(BotMark, { bot, size: 28 }) : h(PersonMark, { name: row.speaker }), row.speaker ?? (row.kind === 'human' ? 'You' : 'Bot')),
       row.kind === 'human'
-        // UserMessageCell requires the shell's projectUserText projection, absent
-        // in the pinned primitives release. Do not invent that provider.
-        ? h('p', { style: { whiteSpace: 'pre-wrap' } }, row.text)
+        ? h(PersonMessage, { name: row.speaker ?? 'You', texts: [String(row.text ?? '')], roster, selfId: bot?.id, useUi: select => select(ui), actions: { quote: (_id, text) => onQuote?.(text), openSession: id => { if (roster.byId[id]) openBot?.(id) } } })
         : h(AssistantCell, {
           node: { key: key, data: { turn: 0, step: 0, status: streaming ? 'running' : 'done', blocks: [{ kind: 'text', text: String(row.text ?? '') }] } },
           sessionId: bot?.id,
           useRoster: select => select(roster), useUi: select => select(ui), useTurnSteps: () => [], useTurnContext: () => [],
           actions: { noteLive() {}, quote: (_id, text) => { onQuote?.(text) },
             openSession: id => { if (roster.bots.some(bot => bot.id === id)) openBot?.(id) } },
-        }))
+        }),
+      h(ScopedAttachments, { files: row.attachments ?? (row.attachmentIds ?? []).map(id => snapshot.attachments?.find(file => file.id === id)).filter(Boolean), read: file => chat.readAttachment(file) }))
   }
   return h('div', { className: 'bt-native-conversation', role: 'log' },
     snapshot.messages.map((row, index) => reply(row, row.id ?? index)),
@@ -98,4 +98,25 @@ export function mountNativeRuntimeInput(node, options) {
   const root = createRoot(node)
   root.render(h(RuntimeInput, options))
   return () => root.unmount()
+}
+
+function ScopedAttachments({ files, read }) {
+  const [opened, setOpened] = useState({}), [failure, setFailure] = useState('')
+  const alive = useRef(true)
+  useEffect(() => () => { alive.current = false }, [])
+  const open = async file => {
+    try {
+      const value = await read(file)
+      if (alive.current) setOpened(previous => ({ ...previous, [file.id]: value }))
+    } catch (error) { if (alive.current) setFailure(error.message) }
+  }
+  return h('div', { className: 'bt-scoped-attachments' }, files.map(file => {
+    const value = opened[file.id]
+    const image = value?.kind === 'image' && ['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(value.mediaType)
+    const href = value?.data ? `data:${image ? value.mediaType : 'application/octet-stream'};base64,${value.data}` : null
+    return h('div', { key: file.id }, h('button', { type: 'button', onClick: () => { void open(file) } }, `${file.name ?? 'Attachment'}${Number.isFinite(file.bytes) ? ' · ' + fileSize(file.bytes) : ''}`),
+      image && href ? h('img', { src: href, alt: file.name ?? 'Attachment', width: 240 }) : null,
+      href ? h('a', { href, download: value.name ?? file.name }, 'Download') : null,
+      typeof value?.text === 'string' ? h('pre', null, value.text) : null)
+  }), failure ? h('p', { role: 'alert' }, failure) : null)
 }

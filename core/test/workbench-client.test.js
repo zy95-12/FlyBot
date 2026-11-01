@@ -338,3 +338,21 @@ test('first sign out bypasses a pending action and fences its late result', asyn
   await tick()
   assert.doesNotMatch(root.textContent, /Pending|Alpha/)
 })
+
+test('selecting or deep-linking the current personal part restores the live conversation route', async t => {
+  const { dom, root, calls } = fixture(t, (endpoint, payload) => {
+    if (endpoint === 'personal-space' && payload.operation === 'list') return { bots: [{ id: 'chief', name: 'Original Chief', sessionId: 'current', parts: [{ sessionId: 'old', number: 1 }, { sessionId: 'current', number: 2 }] }], rooms: [], mainBotIds: ['chief'] }
+    if (endpoint === 'personal-space') return { messages: [{ id: 'line', text: 'History' }] }
+  })
+  await tick()
+  dom.window.location.hash = '/personal/chief/old'; await tick(); await tick()
+  assert.equal(root.querySelector('.composer'), null, 'archived parts stay read-only')
+  const parts = root.querySelector('[aria-label="Conversation part"]')
+  parts.value = 'current'; parts.dispatchEvent(new dom.window.Event('change'))
+  await tick(); await tick()
+  assert.equal(dom.window.location.hash, '#/personal/chief')
+  assert.ok(root.querySelector('.composer textarea'), 'returning to the current part restores sending')
+  dom.window.location.hash = '/personal/chief/current'; await tick(); await tick()
+  assert.equal(dom.window.location.hash, '#/personal/chief')
+  assert.equal(calls.filter(row => row.endpoint === 'personal-space' && row.payload.operation === 'read').at(-1).payload.partId, undefined)
+})

@@ -511,3 +511,13 @@ those protocol tests. Register it only for explicit shared-workbench mode; keep 
 purpose/Session guards. The new mode-boundary regression fails without that fix;
 affected suites plus personal-workbench coverage now pass 38/38. Final host full
 verification and independent Review remain required; no deployed acceptance is claimed.
+
+Review return at `846378bf` reproduced current-part navigation leaving the live
+conversation read-only; picker and explicit current-part links now normalize to the
+live route (defect regression red→green). Human Markdown/mentions reuse original
+PersonMessage. Attachment-only messages, scoped image preview/file download and
+native file/image sends use public DSH attachment/Agent APIs with current-user checks.
+The new human/attachment render test fails against the base bundle and passes on the
+working build. Boundary tests cover foreign IDs, batch validation, historical reads,
+revocation during admission and late download callbacks. Final host verification,
+independent Review and real-service screenshots/weak-network acceptance remain open.

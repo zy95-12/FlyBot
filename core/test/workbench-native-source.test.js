@@ -126,3 +126,22 @@ test('personal controls retain their own Session and are fenced on navigation or
   await assert.rejects(source.chat().stop(), /current personal/)
   source.dispose()
 })
+
+test('native image sends and historical attachment reads retain captured identity and reject late downloads', async () => {
+  const calls = []; let finish
+  const source = createScopedConversation({ async call(endpoint, payload) {
+    calls.push({ endpoint, payload })
+    if (payload.operation === 'attachment-read') return new Promise(resolve => { finish = resolve })
+    return { messages: [] }
+  } })
+  await source.open({ personalId: 'chief' })
+  await source.chat().send('', { images: [{ name: 'photo.png', mediaType: 'image/png', data: 'AA==', attachmentId: 'ignored' }] })
+  assert.deepEqual(calls.at(-2).payload.images, [{ name: 'photo.png', mediaType: 'image/png', data: 'AA==' }])
+  await source.open({ personalId: 'chief', personalPart: 'old' })
+  const read = source.chat().readAttachment({ id: 'photo', seq: 3 })
+  assert.equal(calls.at(-1).payload.partId, 'old')
+  await source.open({ personalId: 'other' })
+  finish({ data: 'AA==' })
+  await assert.rejects(read, /retired/)
+  source.dispose()
+})

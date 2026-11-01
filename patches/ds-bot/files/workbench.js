@@ -132,6 +132,15 @@
           return result;
         };
         return {
+          async readAttachment(file) {
+            if (disposed || !selected || captured !== generation) throw new Error("Conversation handle is retired");
+            let value;
+            if (selected.personalId) value = await api.call("personal-space", { operation: "attachment-read", id: selected.personalId, ...selected.personalPart ? { partId: selected.personalPart } : {}, seq: file.seq, attachmentId: file.id });
+            else if (selected.roomId) value = await api.call("project-room-attachment", { projectId: selected.projectId, roomId: selected.roomId, attachmentId: file.id });
+            else throw new Error("Attachment is unavailable in this conversation");
+            if (disposed || captured !== generation) throw new Error("Conversation handle is retired");
+            return value;
+          },
           stop: () => control("stop"),
           stopMember: (botId) => control("member-stop", { botId }),
           answerQuestion: (questionId, answer) => control("answer", { questionId, answer }),
@@ -140,12 +149,20 @@
           async send(text, options) {
             if (disposed || !selected || captured !== generation) throw new Error("Conversation handle is retired");
             if (selected.personalPart) throw new Error("Cannot send to a historical conversation part");
-            if (typeof text !== "string" || !text.trim()) throw new Error("Message is empty");
+            if (typeof text !== "string" || !text.trim() && !options?.images?.length && !options?.files?.length) throw new Error("Message is empty");
             const endpoint = selected.personalId ? "personal-space" : selected.roomId ? "project-room-message" : "project-agent-message";
             const payload = selected.personalId ? { operation: "send", id: selected.personalId, text } : { ...selected, text };
             if (options?.attachmentIds?.length) {
               if (!selected.roomId || !Array.isArray(options.attachmentIds) || options.attachmentIds.some((id) => typeof id !== "string")) throw new Error("Attachments require a registered room document");
               payload.attachmentIds = [...new Set(options.attachmentIds)];
+            }
+            if (options?.images?.length) {
+              if (!selected.personalId) throw new Error("Native images require a personal Bot conversation");
+              payload.images = options.images.map(({ name, mediaType, data }) => ({ name, mediaType, data }));
+            }
+            if (options?.files?.length) {
+              if (!selected.personalId) throw new Error("Native files require a personal conversation");
+              payload.files = options.files.map(({ name, data }) => ({ name, data }));
             }
             await api.call(endpoint, payload);
             if (!disposed && captured === generation) await refresh();
@@ -386,6 +403,10 @@
           const roster = await api.call("personal-space", { operation: "list" }, controller.signal);
           if (current !== epoch || disposed) return;
           personal = roster;
+          if (personalPart && roster.bots.find((bot) => bot.id === tid)?.sessionId === personalPart) {
+            personalPart = "";
+            win.history.replaceState(null, "", `#/personal/${encodeURIComponent(tid)}`);
+          }
           if (tid) history = await readConversation({ personalId: tid, ...personalPart ? { personalPart } : {} });
           if (current !== epoch || disposed) return;
           render();
@@ -646,7 +667,7 @@ ${result.text}`;
               input.value = `> ${text.replace(/\n/g, "\n> ")}
 
 ` + input.value;
-              input.dispatchEvent(new win.Event("input"));
+              input.dispatchEvent(new win.Event("input", { bubbles: true }));
               input.focus();
             }
           }
@@ -661,13 +682,15 @@ ${result.text}`;
     }
     function mountComposer(container, mentions = [], attachments = []) {
       const source = conversationSource, captured = epoch, chat = source.chat();
-      const draftKey = `${selected}:${tab}:${taskId}:native-composer`;
+      const draftKey = `${bootstrap.self.memberId}:${selected}:${tab}:${taskId}:native-composer`;
       void loadNative().then(() => {
         if (disposed || captured !== epoch || source !== conversationSource || !container.isConnected) return;
         const original = container.querySelector("textarea[name=text]");
         const initialText = drafts.get(draftKey) ?? original?.value ?? "";
         container.replaceChildren();
-        nativeComposerUnmount = win.FlyBotNativeConversation.mountNativeComposer(container, { chat, mentions, attachments, initialText, onDraft: (text) => {
+        nativeComposerUnmount = win.FlyBotNativeConversation.mountNativeComposer(container, { chat, mentions, attachments, initialText, allowImages: tab === "personal", initialImages: drafts.get(draftKey + ":images") ?? [], onImages: (images) => {
+          if (source === conversationSource) drafts.set(draftKey + ":images", images);
+        }, onDraft: (text) => {
           if (source === conversationSource) drafts.set(draftKey, text);
         } });
       }).catch((failure) => {
@@ -916,7 +939,7 @@ ${result.text}`;
                 parts.append(option);
               }
               parts.onchange = () => {
-                win.location.hash = `/personal/${encodeURIComponent(taskId)}/${encodeURIComponent(parts.value)}`;
+                win.location.hash = `/personal/${encodeURIComponent(taskId)}${parts.value === bot.sessionId ? "" : "/" + encodeURIComponent(parts.value)}`;
               };
               main.append(parts);
             }

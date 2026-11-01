@@ -388,3 +388,31 @@ cards. Public question fields exclude origin/replyTo routing authority. The orig
 host selects the answer destination from its saved question; body IDs cannot retarget
 another question or worker. Tool rows retain loaded history within the bound Session;
 a call without a visible result is labelled started, not inferred to be still running.
+
+### Current part and native attachments
+
+The personal part picker routes the current Session to `/personal/:bot` and normalizes
+an explicit current-Session deep link to that live route. Only older parts receive
+personalPart, so returning from history restores composer, streaming and controls.
+Human messages now use original PersonMessage/Bubbles rather than plain paragraphs.
+Scoped message actions omit reactions when no reaction capability was supplied; the
+original owner shell still supplies that capability unchanged.
+
+Native personal/group file sends accept browser bytes through personal-space and
+reuse public AttachmentStore admission plus identified Agent followup/steer and
+Session flush APIs. No DSH code or private API is used. Source uploads are bounded
+to four files, 256 KiB per file and 512 KiB total, within the shared gateway's 1 MiB
+request ceiling; original native image validation remains mandatory. Current human
+access is rechecked after capability resolution and attachment admission before any
+message is published. Invalid batches are prevalidated before file registration.
+Registration revoked before publication may retain an unreferenced immutable object,
+following the native store's retention-neutral contract, but publishes no message.
+
+History preserves attachment-only messages and exposes sanitized reference metadata,
+not host paths. Image reads use the public Session attachment API; file reads use
+AttachmentStore's verified stream. Each read proves a matching reference in the
+selected event, or in a group line visible through native membership-window filtering,
+and revalidates after awaits. Historical parts may read their own recorded attachments
+but cannot send. Downloads are bounded to 512 KiB. Only verified raster images are
+previewed; generic files download as octet-stream. Late reads/file-selection callbacks
+cannot repopulate a retired view, and upload drafts are keyed by human and conversation.

@@ -172,11 +172,32 @@ export function ComposerPlus({ sessionId, inputActions, useRoster, actions }) {
 
 // The shared entry supplies a captured, authorized chat handle rather than the
 // owner shell's global actions. Keep dictation and mention routing shared.
-export function ScopedComposer({ chat, mentions = [], initialText = '', attachments = [], onDraft, onError }) {
+export function ScopedComposer({ chat, mentions = [], initialText = '', attachments = [], initialImages = [], allowImages = false, onImages, onDraft, onError }) {
   const [text, setText] = useState(initialText)
   const [sending, setSending] = useState(false)
   const pending = useRef(false)
   const [included, setIncluded] = useState([])
+  const [images, setImages] = useState(initialImages)
+  const alive = useRef(true), reading = useRef(false)
+  const [readingFiles, setReadingFiles] = useState(false)
+  useEffect(() => () => { alive.current = false }, [])
+  const upload = async event => {
+    if (reading.current) return
+    reading.current = true; setReadingFiles(true)
+    const files = [...event.target.files], win = event.target.ownerDocument.defaultView
+    event.target.value = ''
+    try {
+      if (files.length + images.length > 4 || files.some(file => file.size > 256 * 1024) || files.reduce((size, file) => size + file.size, images.reduce((size, image) => size + image.bytes, 0)) > 512 * 1024) throw new Error('Choose up to four files, at most 256 KiB each and 512 KiB total')
+      const encoded = await Promise.all(files.map(file => new Promise((resolve, reject) => {
+        const reader = new win.FileReader()
+        reader.onerror = () => reject(new Error('Image could not be read'))
+        reader.onload = () => resolve({ name: file.name, mediaType: file.type, bytes: file.size, data: String(reader.result).split(',')[1] })
+        reader.readAsDataURL(file)
+      })))
+      if (alive.current) { const next = [...images, ...encoded]; setImages(next); onImages?.(next); setFailure('') }
+    } catch (error) { if (alive.current) setFailure(error.message) }
+    finally { reading.current = false; if (alive.current) setReadingFiles(false) }
+  }
   const [failure, setFailure] = useState('')
   const input = useRef(null)
   const current = useRef(text); current.current = text
@@ -186,10 +207,10 @@ export function ScopedComposer({ chat, mentions = [], initialText = '', attachme
   const rows = query === undefined ? [] : mentions.filter(row => row.name.toLowerCase().includes(query.toLowerCase())).slice(0, 8)
   const send = async event => {
     event.preventDefault()
-    if (pending.current || !text.trim()) return
+    if (pending.current || reading.current || !text.trim() && !images.length) return
     pending.current = true
     setSending(true); setFailure('')
-    try { await chat.send(text, included.length ? { attachmentIds: included } : undefined); update(''); setIncluded([]) } catch (error) { setFailure(error.message); onError?.(error) }
+    try { await chat.send(text, images.length ? { images: images.filter(file => ['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(file.mediaType)), files: images.filter(file => !['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(file.mediaType)) } : included.length ? { attachmentIds: included } : undefined); update(''); setIncluded([]); setImages([]); onImages?.([]) } catch (error) { setFailure(error.message); onError?.(error) }
     finally { pending.current = false; setSending(false) }
   }
   return h('form', { className: 'bt-scoped-composer', onSubmit: send, 'data-composer-card': '' },
@@ -197,6 +218,8 @@ export function ScopedComposer({ chat, mentions = [], initialText = '', attachme
       onInput: event => update(event.target.value), onKeyDown: event => {
         if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) send(event)
       } }),
+    allowImages ? h('label', null, h(PaperclipIcon), 'Add files', h('input', { type: 'file', multiple: true, disabled: readingFiles || sending, onChange: upload })) : null,
+    images.map((image, index) => h('div', { key: index }, image.name, h('button', { type: 'button', onClick: () => { const next = images.filter((_row, i) => i !== index); setImages(next); onImages?.(next) } }, 'Remove'))),
     attachments.length ? h('fieldset', null, h('legend', null, 'Include registered documents'), attachments.map(row => h('label', { key: row.id },
       h('input', { type: 'checkbox', checked: included.includes(row.id), onChange: event => setIncluded(value => event.target.checked ? [...value, row.id] : value.filter(id => id !== row.id)) }), row.name))) : null,
     rows.length ? h('div', { role: 'listbox', 'aria-label': t('Bots') }, rows.map(row => h('button', {
@@ -204,7 +227,7 @@ export function ScopedComposer({ chat, mentions = [], initialText = '', attachme
     }, row.name))) : null,
     h('button', { type: 'button', 'aria-label': dictation.listening ? t('Stop dictation') : t('Dictate'),
       onClick: () => dictation.listening ? dictation.stop() : dictation.start() }, h(MicIcon)),
-    h('button', { type: 'submit', disabled: sending || !text.trim() }, t('Send')),
+    h('button', { type: 'submit', disabled: sending || readingFiles || !text.trim() && !images.length }, t('Send')),
     failure ? h('p', { role: 'alert' }, failure) : null,
     dictation.note ? h('p', { role: 'status' }, dictation.note) : null)
 }

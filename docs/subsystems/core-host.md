@@ -922,3 +922,9 @@ The native personal stream observer is registered only when shared-workbench mod
 is explicitly enabled at installation. Legacy profiles retain their existing listener
 count and order. The shared observer still passes non-conversation purposes and
 unknown Sessions through unchanged; this does not alter secrets or usage accounting.
+
+The native attachment personal-space adapter admits uploaded bytes using public
+AttachmentStore APIs, then uses an identified native Agent message and flush. It does
+not trust browser-supplied existing references. Reads require a reference recorded in
+the selected message or membership-visible group line and recheck current access.
+No raw attachment route, filesystem path or DSH owner cookie is exposed to the browser.

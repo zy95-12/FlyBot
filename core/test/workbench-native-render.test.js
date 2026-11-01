@@ -192,3 +192,50 @@ test('SDK permission input reuses the original approval card without standing gr
     assert.deepEqual(JSON.parse(JSON.stringify(answers)), [{ requestId: 'request', allow: false }])
   } finally { unmount?.(); dom.window.close() }
 })
+
+test('original person bubbles render Markdown and scoped image cards survive attachment-only messages', async () => {
+  const bundle = await readFile(process.env.NATIVE_ATTACHMENTS_BUNDLE ?? join(import.meta.dirname, '../workbench-native.js'), 'utf8')
+  const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost/', runScripts: 'outside-only', pretendToBeVisual: true })
+  const source = createScopedConversation({ async call(_endpoint, payload) {
+    if (payload.operation === 'attachment-read') return { kind: 'image', name: 'photo.png', mediaType: 'image/png', data: 'AA==' }
+    return { messages: [{ id: 'human', kind: 'human', speaker: 'Alice', text: '**Hello** @Chief <script>bad()</script>' }, { id: 'photo', kind: 'human', speaker: 'Alice', text: '', attachments: [{ id: 'image', seq: 1, name: 'photo.png', kind: 'image', bytes: 1 }] }] }
+  } })
+  let unmount
+  try {
+    dom.window.eval(bundle)
+    await source.open({ personalId: 'chief' })
+    const node = dom.window.document.getElementById('root')
+    unmount = dom.window.FlyBotNativeConversation.mountNativeConversation(node, { source, bots: [{ id: 'chief', name: 'Chief' }] })
+    await new Promise(resolve => setTimeout(resolve, 100))
+    assert.equal(node.querySelector('.bt-person-msg strong')?.textContent, 'Hello')
+    assert.equal(node.querySelector('script'), null)
+    assert.ok(node.querySelector('.bt-scoped-attachments button'))
+    node.querySelector('.bt-scoped-attachments button').click()
+    await new Promise(resolve => setTimeout(resolve, 60))
+    assert.equal(node.querySelector('.bt-scoped-attachments img')?.getAttribute('src'), 'data:image/png;base64,AA==')
+    source.dispose(); await new Promise(resolve => setTimeout(resolve, 30))
+    assert.equal(node.querySelector('.bt-scoped-attachments img'), null)
+  } finally { unmount?.(); source.dispose(); dom.window.close() }
+})
+
+test('native composer selects image bytes and sends attachment-only input through its captured chat', async () => {
+  const bundle = await readFile(join(import.meta.dirname, '../workbench-native.js'), 'utf8')
+  const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost/', runScripts: 'outside-only', pretendToBeVisual: true })
+  const sends = []; let unmount
+  try {
+    dom.window.eval(bundle)
+    const node = dom.window.document.getElementById('root')
+    unmount = dom.window.FlyBotNativeConversation.mountNativeComposer(node, { allowImages: true, chat: { send: async (text, options) => { sends.push({ text, options }) } } })
+    await new Promise(resolve => setTimeout(resolve, 80))
+    const input = node.querySelector('input[type=file]')
+    Object.defineProperty(input, 'files', { value: [new dom.window.File([new Uint8Array([0])], 'photo.png', { type: 'image/png' })] })
+    input.dispatchEvent(new dom.window.Event('change', { bubbles: true }))
+    await new Promise(resolve => setTimeout(resolve, 80))
+    assert.match(node.textContent, /photo.png/)
+    node.querySelector('button[type=submit]').click()
+    await new Promise(resolve => setTimeout(resolve, 60))
+    assert.equal(sends[0].text, '')
+    assert.equal(sends[0].options.images[0].data, 'AA==')
+    assert.equal(sends[0].options.images[0].mediaType, 'image/png')
+  } finally { unmount?.(); dom.window.close() }
+})

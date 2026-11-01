@@ -6183,7 +6183,7 @@ function Bubbles({ texts: texts2, roster, selfId, actions, streaming, sessionId,
     "div",
     { className: "bt-astack", "data-lead": lead ? "" : void 0, onClickCapture: onClick },
     texts2.map((text2, index) => {
-      const key = msgKey ? `${msgKey}:${index}` : void 0;
+      const key = msgKey && typeof actions.toggleReaction === "function" ? `${msgKey}:${index}` : void 0;
       const picked = key ? reactions?.[index] ?? [] : [];
       const last = index === texts2.length - 1;
       const live = streaming && last;
@@ -12008,11 +12008,44 @@ function ComposerPlus({ sessionId, inputActions, useRoster, actions }) {
     ), document.body) : null
   );
 }
-function ScopedComposer({ chat, mentions = [], initialText = "", attachments = [], onDraft, onError }) {
+function ScopedComposer({ chat, mentions = [], initialText = "", attachments = [], initialImages = [], allowImages = false, onImages, onDraft, onError }) {
   const [text2, setText] = (0, import_react21.useState)(initialText);
   const [sending, setSending] = (0, import_react21.useState)(false);
   const pending = (0, import_react21.useRef)(false);
   const [included, setIncluded] = (0, import_react21.useState)([]);
+  const [images, setImages] = (0, import_react21.useState)(initialImages);
+  const alive = (0, import_react21.useRef)(true), reading = (0, import_react21.useRef)(false);
+  const [readingFiles, setReadingFiles] = (0, import_react21.useState)(false);
+  (0, import_react21.useEffect)(() => () => {
+    alive.current = false;
+  }, []);
+  const upload = async (event) => {
+    if (reading.current) return;
+    reading.current = true;
+    setReadingFiles(true);
+    const files = [...event.target.files], win = event.target.ownerDocument.defaultView;
+    event.target.value = "";
+    try {
+      if (files.length + images.length > 4 || files.some((file) => file.size > 256 * 1024) || files.reduce((size, file) => size + file.size, images.reduce((size, image) => size + image.bytes, 0)) > 512 * 1024) throw new Error("Choose up to four files, at most 256 KiB each and 512 KiB total");
+      const encoded = await Promise.all(files.map((file) => new Promise((resolve, reject) => {
+        const reader = new win.FileReader();
+        reader.onerror = () => reject(new Error("Image could not be read"));
+        reader.onload = () => resolve({ name: file.name, mediaType: file.type, bytes: file.size, data: String(reader.result).split(",")[1] });
+        reader.readAsDataURL(file);
+      })));
+      if (alive.current) {
+        const next = [...images, ...encoded];
+        setImages(next);
+        onImages?.(next);
+        setFailure("");
+      }
+    } catch (error) {
+      if (alive.current) setFailure(error.message);
+    } finally {
+      reading.current = false;
+      if (alive.current) setReadingFiles(false);
+    }
+  };
   const [failure, setFailure] = (0, import_react21.useState)("");
   const input = (0, import_react21.useRef)(null);
   const current = (0, import_react21.useRef)(text2);
@@ -12028,14 +12061,16 @@ function ScopedComposer({ chat, mentions = [], initialText = "", attachments = [
   const rows = query === void 0 ? [] : mentions.filter((row) => row.name.toLowerCase().includes(query.toLowerCase())).slice(0, 8);
   const send = async (event) => {
     event.preventDefault();
-    if (pending.current || !text2.trim()) return;
+    if (pending.current || reading.current || !text2.trim() && !images.length) return;
     pending.current = true;
     setSending(true);
     setFailure("");
     try {
-      await chat.send(text2, included.length ? { attachmentIds: included } : void 0);
+      await chat.send(text2, images.length ? { images: images.filter((file) => ["image/png", "image/jpeg", "image/webp", "image/gif"].includes(file.mediaType)), files: images.filter((file) => !["image/png", "image/jpeg", "image/webp", "image/gif"].includes(file.mediaType)) } : included.length ? { attachmentIds: included } : void 0);
       update("");
       setIncluded([]);
+      setImages([]);
+      onImages?.([]);
     } catch (error) {
       setFailure(error.message);
       onError?.(error);
@@ -12058,6 +12093,12 @@ function ScopedComposer({ chat, mentions = [], initialText = "", attachments = [
         if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) send(event);
       }
     }),
+    allowImages ? (0, import_react21.createElement)("label", null, (0, import_react21.createElement)(PaperclipIcon), "Add files", (0, import_react21.createElement)("input", { type: "file", multiple: true, disabled: readingFiles || sending, onChange: upload })) : null,
+    images.map((image, index) => (0, import_react21.createElement)("div", { key: index }, image.name, (0, import_react21.createElement)("button", { type: "button", onClick: () => {
+      const next = images.filter((_row, i) => i !== index);
+      setImages(next);
+      onImages?.(next);
+    } }, "Remove"))),
     attachments.length ? (0, import_react21.createElement)("fieldset", null, (0, import_react21.createElement)("legend", null, "Include registered documents"), attachments.map((row) => (0, import_react21.createElement)(
       "label",
       { key: row.id },
@@ -12078,7 +12119,7 @@ function ScopedComposer({ chat, mentions = [], initialText = "", attachments = [
       "aria-label": dictation.listening ? t("Stop dictation") : t("Dictate"),
       onClick: () => dictation.listening ? dictation.stop() : dictation.start()
     }, (0, import_react21.createElement)(MicIcon)),
-    (0, import_react21.createElement)("button", { type: "submit", disabled: sending || !text2.trim() }, t("Send")),
+    (0, import_react21.createElement)("button", { type: "submit", disabled: sending || readingFiles || !text2.trim() && !images.length }, t("Send")),
     failure ? (0, import_react21.createElement)("p", { role: "alert" }, failure) : null,
     dictation.note ? (0, import_react21.createElement)("p", { role: "status" }, dictation.note) : null
   );

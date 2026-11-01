@@ -458,3 +458,9 @@ standing option defaults true for original consumers and is false for scoped con
 MEMBER_CSS is re-exported from pure member-styles.js so the same-origin workbench
 builder can include it without importing browser modules in Node. SDK runtime inputs
 reuse these components and the scoped composer through captured Project/epoch callbacks.
+
+Task40 now exports/reuses PersonMessage for scoped human Markdown and mentions.
+Attachment cards use original file-size formatting and the captured conversation read
+handle. The composer selects native files/images, retains selection across polling,
+limits bytes before upload and clears selection only after accepted sends. Selecting
+the current part restores the canonical live route instead of leaving it read-only.

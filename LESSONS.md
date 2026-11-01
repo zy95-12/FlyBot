@@ -527,3 +527,10 @@ Seen 1×. An always-installed pass-through stream listener shifted the legacy fi
 installation protocol and listener selections used by secrets/usage tests. Install
 workbench-only observation only in explicitly configured shared mode and test both
 modes, rather than weakening existing assertions or changing token accounting.
+
+### 2026-11-01 — Current conversation parts are live routes
+
+Seen 1×. Treating every part selection as historical left the current Session read-only.
+Canonicalize current-part selections and deep links to the live Bot route; older parts
+stay immutable. Native attachment-only messages also need recorded reference projection,
+not text-only filtering or arbitrary object-ID reads.

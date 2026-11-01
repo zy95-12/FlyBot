@@ -53,3 +53,10 @@ and per-Bot ownership; original routing authority stays host-side. Native own-ch
 streams exclude hidden exchanges, and SDK execution inputs keep existing worker
 and Project authorization. This records implementation within the accepted scope,
 not a new permission, independent approval, deployment or completion decision.
+
+The review-return attachment adapter uses documented AttachmentStore and identified
+Agent APIs, retaining native admission and durable references. Shared request-size
+limits bound uploads/downloads rather than exposing raw DSH upload endpoints. Human
+messages reuse original PersonMessage; current-part links return to the live route.
+This is implementation under existing scope, with independent and deployed acceptance
+still pending, not a permission expansion or completion decision.

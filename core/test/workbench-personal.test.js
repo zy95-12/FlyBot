@@ -37,8 +37,9 @@ test('personal HTTP projection reuses original history and fences logout during 
   const rt = createRuntime(ctx, { home, projectWorkbench: true })
   await rt.load()
   rt.authenticate = async token => revoked ? null : token === 'alice' ? { memberId: 'owner-1' } : { memberId: 'bob' }
+  const nativeMessages = []
   let stopped = 0
-  rt.resolveAgent = async id => ({ session: { id, seq: 2 }, cancel() { stopped++ } })
+  rt.resolveAgent = async id => ({ session: { id, seq: 2 }, cancel() { stopped++ }, followup(message) { nativeMessages.push(message) }, steer(message) { nativeMessages.push(message) } })
   rt.state.questions.chief = { id: 'question-own', question: 'Which branch?', options: [{ label: 'main' }], allowCustom: true }
   rt.state.questions.other = { id: 'question-other', question: 'Private Bob question' }
   rt.approvalsView = () => [{ id: 'approve-own', sessionId: 'chief', botId: 'chief', tool: 'read_file', reason: 'Read scope', answerable: true }, { id: 'approve-other', sessionId: 'other', botId: 'other', tool: 'private' }]
@@ -78,6 +79,45 @@ test('personal HTTP projection reuses original history and fences logout during 
 
   rt.memoryEndpoint = async () => ({ entries: [{ scope: 'own', text: 'My memory' }, { scope: 'team', text: 'Other members' }] })
   assert.deepEqual((await call('memory', 'chief')).value.entries, [{ scope: 'own', text: 'My memory' }])
+  const normalPage = ctx.sessionController.page
+  const image = { attachmentId: 'sha256:' + 'a'.repeat(64), name: 'photo.png', mediaType: 'image/png', bytes: 1, width: 1, height: 1 }
+  ctx.sessionController.page = async () => ({ records: [{ event: { type: 'user/message', seq: 1, data: { source: { kind: 'user' }, content: [{ type: 'image', attachment: image }] } } }], hasMore: false })
+  let attachmentReads = 0
+  ctx.sessionController.attachment = async request => { attachmentReads++; assert.equal(request.sessionId, 'chief'); return { attachment: image, data: 'AA==' } }
+  const attachmentMessages = (await call('read', 'chief')).value.messages
+  assert.equal(attachmentMessages.length, 1, 'image-only native messages stay visible')
+  assert.equal(attachmentMessages[0].attachments[0].id, image.attachmentId)
+  assert.equal((await call('attachment-read', 'chief', 'bob', { seq: 1, attachmentId: image.attachmentId })).ok, false)
+  assert.equal((await call('attachment-read', 'chief', 'alice', { seq: 1, attachmentId: 'sha256:' + 'b'.repeat(64) })).ok, false)
+  assert.equal(attachmentReads, 0)
+  assert.equal((await call('attachment-read', 'chief', 'alice', { seq: 1, attachmentId: image.attachmentId })).value.data, 'AA==')
+  assert.equal(attachmentReads, 1)
+  rt.ensureCapabilities = async () => {}
+  ctx.sessions = { flush: async () => {} }
+  ctx.attachments = { admitPromptContent: async content => content, admitEncodedFile: async file => ({ attachmentId: 'sha256:' + 'c'.repeat(64), name: file.name, bytes: Buffer.from(file.data, 'base64').length }) }
+  assert.equal((await call('send', 'chief', 'alice', { text: '', images: [{ name: 'photo.png', mediaType: 'image/png', data: 'AA==' }] })).ok, true)
+  assert.deepEqual(nativeMessages[0].content, [{ type: 'image', name: 'photo.png', mediaType: 'image/png', data: 'AA==' }])
+  assert.equal((await call('send', 'chief', 'bob', { text: '', images: [{ mediaType: 'image/png', data: 'AA==' }] })).ok, false)
+  assert.equal(nativeMessages.length, 1)
+  assert.equal((await call('send', 'chief', 'alice', { text: 'Read', files: [{ name: 'spec.txt', data: 'SGk=' }] })).ok, true)
+  assert.equal(nativeMessages[1].content[1].type, 'file')
+  assert.equal(nativeMessages[1].content[1].attachment.name, 'spec.txt')
+  assert.equal((await call('send', 'group', 'alice', { text: 'Read this document', files: [{ name: 'spec.txt', data: 'SGk=' }] })).ok, true)
+  const groupMessage = (await call('read', 'group')).value.messages.at(-1)
+  assert.equal(groupMessage.attachments[0].name, 'spec.txt')
+  let fileReads = 0
+  ctx.attachments.readFileStream = async function* () { fileReads++; yield Buffer.from('Hi') }
+  assert.equal((await call('attachment-read', 'group', 'bob', { seq: groupMessage.attachments[0].seq, attachmentId: groupMessage.attachments[0].id })).ok, false)
+  assert.equal(fileReads, 0)
+  const groupFile = await call('attachment-read', 'group', 'alice', { seq: groupMessage.attachments[0].seq, attachmentId: groupMessage.attachments[0].id })
+  assert.equal(groupFile.ok, true, JSON.stringify(groupFile))
+  assert.equal(groupFile.value.data, 'SGk=')
+  assert.equal(fileReads, 1)
+  ctx.attachments.admitEncodedFile = async file => { revoked = true; return { attachmentId: 'sha256:' + 'c'.repeat(64), name: file.name, bytes: 2 } }
+  assert.equal((await call('send', 'chief', 'alice', { text: 'Read', files: [{ name: 'spec.txt', data: 'SGk=' }] })).ok, false)
+  assert.equal(nativeMessages.length, 3, 'revocation during registration cannot publish a message')
+  revoked = false
+  ctx.sessionController.page = normalPage
   delayed = true
   const pending = call('read', 'chief')
   for (let i = 0; i < 50 && !release; i++) await new Promise(resolve => setTimeout(resolve, 2))
@@ -130,4 +170,26 @@ test('personal group questions expose only answerable public card fields, never 
   assert.equal(card.id, 'q')
   for (const field of ['botId', 'replyTo', 'origin', 'secret']) assert.equal(card[field], undefined)
   assert.equal(personalQuestion(rt, 'group', { memberId: 'bob' }), null)
+})
+
+import { personalImageContent, personalMessageAttachments } from '../src/host/workbench-personal.js'
+test('personal image admission accepts uploaded bytes, not arbitrary durable references or active content', () => {
+  assert.deepEqual(personalImageContent('look', [{ mediaType: 'image/png', data: 'AA==', name: '/tmp/photo.png' }]), [{ type: 'text', text: 'look' }, { type: 'image', mediaType: 'image/png', data: 'AA==', name: 'photo.png' }])
+  for (const image of [{ attachmentId: 'sha256:' + 'a'.repeat(64) }, { mediaType: 'image/svg+xml', data: 'AA==' }, { mediaType: 'image/png', data: 'not-base64' }, { mediaType: 'image/png', data: Buffer.alloc(256 * 1024 + 1).toString('base64') }]) assert.throws(() => personalImageContent('', [image]))
+  const rows = personalMessageAttachments({ type: 'user/message', seq: 3, data: { content: [{ type: 'file', attachment: { attachmentId: 'sha256:' + 'a'.repeat(64), name: '../../spec.txt', bytes: 2, path: '/private' } }] } })
+  assert.equal(rows[0].name, 'spec.txt')
+  assert.equal(rows[0].path, undefined)
+  assert.equal(rows[0].seq, 3)
+})
+
+import { personalUploadContent } from '../src/host/workbench-personal.js'
+test('native file registration prevalidates the complete batch and preserves native file references', async () => {
+  const saved = []
+  const store = { admitEncodedFile: async input => { saved.push(input); return { attachmentId: 'sha256:' + 'd'.repeat(64), name: input.name, bytes: 2 } }, admitPromptContent: async content => content }
+  await assert.rejects(personalUploadContent(store, '', [], [{ name: 'first.txt', data: 'SGk=' }, { name: 'invalid', data: 'not base64' }]))
+  assert.equal(saved.length, 0)
+  const content = await personalUploadContent(store, 'Read', [], [{ name: '../../spec.txt', data: 'SGk=' }])
+  assert.equal(content[1].type, 'file')
+  assert.equal(content[1].attachment.name, 'spec.txt')
+  assert.deepEqual(saved, [{ name: 'spec.txt', data: 'SGk=' }])
 })

@@ -122,6 +122,10 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
         const roster = await api.call('personal-space', { operation: 'list' }, controller.signal)
         if (current !== epoch || disposed) return
         personal = roster
+        if (personalPart && roster.bots.find(bot => bot.id === tid)?.sessionId === personalPart) {
+          personalPart = ''
+          win.history.replaceState(null, '', `#/personal/${encodeURIComponent(tid)}`)
+        }
         if (tid) history = await readConversation({ personalId: tid, ...(personalPart ? { personalPart } : {}) })
         if (current !== epoch || disposed) return
         render(); return
@@ -310,7 +314,7 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
         openBot: id => { if (tab === 'personal' && personal?.bots.some(bot => bot.id === id)) win.location.hash = `/personal/${encodeURIComponent(id)}` },
         onQuote: text => {
           const input = root.querySelector('textarea[name=text]')
-          if (input) { input.value = `> ${text.replace(/\n/g, '\n> ')}\n\n` + input.value; input.dispatchEvent(new win.Event('input')); input.focus() }
+          if (input) { input.value = `> ${text.replace(/\n/g, '\n> ')}\n\n` + input.value; input.dispatchEvent(new win.Event('input', { bubbles: true })); input.focus() }
         },
       })
     }
@@ -321,13 +325,13 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
   }
   function mountComposer(container, mentions = [], attachments = []) {
     const source = conversationSource, captured = epoch, chat = source.chat()
-    const draftKey = `${selected}:${tab}:${taskId}:native-composer`
+    const draftKey = `${bootstrap.self.memberId}:${selected}:${tab}:${taskId}:native-composer`
     void loadNative().then(() => {
       if (disposed || captured !== epoch || source !== conversationSource || !container.isConnected) return
       const original = container.querySelector('textarea[name=text]')
       const initialText = drafts.get(draftKey) ?? original?.value ?? ''
       container.replaceChildren()
-      nativeComposerUnmount = win.FlyBotNativeConversation.mountNativeComposer(container, { chat, mentions, attachments, initialText, onDraft: text => { if (source === conversationSource) drafts.set(draftKey, text) } })
+      nativeComposerUnmount = win.FlyBotNativeConversation.mountNativeComposer(container, { chat, mentions, attachments, initialText, allowImages: tab === 'personal', initialImages: drafts.get(draftKey + ':images') ?? [], onImages: images => { if (source === conversationSource) drafts.set(draftKey + ':images', images) }, onDraft: text => { if (source === conversationSource) drafts.set(draftKey, text) } })
     }).catch(failure => { if (!disposed && captured === epoch) { error = failure.message } })
   }
   function mountExecutionInput(container, worker) {
@@ -502,7 +506,7 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
           if (bot?.parts?.length > 1) {
             const parts = el('select'); parts.setAttribute('aria-label', 'Conversation part')
             for (const part of bot.parts) { const option = el('option', `Part ${part.number}`); option.value = part.sessionId; option.selected = (personalPart || bot.sessionId) === part.sessionId; parts.append(option) }
-            parts.onchange = () => { win.location.hash = `/personal/${encodeURIComponent(taskId)}/${encodeURIComponent(parts.value)}` }; main.append(parts)
+            parts.onchange = () => { win.location.hash = `/personal/${encodeURIComponent(taskId)}${parts.value === bot.sessionId ? '' : '/' + encodeURIComponent(parts.value)}` }; main.append(parts)
           }
           if (history.hasMore) main.append(button('Load earlier messages', () => act(async () => { await conversationSource.loadEarlier(); history = conversationSource.getSnapshot() })))
           const transcript = el('div'); main.append(box('Original conversation', transcript)); mountConversation(transcript, personal?.bots ?? [])

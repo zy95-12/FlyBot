@@ -301,3 +301,9 @@ Task40 host-return repair preserves legacy listener registration while retaining
 explicit shared native stream observer. Reproduced all four reported failures and
 added a fail-without-fix mode-boundary regression. Continue through host tests/Review
 and operator acceptance on the same Task/PR48.
+
+Task40 review-return continuation repairs live-part navigation and replaces plain human
+paragraphs with original person bubbles. Native file/image sends and scoped historical
+attachment reads are implemented through public DSH APIs with explicit shared-entry
+byte limits. Proceed through host verification/independent Review; operator deployed
+three-account, weak-network and screenshot evidence remains separately required.

@@ -1,5 +1,5 @@
 // Client channel: the team view the browser renders, and the POST /api/bot endpoints.
-import { personalRoster, requirePersonalSession, personalToolRows, personalQuestion, createPersonalStreams } from './workbench-personal.js'
+import { personalRoster, requirePersonalSession, personalToolRows, personalMessageAttachments, personalUploadContent, personalQuestion, createPersonalStreams } from './workbench-personal.js'
 import { randomUUID } from 'node:crypto'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { isApprovalWaiting } from '../shared/approval-waiting.js'
@@ -317,8 +317,29 @@ export function install(rt) {
           let sessionId = requirePersonalSession(rt, actor, String(body.id ?? ''))
           if (body.partId !== undefined) {
             const bot = rt.botOf(sessionId)
-            if (operation !== 'read' || !bot || !rt.partsOf(bot.id).some(part => part.sessionId === body.partId)) return fail('Unknown personal conversation part', 'bot/forbidden')
+            if (!['read', 'attachment-read'].includes(operation) || !bot || !rt.partsOf(bot.id).some(part => part.sessionId === body.partId)) return fail('Unknown personal conversation part', 'bot/forbidden')
             sessionId = body.partId
+          }
+          if (operation === 'send' && (body.images?.length || body.files?.length)) {
+            const bot = rt.botOf(sessionId), room = rt.roomOf(sessionId), text = String(body.text ?? '').trim()
+            if ((!room && (!bot || !rt.botOwnedBy(actor, bot.id))) || unshareableReference(actor, text) !== undefined) return fail('Select an authorized current conversation', 'bot/forbidden')
+            await rt.ensureCapabilities(sessionId)
+            const agent = await rt.resolveAgent(sessionId)
+            requirePersonalSession(rt, await rt.authenticate(sessionToken), String(body.id ?? ''))
+            const content = await personalUploadContent(ctx.attachments, text, body.images ?? [], body.files ?? [])
+            const freshActor = await rt.authenticate(sessionToken)
+            if (requirePersonalSession(rt, freshActor, String(body.id ?? '')) !== sessionId) return fail('Conversation changed', 'bot/stale')
+            if (room) {
+              const label = text || content.filter(block => block.attachment).map(block => block.attachment.name ?? 'Attachment').join(', ')
+              const line = await rt.postRoomMessage(room.id, { text: label, displayName: freshActor.displayName }, freshActor)
+              line.nativeAttachments = content.filter(block => block.attachment)
+              await rt.save()
+            }
+            const message = createUserMessage({ content, source: { kind: 'user', authorId: freshActor.memberId, authorKind: 'human', authorName: freshActor.displayName } })
+            if (admission(sessionId) === 'steer') agent.steer(message)
+            else agent.followup(message)
+            await ctx.sessions.flush(agent.session)
+            return ok({ accepted: true })
           }
           if (operation === 'send') return handle('send', { sessionId, text: body.text }, signal, sessionToken)
           if (operation === 'member-stop') {
@@ -368,8 +389,37 @@ export function install(rt) {
             return ok({ entries: memory.entries.filter(entry => entry.scope === 'own') })
           }
 
+          if (operation === 'attachment-read') {
+            if (!Number.isSafeInteger(body.seq) || body.seq < 0 || typeof body.attachmentId !== 'string') return fail('Unknown attachment', 'bot/invalid')
+            const room = rt.roomOf(sessionId)
+            let event
+            if (room) {
+              const line = rt.roomHistory(sessionId, actor).find(row => row.seq === body.seq)
+              if (line) event = { type: 'user/message', seq: line.seq, data: { content: line.nativeAttachments ?? [] } }
+            } else {
+              const page = await ctx.sessionController.page({ address: { kind: 'session', sessionId }, throughSeq: body.seq, beforeSeq: body.seq + 1, maxMessages: 1 }, AbortSignal.timeout(10000))
+              event = page.records.find(row => row.event.seq === body.seq)?.event
+            }
+            const hidden = state.exchangeTurns[sessionId] ?? []
+            const metadata = event && !hidden.includes(event.data?.turn) && personalMessageAttachments(event).find(row => row.id === body.attachmentId)
+            if (!metadata) return fail('Attachment is not in this visible message', 'bot/forbidden')
+            const freshActor = await rt.authenticate(sessionToken)
+            requirePersonalSession(rt, freshActor, String(body.id ?? ''))
+            if (!Number.isSafeInteger(metadata.bytes) || metadata.bytes > 512 * 1024) return fail('Attachment exceeds the shared download limit', 'bot/invalid')
+            let data
+            if (metadata.kind === 'image') data = (await ctx.sessionController.attachment({ sessionId, attachmentId: metadata.id })).data
+            else {
+              const ref = (event.data?.message?.content ?? event.data?.content).find(block => block.type === 'file' && block.attachment?.attachmentId === metadata.id).attachment
+              const chunks = []; let size = 0
+              for await (const chunk of ctx.attachments.readFileStream(ref, AbortSignal.timeout(10000))) { size += chunk.length; if (size > 512 * 1024) throw invalid('Attachment is too large'); chunks.push(chunk) }
+              data = Buffer.concat(chunks).toString('base64')
+            }
+            requirePersonalSession(rt, await rt.authenticate(sessionToken), String(body.id ?? ''))
+            if (room && !rt.roomHistory(sessionId, await rt.authenticate(sessionToken)).some(row => row.seq === body.seq && row.nativeAttachments?.some(block => block.attachment?.attachmentId === metadata.id))) return fail('Attachment is no longer visible', 'bot/forbidden')
+            return ok({ ...metadata, data })
+          }
           if (operation !== 'read') return fail('Unknown personal operation', 'bot/invalid')
-          if (rt.roomOf(sessionId)) return ok({ messages: rt.roomHistory(sessionId, actor).filter(line => typeof line.text === 'string' && line.text).map(line => ({ id: `${sessionId}:${line.seq}`, botId: line.botId ?? line.authorId, kind: line.authorKind === 'human' ? 'human' : 'assistant', speaker: line.who, text: line.text })), hasMore: false, question: personalQuestion(rt, sessionId, actor),
+          if (rt.roomOf(sessionId)) return ok({ messages: rt.roomHistory(sessionId, actor).filter(line => typeof line.text === 'string' && line.text).map(line => ({ id: `${sessionId}:${line.seq}`, botId: line.botId ?? line.authorId, kind: line.authorKind === 'human' ? 'human' : 'assistant', speaker: line.who, text: line.text, attachments: personalMessageAttachments({ type: 'user/message', seq: line.seq, data: { content: line.nativeAttachments ?? [] } }) })), hasMore: false, question: personalQuestion(rt, sessionId, actor),
             approvals: (rt.approvalsView?.() ?? []).filter(row => row.roomId === sessionId && rt.botOwnedBy(actor, row.botId)).map(({ id, tool, reason, answerable }) => ({ id, tool, reason, answerable })),
             groupWork: (rt.roomWorkView?.()[sessionId] ?? []).filter(row => rt.roomOf(sessionId).members.includes(row.botId)).map(row => ({ botId: row.botId, name: rt.botOf(row.botId)?.name, tool: row.tool, since: row.since, canStop: rt.botOwnedBy(actor, row.botId) })) })
           const agent = await rt.resolveAgent(sessionId)
@@ -381,8 +431,9 @@ export function install(rt) {
           const hidden = new Set(state.exchangeTurns[sessionId] ?? [])
           const messages = page.records.flatMap(({ event }) => {
             if (hidden.has(event.data?.turn)) return []
-            const entry = rt.historyEntry(event, Boolean(rt.roomOf(sessionId)))
-            return entry?.text ? [{ id: `${sessionId}:${event.seq}`, botId: entry.answer ? rt.botOf(sessionId)?.id : null, kind: entry.answer ? 'assistant' : 'human', speaker: entry.answer ? rt.botOf(sessionId)?.name ?? 'Bot' : currentActor.displayName ?? 'You', text: entry.text }] : []
+            const attachments = personalMessageAttachments(event)
+            const entry = rt.historyEntry(event, Boolean(rt.roomOf(sessionId))) ?? (event.type === 'assistant/message' && attachments.length ? { answer: true, text: '' } : undefined)
+            return entry && (entry.text || attachments.length) ? [{ attachments, seq: event.seq, id: `${sessionId}:${event.seq}`, botId: entry.answer ? rt.botOf(sessionId)?.id : null, kind: entry.answer ? 'assistant' : 'human', speaker: entry.answer ? rt.botOf(sessionId)?.name ?? 'Bot' : currentActor.displayName ?? 'You', text: entry.text }] : []
           })
           return ok({ messages, hasMore: page.hasMore, beforeSeq: page.records[0]?.event.seq ?? null,
             busy: rt.live?.get(sessionId)?.turn !== undefined,
