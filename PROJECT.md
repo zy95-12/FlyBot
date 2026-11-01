@@ -355,3 +355,6 @@ through project-knowledge-write with hashed supersedes references. Original fact
 versions and authors remain readable; role snapshots contain the current summary,
 newer facts and history digests under the unchanged48k cap. Invalid/stale checkpoints
 never hide original records. See Project agents architecture.
+
+Preparation-only retries retain an inherited sealed seed even when no new candidate
+was produced, so restarting after context repair cannot silently discard prior UI.

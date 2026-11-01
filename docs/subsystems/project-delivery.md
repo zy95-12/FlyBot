@@ -364,3 +364,8 @@ leases with confirmed release proofs may be represented by a count and content d
 the complete original lease/worker state remains retained. This avoids expanding the
 same released history on every inspection without raising context limits, truncating
 policy/knowledge or treating an unproven release as execution exit evidence.
+
+A successor without a new candidate retains previous.seedSha across another
+rework/retry; published delivery prefers that inherited seed before falling back
+to the published PR head. Old failed preparation records remain immutable. Fresh
+receivers check out that sealed input and keep normal upstream integration/tests.
