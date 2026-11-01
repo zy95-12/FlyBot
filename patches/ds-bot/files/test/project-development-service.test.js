@@ -167,3 +167,34 @@ test('stopping, blocked admission, acceptance and legacy paused runs have action
   assert.equal(input.executionGeneration, 9)
   assert.equal(input.inputRequestId, 'pending')
 })
+
+test('long-lived task detail pages Attempts without retransmitting full role context and retains exact retrieval', async () => {
+  const { service, rt, state, actor } = fixture()
+  const text = 'original rules and context '.repeat(20000)
+  for (let n = 0; n < 25; n++) {
+    const id = 'attempt-' + String(n).padStart(2, '0')
+    state.projectAttempts[id] = { id, projectId: 'p', taskId: 't', createdAt: n, status: 'failed', roleSessions: { developer: { id: 'session-' + n, context: { version: 'v1', text, sha256: 'ctx', archive: { original: text } }, policy: { version: 'p1', text, sha256: 'rules' } } }, rolePolicies: { developer: { text, sha256: 'rules' } } }
+  }
+  rt.projectDelivery = { endpoint: async () => ({ task: state.tasks.t, attempts: Object.values(state.projectAttempts) }) }
+  const before = JSON.stringify(state)
+  const detail = await service.endpoint('project-task-detail', { taskId: 't' }, actor)
+  assert.ok(Buffer.byteLength(JSON.stringify(detail)) < 100_000, 'HTTP summary stays well below the existing 8MiB gateway limit')
+  assert.equal(detail.attempts.length, 20)
+  assert.equal(detail.attemptsPage.total, 25)
+  const older = await service.endpoint('project-task-detail', { taskId: 't', beforeAttemptId: detail.attemptsPage.before }, actor)
+  assert.equal(older.attempts.length, 5)
+  assert.equal(new Set([...detail.attempts, ...older.attempts].map(row => row.id)).size, 25)
+  assert.equal(detail.attempts[0].roleSessions.developer.policy.sha256, 'rules')
+  const query = { version: DEVELOPMENT_PROTOCOL, kind: 'query', name: 'attempt.context', projectId: 'p', payload: { attemptId: 'attempt-00', section: 'rolePolicies', limit: 16000 } }
+  const first = (await service.endpoint('project-development', query, actor)).result
+  let all = first.text, offset = first.nextOffset
+  while (offset !== null) {
+    const next = (await service.endpoint('project-development', { ...query, payload: { ...query.payload, offset, expectedSha256: first.sha256 } }, actor)).result
+    all += next.text; offset = next.nextOffset
+  }
+  assert.equal(all, JSON.stringify(state.projectAttempts['attempt-00'].rolePolicies))
+  assert.equal(JSON.stringify(state), before, 'projection cannot truncate or rewrite original history')
+  for (const payload of [{ section: '__proto__' }, { offset: -1 }, { limit: 16001 }, { expectedSha256: 'stale' }, { attemptId: 'missing' }]) await assert.rejects(service.endpoint('project-development', { ...query, payload: { ...query.payload, ...payload } }, actor))
+  await assert.rejects(service.endpoint('project-task-detail', { taskId: 't', beforeAttemptId: 'unknown' }, actor))
+  await assert.rejects(service.endpoint('project-task-detail', { taskId: 't', attemptLimit: 0 }, actor))
+})

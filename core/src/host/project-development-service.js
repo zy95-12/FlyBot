@@ -1,5 +1,6 @@
 // One application boundary over existing Project services; no second executor/store.
 import { ownEntry } from './store.js'
+import { createHash } from 'node:crypto'
 import { inspectionFacts } from './project-chief-control.js'
 
 export const DEVELOPMENT_PROTOCOL = 'project-development/v1'
@@ -19,7 +20,7 @@ const operations = Object.freeze({
   'proposal.publish': 'project-agent-proposal-apply', 'execution.input': 'project-execution-input',
   'pools': 'project-task-pools',
 })
-const queries = new Set(['tasks', 'task', 'task.detail', 'attempt.log', 'chief.state', 'pools'])
+const queries = new Set(['tasks', 'task', 'task.detail', 'attempt.context', 'attempt.log', 'chief.state', 'pools'])
 const legacy = new Set(Object.values(operations))
 const readEndpoints = new Set([...queries].map(name => operations[name]).filter(Boolean))
 export const developmentQuery = body => record(body) && body.version === DEVELOPMENT_PROTOCOL && body.kind === 'query' && queries.has(body.name)
@@ -91,6 +92,39 @@ export function createDevelopmentService(rt) {
     if (!['accepted', 'cancelled'].includes(result.phase) && allowed('configure')) result.nextActions.push('chief.inspect')
     return result
   }
+  function attemptView(attempt) {
+    const policy = row => row ? { version: row.version, role: row.role, commit: row.commit, profile: row.profile, sha256: row.sha256 } : null
+    const session = row => {
+      const { context, policy: rules, ...rest } = row
+      return { ...rest, policy: policy(rules), context: context ? { version: context.version, sha256: context.sha256, archiveSha256: context.archiveSha256 } : null }
+    }
+    const { roleSessions, roleSessionHistory, rolePolicies, ...rest } = attempt
+    return structuredClone({ ...rest,
+      ...(roleSessions ? { roleSessions: Object.fromEntries(Object.entries(roleSessions).map(([key, row]) => [key, session(row)])) } : {}),
+      ...(roleSessionHistory ? { roleSessionHistory: roleSessionHistory.map(session) } : {}),
+      ...(rolePolicies ? { rolePolicies: Object.fromEntries(Object.entries(rolePolicies).map(([key, row]) => [key, policy(row)])) } : {}),
+      contextRef: { query: 'attempt.context', attemptId: attempt.id, sections: ['roleSessions', 'roleSessionHistory', 'rolePolicies'] } })
+  }
+  function detail(body, actor) {
+    const task = checkedTask(body.taskId, body.projectId, actor), limit = body.attemptLimit ?? 20
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 50) throw failure('Attempt page limit must be between 1 and 50')
+    const rows = Object.values(rt.state.projectAttempts ?? {}).filter(row => sameTask(row, task)).sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0) || a.id.localeCompare(b.id))
+    const end = body.beforeAttemptId === undefined ? rows.length : rows.findIndex(row => row.id === body.beforeAttemptId)
+    if (end < 0) throw failure('Attempt cursor is unavailable')
+    const page = rows.slice(Math.max(0, end - limit), end)
+    return { task: structuredClone(task), attempts: page.map(attemptView), view: view(task, actor),
+      attemptsPage: { total: rows.length, limit, before: end > limit ? page[0].id : null } }
+  }
+  function context(body) {
+    if (!['roleSessions', 'roleSessionHistory', 'rolePolicies'].includes(body.section)) throw failure('Unknown Attempt context section')
+    const attempt = ownEntry(rt.state.projectAttempts ?? {}, body.attemptId)
+    const text = JSON.stringify(attempt[body.section] ?? null), offset = body.offset ?? 0, limit = body.limit ?? 8000
+    if (!Number.isSafeInteger(offset) || offset < 0 || offset > text.length || !Number.isSafeInteger(limit) || limit < 1 || limit > 16000) throw failure('Invalid context page')
+    const sha256 = createHash('sha256').update(text).digest('hex')
+    if (body.expectedSha256 !== undefined && body.expectedSha256 !== sha256) throw failure('Attempt context changed', 'bot/conflict')
+    const next = Math.min(text.length, offset + limit)
+    return { attemptId: attempt.id, section: body.section, sha256, offset, text: text.slice(offset, next), totalChars: text.length, nextOffset: next < text.length ? next : null }
+  }
   async function inspect(body, actor) {
     rt.requireProjectAccess(actor, body.projectId, 'configure')
     if (!stableId(body.requestId)) throw failure('Chief inspection needs a stable requestId')
@@ -109,18 +143,18 @@ export function createDevelopmentService(rt) {
     if (endpoint === 'project-agent-mode') return rt.projectDelegations.mode(body, actor)
     if (endpoint === 'project-execution-input') return rt.projectHarness.input(body, actor)
     if (endpoint === 'project-agent-proposal-apply') return rt.projectAgents.endpoint(endpoint, body, actor)
+    if (endpoint === 'project-task-detail') return detail(body, actor)
     if (endpoint === 'project-task-pools') {
       rt.requireProjectAccess(actor, body.projectId)
       return { pools: rt.projectAgents.deliveryDefinitions(body.projectId).roles.map(role => ({ botId: role.id, role: role.role, tasks: rt.projectPools.available(body.projectId, role.id, actor) })) }
     }
-    const result = await rt.projectDelivery.endpoint(endpoint, body, actor)
-    return endpoint === 'project-task-detail' ? { ...result, view: view(result.task, actor) } : result
+    return rt.projectDelivery.endpoint(endpoint, body, actor)
   }
   async function envelope(body, actor) {
     if (!record(body) || body.version !== DEVELOPMENT_PROTOCOL || !['command', 'query'].includes(body.kind) || !record(body.payload ?? {})) throw failure('Unsupported Project development request')
     const { name, projectId } = body
     rt.requireProjectAccess(actor, projectId)
-    if (!Object.hasOwn(operations, name) && !['tasks', 'task'].includes(name)) throw failure('Unknown Project development operation')
+    if (!Object.hasOwn(operations, name) && !['tasks', 'task', 'attempt.context'].includes(name)) throw failure('Unknown Project development operation')
     if (queries.has(name) !== (body.kind === 'query')) throw failure('Operation kind does not match the contract')
     if (body.kind === 'command' && !stableId(body.requestId)) throw failure('A command needs a stable requestId')
     const args = { ...(body.payload ?? {}), projectId, ...(body.requestId !== undefined ? { requestId: body.requestId } : {}) }
@@ -146,6 +180,10 @@ export function createDevelopmentService(rt) {
     if (body.expectedCandidateSha !== undefined && (body.expectedCandidateSha !== null && (typeof body.expectedCandidateSha !== 'string' || !/^[a-f0-9]{40}$/.test(body.expectedCandidateSha)) || !task || taskView(rt.state, task).candidateSha !== body.expectedCandidateSha)) throw failure('Task candidate changed', 'bot/conflict')
     let result
     if (name === 'task') result = { task: view(checkedTask(args.taskId, projectId, actor), actor) }
+    else if (name === 'attempt.context') {
+      if (!args.attemptId) throw failure('Attempt context needs an Attempt')
+      result = context(args)
+    }
     else if (name === 'tasks') {
       const limit = args.limit ?? 50
       if (!Number.isSafeInteger(limit) || limit < 1 || limit > 200) throw failure('Task page limit must be between 1 and 200')

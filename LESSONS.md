@@ -13,6 +13,14 @@ Dated, short lessons from real FlyBot work. Agents read this **before coding**. 
 
 ## Open lessons
 
+### 2026-11-01 — Poll summaries, retrieve complete context on demand
+
+Seen 1×. Actual Task40 accumulated25 Attempts and40MiB state; the legacy detail
+response exceeded the unchanged8MiB gateway cap. Page Attempt summaries with
+original context/policy hashes and hash-bound full retrieval. Keep all original
+history; raising response limits or silently deleting archive text is not recovery.
+
+
 ### 2026-11-01 — A stored worker record is not a running turn
 
 Seen 1×. Service status inspection found the old workbench projection treated any

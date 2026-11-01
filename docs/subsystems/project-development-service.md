@@ -47,15 +47,28 @@ role-token submission is available through this HTTP endpoint.
 
 | Kind | Names |
 | --- | --- |
-| Query | tasks, task, task.detail, attempt.log, chief.state, pools |
+| Query | tasks, task, task.detail, attempt.context, attempt.log, chief.state, pools |
 | Command | task.run, task.accept, task.reject, attempt.stop, attempt.cleanup, attempt.publication-retry |
 | Command | queue.cancel, queue.retry, chief.inspect, chief.configure, schedule.configure, agent.mode, proposal.publish, execution.input |
 
 `tasks` takes limit 1–200 (default 50) and optional `after=taskId`, sorted by
 creation time then id within the authorized Project. Unknown/foreign cursors are
 refused; queries do not create definitions, agents or mutate stored task records.
-`task` returns the compact view; `task.detail` retains original Task/Attempt detail
-and adds `view`. `proposal.publish` still publishes only the requester's own
+`task` returns the compact view. Legacy `project-task-detail` and v1 `task.detail`
+return the Task, `view`, and the most recent Attempt summaries in their original
+order (attemptLimit 1–50, default20). `attemptsPage.before` selects the previous
+page via beforeAttemptId; total and all original stored history remain available.
+Role context/archive/policy bodies are represented by original hashes and an
+explicit contextRef, preserving execution/session/evidence fields for existing UI.
+They are not retransmitted with every poll. This repairs a real Task40 response
+exceeding the unchanged8MiB gateway cap after25 Attempts and40MiB stored history.
+
+`attempt.context {attemptId,section,offset?,limit?,expectedSha256?}` reads original
+roleSessions/roleSessionHistory/rolePolicies as a JSON text stream. Pages are at
+most16000 characters, default8000, with source hash, totalChars and nextOffset.
+Changed sources reject a stale expectedSha256; foreign Attempts and unlisted
+sections are refused. Joining all pages reproduces the exact original JSON.
+No state history is truncated, no gateway/model/context limit is increased. `proposal.publish` still publishes only the requester's own
 proposal through the original safe/watch contract. requestId is propagated to the
 existing operation; S1 does not claim uniform durable command replay for operations
 that did not already implement it. For execution.input, payload.requestId retains
