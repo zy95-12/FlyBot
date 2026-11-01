@@ -171,3 +171,25 @@ model/shared-service acceptance, independent Review and same-PR publication.
 Tester must request the host configured verifier on the sealed candidate. Earlier
 logs above remain historical. Owner's polished-demo UI feedback remains outstanding;
 this P0 integration does not establish overall #40 completion or visual acceptance.
+
+## Changelog return — 2026-11-01
+
+Rework starts at `28a23819e30cb7a07e14f9d5e255c0ff7aa39c18`, retaining the
+existing UI and Task/PR lineage. The actual local fragment check reproduced
+`40.fixed.md: one entry per file, no blank lines inside it` (exit 1). Joining
+its paragraphs preserves every word and satisfies the existing fragment contract.
+No additional host failure log was attached to this handoff; no other failure
+is inferred or repaired. The operator-reported Chromium/gateway/backend fixture
+passed on that prior candidate, with desktop and 390px screenshots under
+`/var/lib/flybot-shared/resources/r7-ui-28a-preview/`. That is historical fixture
+evidence for unchanged UI, not a new run, real-service acceptance or Owner approval.
+New candidate host verification and independent Review remain required.
+
+Ran on this unsealed two-file rework: configured verifier `--prepare-only`
+passed; `node .github/scripts/changelog.mjs check` passed (29 fragments);
+`node --test .github/scripts/changelog.test.mjs` passed (7/7);
+`git diff --check` passed. Commands used `/usr/local/lib/flybot-shared/node`.
+Not run: full `npm run verify`, Chromium, deployment/real-service acceptance
+and independent Review. This documentation/fragment-only change leaves core,
+client builds and generated patches byte-unchanged. Tester should request the
+configured host verification after sealing; no complete-role PASS is claimed here.
