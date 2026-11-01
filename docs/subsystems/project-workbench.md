@@ -304,3 +304,9 @@ The personal list now also mounts `sidebar.js::TreeNode` and the existing
 Collapse state stays inside that mounted list; no global tree registry or foreign
 Bot lookup is used. The component test reproduces the missing tree on the recovered
 draft and checks selection, collapse and expansion on the served bundle.
+
+Personal conversation pages expose an explicit “Load earlier messages” control.
+The scoped source prepends the authorized page, deduplicates by stable message ID,
+and retains loaded history and its oldest cursor across latest-page polling.
+Opening another Bot/part clears that cache; generation fencing and failed
+authorization discard late pages. Project conversation refresh semantics are unchanged.

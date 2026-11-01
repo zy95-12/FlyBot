@@ -456,3 +456,9 @@ Never strip whitespace from generated string values or waive the failing check.
 Seen 1×. Reusing BotRow alone flattened original personal parent relationships.
 Mount the original TreeNode/botTree over the authorized roster and test actual
 collapse/expansion and current-part selection, not merely presence of a Bot name.
+
+### 2026-11-01 — A history cursor needs a reachable UI action
+
+Seen 1×. Returning hasMore/beforeSeq alone left personal history capped at the
+latest page. Wire the earlier-page control through the scoped source, retain
+loaded pages during polling, and fence navigation/revocation before merging replies.

@@ -413,3 +413,9 @@ history and native reply/list components; personal parent trees now use the orig
 collapse renderer. This is unaccepted implementation, not full native shell parity.
 Native composer/services, complete personal controls and current browser/three-account
 visual acceptance remain outstanding and must not be inferred from unit checks.
+
+R7 pagination repair: personal Bot/archived-part history now has an earlier-page
+control instead of stopping at the latest 100 messages. Loaded pages survive
+polling and stay scoped to the opened identity/part; targeted regressions cover
+navigation and revocation. New candidate host verification and deployed acceptance
+remain separate.

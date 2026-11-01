@@ -53,3 +53,42 @@ test('conversation sends use only captured scope and retired composers cannot se
   source.dispose()
   await assert.rejects(personal.send('logged out'), /retired/)
 })
+
+test('personal history pages prepend once and survive refresh without crossing bindings', async () => {
+  const calls = []
+  const source = createScopedConversation({ async call(endpoint, payload) {
+    calls.push(payload)
+    return payload.beforeSeq === 100
+      ? { messages: [{ id: 'old', text: 'Older' }], hasMore: false, beforeSeq: 1 }
+      : { messages: [{ id: 'new', text: 'Latest' }], hasMore: true, beforeSeq: 100 }
+  } })
+  await source.open({ personalId: 'chief', personalPart: 'part-1' })
+  await source.loadEarlier()
+  assert.deepEqual(calls[1], { operation: 'read', id: 'chief', partId: 'part-1', beforeSeq: 100 })
+  assert.deepEqual(source.getSnapshot().messages.map(m => m.id), ['old', 'new'])
+  await source.refresh()
+  assert.deepEqual(source.getSnapshot().messages.map(m => m.id), ['old', 'new'])
+  assert.equal(source.getSnapshot().hasMore, false)
+  await source.loadEarlier()
+  assert.equal(calls.length, 3)
+  await source.open({ personalId: 'other' })
+  assert.deepEqual(source.getSnapshot().messages.map(m => m.id), ['new'])
+})
+
+test('an earlier personal page cannot leak after navigation or revocation', async () => {
+  let finish, revoked = false
+  const source = createScopedConversation({ async call(endpoint, payload) {
+    if (revoked) throw new Error('Revoked')
+    if (payload.beforeSeq) return new Promise(resolve => { finish = resolve })
+    return { messages: [{ id: payload.id, text: payload.id }], hasMore: true, beforeSeq: 5 }
+  } })
+  await source.open({ personalId: 'chief' })
+  const page = source.loadEarlier()
+  await source.open({ personalId: 'other' })
+  finish({ messages: [{ id: 'secret', text: 'Old private page' }], hasMore: false, beforeSeq: 1 })
+  await page
+  assert.deepEqual(source.getSnapshot().messages.map(m => m.id), ['other'])
+  revoked = true
+  await assert.rejects(source.loadEarlier(), /Revoked/)
+  assert.deepEqual(source.getSnapshot().messages, [])
+})

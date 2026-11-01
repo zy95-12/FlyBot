@@ -248,3 +248,7 @@ unsealed implementation progress, not full native compatibility or UI acceptance
 #40 continuation recovers the preserved draft and pinned upstream together; adds
 native personal tree controls. Full native composer/tool/approval parity and actual
 candidate screenshots/service acceptance remain explicit remaining work.
+
+R7 returned-candidate follow-up adds scoped personal-history pagination with
+refresh retention and late-page privacy regressions. Same Task/PR lineage remains;
+this local repair does not establish deployed UI acceptance.

@@ -471,6 +471,7 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
             for (const part of bot.parts) { const option = el('option', `Part ${part.number}`); option.value = part.sessionId; option.selected = (personalPart || bot.sessionId) === part.sessionId; parts.append(option) }
             parts.onchange = () => { win.location.hash = `/personal/${encodeURIComponent(taskId)}/${encodeURIComponent(parts.value)}` }; main.append(parts)
           }
+          if (history.hasMore) main.append(button('Load earlier messages', () => act(async () => { await conversationSource.loadEarlier(); history = conversationSource.getSnapshot() })))
           const transcript = el('div'); main.append(box('Original conversation', transcript)); mountConversation(transcript, personal?.bots ?? [])
           if (!personalPart) main.append(form('personal-message', [['text', 'Message', 'textarea']], values => conversationSource.chat().send(values.text), 'Send'))
         }

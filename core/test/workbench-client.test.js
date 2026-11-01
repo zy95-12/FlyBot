@@ -295,3 +295,22 @@ test('late personal memory does not repopulate a different route', async t => {
   dom.window.location.hash = '/personal'; await tick(); await app.refresh()
   assert.doesNotMatch(root.textContent, /Stale private note/)
 })
+
+test('personal conversation earlier-history button sends the scoped cursor and retires when exhausted', async t => {
+  const { dom, root, calls, app } = fixture(t, (endpoint, payload) => {
+    if (endpoint === 'personal-space') {
+      if (payload.operation === 'list') return { bots: [{ id: 'chief', name: 'Original Chief' }], rooms: [], mainBotIds: ['chief'] }
+      return payload.beforeSeq === 100
+        ? { messages: [{ id: 'old', text: 'Older' }], hasMore: false, beforeSeq: 1 }
+        : { messages: [{ id: 'new', text: 'Latest' }], hasMore: true, beforeSeq: 100 }
+    }
+  })
+  await tick(); dom.window.location.hash = '/personal/chief'; await tick()
+  const earlier = [...root.querySelectorAll('button')].find(node => node.textContent === 'Load earlier messages')
+  assert.ok(earlier)
+  earlier.click(); await tick()
+  assert.ok(calls.some(row => row.payload.id === 'chief' && row.payload.beforeSeq === 100))
+  assert.ok(![...root.querySelectorAll('button')].some(node => node.textContent === 'Load earlier messages'))
+  await app.refresh()
+  assert.ok(![...root.querySelectorAll('button')].some(node => node.textContent === 'Load earlier messages'))
+})

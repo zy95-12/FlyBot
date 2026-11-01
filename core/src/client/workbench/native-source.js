@@ -6,15 +6,21 @@ export function createScopedConversation(api) {
   const state = createSource({ messages: [], live: null, binding: null })
   let binding, generation = 0, disposed = false, pending
   const clear = () => state.set({ messages: [], live: null, binding: null })
-  async function refresh() {
+  async function refresh(earlier = false) {
     if (disposed || !binding) return
     if (pending) return pending
     const captured = generation, selected = binding
+    const previous = state.getSnapshot()
+    if (earlier && (!selected.personalId || !previous.hasMore || !Number.isInteger(previous.beforeSeq))) return
     const request = (async () => {
       try {
-        const value = await api.call(selected.personalId ? 'personal-space' : selected.roomId ? 'project-room-read' : 'project-agent-history', selected.personalId ? { operation: 'read', id: selected.personalId, ...(selected.personalPart ? { partId: selected.personalPart } : {}) } : selected)
+        const value = await api.call(selected.personalId ? 'personal-space' : selected.roomId ? 'project-room-read' : 'project-agent-history', selected.personalId ? { operation: 'read', id: selected.personalId, ...(selected.personalPart ? { partId: selected.personalPart } : {}), ...(earlier ? { beforeSeq: previous.beforeSeq } : {}) } : selected)
         if (disposed || captured !== generation) return
-        state.set({ ...value, messages: Array.isArray(value.messages) ? value.messages : [], binding: selected })
+        const incoming = Array.isArray(value.messages) ? value.messages : []
+        const retained = selected.personalId ? previous.messages : []
+        const messages = selected.personalId ? [...new Map((earlier ? [...incoming, ...retained] : [...retained, ...incoming]).map(message => [message.id, message])).values()] : incoming
+        const paged = selected.personalId && !earlier && retained.length > 0
+        state.set({ ...value, messages, ...(paged ? { hasMore: previous.hasMore, beforeSeq: previous.beforeSeq } : {}), binding: selected })
       } catch (error) {
         if (!disposed && captured === generation) { clear(); throw error }
       }
@@ -49,7 +55,8 @@ export function createScopedConversation(api) {
         },
       }
     },
-    refresh,
+    refresh: () => refresh(),
+    loadEarlier: () => refresh(true),
     dispose() { disposed = true; generation++; binding = undefined; pending = undefined; clear() },
   }
 }
