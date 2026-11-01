@@ -11,6 +11,11 @@ owned_paths:
   - core/test/reach-policy.test.js
 ---
 
+S4 installs Project Sources after the original logical scheduled-task service and
+before Chief/scheduler recovery. Its Source adapter registers native configurable
+polling and feeds the existing durable Task inbox; it adds no listener, execution
+engine or hardcoded clock. See [Source contract](project-sources.md).
+
 # core-host
 
 The server side of the patched `ds-bot` core (`core/`): the part of [ds-bot-core](ds-bot-core.md) that runs in DSH. Split out of that page so a change to the browser client or to the pin and patch tooling does not have to edit this one. Pin, patch format, `core/dev/` and the invariants about `ds-bot/` and `client.js` stay on [ds-bot-core](ds-bot-core.md).
