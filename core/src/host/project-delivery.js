@@ -300,11 +300,41 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     if (result.verdict !== 'approve') throw reject('Reviewer requested changes')
     if (attempt.evidence.tests?.sha !== attempt.candidateSha || !attempt.evidence.tests.passed) throw reject('Matching passing tests are missing')
     if (attempt.cancelRequested) throw reject('Delivery was stopped')
-    attempt.pr = await publisherOf(projectOf(attempt.projectId)).publish(attempt, projectOf(attempt.projectId))
-    if (attempt.pr.sha !== attempt.candidateSha) throw reject('Published PR does not match candidate')
+    await publishVerified(attempt)
+  }
+  async function publishVerified(attempt) {
+    const pr = await publisherOf(projectOf(attempt.projectId)).publish(attempt, projectOf(attempt.projectId))
+    if (pr.sha !== attempt.candidateSha || attempt.publicationBinding && (pr.number !== attempt.publicationBinding.number || pr.repository !== attempt.publicationBinding.repository)) throw reject('Published PR does not match candidate or existing binding')
     if (attempt.cancelRequested) throw reject('Delivery was stopped')
+    attempt.pr = pr
     attempt.status = 'waiting-acceptance'
-    if (rt.taskDeliveryState?.(attempt.taskId, attempt.id, 'result-ready', 'Delivery evidence ready for human acceptance') === false) throw reject('Task ended before delivery evidence was ready')
+    if (taskOf(attempt.taskId)?.status !== 'result-ready' && rt.taskDeliveryState?.(attempt.taskId, attempt.id, 'result-ready', 'Delivery evidence ready for human acceptance') === false) throw reject('Task ended before delivery evidence was ready')
+  }
+  async function retryPublication(body, actor) {
+    const attempt = ownEntry(attempts(), body.attemptId)
+    if (!attempt) throw reject('Unknown Attempt')
+    rt.requireProjectAccess(actor, attempt.projectId, 'configure')
+    const task = taskOf(attempt.taskId)
+    if (!task || task.deliveryAttemptId !== attempt.id || !['running', 'waiting-acceptance'].includes(attempt.status) || ['accepted', 'cancelled', 'failed'].includes(task.status) || attempt.cancelRequested) throw reject('Publication retry requires the current active Attempt')
+    if (!attempt.publicationBinding) throw reject('Publication retry requires an existing PR binding')
+    if (task.title !== attempt.requirement.title || (task.criteria ?? '') !== attempt.requirement.criteria) throw reject('Requirements changed; publication evidence is stale')
+    const workers = Object.values(state.projectHarnessWorkers ?? {}).filter(row => row.attemptId === attempt.id)
+    const leases = Object.values(state.projectResourceLeases ?? {}).filter(row => row.attemptId === attempt.id)
+    if (workers.some(row => row.status !== 'released') || leases.some(row => row.status !== 'released') || Object.values(state.bots ?? {}).some(row => row.ephemeral && row.attemptId === attempt.id)) throw reject('Publication retry requires confirmed worker and resource release')
+    await verifyCandidate(attempt)
+    for (const [role, policy] of Object.entries(attempt.rolePolicies ?? {})) verifyRolePolicy(policy, attempt.roleSessions[role]?.context.sources.policy?.sha256)
+    for (const role of DELIVERY_ROLES) {
+      if (!attempt.roleSessions?.[role]) throw reject('Publication retry is missing the original role Session')
+      await verifyExecution(attempt, role)
+    }
+    const tests = attempt.evidence.tests, review = attempt.evidence.review
+    if (!tests?.passed || tests.sha !== attempt.candidateSha || review?.sha !== attempt.candidateSha || review.verdict !== 'approve') throw reject('Matching passing tests and independent Review are required')
+    if (await fileDigest(tests.log) !== tests.sha256) throw reject('Test log changed; publication evidence is stale')
+    const before = structuredClone(attempt.pr ?? null)
+    await publishVerified(attempt)
+    if (!before) (attempt.publicationRecoveries ??= []).push({ kind: 'verified-existing-pr-retry', by: actor.memberId, sha: attempt.candidateSha, number: attempt.pr.number, at: Date.now() })
+    await rt.save()
+    return { attempt: view(attempt), already: Boolean(before) }
   }
   async function recordExecution(worker) {
     const attempt = ownEntry(attempts(), worker.attemptId)
@@ -456,6 +486,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
       await fail(attempt, new Error(String(body.reason ?? 'Human requested changes').slice(0, 1000)))
       return { attempt: view(attempt) }
     })
+    if (endpoint === 'project-attempt-publication-retry') return serialAttempt(body.attemptId, () => retryPublication(body, actor))
     if (endpoint === 'project-task-accept') return serialAttempt(body.attemptId, () => accept(body, actor))
     if (endpoint === 'project-attempt-cleanup') return serialAttempt(body.attemptId, () => cleanup(body, actor))
     const task = taskOf(body.taskId)

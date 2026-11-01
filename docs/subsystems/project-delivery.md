@@ -329,3 +329,18 @@ still requires verified integrated deployment and a Chief decision.
 Before external execution, failed role-context admission releases only a proven unbound reservation through the resource lifecycle and records preparation failure. Existing developer drafts are never reset on preparation retry. Restart preserves a narrow rejected-admission checkpoint only with the host rejection receipt, completed Chief exit proof, no role Session/history/execution/native worker, and exclusively unbound reservations; unknown execution still interrupts. Resource reconciliation retains responsibility for release.
 
 Before Developer allocation, bound rework revalidates the original PR head, target ref and provisioned target object through the selected host broker. A moved descendant target can refresh on the same Attempt only before any candidate, role Session/history, execution record or native/SDK worker and after every registered lease is released. Ref changes, unrelated or unavailable objects and recorded/unknown execution refuse admission. The host records both old/new bindings with claim/generation; seed, base, workspace and published candidate lineage stay intact. Publisher still rechecks target movement before and after publication.
+
+## Existing-PR publication recovery
+
+A push can succeed before the forge read reflects its new head. A Project manager
+may call `project-attempt-publication-retry {attemptId}` for the current active
+Attempt with an existing immutable PR binding. The host revalidates the clean
+candidate, role policies, original role Sessions and sealed SDK logs, matching
+passing tests and unchanged test log, independent approving Review, unchanged
+requirements and confirmed worker/resource release. It then invokes the normal
+same-PR publisher with its target/head/ancestry guards; no client supplies a verdict,
+SHA or task state. Errors retain evidence without manufacturing a receipt.
+Successful reconciliation stores the actual PR receipt and normal result-ready
+transition, with a recovery audit entry. Repetition retains that entry and does not
+repeat an invalid result-ready transition. Overall acceptance remains Chief/human
+authority, and unfinished requirements still require normal same-Task rework.

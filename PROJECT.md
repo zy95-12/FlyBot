@@ -327,3 +327,8 @@ Recurring M6 browser timeout reproduced at166: the native Chief correctly genera
 Chief inspection may explicitly select one existing Task in its authorized Project. The host validates Project configuration authority and Task ownership before using the existing scoped snapshot mechanism. Other-Project/missing Tasks are rejected; unscoped inspection is unchanged. This reduces unrelated facts without dropping policy/knowledge or raising context limits.
 
 Owner basic-CI policy is implemented on the existing PR47 local branch: default pinned install/lint/build/canonical/core and plugin unit checks; heavy browser/runtime/package checks explicit extended dispatch. Independent Review and actual UI acceptance remain. Publish only at a safe upstream-binding checkpoint; this local change does not claim live workflow activation.
+
+- R6/#39 existing-PR publication recovery now has a manager-scoped endpoint that
+  revalidates original sealed role/test evidence and uses the guarded publisher.
+  It repairs read-after-push receipt gaps without a new Attempt, fabricated Review
+  or overall Task acceptance; see Project delivery architecture and regressions.

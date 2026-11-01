@@ -36,7 +36,7 @@ async function setup(t, testCommand = [process.execPath, '--test', 'code.test.mj
   await rt.load()
   const published = []
   const publisher = { publish: async attempt => {
-    const pr = { number: published.length + 1, sha: attempt.candidateSha, url: 'https://example.invalid/pr/1', repository: 'example/demo' }
+    const pr = { number: attempt.publicationBinding?.number ?? published.length + 1, sha: attempt.candidateSha, url: 'https://example.invalid/pr/1', repository: 'example/demo' }
     published.push(pr); return pr
   }, read: async pr => ({ sha: pr.sha, state: 'open', baseRef: 'main', baseSha: git(repository, ['rev-parse', 'main']) }) }
   rt.projectDelivery = createProjectDelivery(rt, { publisher })
@@ -847,4 +847,71 @@ test('unstarted bound delivery refreshes a verified descendant target without re
     assert.equal(readFileSync(join(path,'code.mjs'),'utf8'),'export const preservedDraft = true;\n')
     assert.equal(git(path,['rev-parse','HEAD']),base)
   }
+})
+
+async function publicationFailure(t) {
+  const f = await setup(t)
+  await f.start('publication-recovery')
+  await implement(f); await f.gate('tester')
+  const a = f.attempt()
+  f.rt.state.projectHarnessWorkers ??= {}; f.rt.state.projectResourceLeases ??= {}
+  a.publicationBinding = { number: 48, repository: 'example/demo', branch: a.branch, previousSha: a.baseSha, upstreamSha: a.baseSha, upstreamRef: 'main' }
+  f.publisher.publish = async () => { throw new Error('PR head does not match the tested candidate') }
+  await assert.rejects(f.rt.projectDelivery.completePoolRole({ task: { ...f.task, collaboration: { kind: 'code' } }, claim: { attemptId: a.id }, role: 'reviewer', outputs: { review: JSON.stringify({ commit: a.candidateSha, verdict: 'approve', summary: 'Independent exact-commit review' }) } }), /PR head does not match/)
+  assert.equal(a.status, 'running'); assert.equal(a.pr, undefined)
+  f.publisher.publish = async attempt => { const pr = { number: 48, sha: attempt.candidateSha, repository: 'example/demo' }; f.published.push(pr); return pr }
+  const retry = actor => f.rt.projectEndpoint('project-attempt-publication-retry', { attemptId: a.id }, actor ?? alice)
+  return { ...f, a, retry }
+}
+
+test('existing-PR recovery reuses sealed tests/Review and stays subject to Chief acceptance', async t => {
+  const f = await publicationFailure(t), a = f.a
+  a.protocol = 'project-handoff/v1'
+  const evidence = structuredClone(a.evidence), sessions = structuredClone(a.roleSessions)
+  const first = await f.retry()
+  assert.equal(first.attempt.pr.number, 48); assert.equal(first.attempt.status, 'waiting-acceptance')
+  assert.equal(f.rt.state.tasks[f.task.id].status, 'result-ready')
+  assert.deepEqual(a.evidence, evidence); assert.deepEqual(a.roleSessions, sessions)
+  assert.equal(Object.keys(f.rt.state.projectAttempts).length, 1)
+  assert.equal((await f.retry()).already, true)
+  assert.equal(a.publicationRecoveries.length, 1)
+  await assert.rejects(f.rt.projectEndpoint('project-task-accept', { attemptId: a.id }, alice), /Chief arbitration/)
+})
+
+test('publication recovery refuses unauthorized, stale and still-executing evidence before any push', async t => {
+  const f = await publicationFailure(t), a = f.a
+  await assert.rejects(f.retry(bob), /access denied/)
+  for (const mutate of [
+    () => { a.evidence.tests.sha = 'wrong' },
+    () => { a.evidence.review.verdict = 'request-changes' },
+    () => { f.rt.state.tasks[f.task.id].criteria = 'changed' },
+    () => { a.cancelRequested = true },
+    () => { a.status = 'returned' },
+    () => { delete a.publicationBinding },
+    () => { delete a.roleSessions.reviewer },
+    () => { f.rt.state.projectHarnessWorkers.fake = { attemptId: a.id, status: 'running' } },
+    () => { f.rt.state.projectResourceLeases.fake = { attemptId: a.id, status: 'reserved' } },
+    () => { f.rt.state.tasks[f.task.id].deliveryAttemptId = 'other' },
+    () => { a.evidence.tests.sha256 = 'changed' },
+    () => { a.roleSessions.reviewer.execution.harness = 'codex-sdk' },
+  ]) {
+    const before = structuredClone(a), task = structuredClone(f.rt.state.tasks[f.task.id])
+    mutate(); await assert.rejects(f.retry()); assert.equal(f.published.length, 0)
+    for (const key of Object.keys(a)) delete a[key]
+    Object.assign(a, before); f.rt.state.tasks[f.task.id] = task
+    delete f.rt.state.projectHarnessWorkers.fake; delete f.rt.state.projectResourceLeases.fake
+  }
+  writeFileSync(join(a.workspaces.developer.path, 'code.mjs'), 'modified after testing')
+  await assert.rejects(f.retry(), /Candidate changed/); assert.equal(f.published.length, 0)
+})
+
+test('failed PR reconciliation never fabricates a receipt or consumes prior evidence', async t => {
+  const f = await publicationFailure(t), before = structuredClone(f.a.evidence)
+  f.publisher.publish = async () => { throw new Error('Existing PR upstream changed') }
+  await assert.rejects(f.retry(), /upstream changed/)
+  assert.equal(f.a.pr, undefined); assert.equal(f.a.status, 'running')
+  assert.deepEqual(f.a.evidence, before)
+  f.publisher.publish = async () => ({ number: 48, sha: 'wrong' })
+  await assert.rejects(f.retry(), /does not match candidate/)
+  assert.equal(f.a.pr, undefined)
 })

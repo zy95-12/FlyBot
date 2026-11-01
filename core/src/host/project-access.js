@@ -134,7 +134,7 @@ export function install(rt) {
     }
     if (endpoint === 'project-task-run') return rt.projectScheduler.request(body, actor)
     if (endpoint === 'project-queue-cancel') return rt.projectScheduler.cancel(body, actor)
-    if (['project-attempt-stop', 'project-attempt-log', 'project-task-run', 'project-task-detail', 'project-task-accept', 'project-task-reject', 'project-attempt-cleanup'].includes(endpoint)) return rt.projectDelivery.endpoint(endpoint, body, actor)
+    if (['project-attempt-stop', 'project-attempt-log', 'project-task-run', 'project-task-detail', 'project-task-accept', 'project-task-reject', 'project-attempt-cleanup', 'project-attempt-publication-retry'].includes(endpoint)) return rt.projectDelivery.endpoint(endpoint, body, actor)
     if (endpoint === 'projects') return { projects: rt.listProjects().filter(project => rt.projectCan(actor, project.id)).map(project => safeProject(project, actor)) }
     if (endpoint === 'project-create') return undefined
     if (endpoint === 'project-join') {
