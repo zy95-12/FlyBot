@@ -80,13 +80,19 @@ See [baseline ownership and tests](docs/subsystems/demo-baseline.md).
 ### Automatic development service — 2026-11-01
 
 Owner approved [#49–#55](https://github.com/zy95-12/FlyBot/issues/49), sequential
-backend issue/PR delivery alongside existing frontend Task40/PR48. S1 introduces
+backend issue/PR delivery alongside existing frontend Task40/PR48. S1 ([PR56](https://github.com/zy95-12/FlyBot/pull/56)) implements
 one versioned service facade, legacy adapters and a shared derived TaskView;
 [contract](docs/subsystems/project-development-service.md),
 [decision](decisions/2026-11-01-development-service.md). Durable Effects, input
 receipts, external subscriptions, trusted deployment boundaries and recovery
 acceptance remain S2–S6. Source checks and staged live rollout are separate;
 healthy frontend work and native schedules must not be interrupted for deployment.
+The initial673c741b service facade was deployed at a proven idle boundary, with
+51 mixed-source UID998 checks and unchanged native UI assets. Live verification
+found the old25-Attempt detail response exceeded8MiB. Follow-up b9cceb02 preserves
+full history with paged summaries/hash-bound context retrieval: full UID1000
+Node24 verify4333 passed,0fail/skip. Its rollout waits for the restored frontend
+Task's next safe checkpoint; current source validation is not final UI acceptance.
 
 ## Historical upstream Project State
 

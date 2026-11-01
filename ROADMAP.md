@@ -53,8 +53,9 @@ including long-term memory, architecture and tests. Merge/deployment is separate
 S2 #51 durable Effects/outbox → S3 #52 input/role receipts → S4 #53 external
 Task subscriptions. S5 #54 trusted deployment/authority follows S1 and applies
 throughout; S6 #55 integrated recovery acceptance follows all five. One PR per
-implementation issue; no extra tracking-only PR. S1 source implementation is in
-progress, not live or independently reviewed. Original #34–#41 residuals remain.
+implementation issue; no extra tracking-only PR. S1 PR56 has a deployed initial facade (673c741b); long-history follow-up
+b9cceb02 passed full4333 verification and awaits a safe live checkpoint.
+Independent repository review is not claimed. Original #34–#41 residuals remain.
 
 ## Historical upstream roadmap
 
