@@ -1,9 +1,18 @@
-import { conversationText } from './conversation.js'
+import { createScopedConversation } from './native-source.js'
 // The shared entry uses only Project-scoped APIs. Never bootstrap from the owner roster.
 export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
   const doc = root.ownerDocument, win = doc.defaultView
-  let bootstrap, mode, selected = '', tab = 'board', taskId = '', detail, resources, agents, members, history, taskDetail, workflowState
-  let epoch = 0, controller, error = '', notice = '', timer, disposed = false, busy = false
+  let bootstrap, mode, selected = '', tab = 'board', taskId = '', personalPart = '', detail, resources, agents, members, history, taskDetail, workflowState
+  let loading, epoch = 0, controller, error = '', notice = '', timer, disposed = false, busy = false
+  let personal, personalMemory, nativeUnmount, nativeListUnmount, nativeLoading
+  let conversationSource = createScopedConversation(api)
+  function clearConversation() { conversationSource.dispose(); conversationSource = createScopedConversation(api) }
+  async function readConversation(binding) {
+    const current = conversationSource.getSnapshot().binding
+    if (current && current.projectId === binding.projectId && current.roomId === binding.roomId && current.visibility === binding.visibility && current.personalId === binding.personalId && current.personalPart === binding.personalPart) await conversationSource.refresh()
+    else await conversationSource.open(binding)
+    return conversationSource.getSnapshot()
+  }
   const drafts = new Map(), expanded = new Map()
   let runtimeTerminal, terminalTimer, terminalPolling = false, rooms, roomView, pools
   async function closeTerminal() {
@@ -81,7 +90,14 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
     if (disposed || captured !== epoch || selected !== id) throw Object.assign(new Error('Project view changed'), { name: 'AbortError' })
     return result
   }
-  async function refresh() {
+  function refresh() {
+    if (loading) return loading
+    const pending = load()
+    loading = pending
+    void pending.finally(() => { if (loading === pending) loading = null })
+    return pending
+  }
+  async function load() {
     const current = ++epoch
     controller?.abort(); controller = new AbortController()
     const id = selected, section = tab, tid = taskId
@@ -89,30 +105,48 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
       const state = await api.call('workbench-state', {}, controller.signal)
       if (current !== epoch || disposed) return
       bootstrap = state
+      if (section === 'personal') {
+        const roster = await api.call('personal-space', { operation: 'list' }, controller.signal)
+        if (current !== epoch || disposed) return
+        personal = roster
+        if (tid) history = await readConversation({ personalId: tid, ...(personalPart ? { personalPart } : {}) })
+        if (current !== epoch || disposed) return
+        render(); return
+      }
       if (!id) { render(); return }
       if (!state.projects.some(project => project.id === id)) throw new Error('Project access was removed or the Project is unavailable')
-      const calls = ['project-detail', 'project-resources', 'project-agents', 'project-members'].map(endpoint => api.call(endpoint, { projectId: id }, controller.signal))
-      const extra = section === 'private' || section === 'bots' ? api.call('project-agent-history', { projectId: id, visibility: section === 'private' ? 'private' : 'public' }, controller.signal) : null
+      render()
+      const calls = [
+        api.call('project-detail', { projectId: id, view: 'summary' }, controller.signal),
+        api.call('project-resources', { projectId: id, view: ['settings', 'resources', 'activity'].includes(section) ? 'full' : 'summary' }, controller.signal),
+        ['board', 'bots', 'private', 'settings'].includes(section) ? api.call('project-agents', { projectId: id, view: section === 'board' ? 'summary' : 'full' }, controller.signal) : null,
+        ['members', 'rooms'].includes(section) ? api.call('project-members', { projectId: id }, controller.signal) : null,
+      ]
+      const extra = section === 'private' || section === 'bots' ? readConversation({ projectId: id, visibility: section === 'private' ? 'private' : 'public' }) : null
       const task = tid && section === 'tasks' ? api.call('project-task-detail', { taskId: tid }, controller.signal) : null
-      const values = await Promise.all([...calls, extra, task, api.call('project-workflow', { projectId: id, operation: 'state' }, controller.signal)])
+      const values = await Promise.all([...calls, extra, task, section === 'tasks' ? api.call('project-workflow', { projectId: id, operation: 'state' }, controller.signal) : null])
       if (values[5] && values[5].task.projectId !== id) throw new Error('Task belongs to another Project')
       if (current !== epoch || disposed) return
       ;[detail, resources, agents, members, history, taskDetail, workflowState] = values
-      const collaboration = await Promise.all([api.call('project-rooms', { projectId: id }, controller.signal), api.call('project-task-pools', { projectId: id }, controller.signal), section === 'rooms' && tid ? api.call('project-room-read', { projectId: id, roomId: tid }, controller.signal) : null])
+      const collaboration = await Promise.all([api.call('project-rooms', { projectId: id }, controller.signal), section === 'activity' ? api.call('project-task-pools', { projectId: id }, controller.signal) : null, section === 'rooms' && tid ? readConversation({ projectId: id, roomId: tid }) : null])
       if (current !== epoch || disposed) return
       ;[rooms, pools, roomView] = collaboration
       error = ''; render()
     } catch (failure) {
       if (current !== epoch || disposed || failure.name === 'AbortError') return
+      clearConversation()
       detail = resources = agents = members = history = taskDetail = workflowState = rooms = roomView = pools = null
       error = failure.message; render()
     }
   }
   function changeRoute() {
+    clearConversation()
     void closeTerminal()
     const match = win.location.hash.match(/^#\/projects\/([^/]+)\/(board|tasks|members|bots|resources|private|rooms|activity|settings)(?:\/([^/]+))?$/)
     try { selected = match ? decodeURIComponent(match[1]) : ''; tab = match?.[2] ?? 'board'; taskId = match?.[3] ? decodeURIComponent(match[3]) : '' } catch { selected = ''; tab = 'board'; taskId = '' }
-    ++epoch; controller?.abort(); detail = resources = agents = members = history = taskDetail = workflowState = rooms = roomView = pools = null; error = ''; notice = ''
+    if (win.location.hash.startsWith('#/personal')) { selected = ''; tab = 'personal'; try { taskId = decodeURIComponent(win.location.hash.split('/')[2] ?? ''); personalPart = decodeURIComponent(win.location.hash.split('/')[3] ?? '') } catch { taskId = '' } }
+    personal = personalMemory = null
+    ++epoch; controller?.abort(); loading = null; detail = resources = agents = members = history = taskDetail = workflowState = rooms = roomView = pools = null; error = ''; notice = ''
     render(); void refresh()
   }
   function taskPanel(task) {
@@ -175,10 +209,9 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
     if (roomView) {
       node.append(el('h2', roomView.name), el('p', roomView.memberIds.length ? 'Restricted to selected Project members' : 'Shared with current Project members'))
       const conversation = el('div', null, 'conversation'); conversation.setAttribute('role', 'log'); conversation.setAttribute('aria-label', 'Room conversation')
-      for (const row of roomView.messages) conversation.append(box(row.speaker ?? 'Message', conversationText(doc, row.text)))
+      mountConversation(conversation, [])
       for (const session of roomView.sessions ?? []) {
         conversation.append(el('p', `${session.role}: ${session.phase} · ${session.harness} · ${session.model ?? 'Default model'}`))
-        if (session.live?.text) conversation.append(box(`${session.role} answering…`, conversationText(doc, session.live.text)))
         if (['queued', 'running'].includes(session.phase)) conversation.append(button(`Stop ${session.role}`, () => act(() => scoped('project-room-stop', { roomId: roomView.id, role: session.role })), busy))
       }
       const composer = el('div', null, 'composer')
@@ -239,23 +272,62 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
     if (detail.permissions.configure) node.append(button('Create one-use Project invitation', () => act(async () => { const invite = await scoped('project-invite'); notice = `Project invitation (expires ${new Date(invite.expiresAt).toLocaleString()}): ${invite.token}` }), busy))
     return node
   }
+  function loadNative() {
+    if (win.FlyBotNativeConversation) return Promise.resolve()
+    if (!nativeLoading) nativeLoading = new Promise((resolve, reject) => {
+      const css = el('link'); css.rel = 'stylesheet'; css.href = '/workbench-native.css'; doc.head.append(css)
+      const script = el('script'); script.src = '/workbench-native.js'
+      script.onload = resolve; script.onerror = () => reject(new Error('Original conversation components could not load'))
+      doc.head.append(script)
+    })
+    return nativeLoading
+  }
+  function mountPersonalList(target) {
+    const captured = epoch, roster = personal
+    void loadNative().then(() => {
+      if (disposed || captured !== epoch || !target.isConnected || roster !== personal) return
+      nativeListUnmount = win.FlyBotNativeConversation.mountNativeChatList(target, {
+        ...roster, selectedId: taskId,
+        openSession: id => { win.location.hash = `/personal/${encodeURIComponent(id)}` },
+        openDetails: id => { for (const row of root.querySelectorAll('[data-persona-id]')) if (row.dataset.personaId === id) { row.open = true; row.scrollIntoView?.({ block: 'nearest' }) } },
+      })
+    }).catch(error => { if (!disposed && captured === epoch && target.isConnected) target.replaceChildren(el('p', error.message, 'error')) })
+  }
+  function mountConversation(transcript, bots) {
+    const source = conversationSource
+    const mount = () => {
+      if (disposed || source !== conversationSource || !transcript.isConnected) return
+      const native = win.FlyBotNativeConversation
+      if (!native) return
+      const style = el('style', native.nativeConversationCss)
+      transcript.replaceChildren(style)
+      const target = el('div'); transcript.append(target)
+      nativeUnmount = native.mountNativeConversation(target, { source, bots,
+        openBot: id => { if (tab === 'personal' && personal?.bots.some(bot => bot.id === id)) win.location.hash = `/personal/${encodeURIComponent(id)}` },
+        onQuote: text => {
+          const input = root.querySelector('textarea[name=text]')
+          if (input) { input.value = `> ${text.replace(/\n/g, '\n> ')}\n\n` + input.value; input.dispatchEvent(new win.Event('input')); input.focus() }
+        },
+      })
+    }
+    if (win.FlyBotNativeConversation) win.queueMicrotask(mount)
+    else {
+      transcript.append(el('p', 'Loading original conversation components…'))
+      void loadNative().then(mount).catch(failure => { if (source === conversationSource && transcript.isConnected) transcript.replaceChildren(el('p', failure.message, 'error')) })
+    }
+  }
   function agentsPanel() {
     const privateView = tab === 'private', visibility = privateView ? 'private' : 'public'
     const node = box(privateView ? 'My Project agent' : 'Public Chief', el('p', privateView ? 'Your conversation, notes and unpublished proposals are private to this Project and account.' : 'This conversation is shared with current Project members.'))
     const transcript = el('div', null, 'conversation'); transcript.setAttribute('role', 'log'); transcript.setAttribute('aria-label', privateView ? 'Private conversation' : 'Chief conversation')
     if (tab !== 'settings') {
       node.classList.add('chat-panel')
-      for (const message of history?.messages ?? []) {
-        const bubble = box(message.speaker ?? (message.kind === 'human' ? 'You' : privateView ? 'Project companion' : 'Chief'), conversationText(doc, message.text ?? message.content ?? ''))
-        if (message.kind === 'human') bubble.classList.add('mine')
-        transcript.append(bubble)
-      }
-      if (history?.live) transcript.append(box('Answering…', conversationText(doc, history.live.text), history.live.tool ? el('p', `Using ${history.live.tool}`) : null))
+      mountConversation(transcript, [{ id: privateView ? agents.mine?.botId : agents.public?.botId, role: privateView ? 'private' : 'chief', name: privateView ? 'Project companion' : 'Chief' }].filter(bot => bot.id))
       if (history?.busy) node.append(button('Stop reply', () => act(() => scoped('project-agent-stop', { visibility })), busy))
       if (!history?.messages?.length && !history?.live) transcript.append(el('p', privateView ? 'Your private Project companion. Ask a question or discuss your next step.' : 'Coordinate work with Chief. Ask about progress or discuss a requirement.', 'empty-state'))
       node.append(transcript)
       const composer = el('div', null, 'composer')
-      composer.append(form('message', [['text', 'Message', 'textarea']], values => scoped('project-agent-message', { ...values, visibility }), history?.busy ? 'Agent busy' : 'Send'))
+      composer.append(form('message', [['text', 'Message', 'textarea']], values => conversationSource.chat().send(values.text), history?.busy ? 'Agent busy' : 'Send'))
       node.append(composer)
     } else { node.replaceChildren(el('h2', 'Project settings'), el('p', 'Role definitions, published memory and Chief inspection. Running Sessions retain their execution snapshots.')) }
     if (privateView) {
@@ -314,7 +386,15 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
     }
     if (tab === 'bots') {
       const roster = el('div', null, 'role-strip')
-      for (const role of agents.definitions.roles) roster.append(box(role.role, el('small', `${role.execution?.harness ?? 'flybot'} · ${role.execution?.model ?? role.model ?? 'Project default'}`)))
+      for (const role of agents.definitions.roles) {
+        const card = box(role.role, el('small', `${role.execution?.harness ?? 'flybot'} · ${role.execution?.model ?? role.model ?? 'Project default'}`))
+        const inspection = el('details'); inspection.append(el('summary', `About ${role.role}`), el('h3', 'Persona'), el('p', role.instructions || 'No published persona'))
+        inspection.append(el('h3', 'Attached public memory'))
+        const attached = (agents.roleMemory ?? []).filter(row => (role.memoryRefs ?? []).includes(row.id) && row.role === role.role && row.projectId === selected)
+        for (const memory of attached) inspection.append(box(`Revision ${memory.revision}`, el('p', memory.text), el('small', `Source: ${memory.source?.reference ?? 'Not recorded'}`)))
+        if (!attached.length) inspection.append(el('p', 'No attached public memory'))
+        card.append(inspection); roster.append(card)
+      }
       node.prepend(roster)
     }
     return node
@@ -350,13 +430,14 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
     const terminalInputValue = doc.getElementById('runtime-terminal-input')?.value ?? ''
     if (disposed) return
     const active = doc.activeElement, focus = active?.id, start = active?.selectionStart, end = active?.selectionEnd
+    nativeUnmount?.(); nativeUnmount = undefined; nativeListUnmount?.(); nativeListUnmount = undefined
     root.replaceChildren()
     const shell = el('div', null, 'shell'), sidebar = el('aside'), main = el('main')
     sidebar.append(el('h1', '✦ FlyBot'), el('small', 'SHARED PROJECT WORKSPACE'))
     if (!bootstrap) {
       main.append(box('Sign in', el('p', mode?.mode === 'platform' ? 'Use your existing control-plane account.' : 'Use an operator-issued member invitation.'), form('login', mode?.mode === 'platform' ? [['email', 'Email', 'email'], ['password', 'Password', 'password']] : [['token', 'Member invitation'], ['displayName', 'Display name']], async values => { const result = await api.call(mode?.mode === 'platform' ? 'platform-login' : 'auth-redeem', values); api.setToken(result.sessionToken); bootstrap = await api.call('workbench-state') }, 'Sign in')))
     } else {
-      sidebar.append(el('p', bootstrap.self.displayName))
+      sidebar.append(el('p', bootstrap.self.displayName), button('Personal space', () => { win.location.hash = '/personal' }))
       if (bootstrap.demoMode) main.append(el('p', bootstrap.demoMode === 'deterministic-fixture' ? 'Demo: deterministic model fixture. Delivery requires real evidence; this is not real-model acceptance.' : 'Demo: configured real model provider. Inspect delivery evidence before acceptance.'))
       const picker = el('select'); picker.setAttribute('aria-label', 'Project'); picker.append(el('option', 'Choose Project'))
       for (const project of bootstrap.projects) { const option = el('option', project.name); option.value = project.id; option.selected = project.id === selected; picker.append(option) }
@@ -373,14 +454,35 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
         for (const room of rooms?.rooms ?? []) roomNav.append(button(room.name, () => route(selected, 'rooms', room.id)))
         sidebar.append(roomNav)
       }
-      sidebar.append(button('All Projects', () => { win.location.hash = '' }), button('Sign out', () => act(async () => { await closeTerminal(); await api.call('auth-revoke'); api.setToken(''); drafts.clear(); notice = ''; bootstrap = null; selected = ''; ++epoch; detail = resources = agents = members = history = taskDetail = workflowState = rooms = roomView = pools = null })))
-      if (!selected) {
+      sidebar.append(button('All Projects', () => { win.location.hash = '' }), button('Sign out', () => act(async () => { clearConversation(); await closeTerminal(); await api.call('auth-revoke'); api.setToken(''); personal = personalMemory = null; drafts.clear(); notice = ''; bootstrap = null; selected = ''; ++epoch; detail = resources = agents = members = history = taskDetail = workflowState = rooms = roomView = pools = null })))
+      if (tab === 'personal') {
+        const chatList = el('div', null, 'native-personal-list'); sidebar.append(chatList); mountPersonalList(chatList)
+        main.append(el('h1', 'Personal space'), el('p', 'Your original Chief, Bots and internal group conversations. Project agents remain separate.'))
+        for (const bot of personal?.bots ?? []) {
+          const card = box(`${personal.mainBotIds.includes(bot.id) ? 'Chief · ' : ''}${bot.name}`, button('Open conversation', () => { win.location.hash = `/personal/${encodeURIComponent(bot.id)}` }))
+          const persona = el('details'); persona.dataset.personaId = bot.id; persona.append(el('summary', 'Persona'), el('p', bot.instructions ?? 'No persona')); card.append(persona); card.append(button('Own long-term memory', () => act(async () => { const captured = epoch; const memory = await api.call('personal-space', { operation: 'memory', id: bot.id }); if (captured === epoch && !disposed) personalMemory = { botId: bot.id, ...memory } }))); main.append(card)
+        }
+        if (personalMemory) main.append(box('Own long-term memory', ...personalMemory.entries.map(entry => el('p', entry.text ?? entry.content ?? ''))))
+        for (const room of personal?.rooms ?? []) main.append(button(room.name ?? 'Group conversation', () => { win.location.hash = `/personal/${encodeURIComponent(room.id)}` }))
+        if (taskId && history) {
+          const bot = personal?.bots.find(row => row.id === taskId)
+          if (bot?.parts?.length > 1) {
+            const parts = el('select'); parts.setAttribute('aria-label', 'Conversation part')
+            for (const part of bot.parts) { const option = el('option', `Part ${part.number}`); option.value = part.sessionId; option.selected = (personalPart || bot.sessionId) === part.sessionId; parts.append(option) }
+            parts.onchange = () => { win.location.hash = `/personal/${encodeURIComponent(taskId)}/${encodeURIComponent(parts.value)}` }; main.append(parts)
+          }
+          const transcript = el('div'); main.append(box('Original conversation', transcript)); mountConversation(transcript, personal?.bots ?? [])
+          if (!personalPart) main.append(form('personal-message', [['text', 'Message', 'textarea']], values => conversationSource.chat().send(values.text), 'Send'))
+        }
+      } else if (!selected) {
         main.append(el('h1', 'Projects'), ...bootstrap.projects.map(project => box(project.name, el('p', `${project.role} · ${project.status}`), button('Open Project', () => route(project.id)))))
         main.append(box('New Project', form('project', [['name', 'Project name'], ['repository', 'Provisioned repository', 'text', ['', ...bootstrap.repositories]]], async values => { const result = await api.call('project-create', values); route(result.project.id) }, 'Create Project')), box('Join shared Project', form('join', [['token', 'Project invitation']], async values => { const result = await api.call('project-join', values); route(result.project.id) }, 'Join')))
       } else if (detail) {
         const heading = el('header', null, 'project-header'); heading.append(el('small', 'Projects / ' + ({ bots: 'Public Chief', private: 'My Project agent', rooms: 'Conversations', settings: 'Settings', tasks: 'Task detail' }[tab] ?? tab)), el('h1', detail.project.name), el('p', `${detail.project.role} · ${detail.project.status} · ${detail.project.repository ?? 'No repository'}`)); main.append(heading)
         main.append(taskDetail ? attemptsPanel() : tab === 'members' ? membersPanel() : ['bots', 'private', 'settings'].includes(tab) ? agentsPanel() : tab === 'resources' ? resourcesPanel() : tab === 'rooms' ? roomsPanel() : tab === 'activity' ? activityPanel() : boardPanel())
-      } else main.append(el('p', error ? 'Project unavailable. Select another Project or refresh.' : 'Loading Project…'))
+      } else {
+        main.append(el('h1', bootstrap.projects.find(project => project.id === selected)?.name ?? 'Project'), el('p', error ? 'Project unavailable. Select another Project or refresh.' : 'Loading Project…'))
+      }
     }
     if (mode?.panelUrl) sidebar.append(link('Control-plane account panel', mode.panelUrl, true))
     if (error) { const alert = el('p', error, 'error'); alert.setAttribute('role', 'alert'); main.prepend(alert) }
@@ -409,5 +511,5 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
   }
   win.addEventListener('hashchange', changeRoute)
   render(); void start()
-  return { refresh, dispose() { void closeTerminal(); disposed = true; ++epoch; controller?.abort(); win.clearInterval(timer); win.removeEventListener('hashchange', changeRoute); root.replaceChildren(); drafts.clear() } }
+  return { refresh, dispose() { clearConversation(); nativeUnmount?.(); nativeListUnmount?.(); void closeTerminal(); disposed = true; ++epoch; controller?.abort(); win.clearInterval(timer); win.removeEventListener('hashchange', changeRoute); root.replaceChildren(); drafts.clear() } }
 }

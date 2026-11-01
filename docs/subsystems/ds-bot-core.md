@@ -125,3 +125,12 @@ M7.3 core package pins official Codex SDK 0.166.0 and Claude Agent SDK 0.3.316. 
 
 
 Repair R3 (#36): The extension types include the trusted Workflow pool adapter and result-routing seam; canonical source and generated patches move together. See [pool contract](project-pools.md).
+
+Blank context lines in generated patches use Git’s suppressed-prefix form (empty
+line rather than a single space). Both Git and the Git-free applier retain the
+original blank file line; hunk counts and malformed-input rejection still apply.
+This prevents generated context from introducing trailing-whitespace findings.
+
+Patch normalization emits empty context lines without trailing spaces. Its parser
+accepts Git's suppress-blank-empty form and distinguishes an empty final context
+line from the patch terminator by the hunk's remaining line counts.

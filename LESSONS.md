@@ -13,6 +13,24 @@ Dated, short lessons from real FlyBot work. Agents read this **before coding**. 
 
 ## Open lessons
 
+### 2026-11-01 — Preparation belongs to every receiver, not one successful checkout
+
+Seen 2×. The real Tester lacked native dependencies although Developer preparation
+passed. Prepare each receiving checkout on its bound resource before inference,
+and prepare host tests again after reset/clean. Keep the command operator-selected;
+readiness only validates metadata. Wrap allocation and checkout in the same
+unbound-reservation cleanup as context assembly, preserving failed work and evidence.
+
+### 2026-11-01 — A wake burst is not concurrent permission to dispatch
+
+Seen 1×. A deterministic slow-reconciliation probe reproduced overlapping resource
+reads from repeated scheduler wakes. Coalesce the complete reconciliation/admission/
+pool/schedule/Chief pass, retain one follow-up for in-flight events, and clear the
+lock on failure. Persist handoff receipts before event wake; the timer is fallback.
+Retry blocked provisioning explicitly on its original queue/principal, with fresh
+manager/requester authority and preflight, never by rewriting live task records.
+
+
 ### 2026-11-01 — A browser cookie is not a persistent user grant
 
 Seen 1×. Watch behavior cannot survive browser logout/restart by treating a
@@ -394,3 +412,47 @@ Seen 1×. Room routing passed while the main workspace still presented administr
 forms. Compare the actual desktop/narrow-screen pages with the owner's reference;
 keep conversation/composer primary and configuration in Settings. Screenshots and
 real-service clicks must name their source, independently of deterministic DOM tests.
+
+Chief inspection may explicitly select one existing Task in its authorized Project. The host validates Project configuration authority and Task ownership before using the existing scoped snapshot mechanism. Other-Project/missing Tasks are rejected; unscoped inspection is unchanged. This reduces unrelated facts without dropping policy/knowledge or raising context limits.
+
+Owner basic-CI policy is implemented on the existing PR47 local branch: default pinned install/lint/build/canonical/core and plugin unit checks; heavy browser/runtime/package checks explicit extended dispatch. Independent Review and actual UI acceptance remain. Publish only at a safe upstream-binding checkpoint; this local change does not claim live workflow activation.
+
+### 2026-11-01 — Polling must let slow responses finish
+
+Seen 1×. Refreshing every four seconds while aborting the prior same-route request starved the workbench on slow connections. Join the pending load, cancel only on scope changes/disposal, and test a response lasting beyond the poll interval. Keep board payloads separate from full execution/audit history and retain authorization on summary reads.
+
+
+### 2026-11-01 — Update workflow contract regressions with the authorized CI split
+
+Seen 1×. The basic/extended workflow and executable result gate were updated, but two historical shape tests still required unconditional jobs and the old shell expression. Read the actual host failure log, assert the new job/result wiring and preserve failure/cancellation tests; do not restore obsolete heavy-job policy just to satisfy stale assertions.
+
+### 2026-11-01 — Mount the native component, not its imitation
+
+Seen 1×. A safe scoped renderer still failed the requested native UI reuse contract.
+Mount original components using actual member-visible identities and dispose roots on
+route changes. Keep native dependency assets out of board startup; missing published
+capabilities require explicit version guards, never invented Harness providers.
+
+
+### 2026-11-01 — Mounting a component is not connecting its live source
+
+Seen 1×. A constant snapshot mounted original reply bubbles while room streams still used a second renderer. Bind all Project conversation surfaces to the authenticated observable source, clear it on scope/revocation/logout, and test concurrent room streams plus actual component refresh. This is not proof of full native service or personal-space compatibility.
+
+### 2026-11-01 — Personal groups retain membership history windows
+
+Seen 1×. A personal-space adapter must not page a group's raw Session merely
+because the caller currently belongs to the room. Reuse roomHistory's visible-line
+projection; own-chat async reads must reauthenticate before returning after logout.
+
+### 2026-11-01 — Bound generated-file diagnostics without hiding failures
+
+Seen 1×. A minified native bundle made five whitespace findings produce over
+8 MB of diagnostic output. Retain the full private output and actual exit code,
+report bounded labels, then fix string generation and blank patch context.
+Never strip whitespace from generated string values or waive the failing check.
+
+### 2026-11-01 — Preserve native tree relationships in the scoped list
+
+Seen 1×. Reusing BotRow alone flattened original personal parent relationships.
+Mount the original TreeNode/botTree over the authorized roster and test actual
+collapse/expansion and current-part selection, not merely presence of a Bot name.

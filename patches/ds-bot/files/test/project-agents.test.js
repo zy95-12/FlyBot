@@ -491,3 +491,17 @@ test('attachments cannot be selected through another permitted room and restrict
   assert.equal(view.attachments[0].name, 'private.txt')
   await assert.rejects(rt.projectEndpoint('project-room-read', { projectId: 'p1', roomId: room.id }, bob), /unavailable/)
 })
+
+test('board agent summaries exclude private state and do not allocate a private carrier', async t => {
+  const { rt } = await setup(t)
+  const summary = await rt.projectEndpoint('project-agents', { projectId: 'p1', view: 'summary' }, bob)
+  assert.equal(summary.public.visibility, 'public')
+  assert.equal(summary.privateMemory, undefined)
+  assert.equal(summary.proposals, undefined)
+  assert.equal(summary.definitions, undefined)
+  assert.equal(Object.values(rt.state.projectAgents).some(agent => agent.memberId === 'bob' && agent.visibility === 'private'), false)
+  const full = await get(rt, bob)
+  assert.equal(full.public.botId, summary.public.botId)
+  assert.ok(full.mine)
+  assert.equal(rt.state.bots.legacy.instructions, 'Old private owner context')
+})

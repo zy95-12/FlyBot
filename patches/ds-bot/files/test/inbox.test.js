@@ -257,7 +257,8 @@ test('the inbox has no second approval path and no native confirm dialog', () =>
 test('the sidebar has one Inbox row at its top, and the dialog is an overlay', () => {
   const sidebar = readFileSync(new URL('../src/client/sidebar.js', import.meta.url), 'utf8')
   assert.equal(sidebar.match(/h\(InboxRow,/g)?.length, 1)
-  assert.ok(sidebar.indexOf('h(InboxRow,') < sidebar.indexOf("className: 'bt-list'"))
+  const teamSidebar = sidebar.slice(sidebar.indexOf('export function TeamSidebar('))
+  assert.ok(teamSidebar.indexOf('h(InboxRow,') < teamSidebar.indexOf("className: 'bt-list'"))
   assert.match(readFileSync(new URL('../src/client/overlays.js', import.meta.url), 'utf8'), /h\(InboxDialog,/)
 })
 

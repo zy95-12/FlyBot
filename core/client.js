@@ -2762,7 +2762,7 @@ function awayGroups(groups, roomsById) {
   return (groups ?? []).filter((entry) => roomsById?.[entry.id]?.origin !== "face-to-face");
 }
 
-// src/client/sources.js
+// src/client/observable-source.js
 function createSource(initial) {
   let value = initial;
   const listeners2 = /* @__PURE__ */ new Set();
@@ -2782,6 +2782,8 @@ function createSource(initial) {
     }
   };
 }
+
+// src/client/sources.js
 var EMPTY_ROSTER = { revision: -1, mainBotId: null, mainBotIds: [], bots: [], rooms: [], humans: [], self: null, agents: [], exchangeTurns: {}, remoteTypedTurns: {}, remoteAwaiting: {}, questions: {}, secrets: [], capabilities: [], capabilityStatuses: {}, secretRequests: {}, models: [], defaultModel: null, modelsKey: null, prefs: {}, byId: {}, roomsById: {}, agentsById: {}, agentOf: {}, ready: false };
 var isMainOf = (roster, id) => id !== void 0 && (roster.mainBotIds ?? []).includes(id);
 function indexRoster(value) {
@@ -9793,6 +9795,40 @@ function TreeNode({ node, rowProps, markedUnread, collapsed, toggle, actions }) 
       typeof actions === "function" ? (0, import_react17.createElement)(NodeActions, { component: actions, bot }) : null
     ),
     closed ? null : children.map((child) => (0, import_react17.createElement)(TreeNode, { key: child.bot.id, node: child, rowProps, markedUnread, collapsed, toggle, actions }))
+  );
+}
+function ScopedChatList({ roster, selectedId, openSession, openDetails }) {
+  const [collapsed, setCollapsed] = (0, import_react17.useState)({});
+  const toggle = (id) => setCollapsed((value) => ({ ...value, [id]: !value[id] }));
+  const mainId = roster.mainBotId;
+  const tree = roster.bots.some((bot) => bot.parentId) ? botTree(roster.bots, mainId, (id) => roster.byId[id]?.parentId) : [];
+  const sessions = { ids: [], byId: {} };
+  const status = /* @__PURE__ */ new Map();
+  const props = {
+    roster,
+    wide: true,
+    marked: false,
+    useSessions: (select) => select(sessions),
+    useSessionStatus: (select) => select(status),
+    useSessionRetainInfo: (id, select) => select({ retainedBy: { mainView: id === (roster.byId[selectedId] ? currentPart(roster.byId[selectedId]) : selectedId) ? 1 : 0 } }),
+    useActivity: (select) => select({}),
+    actions: {
+      openSession: (id) => {
+        if (roster.byId[id] || roster.roomsById[id]) openSession(id);
+      },
+      openMenu: ({ id }) => {
+        if (roster.byId[id] || roster.roomsById[id]) openDetails?.(id);
+      },
+      openSettings: (_section, id) => {
+        if (roster.byId[id] || roster.roomsById[id]) openDetails?.(id);
+      }
+    }
+  };
+  return (0, import_react17.createElement)(
+    "div",
+    { className: "bt-list", role: "region", "aria-label": t("Bot list") },
+    tree.length ? tree.map((node) => (0, import_react17.createElement)(TreeNode, { key: node.bot.id, node, rowProps: props, markedUnread: {}, collapsed, toggle })) : roster.bots.map((bot) => (0, import_react17.createElement)(BotRow, { ...props, key: bot.id, bot, asRow: true })),
+    roster.rooms.map((room2) => (0, import_react17.createElement)(RoomRow, { ...props, key: room2.id, room: room2 }))
   );
 }
 function TeamSidebar(props) {

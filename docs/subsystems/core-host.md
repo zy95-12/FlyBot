@@ -899,3 +899,9 @@ cases and workbench-only authorization vocabulary. The gateway never forwards ra
 room/Session routes. Rooms reuse existing Project agent delegation and documented native
 llm/stream middleware; they cannot authorize Task effects. See
 [Project collaboration](project-collaboration.md) for ownership and scope boundaries.
+
+The shared workbench's `personal-space` capability projects original owned local
+Bots and authorized internal room history without opening raw owner routes.
+`workbench-personal.js` excludes Project carriers and retains original identities;
+room history retains membership-window filtering and async own-chat/memory reads
+reauthenticate before returning. Sends reuse channel `send` authorization.

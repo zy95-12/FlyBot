@@ -6,8 +6,8 @@ import { mountWorkbench } from '../src/client/workbench/app.js'
 import { createApi } from '../src/client/workbench/api.js'
 const { JSDOM } = createRequire(join(process.env.DSH_HARNESS, 'package.json'))('jsdom')
 const tick = () => new Promise(resolve => setTimeout(resolve, 20))
-function fixture(t, override = () => undefined) {
-  const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost/#/projects/a/board' })
+function fixture(t, override = () => undefined, options = {}) {
+  const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost/#/projects/a/board', pretendToBeVisual: true })
   const calls = []
   const api = { setToken() {}, async call(endpoint, payload = {}) {
     calls.push({ endpoint, payload })
@@ -23,7 +23,7 @@ function fixture(t, override = () => undefined) {
     return {}
   } }
   const root = dom.window.document.getElementById('root')
-  const app = mountWorkbench(root, api, { pollMs: 100000 })
+  const app = mountWorkbench(root, api, { pollMs: 100000, ...options })
   t.after(() => { app.dispose(); dom.window.close() })
   return { dom, root, calls, app }
 }
@@ -125,9 +125,10 @@ test('rooms click through scoped routing, safe Markdown and registered artifacts
     if (endpoint === 'project-room-attachment') return { name: 'Scope.md', text: 'Only this room' }
     if (endpoint === 'project-room-message') { assert.equal(payload.roomId, 'room-a'); return { deliveries: [] } }
   })
+  await installNative(dom)
   await tick()
   ;[...root.querySelectorAll('button')].find(node => node.textContent === 'Rooms & mentions').click(); await tick()
-  ;[...root.querySelectorAll('button')].find(node => node.textContent === 'Engineering').click(); await tick()
+  ;[...root.querySelectorAll('button')].find(node => node.textContent === 'Engineering').click(); await tick(); await tick()
   assert.equal(root.querySelector('.conversation strong').textContent, 'Review')
   assert.equal(root.querySelector('img'), null)
   assert.equal(root.querySelector('a[href^="javascript:"]'), null)
@@ -168,4 +169,129 @@ test('board keeps failures actionable and polling preserves Project-scoped Task 
   attention.open = false; attention.dispatchEvent(new dom.window.Event('toggle'))
   await app.refresh()
   assert.equal(groups().find(group => group.querySelector('summary').textContent.startsWith('Needs attention')).open, false)
+})
+
+test('same-route refresh joins a slow load instead of restarting it', async t => {
+  let release
+  const pending = new Promise(resolve => { release = resolve })
+  const { app, root, calls } = fixture(t, endpoint => endpoint === 'project-detail' ? pending : undefined)
+  await tick()
+  const before = calls.filter(row => row.endpoint === 'project-detail').length
+  const second = app.refresh()
+  await tick()
+  assert.equal(calls.filter(row => row.endpoint === 'project-detail').length, before)
+  release({ project: { id: 'a', name: 'Slow Alpha' }, permissions: {}, tasks: [] })
+  await second; await tick()
+  assert.match(root.textContent, /Slow Alpha/)
+})
+
+test('board uses summary projections and does not wait for Settings or Workflow', async t => {
+  const { root, calls } = fixture(t, endpoint => ['project-members', 'project-workflow'].includes(endpoint) ? new Promise(() => {}) : undefined)
+  await tick()
+  assert.match(root.textContent, /Task board/)
+  assert.ok(root.querySelector('.task'))
+  for (const endpoint of ['project-detail', 'project-resources']) assert.equal(calls.find(row => row.endpoint === endpoint).payload.view, 'summary')
+  assert.equal(calls.some(row => ['project-workflow', 'project-members', 'project-task-pools'].includes(row.endpoint)), false)
+})
+
+test('public Bot details show only attached same-role public memory', async t => {
+  const { dom, root } = fixture(t, endpoint => endpoint === 'project-agents' ? {
+    public: { botId: 'chief-a' }, definitions: { roles: [{ role: 'chief', instructions: 'Coordinate carefully', memoryRefs: ['public', 'foreign', 'wrong-role'] }] },
+    roleMemory: [{ id: 'public', projectId: 'a', role: 'chief', text: 'Verified public lesson', revision: 3, source: { reference: 'Decision 7' } }, { id: 'foreign', projectId: 'b', role: 'chief', text: 'Foreign secret' }, { id: 'wrong-role', projectId: 'a', role: 'developer', text: 'Other role memory' }],
+    privateMemory: [{ text: 'Private secret' }], proposals: [], knowledge: [],
+  } : undefined)
+  await tick(); dom.window.location.hash = '/projects/a/bots'; await tick()
+  const summary = [...root.querySelectorAll('summary')].find(row => row.textContent === 'About chief')
+  summary.click()
+  assert.equal(summary.parentElement.open, true)
+  assert.match(summary.parentElement.textContent, /Coordinate carefully/)
+  assert.match(summary.parentElement.textContent, /Verified public lesson/)
+  assert.match(summary.parentElement.textContent, /Revision 3/)
+  assert.match(summary.parentElement.textContent, /Decision 7/)
+  assert.doesNotMatch(root.textContent, /Private secret|Foreign secret|Other role memory/)
+})
+
+
+test('a response slower than the polling interval eventually renders without accumulating requests', async t => {
+  let release
+  const delayed = new Promise(resolve => { release = resolve })
+  const { root, calls } = fixture(t, endpoint => endpoint === 'project-detail' ? delayed : undefined, { pollMs: 4000 })
+  await new Promise(resolve => setTimeout(resolve, 4200))
+  assert.equal(calls.filter(row => row.endpoint === 'project-detail').length, 1)
+  release({ project: { id: 'a', name: 'Slow Project' }, permissions: {}, tasks: [] })
+  await tick()
+  assert.match(root.textContent, /Slow Project/)
+  assert.doesNotMatch(root.textContent, /Loading Project/)
+})
+
+
+async function installNative(dom) {
+  const { build } = await import('esbuild')
+  const bundle = await build({ absWorkingDir: join(import.meta.dirname, '..'), entryPoints: ['src/client/workbench/native-conversation.js'], bundle: true, format: 'iife', globalName: 'FlyBotNativeConversation', platform: 'browser', outfile: 'native.js', write: false, loader: { '.woff': 'dataurl', '.woff2': 'dataurl', '.ttf': 'dataurl' } })
+  // Evaluate the real browser bundle; data still enters through the scoped fixture API.
+  const vm = await import('node:vm')
+  const context = vm.createContext({ window: dom.window, document: dom.window.document, navigator: dom.window.navigator, setTimeout, clearTimeout, console, TextEncoder, TextDecoder })
+  vm.runInContext(bundle.outputFiles.find(file => file.path.endsWith('.js')).text + ';window.FlyBotNativeConversation = FlyBotNativeConversation', context)
+}
+
+test('Chief chat mounts original reply renderer and releases it when leaving the route', async t => {
+  let text = '**Native mounted reply**', revoked = false
+  const { dom, root, app, calls } = fixture(t, endpoint => {
+    if (endpoint !== 'project-agent-history') return undefined
+    if (revoked) throw new Error('Conversation access revoked')
+    return { messages: [{ speaker: 'chief', text }] }
+  })
+  await installNative(dom)
+  await tick()
+  dom.window.location.hash = '/projects/a/bots'; await tick(); await tick()
+  assert.equal(root.querySelector('.bt-bubble strong')?.textContent, 'Native mounted reply')
+  assert.ok(root.querySelector('.bt-mark svg'))
+  const reads = calls.filter(row => row.endpoint === 'project-agent-history').length
+  text = '**Refreshed native reply**'
+  await app.refresh(); await tick()
+  assert.equal(calls.filter(row => row.endpoint === 'project-agent-history').length, reads + 1)
+  assert.equal(root.querySelector('.bt-bubble strong')?.textContent, 'Refreshed native reply')
+  revoked = true
+  await app.refresh(); await tick()
+  assert.equal(root.querySelector('.bt-bubble'), null)
+  assert.doesNotMatch(root.textContent, /Refreshed native reply/)
+  assert.match(root.textContent, /Conversation access revoked/)
+  dom.window.location.hash = '/projects/a/board'; await tick()
+  assert.equal(root.querySelector('.bt-bubble'), null)
+})
+
+test('personal entry preserves original Chief and group IDs without Project history requests', async t => {
+  const { dom, root, calls } = fixture(t, (endpoint, payload) => {
+    if (endpoint === 'personal-space') return payload.operation === 'list'
+      ? { mainBotIds: ['old-chief'], bots: [{ id: 'old-chief', name: 'My original Chief', instructions: 'Original persona' }], rooms: [{ id: 'old-group', name: 'Original group' }] }
+      : { messages: [{ kind: 'assistant', text: 'Original history' }] }
+  })
+  await tick()
+  ;[...root.querySelectorAll('button')].find(row => row.textContent === 'Personal space').click()
+  await tick()
+  assert.match(root.textContent, /My original Chief/)
+  assert.match(root.textContent, /Original group/)
+  ;[...root.querySelectorAll('button')].find(row => row.textContent === 'Original group').click()
+  await tick()
+  assert.ok(calls.some(row => row.endpoint === 'personal-space' && row.payload.operation === 'read' && row.payload.id === 'old-group'))
+  assert.equal(calls.some(row => row.endpoint === 'project-agent-history'), false)
+  dom.window.location.hash = '/projects/a/board'; await tick()
+  assert.doesNotMatch(root.textContent, /Original history/)
+})
+
+test('late personal memory does not repopulate a different route', async t => {
+  let finish
+  const { dom, root, app } = fixture(t, (endpoint, payload) => {
+    if (endpoint === 'personal-space') {
+      if (payload.operation === 'memory') return new Promise(resolve => { finish = resolve })
+      return { mainBotIds: ['chief'], bots: [{ id: 'chief', name: 'Original Chief' }], rooms: [] }
+    }
+  })
+  await tick(); dom.window.location.hash = '/personal'; await tick()
+  ;[...root.querySelectorAll('button')].find(row => row.textContent === 'Own long-term memory').click()
+  await tick(); assert.ok(finish)
+  dom.window.location.hash = '/projects/b/board'; await tick()
+  finish({ entries: [{ text: 'Stale private note' }] }); await tick()
+  dom.window.location.hash = '/personal'; await tick(); await app.refresh()
+  assert.doesNotMatch(root.textContent, /Stale private note/)
 })

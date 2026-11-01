@@ -17,6 +17,7 @@ export function repositorySettings(rt, project) {
   if (!argument(settings.path) || !isAbsolute(settings.path)) throw invalid('path')
   if (!Array.isArray(settings.allowedPaths) || !settings.allowedPaths.length || !settings.allowedPaths.every(relativePath)) throw invalid('allowedPaths')
   if (!Array.isArray(settings.testCommand) || !settings.testCommand.length || !settings.testCommand.every(argument) || !settings.testCommand[0].trim()) throw invalid('testCommand')
+  if (settings.workspacePrepareCommand !== undefined && (!Array.isArray(settings.workspacePrepareCommand) || !settings.workspacePrepareCommand.length || !settings.workspacePrepareCommand.every(argument) || !settings.workspacePrepareCommand[0].trim())) throw invalid('workspacePrepareCommand')
   if (settings.testTimeoutMs !== undefined && (!Number.isSafeInteger(settings.testTimeoutMs) || settings.testTimeoutMs < 1)) throw invalid('testTimeoutMs')
   if (settings.testDependencies !== undefined && (!Array.isArray(settings.testDependencies) || settings.testDependencies.some(path => !relativePath(path)))) throw invalid('testDependencies')
   return settings

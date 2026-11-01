@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { createProjectChiefControl, inspectionFacts, allocationProof } from '../src/host/project-chief-control.js'
+import { createProjectChiefControl, inspectionFacts, allocationProof, inspectionResources } from '../src/host/project-chief-control.js'
 const thresholds = { maxHandoffsWithoutProgress: 3, longExecutionMs: 10000, missingHeartbeatMs: 5000, longWaitMs: 8000 }
 test('Chief inspection counts verified artifact progress rather than message or transfer churn', () => {
   const task = { id: 't', updatedAt: 1, deliveryAttemptId: 'a', collaboration: { status: 'queued', generation: 7, history: Array.from({ length: 5 }, (_, index) => ({ evidence: [], reason: 'Progress message ' + index, createdAt: index + 1 })) } }
@@ -47,6 +47,17 @@ async function controlFixture() {
   const result = overrides => ({ ok: true, text: JSON.stringify({ summary: 'Judgement', decisions: [{ taskId: 't', action: 'close', reason: 'Criteria met', criteria: [{ criterion: task.criteria, passed: true, evidence: 'Verified host facts' }], ...overrides }] }), executionEvidence: { kind: 'native-chief', chiefRunId: request.runId, carrierGeneration: 1, botId: 'chief', sessionId: 'chief' } })
   return { rt, task, control, request, result, accepted: () => accepted, revokeRole() { permitted = false } }
 }
+test('a new Chief request wakes execution and duplicate receipts do not create a wake loop', async () => {
+  const f = await controlFixture()
+  let wakes = 0
+  f.rt.projectScheduler = { wake() { ++wakes } }
+  const first = await f.control.request('p', 'inspection', { requestId: 'host-recovery' })
+  assert.equal(wakes, 1)
+  assert.equal(first.status, 'queued')
+  const repeated = await f.control.request('p', 'inspection', { requestId: 'host-recovery' })
+  assert.equal(first.id, repeated.id)
+  assert.equal(wakes, 1)
+})
 test('Chief results cannot close a Task that progressed during reasoning or whose actor lost permission', async () => {
   const f = await controlFixture(); ++f.task.collaboration.generation
   await f.request.onResult(f.result())
@@ -84,4 +95,27 @@ test('host registration proof distinguishes never-allocated recovery from an unk
   assert.equal(allocationProof(state, task).status, 'recorded-or-unknown')
   delete task.collaboration.claim.workerId; state.projectAttempts.a.roleSessions.developer = { status: 'prepared' }
   assert.equal(allocationProof(state, task).status, 'recorded-or-unknown')
+})
+
+
+test('inspection compacts only proven released history and preserves current, unknown and foreign boundaries', () => {
+  const task = { id: 't', deliveryAttemptId: 'current' }
+  const state = { projectAttempts: { old: { taskId: 't' }, current: { taskId: 't' }, foreign: { taskId: 'other' } }, projectResourceLeases: {
+    old: { attemptId: 'old', status: 'released', role: 'developer', releaseProof: { kind: 'sdk-stop-ack-and-process-exit' } },
+    current: { attemptId: 'current', status: 'released', role: 'reviewer', releaseProof: { kind: 'sdk-stop-ack-and-process-exit' } },
+    unknown: { attemptId: 'old', status: 'released', role: 'tester' },
+    running: { attemptId: 'old', status: 'running', role: 'developer' },
+    foreign: { attemptId: 'foreign', status: 'running', role: 'chief' },
+  } }
+  const before = structuredClone(state), facts = inspectionResources(state, task)
+  assert.deepEqual(state, before)
+  assert.equal(facts.releasedResourceHistory.count, 1)
+  assert.equal(facts.resources.length, 3)
+  assert.ok(facts.resources.some(row => row.attemptId === 'current'))
+  assert.ok(facts.resources.some(row => row.status === 'running'))
+  assert.ok(facts.resources.some(row => row.releaseProof === null))
+  state.projectResourceLeases.old.releasedAt = 99
+  assert.notEqual(inspectionResources(state, task).releasedResourceHistory.sha256, facts.releasedResourceHistory.sha256)
+  delete state.projectResourceLeases.old
+  assert.equal(inspectionResources(state, task).releasedResourceHistory, undefined)
 })

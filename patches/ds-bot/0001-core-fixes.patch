@@ -10,7 +10,7 @@ diff --git a/README.md b/README.md
 +- **Connectors**: Settings → Connectors connects outside apps. GitHub takes a token. Composio takes one API key and the apps you pick (Gmail, Google Calendar, Slack, Notion and more); the tools appear as `mcp__composio__*`, and Composio shows a sign-in link in the chat the first time a Bot needs an app. The key is kept as a secret that no Bot shell can read.
  - **Usage**: Settings → Usage shows token usage by time (24 hours to 12 months, or days picked on a calendar), by Bot and by model, with a page for each Bot and each model. Calls that a Session logs are read from the logs, so older chats count too. Calls that leave no log (checkpoints, handoff notes, the steward, image readings, dsh titles and compaction) are counted while they stream, from the time the plugin runs. Tokens only, no cost.
  - **Make it yours**: name, role, instructions, model and look (20 characters and 12 colors, or your own photo) for each Bot; a theme, an accent color and an avatar animation level (quiet, normal or lively) for the team. A pinned Bot or group chat shows a small pushpin in the sidebar. Settings has these pages: General (look), Bots (Main Bots and each Bot's settings), Group chats (each group's settings), Connectors, Capabilities, Scheduled tasks, Usage, Secrets, Feedback and About DS Bot (versions, updates and links).
- 
+
 @@ -66,14 +66,17 @@ Options go in the profile's `cordis.patch.yml`, under the `bot` entry. All of th
    config:
      workspace: /path/to/workspace   # where the Bots work; default <home>/workspace
@@ -28,27 +28,27 @@ diff --git a/README.md b/README.md
      github: false                   # hide the GitHub connector; default shown in Connectors
 +    composio: false                 # hide the Composio connector; default shown in Connectors
  ```
- 
+
  **Updates**: when a window opens, DS Bot asks where it was installed from for a newer release: the npm registry (the one the DSH plugin manager installs from, then its fallbacks), or the latest GitHub release for a `github:…#vX.Y.Z` install. A newer version shows a cloud button at the top right of the sidebar; **Update** reinstalls DS Bot through the DSH plugin manager, and the new version runs from the next DSH start. A linked or local checkout is never offered an update. Settings → About DS Bot shows the same state, with **Check for updates** to ask again at once.
 @@ -82,10 +82,11 @@ The same card can carry DSH itself: a DS Bot release may name the DSH release it
- 
+
  ## Models
- 
+
 -Model providers are set up with dsh's `llm-pi-ai` plugin in `cordis.patch.yml`. Every Bot runs on one model of its own, from the models DSH serves. A new team's first Main Bot has none: its chat opens on a model card and it greets the user only after a pick. The Create Bot form starts on the DSH default model. The Bot's details panel and settings (or a Main Bot's `update_bot`) change it; a Bot whose model is no longer served shows the card again. A team saved by an older version keeps the model each Bot last ran on.
 +Model providers are set up with dsh's `llm-pi-ai` plugin in `cordis.patch.yml`. Every Bot runs on one model of its own, from the models DSH serves. A new team's first Main Bot has none: its chat opens on a model card and it greets the user only after a pick. The Create Bot form starts on the model the Main Bot runs on (the DSH default, then the first served model, when that one is not served). The Bot's details panel and settings (or a Main Bot's `update_bot`) change it; a Bot whose model is no longer served shows the card again. A team saved by an older version keeps the model each Bot last ran on.
- 
+
  - Give every model a `contextWindow`. DS Bot takes its lines from it: the usable window is the window minus the reply reserve (`maxTokens`), the hard line is 95% of that, and the check line is `checkRatio` of it. A model without `contextWindow` gets the adapter's default (262,144 tokens for `llm-pi-ai`), which may be wrong for that model; a model that reports no window at all counts as 500,000.
  - To send images, the provider needs `defaultInput: [ text, image ]`.
 +- An image is read before it reaches a model that cannot see it: FlyBot sends it to a model that declares image input (the configured `ocrModel` first) and gives the text to the Bot. A team with no such model still gets the picture as text, and that placeholder then names the file itself (`<home>/attachments/v1/objects/<first two>/<sha256>`) when the bytes are still on disk, so a Bot can open it with its own file tools. Readings are cached in `ocr.json`.
  - Keep API keys out of the repository. Use dsh's own key storage or environment variables.
- 
+
  ## Memory
 diff --git a/src/client/approval-notices.js b/src/client/approval-notices.js
 --- a/src/client/approval-notices.js
 +++ b/src/client/approval-notices.js
 @@ -1,36 +1,82 @@
  import { t } from './i18n.js'
- 
+
 -// A system notification for each approval that starts waiting while this window is in
 -// the background or shows another conversation. Only where the platform already allows
 -// notifications: DS Bot never asks for the permission.
@@ -188,7 +188,7 @@ diff --git a/src/client/browser-pane.js b/src/client/browser-pane.js
  import { BotMark } from './mark.js'
  import { STORAGE } from './storage.js'
 @@ -13,15 +13,6 @@ import { t } from './i18n.js'
- 
+
  export const PANEL_LINGER_MS = 300
  const WIDTH_KEY = STORAGE.browserWidth
 -// One width for the panel, shared by both views. The Bot page keeps it within
@@ -205,7 +205,7 @@ diff --git a/src/client/browser-pane.js b/src/client/browser-pane.js
  const EMPTY_PAGE = { url: '', title: '', favicon: null, loading: false, canGoBack: false, canGoForward: false, error: null, excerpt: '' }
 @@ -52,17 +52,17 @@ export function Favicon({ src, className }) {
  }
- 
+
  // null until the user sets a width: the Bot page then opens at DETAILS_WIDTH and the
 -// browser at DEFAULT_WIDTH.
 +// browser at DEFAULT_WIDTH. A saved width narrower than DETAILS_WIDTH is a *stored* choice from a
@@ -223,7 +223,7 @@ diff --git a/src/client/browser-pane.js b/src/client/browser-pane.js
 -  : [DETAILS_WIDTH, Math.min(DETAILS_MAX, viewport - MIN_CHAT)])
  const fitWidth = (width, [low, high]) => Math.round(Math.max(low, Math.min(width, high)))
 +const widthRange = (view, viewport) => panelWidthRange(view, viewport)
- 
+
  // The conversation column's right margin lives in one rule of our own, matched on the
  // column's exact class. A custom property on <body> would restyle the whole page, tens
 diff --git a/src/client/connectors.js b/src/client/connectors.js
@@ -238,7 +238,7 @@ diff --git a/src/client/connectors.js b/src/client/connectors.js
 +import { SwitchRow } from './bot-settings.js'
 +import { ConnectorBots, usageText } from './connector-bots.js'
  import { t } from './i18n.js'
- 
+
  const TOKEN_URL = 'https://github.com/settings/personal-access-tokens/new'
 +const COMPOSIO_KEY_URL = 'https://platform.composio.dev/'
 +// Feishu's own page for a group's custom bot, where the webhook URL comes from.
@@ -254,10 +254,10 @@ diff --git a/src/client/connectors.js b/src/client/connectors.js
 +  ['zoom', 'Zoom'], ['calendly', 'Calendly'], ['figma', 'Figma'], ['twitter', 'X (Twitter)'], ['youtube', 'YouTube'],
 +]
 +const appName = slug => APPS.find(([id]) => id === slug)?.[1] ?? slug
- 
+
  export const GitHubMark = () => h('svg', { width: 20, height: 20, viewBox: '0 0 16 16', fill: 'currentColor', 'aria-hidden': true },
    h('path', { d: 'M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z' }))
- 
+
 -const MARKS = { github: GitHubMark }
 -const ABOUT = { github: () => t('Repositories, issues, and pull requests') }
 +// Feishu's mark: two stacked wings around a middle line, drawn here rather than copied.
@@ -272,7 +272,7 @@ diff --git a/src/client/connectors.js b/src/client/connectors.js
 +  composio: () => t('Gmail, Slack, Calendar, Notion and many more apps, through one Composio key'),
 +  feishu: () => t('Posts into one Feishu group through a custom bot webhook'),
 +}
- 
+
  function statusText(connector) {
    if (connector.state === 'connecting') return t('Connecting…')
    if (connector.state === 'error') return t('Could not connect: {error}', { error: connector.error ?? '' })
@@ -283,7 +283,7 @@ diff --git a/src/client/connectors.js b/src/client/connectors.js
    if (connector.state === 'ready') return connector.account ? t('Connected as {account}', { account: connector.account }) : t('Connected')
    return ABOUT[connector.id]?.() ?? ''
  }
- 
+
 -function ConnectorRow({ connector, actions }) {
 +// One credential of the form (#1266): the definition says which fields a mode needs and whether a
 +// field is masked. A masked one is the same field the Secrets page uses, so it never comes back.
@@ -502,7 +502,7 @@ diff --git a/src/client/connectors.js b/src/client/connectors.js
 +        h('button', { type: 'button', className: 'bt-soft bt-soft-sm', disabled: busy || apps.length === 0, onClick: saveApps }, busy ? t('Connecting…') : t('Save')))) : null,
      error ? h('div', { className: 'bt-connector-error', role: 'alert' }, error) : null)
  }
- 
+
 @@ -62,5 +62,5 @@ export function ConnectorsPage({ roster, actions }) {
    return h('section', { className: 'bt-set-section' },
      h('div', { className: 'bt-set-card bt-connectors-card' }, list.length === 0
@@ -516,10 +516,10 @@ diff --git a/src/client/feedback.js b/src/client/feedback.js
 @@ -37,7 +37,7 @@ function entrySummary(entry) {
    return entry.text
  }
- 
+
 -const SOURCES = { turn: 'Model call', host: 'DS Bot', api: 'DS Bot', browser: 'This window' }
 +const SOURCES = { turn: 'Model call', host: 'FlyBot', api: 'FlyBot', browser: 'This window' }
- 
+
  export function FeedbackPage({ actions, run, Section, Row }) {
    const [what, setWhat] = useState('')
 @@ -99,19 +99,19 @@ export function FeedbackPage({ actions, run, Section, Row }) {
@@ -557,7 +557,7 @@ diff --git a/src/client/feedback.js b/src/client/feedback.js
 +    info ? null : h('button', { type: 'button', className: 'bt-toast-link', onClick: () => { actions.dismissToast(toast.token); actions.openSettings('feedback') } }, t('Details')),
      h('button', { type: 'button', className: 'bt-icon-btn bt-toast-close', 'aria-label': t('Dismiss'), onClick: () => actions.dismissToast(toast.token) }, h(CloseIcon)))
  }
- 
+
 @@ -155,13 +155,13 @@ export const FEEDBACK_CSS = `
  .bt-fb-text{overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word}
  .bt-fb-code{flex:none;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px}
@@ -580,7 +580,7 @@ diff --git a/src/client/i18n.js b/src/client/i18n.js
 +++ b/src/client/i18n.js
 @@ -5,6 +5,60 @@
  export const NAMESPACE = 'ds-bot'
- 
+
  const ZH = {
 +  // Workflows settings (#1364). The page lists factory pipelines and your own graphs.
 +  Workflows: '工作流',
@@ -769,7 +769,7 @@ diff --git a/src/client/i18n.js b/src/client/i18n.js
    'Delete group': '删除群聊',
    "Open {name}'s chat": '打开 {name} 的对话',
    'New Bot': '新 Bot',
- 
+
    // Sidebar and account menu
    'Bot list': 'Bot 列表',
 +  'Bot tree': 'Bot 树',
@@ -932,12 +932,12 @@ diff --git a/src/client/i18n.js b/src/client/i18n.js
 -  'DS Bot': 'DS Bot',
 +  'FlyBot': 'FlyBot',
 +  'FlyBot core': 'FlyBot 核心',
- 
+
    // Header
    'Message {name}': '给 {name} 发消息',
 @@ -128,8 +128,6 @@ const ZH = {
    New: '新',
- 
+
    // New chat
 -  'Create new Bot': '新建 Bot',
 -  'Create new Bot “{name}”': '新建 Bot「{name}」',
@@ -1017,7 +1017,7 @@ diff --git a/src/client/i18n.js b/src/client/i18n.js
    'Search still finds it.': '仍然可以搜索到。',
    Manage: '管理',
 +  "Send a message. Your friend approves unless Auto-send is on.": '发送消息。除非已开启自动发送，否则好友需要批准。',
- 
+
    // Group chat settings
    'Leave it empty to name the group after its members.': '留空就按成员命名。',
 @@ -274,6 +274,8 @@ const ZH = {
@@ -1026,7 +1026,7 @@ diff --git a/src/client/i18n.js b/src/client/i18n.js
    'Manage models': '管理模型',
 +  'This turn failed': '本轮运行失败',
 +  'This Bot\'s model has no API key yet. Set one up, then send your message again.': '这个 Bot 的模型还没有 API key。设置好后再发一次消息。',
- 
+
    // Shapes
    Whale: '鲸鱼', Star: '星星', Moon: '月亮', Wave: '声波', Squircle: '圆角方', Bull: '牛角', Blossom: '花朵',
 @@ -312,9 +312,10 @@ const ZH = {
@@ -1061,7 +1061,7 @@ diff --git a/src/client/i18n.js b/src/client/i18n.js
    Archive: '归档',
 @@ -344,13 +344,13 @@ const ZH = {
    '{n} d': '{n} 天',
- 
+
    // Plugin updates
 -  'DS Bot {version} is available': 'DS Bot {version} 可以更新',
 -  'Updating DS Bot…': '正在更新 DS Bot…',
@@ -1086,7 +1086,7 @@ diff --git a/src/client/i18n.js b/src/client/i18n.js
 -  'Update DS Bot {version} first.': '先更新 DS Bot {version}。',
 +  'Update FlyBot core {version} first.': '先更新 FlyBot 核心 {version}。',
    'Open updates': '打开更新',
- 
+
 +  // Agent inbox (#349)
 +  Inbox: '收件箱',
 +  'Inbox, {count} need you': '收件箱，{count} 项需要你',
@@ -1264,7 +1264,7 @@ diff --git a/src/client/i18n.js b/src/client/i18n.js
    Dismiss: '关闭',
 @@ -485,7 +485,7 @@ const ZH = {
    'Your answer': '你的回答',
- 
+
    // Secrets
 -  'All Bots': '所有 Bot',
 +  'All my Bots': '我的所有 Bot',
@@ -1532,7 +1532,7 @@ diff --git a/src/client/i18n.js b/src/client/i18n.js
 +  'No cards yet.': '还没有卡片。',
 +  'Open Projects in Settings': '在设置中打开项目',
  }
- 
+
  // Host errors stay English, since Bots read them too; they are translated where the
 @@ -853,8 +853,11 @@ const HOST_ERRORS = [
    [/^Only the user, a Main Bot, or the admin of "(.+)" can change it$/, '只有你、主 Bot 或「$1」的管理员可以修改'],
@@ -1592,7 +1592,7 @@ diff --git a/src/client/i18n.js b/src/client/i18n.js
 +  'saved by a newer FlyBot; update FlyBot': '由更新的 FlyBot 保存；请更新 FlyBot',
  }
  Object.assign(ZH, HOST_ZH)
- 
+
 diff --git a/src/client/member-status.js b/src/client/member-status.js
 --- a/src/client/member-status.js
 +++ b/src/client/member-status.js
@@ -1603,7 +1603,7 @@ diff --git a/src/client/member-status.js b/src/client/member-status.js
 +import { Shimmer, workText } from './cells.js'
  import { elapsedLabel } from './activity-row.js'
  import { t } from './i18n.js'
- 
+
  // -------------------------------------------------------------------------
  // What a group's members are doing: above the group's composer, a row for each member
 -// at work in this group and a line for those busy elsewhere or waiting for an approval;
@@ -1614,10 +1614,10 @@ diff --git a/src/client/member-status.js b/src/client/member-status.js
 +// the approvals their group turns wait on are answered. A group (or face room) shows only
 +// its own work (#553): a Bot busy in another room or its own chat is idle here, and that
 +// room's steps never show in this one, whose members can be other people.
- 
+
  const NO_WORK = { bots: {}, rooms: {}, approvals: [] }
  const ROWS_MAX = 4
- 
+
 -// Work in this group wins over the Bot's own chat or another group.
 +// The step the Bot's own view names (a command, a path) belongs to its work in this group
 +// when that view is about this group and the same tool.
@@ -1651,11 +1651,11 @@ diff --git a/src/client/member-status.js b/src/client/member-status.js
 +    return { id, approvals, doing, here: doing !== undefined, state: approvals.length > 0 ? 'ask' : doing ? 'work' : 'idle' }
    })
  }
- 
+
 @@ -31,12 +31,12 @@ export function busyMembers(room, work, roster) {
      .map(entry => ({ ...entry, bot: roster.byId[entry.id] }))
  }
- 
+
 -// Members at work in this group get a row of their own, apart from the round's current
 -// speaker, which its round shows; the rest go on the summary line.
 +// Members at work in this group, the round's current speaker first, get a row of their
@@ -1668,7 +1668,7 @@ diff --git a/src/client/member-status.js b/src/client/member-status.js
 +  const rows = [...here.filter(entry => entry.doing.speaking === true), ...here.filter(entry => entry.doing.speaking !== true)].slice(0, ROWS_MAX)
 +  return { rows, rest: busy.filter(entry => !rows.includes(entry)) }
  }
- 
+
  // The groups a Bot is at work in.
 @@ -44,7 +44,7 @@ export function botGroupWork(botId, work, roster) {
    return Object.entries(work.rooms ?? {}).flatMap(([roomId, entries]) => {
@@ -1678,7 +1678,7 @@ diff --git a/src/client/member-status.js b/src/client/member-status.js
 +    return entry && room ? [{ room, tool: entry.tool, step: stepIn(work, botId, roomId, entry.tool), since: entry.since }] : []
    })
  }
- 
+
 @@ -57,7 +57,7 @@ export function summaryText(busy) {
        : asks.length === 2 ? t('{first} and {second} are waiting for your approval', { first: names[0], second: names[1] })
          : t('{first}, {second} and {count} more are waiting for your approval', { first: names[0], second: names[1], count: asks.length - 2, total: asks.length })
@@ -1687,11 +1687,11 @@ diff --git a/src/client/member-status.js b/src/client/member-status.js
 +  const doing = first ? `${first.bot.name} · ${workText(first.doing.tool, first.doing.step)}${workers.length > 1 ? ` +${workers.length - 1}` : ''}` : ''
    return { waiting, doing }
  }
- 
+
 @@ -66,24 +66,30 @@ function Face({ entry, size }) {
      h(BotMark, { bot: entry.bot, size, state: entry.state === 'ask' ? 'alert' : toolState(entry.doing?.tool ?? '') }))
  }
- 
+
 -// One piece of work: the Bot's mark and what it is doing, like the activity row.
 -function WorkRow({ bot, tool, label, at, now, onOpen }) {
 -  const text = `${label} · ${workPhrase(tool)}…`
@@ -1707,7 +1707,7 @@ diff --git a/src/client/member-status.js b/src/client/member-status.js
      h('span', { className: 'bt-mw-row-text' }, h(Shimmer, null, text)),
      elapsed ? h('span', { className: 'bt-mw-row-time' }, `· ${elapsed}`) : null)
  }
- 
+
 -function SummaryLine({ busy, onOpen }) {
 +// The rest, in the rows' column and shape: who waits for an approval here, then who works
 +// here past the rows.
@@ -1727,7 +1727,7 @@ diff --git a/src/client/member-status.js b/src/client/member-status.js
 +      doing ? h(Shimmer, null, doing) : null),
 +    elapsed ? h('span', { className: 'bt-mw-row-time' }, `· ${elapsed}`) : null)
  }
- 
+
  // Above a group's composer: who is at work here, and a line for the rest; both open the
 @@ -106,11 +106,11 @@ export function MemberDock({ sessionId, useRoster, useWork, actions }) {
      const { rows, rest } = splitBusy(busy)
@@ -1743,11 +1743,11 @@ diff --git a/src/client/member-status.js b/src/client/member-status.js
 +    key: item.room.id, bot, tool: item.tool, step: item.step, label: t('in {name}', { name: item.room.name }), at: item.since, now, onOpen: () => actions.openSession(item.room.id),
    })))
  }
- 
+
 @@ -148,6 +148,13 @@ function useNow(active) {
- 
+
  const since = (now, at) => (typeof at === 'number' && now - at >= 60000 ? ` · ${elapsedLabel(now - at)}` : '')
- 
+
 +// "Always allow" is the owner's standing grant (#540): only on their own Bot's card,
 +// and the group option only when the request comes from a group.
 +export const alwaysChoices = (approval, bot) => (bot?.remote ? [] : [
@@ -1768,7 +1768,7 @@ diff --git a/src/client/member-status.js b/src/client/member-status.js
        : h('div', { className: 'bt-mw-actions' },
          h('button', { type: 'button', className: 'bt-q-btn', onClick: () => actions.openSession(bot.id) }, t("Open {name}'s chat", { name: bot.name }))))
  }
- 
+
 -// Under a member's row in the group's details: what it is doing, and where. Work in
 -// this group can be stopped here, since the user cannot reach its Session otherwise.
 -export function MemberWork({ entry, bot, room, roster, actions, now }) {
@@ -1798,10 +1798,10 @@ diff --git a/src/client/member-status.js b/src/client/member-status.js
 +      h('span', null, h(Shimmer, null, workText(entry.doing.tool, entry.doing.step)), since(now, entry.doing.since)),
 +      entry.here && entry.doing.handed !== true ? h('button', { type: 'button', className: 'bt-mw-stop', disabled: stopping, onClick: stop }, t('Stop')) : null))
  }
- 
+
  export function useMemberWork(room, useWork) {
 @@ -203,7 +203,6 @@ export function useMemberWork(room, useWork) {
- 
+
  export const MEMBER_CSS = `
  .bt-mw-dock-stack{box-sizing:border-box;display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:var(--dsh-chat-content-width,min(960px,100%));margin:0 auto 6px;pointer-events:none}
 -.bt-mw-dock-stack>.bt-event.bt-mw-dock{align-self:stretch;margin:0}
@@ -1857,11 +1857,11 @@ diff --git a/src/client/model-menu.js b/src/client/model-menu.js
 +import { openHarnessModels, openHarnessOnboarding } from './sidebar.js'
  import { SPRING_POP, SPRING_SHAPE, spring, useLinger } from './motion.js'
  import { t } from './i18n.js'
- 
+
 @@ -33,14 +33,8 @@ export function groupModels(models) {
- 
+
  const servedOf = (roster, ref) => (roster.models ?? []).find(model => model.ref === ref)
- 
+
 -// What a Bot runs on, for display: the chosen model, else the one it last ran on.
 -export function modelOf(bot, roster) {
 -  const ref = bot.model ?? bot.appliedModel
@@ -1872,7 +1872,7 @@ diff --git a/src/client/model-menu.js b/src/client/model-menu.js
 -}
 +// `modelOf` lives in text.js so the sidebar can name a Bot's model without this module (#366).
 +export { modelOf }
- 
+
  // The thinking levels of one model, `{efforts, defaultEffort?}` or undefined when it
  // has none. The catalog carries them for models Bots use; any other ref asks the host.
 @@ -139,6 +139,8 @@ export function useAnchoredMenu() {
@@ -1891,7 +1891,7 @@ diff --git a/src/client/model-menu.js b/src/client/model-menu.js
 -      h('button', { type: 'button', role: 'menuitem', onClick: () => { close(); openHarnessSettings() } }, h(SlidersIcon), h('span', { className: 'bt-menu-label' }, t('Models and providers…')))), document.body) : null)
 +      h('button', { type: 'button', role: 'menuitem', onClick: () => { close(); openHarnessModels() } }, h(SlidersIcon), h('span', { className: 'bt-menu-label' }, t('Models and providers…')))), document.body) : null)
  }
- 
+
  // The card a Bot's chat opens on while the Bot has no model, or has one that is no
 -// longer served. The first Main Bot greets the user only after a pick.
 +// longer served. The first Main Bot starts no turn until a model is picked.
@@ -1930,7 +1930,7 @@ diff --git a/src/client/model-menu.js b/src/client/model-menu.js
 @@ -237,6 +237,15 @@ export function ModelChoiceDock({ sessionId, useRoster, actions }) {
      error ? h('div', { className: 'bt-secret-error bt-model-error', role: 'alert' }, error) : null)
  }
- 
+
 +function RemoteGoneDock({ bot }) {
 +  return h('div', { className: 'bt-model-dock', 'data-flybot': 'remote-gone' },
 +    h('div', { className: 'bt-astack', 'data-lead': '' },
@@ -1951,7 +1951,7 @@ diff --git a/src/client/model-menu.js b/src/client/model-menu.js
 +    [t('Open settings to set up a custom model'), openHarnessModels],
    ].filter(Boolean)
  }
- 
+
 +// How to set the key without the shell's dialog (#451): the dialog keeps only a typed or
 +// pasted value, so the hint under the DeepSeek choices links FlyBot's own guide.
 +export const KEY_HELP_URL = 'https://github.com/ThinkFlowLab/FlyBot/blob/main/docs/deepseek-api-key.md'
@@ -2014,7 +2014,7 @@ diff --git a/src/client/model-menu.js b/src/client/model-menu.js
  export function DeepSeekSignIn({ useUi, actions }) {
 @@ -272,6 +272,16 @@ function SignInHost({ entry, actions }) {
  }
- 
+
  export const MODEL_CSS = `
 +.bt-turn-error{display:grid;grid-template-columns:10px minmax(0,1fr);column-gap:8px;row-gap:8px;padding:2px 0;font-size:13px;line-height:20px}
 +.bt-turn-error-dot{width:6px;height:6px;margin-top:7px;border-radius:50%;background:#e02135}
@@ -2048,7 +2048,7 @@ diff --git a/src/client/schedules.js b/src/client/schedules.js
 +import { ClockIcon, DuplicateIcon, PencilIcon, PlusIcon, TrashIcon } from './icons.js'
  import { Segmented } from './motion.js'
  import { dateLocale, hostText, t } from './i18n.js'
- 
+
 @@ -47,7 +47,8 @@ function weekdayNames(days) {
  function everyText(seconds) {
    if (seconds % 86400 === 0) return seconds === 86400 ? t('Every day') : t('Every {count} days', { count: seconds / 86400 })
@@ -2057,7 +2057,7 @@ diff --git a/src/client/schedules.js b/src/client/schedules.js
 +  if (seconds % 60 === 0) return t('Every {count} minutes', { count: seconds / 60 })
 +  return t('Every {count} seconds', { count: seconds })
  }
- 
+
  // How often a task runs, in the user's words.
 @@ -70,9 +70,22 @@ export function timingText(task) {
      default: return ''
@@ -2066,7 +2066,7 @@ diff --git a/src/client/schedules.js b/src/client/schedules.js
 -const nextText = task => (task.status === 'active' ? t('Next: {time}', { time: dayAndTime(Date.parse(task.scheduledAt)) }) : t('Finished'))
 +const nextText = task => (task.status === 'paused' ? t('Paused')
 +  : task.status === 'active' ? t('Next: {time}', { time: dayAndTime(Date.parse(task.scheduledAt)) }) : t('Finished'))
- 
+
 -function TaskRow({ task, actions, onView, showBot, roster }) {
 +// The last run, in one line: when, and how it went (src/host/schedules.js).
 +export function lastRunText(run) {
@@ -2127,7 +2127,7 @@ diff --git a/src/client/schedules.js b/src/client/schedules.js
  const KINDS = [['at', 'Once'], ['daily', 'Every day'], ['weekly', 'Every week'], ['every', 'Repeat']]
 -const UNITS = [['minutes', 1, 'minutes'], ['hours', 60, 'hours'], ['days', 1440, 'days']]
 +const UNITS = [['seconds', 1, 'seconds'], ['minutes', 60, 'minutes'], ['hours', 3600, 'hours'], ['days', 86400, 'days']]
- 
+
 -function TaskForm({ roster, actions, start, onDone, onCancel }) {
 +// A stored instant as the value of a datetime-local input, in this browser's zone.
 +function localInput(ms) {
@@ -2239,7 +2239,7 @@ diff --git a/src/client/schedules.js b/src/client/schedules.js
 +  actions.closeSettings()
 +  actions.selectPanel('plugins')
  }
- 
+
  // Settings has no schedule service to show: Automation tasks are off in DSH.
 -function AutomationOff() {
 +function AutomationOff({ actions }) {
@@ -2303,7 +2303,7 @@ diff --git a/src/client/schedules.js b/src/client/schedules.js
 +        ? h('div', { className: 'bt-set-row' }, h('span', { className: 'bt-set-hint' }, t('A repeat or cron task can still run inside quiet hours, because DSH decides its next run. FlyBot says so here rather than claiming a silence it cannot keep.')))
 +        : null))
  }
- 
+
  export function SchedulesPage({ roster, actions, start }) {
    const view = useSchedules(actions)
    const [adding, setAdding] = useState(Boolean(start))
@@ -2332,7 +2332,7 @@ diff --git a/src/client/schedules.js b/src/client/schedules.js
 +          h(TaskList, { tasks, editing, roster, actions, onEdit: edit, onDone: shown, onCancel: () => setEditing(null) }))),
    ]
  }
- 
+
 +// One chat's rows; the task being edited opens the form in its place, and so does the one
 +// being copied, which opens only the target picker.
 +function TaskList({ tasks, editing, roster, actions, onEdit, onDone, onCancel, extra = [] }) {
@@ -2405,7 +2405,7 @@ diff --git a/src/client/schedules.js b/src/client/schedules.js
 +          extra: [h('button', { key: 'new', type: 'button', className: 'bt-set-row bt-bs-row bt-gs-add', onClick: () => actions.openSettings('schedules', bot.id) }, h(PlusIcon), t('New task'))],
 +        }))
  }
- 
+
  // The details panel's line: the Bot's next tasks, or how to add one.
 @@ -225,13 +225,15 @@ export function ScheduleSummary({ bot, actions }) {
    return h('div', null,
@@ -2416,7 +2416,7 @@ diff --git a/src/client/schedules.js b/src/client/schedules.js
        : h('div', { className: 'bt-task-list' }, tasks.slice(0, 3).map(task => h('button', { key: task.id, type: 'button', className: 'bt-task-line', onClick: () => actions.openSettings('schedules') },
            h(ClockIcon), h('span', { className: 'bt-task-line-title' }, task.title), h('span', { className: 'bt-task-line-when' }, timingText(task))))))
  }
- 
+
  export const SCHEDULE_CSS = `
  .bt-task{gap:10px}
 +.bt-task-copy{flex-wrap:wrap;gap:8px}
@@ -2446,9 +2446,9 @@ diff --git a/src/client/text.js b/src/client/text.js
  import { mentionSpans } from '../shared/mentions.js'
 +import { remoteMentionLabel } from '../shared/remote-label.js'
 +import { visibleText } from '../shared/preview.js'
- 
+
  export const MENTION_ORIGIN = 'https://bots.local/'
- 
+
 @@ -10,9 +10,12 @@ export const MENTION_ORIGIN = 'https://bots.local/'
  // ("@新 Bot" in "@新 Bot 2"); it then stays plain text.
  export function linkMentions(text, bots, selfId) {
@@ -2466,7 +2466,7 @@ diff --git a/src/client/text.js b/src/client/text.js
 @@ -25,6 +25,26 @@ export function mentionTarget(event) {
    return anchor ? anchor.getAttribute('href').slice(MENTION_ORIGIN.length) : null
  }
- 
+
 +// A friend's remote Bot is stored and delivered by its handle ("@bot-x.home": what older lines
 +// carry, what the host routes on); the user reads one name for it, the same the @ menu inserts and
 +// the bubble chips (#967). Previews rewrite the handle from the local roster, never from the text,
@@ -2618,13 +2618,13 @@ diff --git a/src/client/text.js b/src/client/text.js
 +  }
 +  return lines.join('\n\n')
 +}
- 
+
  // Of the Bots in a conversation, the one whose memory changed last, by the host's
  // clock: changes reaching one window in the same poll share a `seen` time.
 @@ -95,6 +95,13 @@ export function summaryBlocks(text) {
    return blocks
  }
- 
+
 +// The person who typed the friend's line this turn answers, when Bot Social attested it (host: remoteTypedTurns).
 +export function typedBy(roster, sessionId, turn) {
 +  if (sessionId === undefined || turn === undefined) return undefined
@@ -2636,9 +2636,9 @@ diff --git a/src/client/text.js b/src/client/text.js
    if (sessionId === undefined || turn === undefined) return false
    return (roster.exchangeTurns[sessionId] ?? []).includes(turn)
 @@ -102,6 +102,13 @@ export function isHiddenTurn(roster, sessionId, turn) {
- 
+
  export const toolName = root => root.name || root.call?.name
- 
+
 +// Plugin tools a per-Bot mask adds or removes (the roster's `pluginTools`, #419).
 +let pluginTools = new Set()
 +export function setPluginTools(names) {
@@ -2651,7 +2651,7 @@ diff --git a/src/client/text.js b/src/client/text.js
  export const historyLoading = snapshot => snapshot?.openState === 'cold' || snapshot?.openState === 'loading'
 @@ -125,7 +125,7 @@ export function toolArgs(root) {
  }
- 
+
  // A relay context is a Bot-to-Bot request, reply or stop notice injected into the
 -// model's history. ds-bot's own package sources (kickoff, room, secret, handoff
 +// model's history. ds-bot's own package sources (room, secret, handoff
@@ -2660,7 +2660,7 @@ diff --git a/src/client/text.js b/src/client/text.js
  // written as text.
 @@ -200,18 +200,84 @@ export function commRunOf(order, peers, turn, hiddenTurns = []) {
  }
- 
+
  // Latest visible line for a sidebar row; Bot-to-Bot exchange turns stay out of it.
 -export function previewOf(list, id, hiddenTurns = []) {
 +// A local Bot's replies to friends that were held and not (yet) sent (#418), by turn of that chat.
@@ -2694,7 +2694,7 @@ diff --git a/src/client/text.js b/src/client/text.js
    }
    return ''
  }
- 
+
 +// `readableLine(text, names)`: one stored line a caller already holds — the line `previewOf` settled on,
 +// or a line the palette renders as a search row — read the one way a person reads it, so a row cannot
 +// have a second reading of what a preview shows (#1347). `names` is the conversation's real Bot names,
@@ -2744,7 +2744,7 @@ diff --git a/src/client/text.js b/src/client/text.js
 +}
 +
  const formatTokens = count => (count >= 1e6 ? `${(count / 1e6).toFixed(1)}M` : count >= 1e3 ? `${(count / 1e3).toFixed(1)}K` : String(count))
- 
+
  // Same buckets as the shell's usage pill: every prompt-side billing bucket plus output.
 @@ -230,3 +230,35 @@ export function usageOf(list, ids) {
    const hit = input > 0 ? Math.round((cacheRead / input) * 100) : 0
@@ -2837,7 +2837,7 @@ diff --git a/src/host/agents.js b/src/host/agents.js
      if (agent === undefined) throw new Error('Unknown DSH Agent')
 @@ -84,16 +84,15 @@ export function install(rt) {
    }
- 
+
    async function createAgentSession(agentId, workspaceId) {
 -    writeCheck()
 -    const agent = record(agentId)
@@ -2882,7 +2882,7 @@ diff --git a/src/host/agents.js b/src/host/agents.js
      await restrictTeamTools(await rt.resolveAgent(sessionId))
      return sessionId
    }
- 
+
    async function addAgent() {
 -    writeCheck()
 -    if (Object.keys(state.agents).length > 0) throw new Error('The team already has a DSH Agent')
@@ -2913,7 +2913,7 @@ diff --git a/src/host/agents.js b/src/host/agents.js
 -    return agent
 +    return record(id)
    }
- 
+
    async function archiveAgentSession(agentId, sessionId) {
 -    writeCheck()
 -    const agent = record(agentId)
@@ -2931,11 +2931,11 @@ diff --git a/src/host/agents.js b/src/host/agents.js
 +      agent.sessions = agent.sessions.filter(id => id !== sessionId)
 +    })
    }
- 
+
    async function renameAgentSession(agentId, sessionId, title) {
 @@ -158,9 +158,9 @@ export function install(rt) {
    }
- 
+
    async function removeAgent(agentId) {
 -    writeCheck()
 -    const agent = record(agentId)
@@ -2959,7 +2959,7 @@ diff --git a/src/host/agents.js b/src/host/agents.js
 -    await rt.save()
 +    await rt.mutate(() => { delete state.agents[agentId] })
    }
- 
+
    Object.assign(rt, { agentOf, addAgent, createAgentSession, adoptAgentSession, archiveAgentSession, renameAgentSession, removeAgent })
 diff --git a/src/host/approvals.js b/src/host/approvals.js
 --- a/src/host/approvals.js
@@ -2970,7 +2970,7 @@ diff --git a/src/host/approvals.js b/src/host/approvals.js
  import { randomUUID } from 'node:crypto'
 +import { EPHEMERAL_DENIED_TOOLS } from './tools.js'
 +import { OWNER, settled } from './turn-origin.js'
- 
+
 -const OUTCOMES = { allow: 'allowed-once', reject: 'rejected' }
 +const OUTCOMES = { allow: 'allowed-once', reject: 'rejected', 'always-bot': 'allowed-once', 'always-room': 'allowed-once' }
 +const RUN_DENIED = new Set(EPHEMERAL_DENIED_TOOLS)
@@ -3008,7 +3008,7 @@ diff --git a/src/host/approvals.js b/src/host/approvals.js
 +  const mode = /^escalate sandbox to ([\w-]+):/.exec(String(reason ?? ''))?.[1]
 +  return mode ? `${tool} · ${mode}` : String(tool)
 +}
- 
+
  export function install(rt) {
    const { ctx } = rt
 @@ -16,7 +16,18 @@ export function install(rt) {
@@ -3034,7 +3034,7 @@ diff --git a/src/host/approvals.js b/src/host/approvals.js
 @@ -47,14 +47,82 @@ export function install(rt) {
      })
    }, { prepend: true })
- 
+
 +  // A group grant covers the owner's Bots working in that group: the Bot it was granted
 +  // from and any other Bot of the same owner. Before anyone signs in there is one person,
 +  // and a Bot made then carries no owner, so every local Bot is theirs.
@@ -3104,7 +3104,7 @@ diff --git a/src/host/approvals.js b/src/host/approvals.js
 +
    const approvalsView = () => [...pending.values()].map(({ answer, ...entry }) => ({ ...entry, answerable: answer !== undefined }))
    const waitsForApproval = sessionId => [...pending.values()].some(entry => entry.sessionId === sessionId)
- 
+
 -  function answerApproval(id, choice) {
 +  async function answerApproval(id, choice) {
      const entry = pending.get(String(id ?? ''))
@@ -3114,11 +3114,11 @@ diff --git a/src/host/approvals.js b/src/host/approvals.js
 +    if (choice === 'always-bot' || choice === 'always-room') await grantStanding(entry, choice === 'always-room' ? 'room' : 'bot')
      entry.answer(outcome)
    }
- 
+
 @@ -65,5 +65,5 @@ export function install(rt) {
      }
    }
- 
+
 -  Object.assign(rt, { approvalsView, waitsForApproval, answerApproval, cancelApprovals })
 +  Object.assign(rt, { approvalsView, waitsForApproval, answerApproval, cancelApprovals, removeStandingApproval })
  }
@@ -3129,11 +3129,11 @@ diff --git a/src/host/capabilities.js b/src/host/capabilities.js
  import { createHash } from 'node:crypto'
 +import { RESERVED_NAMES } from './connectors.js'
 +import { ownEntry, retiredBot } from './store.js'
- 
+
  const MCP_CLIENT = '@deepseek-ai/dsh-mcp-client'
  const NAME = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/
 @@ -7,8 +7,8 @@ const ENSURE_TIMEOUT_MS = 15_000
- 
+
  export function validateCapabilityName(value) {
    const name = String(value ?? '').trim()
 -  if (name.length > 32 || !NAME.test(name) || name === 'github') {
@@ -3239,7 +3239,7 @@ diff --git a/src/host/connectors.js b/src/host/connectors.js
 +import { createNotifier } from './notify.js'
 +import { APP_SECRET_SECRET, appCredentials, createInbound } from './feishu-inbound.js'
 +import { createFeishuTransport } from './feishu-sdk.js'
- 
+
  export const GITHUB = 'github'
  export const GITHUB_SECRET = 'GITHUB_TOKEN'
 +export const COMPOSIO = 'composio'
@@ -3270,7 +3270,7 @@ diff --git a/src/host/connectors.js b/src/host/connectors.js
 +const SESSION_ID = /^[A-Za-z0-9_-]{1,128}$/
 +const APP_SLUG = /^[a-z0-9][a-z0-9_-]{0,63}$/
 +const MAX_APPS = 40
- 
+
  // Asks GitHub who the token belongs to. Any token GitHub accepts passes.
 -export async function signIn(token, { api = DEFAULTS.api, fetch: request = fetch } = {}) {
 +export async function signIn(token, { api = GITHUB_DEFAULTS.api, fetch: request = fetch } = {}) {
@@ -3280,7 +3280,7 @@ diff --git a/src/host/connectors.js b/src/host/connectors.js
 @@ -38,132 +38,985 @@ export async function signIn(token, { api = DEFAULTS.api, fetch: request = fetch
    return { login: user.login }
  }
- 
+
 +export function cleanApps(value) {
 +  const list = Array.isArray(value) ? value : typeof value === 'string' ? value.split(/[\s,]+/) : []
 +  const apps = [...new Set(list.map(app => String(app).trim().toLowerCase()).filter(app => app !== ''))]
@@ -3732,7 +3732,7 @@ diff --git a/src/host/connectors.js b/src/host/connectors.js
 -  let status = { state: 'off' }
 -  let queue = Promise.resolve()
    let stopped = false
- 
+
 -  const unmount = async () => {
 -    const fiber = mount?.fiber
 -    mount = null
@@ -3818,7 +3818,7 @@ diff --git a/src/host/connectors.js b/src/host/connectors.js
 +    c.mount = null
 +    if (fiber !== undefined) await Promise.resolve().then(() => fiber.dispose()).catch(() => { /* a fiber that fails to dispose must not block unloading */ })
    }
- 
+
 -  // The MCP client wraps the server's answer (a 401, say) as the cause.
 +  // A sender's retry policy is notify.js's, not a second one written here: one transport per
 +  // sender, reading the saved webhook when it is called, so a reconnect needs no rebuild. Feishu is a
@@ -3857,7 +3857,7 @@ diff --git a/src/host/connectors.js b/src/host/connectors.js
 +    for (const address of addresses) text = text.split(address).join('[session address]')
      return rt.redactSecrets(text || 'error').slice(0, 300)
    }
- 
+
 -  async function reconcile(force) {
 -    const token = options !== null && !stopped ? rt.secretValue(GITHUB_SECRET) : undefined
 -    if (!force && mount !== null && mount.token === token) return
@@ -3995,7 +3995,7 @@ diff --git a/src/host/connectors.js b/src/host/connectors.js
 +      rt.warn('ds-bot: %s connector failed: %s', def.name, c.status.error)
      }
    }
- 
+
 -  // One change at a time; `force` connects again even when the token is the same.
 -  const sync = (force = false) => {
 -    queue = queue.then(() => reconcile(force)).catch(error => { rt.warn('ds-bot: connectors: %s', reason(error)) })
@@ -4006,7 +4006,7 @@ diff --git a/src/host/connectors.js b/src/host/connectors.js
 +    return c.queue
    }
 +  const syncAll = () => Promise.all(connectors.map(c => sync(c)))
- 
+
 -  const connectorsView = () => options === null ? [] : [{
 -    id: GITHUB,
 -    name: 'GitHub',
@@ -4033,7 +4033,7 @@ diff --git a/src/host/connectors.js b/src/host/connectors.js
 +    } : {}),
 +  })
 +  const connectorsView = () => connectors.filter(c => c.options !== null).map(view)
- 
+
    const known = id => {
 -    if (options === null || id !== GITHUB) throw new Error('No such connector')
 +    const c = connectors.find(entry => entry.def.id === id)
@@ -4128,7 +4128,7 @@ diff --git a/src/host/connectors.js b/src/host/connectors.js
 +    await rt.save()
 +    return connectorsView()
    }
- 
+
    const endpoints = {
      async 'connector-connect'(body) {
 -      known(body.id)
@@ -4292,9 +4292,9 @@ diff --git a/src/host/connectors.js b/src/host/connectors.js
        return connectorsView()
      },
    }
- 
+
    const connectorEndpoint = (endpoint, body) => endpoints[endpoint](body ?? {})
- 
+
 +  // An older version kept the session's address in state.json. Only the id stays; the address is
 +  // asked for again at mount time (composioSessionFind).
 +  const scrubAddresses = async () => {
@@ -4323,7 +4323,7 @@ diff --git a/src/host/connectors.js b/src/host/connectors.js
 +      for (const c of connectors) void unmount(c)
      }
    }, 'ds-bot: connectors')
- 
+
 -  Object.assign(rt, { connectorsView, connectorEndpoint, secretsChanged: () => { void sync() } })
 +  Object.assign(rt, { connectorsView, connectorEndpoint, secretsChanged: () => { void syncAll() } })
  }
@@ -4336,9 +4336,9 @@ diff --git a/src/host/diagnostics.js b/src/host/diagnostics.js
  export const REPORT_ENTRIES = 20
 -export const ISSUES_URL = 'https://github.com/Fei2411/DeepSeek-Bot/issues/new'
 +export const ISSUES_URL = 'https://github.com/ThinkFlowLab/FlyBot/issues/new'
- 
+
  const quote = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
- 
+
 @@ -66,7 +66,7 @@ export function reportMarkdown({ facts, client = {}, entries = [], clientEntries
    const lines = [
      '| | |',
@@ -4359,7 +4359,7 @@ diff --git a/src/host/diagnostics.js b/src/host/diagnostics.js
 +  } catch { /* the package does not resolve here: no version to report */ }
    return undefined
  }
- 
+
 @@ -167,7 +167,9 @@ export function install(rt) {
      const error = args.find(arg => arg instanceof Error)
      const line = clean(format(template, ...args.map(arg => (arg instanceof Error ? errorText(arg) : arg))))
@@ -4373,7 +4373,7 @@ diff --git a/src/host/diagnostics.js b/src/host/diagnostics.js
        level: 'warn',
 @@ -217,7 +217,7 @@ export function install(rt) {
    })
- 
+
    async function report(body = {}) {
 -    await rt.loadSecrets?.().catch(() => {})
 +    await rt.loadSecrets?.().catch(() => { /* without stored secrets the report is still built, redacting what it can */ })
@@ -4382,7 +4382,7 @@ diff --git a/src/host/diagnostics.js b/src/host/diagnostics.js
      const clientEntries = sanitizeClientEntries(body.clientErrors)
 @@ -232,7 +232,7 @@ export function install(rt) {
    }
- 
+
    async function logText() {
 -    await rt.loadSecrets?.().catch(() => {})
 +    await rt.loadSecrets?.().catch(() => { /* without stored secrets the log is still built, redacting what it can */ })
@@ -4404,7 +4404,7 @@ diff --git a/src/host/images.js b/src/host/images.js
 @@ -27,6 +27,56 @@ export function offloadTargets(session, beforeSeq) {
    return targets
  }
- 
+
 +const IMAGE_ID = /^sha256:([0-9a-f]{64})$/
 +
 +// Where one chat image is stored: <home>/attachments/v1/objects/<first two>/<sha256>, the layout the
@@ -4457,18 +4457,18 @@ diff --git a/src/host/images.js b/src/host/images.js
 +
  export function install(rt) {
    const { ctx, config, home } = rt
- 
+
 @@ -128,16 +128,18 @@ export function install(rt) {
      return ocrPending.get(id)
    }
- 
+
 -  const imageLabel = attachment => (attachment.name
 -    ? `"${attachment.name}"`
 -    : `sha256:${String(attachment.attachmentId).slice('sha256:'.length, 'sha256:'.length + 8)}`)
 +  // The store and the file sandbox, read once per call: either can be absent (a deployment without
 +  // attachments, a test), and `attachmentFilePath` then falls back to the local object layout.
 +  const attachmentServices = () => ({ home, attachments: ctx.get('attachments'), fs: ctx.get('fs') })
- 
+
 -  function imageAsText(attachment, reading) {
 +  // `path` is set only when the reading failed and the bytes really are on disk: the placeholder then
 +  // tells the Bot where to find them, which is the point of #779.
@@ -4531,21 +4531,21 @@ diff --git a/src/host/memory.js b/src/host/memory.js
  import { output } from './tools.js'
 +import { retiredBot } from './store.js'
 +import { botNode, buildGraph, buildIndex, relatedOf, searchIndex, topicNode } from './memory-search.js'
- 
+
  // Fixed sizes, in characters. Both MEMORY.md files ride in every request of every
  // part, so together they stay near 8,000 characters, a few thousand tokens. A topic is
 @@ -312,7 +312,7 @@ const teamRule = (main, writer) => (main
      ? '- The team memory is shared by every Bot. As a group admin you write it with remember scope "team", for what the whole team needs.'
      : '- The team memory is shared by every Bot. Main Bots and group admins write it; when the whole team should know something, tell a Main Bot with message_bot.')
- 
+
 -const SUMMARY_SYSTEM = 'You write the memory summary that a user reads in the memory panel of DS Bot, an app where a team of AI Bots works for the user. You only restate saved memory entries; you never add to them.'
 +const SUMMARY_SYSTEM = 'You write the memory summary that a user reads in the memory panel of FlyBot, an app where a team of AI Bots works for the user. You only restate saved memory entries; you never add to them.'
- 
+
  const summaryRequest = ({ name, own, team, language }) => [
    `Here is everything ${name} remembers: its own memory, then the team memory that every Bot shares. Each line is one entry; [[name]] is a topic.`,
 @@ -327,7 +327,7 @@ const summaryRequest = ({ name, own, team, language }) => [
  ].join('\n')
- 
+
  const ASK_SYSTEM = [
 -  'You keep the memory of one Bot in DS Bot, an app where a team of AI Bots works for the user. The user is talking to you in the memory panel. You see every saved entry, numbered. Answer the user from the entries only, or change them as the user asks.',
 +  'You keep the memory of one Bot in FlyBot, an app where a team of AI Bots works for the user. The user is talking to you in the memory panel. You see every saved entry, numbered. Answer the user from the entries only, or change them as the user asks.',
@@ -4554,7 +4554,7 @@ diff --git a/src/host/memory.js b/src/host/memory.js
    '- changes: empty unless the user asks to add, correct, or remove something. Each change is one of',
 @@ -338,7 +338,7 @@ const ASK_SYSTEM = [
  ].join('\n')
- 
+
  const reviewSystem = teamWrites => [
 -  'You keep the long-term memory of one Bot in DS Bot, an app where a team of AI Bots works for the user. After each turn of a conversation you read the new messages and decide what the Bot should still know in its later conversations, which will not have these messages. Most turns hold nothing worth keeping.',
 +  'You keep the long-term memory of one Bot in FlyBot, an app where a team of AI Bots works for the user. After each turn of a conversation you read the new messages and decide what the Bot should still know in its later conversations, which will not have these messages. Most turns hold nothing worth keeping.',
@@ -4572,7 +4572,7 @@ diff --git a/src/host/memory.js b/src/host/memory.js
 @@ -486,7 +486,24 @@ export function install(rt) {
    // Main Bots and the admins of a group also write the team's; Main Bots read and
    // write every Bot's. The user may do everything from the memory panel.
- 
+
 -  const writesTeam = botId => rt.isMain(botId) || Object.values(state.rooms).some(room => room.admin === botId)
 +  // A face-to-face room's lead (its admin there, #476) gets no team rights from it.
 +  const writesTeam = botId => rt.isMain(botId) || Object.values(state.rooms).some(room => room.admin === botId && room.origin !== 'face-to-face')
@@ -4592,7 +4592,7 @@ diff --git a/src/host/memory.js b/src/host/memory.js
 +    owners.delete(undefined)
 +    return owners.size <= 1
 +  }
- 
+
    // `raw` names a scope: "own", "team", or a Bot. Undefined for the default.
    function namedScope(raw, botId) {
 @@ -495,7 +495,7 @@ export function install(rt) {
@@ -4617,7 +4617,7 @@ diff --git a/src/host/memory.js b/src/host/memory.js
      return undefined
    }
 @@ -519,14 +519,17 @@ export function install(rt) {
- 
+
    function checkSize(file, next, label) {
      const limit = limitOf(file)
 +    const size = codePoints(next)
@@ -4637,7 +4637,7 @@ diff --git a/src/host/memory.js b/src/host/memory.js
 +  const sizeNote = (file, text) => `${file.file}: ${codePoints(text)} of ${limitOf(file)} characters`
    const allEntries = files => files.flatMap(file => file.entries.map(entry => ({ ...entry, file })))
    const actorOf = actor => ({ actor: actor.id, actorName: actor.name, ...(actor.auto ? { auto: true } : {}) })
- 
+
 @@ -568,7 +568,7 @@ export function install(rt) {
        await journal({ op: 'add', scope: scopeKey(scope), file: target.file, ...actorOf(actor), after: line })
        noteNews(scope, actor, 'add', line)
@@ -4646,7 +4646,7 @@ diff --git a/src/host/memory.js b/src/host/memory.js
 +      return { changed: true, file: target, message: `Saved to ${label}, in ${where} (${sizeNote(target, next)}).` }
      })
    }
- 
+
 @@ -632,7 +632,7 @@ export function install(rt) {
      news.delete(botId)
      return queued(async () => {
@@ -4657,7 +4657,7 @@ diff --git a/src/host/memory.js b/src/host/memory.js
        if (!existsSync(dir)) return
        const name = `${safeId(botId)}-${new Date().toISOString().replace(/[:.]/g, '-')}`
 @@ -837,11 +837,13 @@ export function install(rt) {
- 
+
    ctx.tools.register(defineTool({
      name: 'recall',
 -    description: 'Search your memory and the team memory, or read one topic whole. It also finds entries saved after this conversation began. With no arguments, lists what is saved where.',
@@ -4749,7 +4749,7 @@ diff --git a/src/host/memory.js b/src/host/memory.js
        summary: entries.length > 0 && saved !== undefined ? { text: saved.text, at: saved.at } : null,
        fresh: entries.length === 0 || saved?.hash === hash,
 @@ -1123,17 +1123,28 @@ export function install(rt) {
- 
+
    // What is new in a group, from its log: the member's Session holds the same
    // messages wrapped in turn prompts.
 +  // "The user" of a group review is the member Bot's owner; a line another human
@@ -4782,7 +4782,7 @@ diff --git a/src/host/memory.js b/src/host/memory.js
 @@ -1158,7 +1158,7 @@ export function install(rt) {
      return { texts: kept, count: kept.length }
    }
- 
+
 -  async function applyReview(bot, sessionId, numbered, changes, source) {
 +  async function applyReview(bot, sessionId, numbered, changes, source, { teamAllowed = true } = {}) {
      const actor = { id: bot.id, name: bot.name, session: sessionId, auto: true }
@@ -4839,11 +4839,11 @@ diff --git a/src/host/memory.js b/src/host/memory.js
 +      if ((room.seq ?? 0) - behind >= REVIEW_GROUP_LAG) queueReview(sessionId, ownerOf(sessionId))
      }
    }
- 
+
 @@ -1378,8 +1378,42 @@ export function install(rt) {
      throw new Error(`Unknown endpoint ${endpoint}`)
    }
- 
+
 +  // The plugin memory seam (#450 item 1): a plugin the host allows may read a Bot's own entries
 +  // (capped) and append one through the ordinary path (secret-scanned, size-capped, journaled).
 +  // hooks.js gates and exposes this as flybot.memory; a plugin never writes a scope it may not.
@@ -4887,7 +4887,7 @@ diff --git a/src/host/models.js b/src/host/models.js
 --- a/src/host/models.js
 +++ b/src/host/models.js
 @@ -5,6 +5,28 @@ import { normalize, splitRef } from './text.js'
- 
+
  const CATALOG_TTL_MS = 10_000
  const ROUTE_WAIT_MS = 30_000
 +const TEST_TIMEOUT_MS = 30_000
@@ -4912,7 +4912,7 @@ diff --git a/src/host/models.js b/src/host/models.js
 +  if (code === 'INVALID_REQUEST' || status === 400) return 'INVALID_REQUEST'
 +  return 'UNKNOWN'
 +}
- 
+
  export function install(rt) {
    const { ctx, state } = rt
 @@ -68,7 +68,9 @@ export function install(rt) {
@@ -4925,7 +4925,7 @@ diff --git a/src/host/models.js b/src/host/models.js
 +    return models.find(entry => entry.ref === ref)?.ref ?? models[0]?.ref
    }
    const defaultModel = async () => pickDefault(await catalog())
- 
+
 @@ -90,6 +90,7 @@ export function install(rt) {
    // A Bot with no model yet waits for the user to pick one and changes nothing. A
    // model that is no longer served falls back to the last one it ran on, then the default.
@@ -4935,9 +4935,9 @@ diff --git a/src/host/models.js b/src/host/models.js
      const entries = await catalog()
      const served = new Set(entries.map(entry => entry.ref))
 @@ -143,19 +143,78 @@ export function install(rt) {
- 
+
    const sameSelection = (a, b) => a.provider === b.provider && a.model === b.model && a.reasoningEffort === b.reasoningEffort
- 
+
 +  // The provider/model the Session last requested, or null when it has not requested.
 +  // undefined means the route cannot be read, so the record is left alone (#289).
 +  async function liveRoute(sessionId) {
@@ -5018,7 +5018,7 @@ diff --git a/src/host/models.js b/src/host/models.js
 @@ -163,8 +163,8 @@ export function install(rt) {
      return ref
    }
- 
+
 -  // A provider may register after the plugin starts; a greeting waits for its Bot's
 -  // model instead of failing with "no adapter registered".
 +  // A provider may register after the plugin starts; the model is applied once it is
@@ -5029,7 +5029,7 @@ diff --git a/src/host/models.js b/src/host/models.js
 @@ -194,9 +194,56 @@ export function install(rt) {
      }
    }
- 
+
 +  // Test connection (#409): one tiny real request on the route the Bot's next run takes,
 +  // so a pass means that run can reach its model. It may be billed, so a Bot runs
 +  // at most one test at a time and nothing retries it.
@@ -5120,7 +5120,7 @@ diff --git a/src/host/prompt.js b/src/host/prompt.js
 +  '- A "[Continue task]" message is unfinished work you were already given, including a group card. Do that task now and update its column, progress, and note with track_tasks. Do not invent another job, send a status, or start a group round. Post in the group only when a person has to decide.',
 +  '- When you cannot continue without an answer, pass ask with the one question on that task. On a group card, worked in your own chat, call ask_user for the user, and post one short question in the group only when a person there has to decide. On your own chat\'s other tasks, ask_user. When the answer arrives, pass answer with what they said and update the task. Do not leave the task waiting without that question.',
  ].join('\n')
- 
+
  const MAIN_RULES = [
 -  '## You are the Main Bot (Chief of Staff)',
 -  '- You run the user\'s Bot team: you decide who does what, create new Bots, and report back.',
@@ -5161,13 +5161,13 @@ diff --git a/src/host/resume.js b/src/host/resume.js
  import { SOURCE_KIND } from './constants.js'
 +import { OTHER, settled } from './turn-origin.js'
 +import { retiredBot } from './store.js'
- 
+
  // Long enough for DSH to finish opening its workspaces after a start.
  const RESUME_DELAY_MS = 3000
 @@ -51,7 +51,7 @@ export function install(rt) {
    // What the last run left; read before this run notes anything.
    let interrupted = readNotes(file)
- 
+
 -  /** @type {Record<string, {botId:string, roomId?:string, since:number, trigger?:any, approval?:{tool:string, reason:string}, resumed?:boolean}>} */
 +  /** @type {Record<string, {botId:string, roomId?:string, since:number, origin?:string, trigger?:any, approval?:{tool:string, reason:string}, resumed?:boolean}>} */
    let turns = {}
@@ -5210,7 +5210,7 @@ diff --git a/src/host/resume.js b/src/host/resume.js
 +    queued = rest
 +    persist()
    }
- 
+
    const deliver = rt.deliver
    rt.deliver = async (args) => {
      const noted = { ...args, exchangeId: args.exchangeId ?? randomUUID() }
@@ -5256,7 +5256,7 @@ diff --git a/src/host/resume.js b/src/host/resume.js
          break
        }
 @@ -164,7 +164,9 @@ export function install(rt) {
- 
+
    async function resumeTurn(sessionId, record) {
      const bot = rt.botOf(record.botId)
 -    if (bot === undefined) return
@@ -5285,7 +5285,7 @@ diff --git a/src/host/resume.js b/src/host/resume.js
 -    await rt.deliver({ toId: bot.id, role: 'resume', resumed: true, text })
 +    await rt.deliver({ toId: bot.id, role: 'resume', resumed: true, origin: record.origin ?? OTHER, text })
    }
- 
+
    // A hard stop keeps the inbox, which the Session runs once it wakes; only what DSH
 @@ -198,11 +198,50 @@ export function install(rt) {
        && current(item.args) !== undefined && taken?.has(item.args.exchangeId) !== true)
@@ -5339,7 +5339,7 @@ diff --git a/src/host/resume.js b/src/host/resume.js
 +      return false
      }
    }
- 
+
 @@ -211,26 +211,50 @@ export function install(rt) {
      if (rt.readOnly() !== undefined) return
      const { turns: noted, queued: dropped } = interrupted
@@ -5398,7 +5398,7 @@ diff --git a/src/host/resume.js b/src/host/resume.js
      }
 +    persist()
    }
- 
+
    ctx.effect(() => {
 diff --git a/src/host/schedules.js b/src/host/schedules.js
 --- a/src/host/schedules.js
@@ -5436,7 +5436,7 @@ diff --git a/src/host/schedules.js b/src/host/schedules.js
 +import { codePoints, textOf } from './text.js'
 +import { output } from './tools.js'
 +import { retiredBot } from './store.js'
- 
+
  const MAX_TITLE = 120
 +// How long a due task may stay undelivered while the app runs before it counts as failed.
 +const MISSED_MS = 120_000
@@ -5445,12 +5445,12 @@ diff --git a/src/host/schedules.js b/src/host/schedules.js
 +// A copy mints its own id; a collision retries this many times rather than overwrite a row.
 +const COPY_ID_TRIES = 5
  const TIME = /^([01]\d|2[0-3]):[0-5]\d$/
- 
+
  const invalid = message => Object.assign(new Error(message), { code: 'bot/invalid' })
 @@ -28,6 +28,28 @@ export function reminderText(text) {
    return lines.length === 0 ? text : lines.map(prompt => `[Scheduled task] ${prompt}`).join('\n')
  }
- 
+
 +// The task ids a reminder's framing names (one, or each of a batch).
 +export function reminderIds(text) {
 +  const one = /^schedule_id_json: (.*)$/m.exec(text)
@@ -5479,7 +5479,7 @@ diff --git a/src/host/schedules.js b/src/host/schedules.js
 @@ -39,6 +39,28 @@ function requestOf(record) {
    return null
  }
- 
+
 +// A create request's timing as the record fields a paused task keeps (the inverse of
 +// requestOf), so a paused task reads like any other in the list.
 +function timingOf(selector) {
@@ -5760,7 +5760,7 @@ diff --git a/src/host/schedules.js b/src/host/schedules.js
 +    }
 +    throw invalid('The task could not be copied. Try again')
 +  }
- 
+
    async function schedulesView() {
 -    if (service === null) return { available: false, tasks: [] }
 +    const quietHours = quietNow()
@@ -5895,7 +5895,7 @@ diff --git a/src/host/schedules.js b/src/host/schedules.js
 +    if (armed > 0) await rt.save()
 +    return { paused: pausedCount, armed, available: true }
    }
- 
+
 +  // Resume: DSH gets the task again, on the Bot's current part, before FlyBot forgets
 +  // the paused copy. A one-time task whose time has passed waits for an edit.
 +  async function resumeSchedule(body, recordOnly = false) {
@@ -6039,7 +6039,7 @@ diff --git a/src/host/schedules.js b/src/host/schedules.js
        return schedulesView()
      },
    }
- 
+
 -  // A fresh part takes over the earlier part's active tasks: each is created again on
 -  // the fresh Session before the old one goes, so a failure leaves it where it was.
 +  // A fresh part takes over the earlier part's active tasks. A handoff is not an edit, so
@@ -6109,7 +6109,7 @@ diff --git a/src/host/schedules.js b/src/host/schedules.js
 -      }
      }
    }
- 
+
 -  Object.assign(rt, { scheduleEndpoint: (endpoint, body) => endpoints[endpoint](body ?? {}), moveSchedules })
 +  rt.logicalScheduleBackend = {
 +    async create(body) {
@@ -6148,7 +6148,7 @@ diff --git a/src/host/steward.js b/src/host/steward.js
 --- a/src/host/steward.js
 +++ b/src/host/steward.js
 @@ -10,7 +10,9 @@ import { estimateTokens } from './text.js'
- 
+
  // For a model that declares no window.
  export const DEFAULT_WINDOW = 500_000
 -export const DEFAULT_CHECK_RATIO = 0.8
@@ -6162,9 +6162,9 @@ diff --git a/src/host/text.js b/src/host/text.js
 --- a/src/host/text.js
 +++ b/src/host/text.js
 @@ -23,11 +23,32 @@ export const unquote = text => String(text ?? '').trim().replace(/^["'“”「
- 
+
  export const escapeRegExp = text => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
- 
+
 +// The host bounds this change counts go through it (#1895): one character costs one
 +// whatever its UTF-16 width, so an emoji inside a 300-character bound is one character,
 +// not two.
@@ -6194,7 +6194,7 @@ diff --git a/src/host/text.js b/src/host/text.js
 +  const at = codePointStart(text, found)
 +  return `${at > 0 ? '…' : ''}${text.slice(at, codePointEnd(text, at + max))}…`
  }
- 
+
  // An upper bound: a CJK character is about one token, other text about a third.
 @@ -36,7 +36,7 @@ export const estimateTokens = (text) => {
    for (const char of text) tokens += char.codePointAt(0) > 0x2e7f ? 1 : 0.34
@@ -6202,7 +6202,7 @@ diff --git a/src/host/text.js b/src/host/text.js
  }
 -export const clip = (text, max, rest) => (text.length > max ? `${text.slice(0, max)}… (cut; ${rest})` : text)
 +export const clip = (text, max, rest) => (text.length > max ? `${text.slice(0, codePointEnd(text, max))}… (cut; ${rest})` : text)
- 
+
  export const createClock = (timeZone) => {
    const clockFormat = new Intl.DateTimeFormat('en-CA', {
 diff --git a/src/host/time-context.js b/src/host/time-context.js
@@ -6210,14 +6210,14 @@ diff --git a/src/host/time-context.js b/src/host/time-context.js
 +++ b/src/host/time-context.js
 @@ -1,7 +1,9 @@
  import { createUserMessage } from '@deepseek-ai/dsh-llm'
- 
+
 -const SOURCE = 'ds-bot-time-context'
 -const isClock = source => source?.kind === SOURCE || source?.kind === 'time-context'
 +export const SOURCE = 'ds-bot-time-context'
 +// The host injects `SOURCE`; DSH injects 'time-context'. One home for both (#626).
 +export const CLOCK_KINDS = [SOURCE, 'time-context']
 +const isClock = source => CLOCK_KINDS.includes(source?.kind)
- 
+
  export function install(rt) {
    const { ctx, config } = rt
 @@ -20,6 +20,8 @@ export function install(rt) {
@@ -6261,7 +6261,7 @@ diff --git a/src/host/turns.js b/src/host/turns.js
 +export function isRemoteFailureNotice(text) {
 +  return REMOTE_FAILURE_NOTICES.includes(String(text ?? '').trim())
 +}
- 
+
  // A failed turn's `LlmFailure`, kept to what can be shown and logged. Like DSH's own
  // error row, an AUTH failure loses its message: providers may echo part of the key.
 @@ -24,7 +24,7 @@ export const failureLine = failure => `${failure.code}${failure.status ? ` ${fai
@@ -6274,7 +6274,7 @@ diff --git a/src/host/turns.js b/src/host/turns.js
    const labels = (Array.isArray(source?.references) ? source.references : [])
      .map(reference => reference?.label).filter(label => typeof label === 'string' && label !== '')
 @@ -48,12 +48,20 @@ const RETRY_TEXT = 'Your last reply wrote a tool call as plain text (<tool_call>
- 
+
  export function install(rt) {
    const { ctx, state } = rt
 +  // A friend's line whose body is already a failure notice. Answering it with another would
@@ -6284,7 +6284,7 @@ diff --git a/src/host/turns.js b/src/host/turns.js
 +    const raw = textOf(content).replace(/^\[[^\]\n]*\]\n?/, '').trim()
 +    return isRemoteFailureNotice(unwrapUntrusted(raw)) || isRemoteFailureNotice(raw)
 +  }
- 
+
    // The retry goes where the turn's trigger came from: a group round's waiter or a
    // Bot's request keeps its exchange; anything else is a nudge in the Bot's own chat.
 -  const retryWrittenCall = (id, info) => {
@@ -6298,7 +6298,7 @@ diff --git a/src/host/turns.js b/src/host/turns.js
 @@ -70,13 +70,60 @@ export function install(rt) {
      })
    }
- 
+
 -  /** @type {Map<string, {turn?:number, pending?:any, info?:any, texts:string[], opened?:boolean, joined?:{info:any, from:number}[]}>} */
 +  // A provider rate limit that clears on its own — the requests-per-window 429 (#1308) — is
 +  // asked again instead of spending the turn: the wait grows with each attempt and the
@@ -6371,7 +6371,7 @@ diff --git a/src/host/turns.js b/src/host/turns.js
 +      if (message.source?.exchangeId === exchangeId && agent.inbox.remove(message.id) && !waitingOnRetry) stoppedRoomTurns.delete(exchangeId)
      }
    }
- 
+
 @@ -162,17 +162,31 @@ export function install(rt) {
    // Roles whose turn owes the sender a reply: a 'stopped' notice asks the Bot to
    // acknowledge, exactly like a request.
@@ -6379,7 +6379,7 @@ diff --git a/src/host/turns.js b/src/host/turns.js
 +  // A friend's Bot asking (FlyBot remote, Bot Social): the turn stays in the Bot's own
 +  // chat, where the user sees it, and its answer goes back to the friend's Bot.
 +  const fromRemote = info => info.role === 'request' && typeof info.remote?.handle === 'string'
- 
+
    // A group Session is hidden as a whole, so its turns need no marking. A handoff
    // package that only opens a part is acknowledged with a fixed line, also hidden.
 +  // A friend's line the friend typed themselves (Bot Social attests it, remote-chat.js): the reply
@@ -6408,7 +6408,7 @@ diff --git a/src/host/turns.js b/src/host/turns.js
 @@ -196,7 +196,33 @@ export function install(rt) {
      return merged
    }
- 
+
 -  // Per Bot, the turn it is running and its current tool; its own chat wins over a group.
 +  // What the newest running call acts on, in one short line: the command, pattern, query,
 +  // address or path, else its own description.
@@ -6462,7 +6462,7 @@ diff --git a/src/host/turns.js b/src/host/turns.js
 @@ -238,6 +238,54 @@ export function install(rt) {
      return { ...(text ? { text: text.trim().slice(0, 300) } : {}), ...(code ? { code: code.trim().slice(0, 400) } : {}) }
    }
- 
+
 +  // The latest turns of the user's own Bots that finished or failed, for a system notification
 +  // (#353) and the Agent inbox's failed turns (#471). Process-local and bounded; a window skips
 +  // the ones from before it opened. Left out: a friend's Bots, turns a friend started, turns
@@ -6768,7 +6768,7 @@ diff --git a/src/host/turns.js b/src/host/turns.js
        }
      }
    })
- 
+
 -  Object.assign(rt, { live, liveOf, roomWaiters, roomProgress, roomInbox, activityView, workView, roomWorkView, callDetail, stopRoomTurn })
 +  // Whose request the Bot is working on across the turns it runs now: the owner's only when every
 +  // one of them is; undefined when it runs none.
@@ -6795,7 +6795,7 @@ diff --git a/src/host/usage.js b/src/host/usage.js
  import { mkdir, unlink } from 'node:fs/promises'
  import { join } from 'node:path'
 +import { resolveHarness, routeHarness } from './harness.js'
- 
+
 -const LEDGER_VERSION = 2
 +const LEDGER_VERSION = 3
  const PAGE_MESSAGES = 400
@@ -6804,7 +6804,7 @@ diff --git a/src/host/usage.js b/src/host/usage.js
 @@ -45,30 +45,107 @@ const tokensOf = usage => ({
    output: count(usage.outputTokens),
  })
- 
+
 +
 +// Step 0 (#903): every recorded call carries harness, issue·PR, tool-call count, wall clock,
 +// and token in/out (token columns reused). Missing any of these fields fails the unit tests.
@@ -6941,7 +6941,7 @@ diff --git a/src/host/usage.js b/src/host/usage.js
 +    reset,
 +  }
  }
- 
+
  // One aggregate per Session, model, use, and quarter hour.
 @@ -144,14 +144,14 @@ function sqliteLedger(DatabaseSync, path) {
          DROP TABLE IF EXISTS marks;
@@ -7077,7 +7077,7 @@ diff --git a/src/host/usage.js b/src/host/usage.js
        }
      })()
    })
- 
+
 -  Object.assign(rt, { usageView, tagUsage, carryUsageTag, ownRequest })
 +  Object.assign(rt, { usageView, tagUsage, carryUsageTag, ownRequest, noteUsageIssuePr, noteUsageHarness })
  }
@@ -7118,12 +7118,12 @@ diff --git a/test/approval-notices.test.js b/test/approval-notices.test.js
  import { build } from 'esbuild'
 +import { SOURCE_KIND } from '../src/host/constants.js'
 +import { install as installTurns } from '../src/host/turns.js'
- 
+
  const bundle = await build({
    entryPoints: [fileURLToPath(new URL('../src/client/approval-notices.js', import.meta.url))],
 @@ -10,7 +10,7 @@ const bundle = await build({
  })
- 
+
  // One window: the platform's Notification, whether the page shows, and the work source.
 -function windowWith({ permission = 'granted', visibility = 'visible' } = {}) {
 +function windowWith({ permission = 'granted', visibility = 'visible', prefs = {} } = {}) {
@@ -7147,7 +7147,7 @@ diff --git a/test/approval-notices.test.js b/test/approval-notices.test.js
 +  const noticeApprovals = options => module.exports.noticeApprovals({ now: () => 1000, ...options })
 +  return { ...module.exports, noticeApprovals, shown, opened, work, roster, openSession: id => opened.push(id) }
  }
- 
+
  test('an approval that starts waiting while another conversation shows gets one notification', () => {
 @@ -41,7 +41,7 @@ test('an approval that starts waiting while another conversation shows gets one
    page.noticeApprovals({ work: page.work, roster: page.roster, shownSession: () => 'a', openSession: page.openSession, since: 100 })
@@ -7429,12 +7429,12 @@ diff --git a/test/bot-messages.test.js b/test/bot-messages.test.js
 -  return { ctx, agents, agentOf, emit, fire, tool, call, exchanges, home, stop }
 +  return { ctx, rt, agents, agentOf, emit, fire, tool, call, exchanges, home, stop }
  }
- 
+
  const textOf = content => content.map(block => block.text ?? '').join('\n')
 @@ -242,6 +242,36 @@ test('stop_bot cancels the running turns and tells the Bot why in a new turn', a
    assert.equal(notice.source.role, 'stopped')
  })
- 
+
 +// #1844: `list_bots` hides another owner's Bot and the HTTP side refuses the same Bot, but
 +// stop_bot only asked "am I a Main Bot". Two owners, one signed in, so `authzEnforced()` is true.
 +test('#1844: a Main Bot cannot stop another owner\'s running Bot', async (t) => {
@@ -7479,7 +7479,7 @@ diff --git a/test/bot-messages.test.js b/test/bot-messages.test.js
 @@ -356,6 +356,109 @@ test('a joined request gets the failure notice when the model call fails', () =>
    assert.match(delivered[0].text, /^Writer could not answer your message: its model call failed \(SERVER 503: upstream busy\)/)
  })
- 
+
 +// #1068: a friend's DM stays on "Weighing the options…" when the remote home's turn dies, because
 +// that home never sends anything back. The notice is a fixed sentence: the provider text can echo a key.
 +const remoteSource = (extra = {}) => replySource('request', {
@@ -7655,7 +7655,7 @@ diff --git a/test/client-bundle.test.js b/test/client-bundle.test.js
 --- a/test/client-bundle.test.js
 +++ b/test/client-bundle.test.js
 @@ -22,7 +22,7 @@ test('client.js registers a factory that exports apply and inject', () => {
- 
+
    const requested = []
    const platform = {
 -    'react': { createElement: () => null, Fragment: Symbol('Fragment'), useState: initial => [initial, () => {}], useEffect: () => {}, useMemo: make => make(), useRef: current => ({ current }) },
@@ -7680,7 +7680,7 @@ diff --git a/test/connectors.test.js b/test/connectors.test.js
 +import { apply, createRuntime } from '../index.js'
 +import { cleanApps, composioAppStatus, composioDeleteSession, composioSearchApps, composioSession, composioSessionAlive, composioSessionFind, feishuReply, signIn } from '../src/host/connectors.js'
  import { fakeContext } from './fake-ctx.js'
- 
+
 +// A test's temp home can still be written by a background save that outlives dispose(), so a
 +// plain rmSync sometimes raced and failed the whole run with ENOTEMPTY (a flaky verify/CI). Settle
 +// and retry; if it is still racing, leave the temp dir — the test's assertions already passed.
@@ -7718,12 +7718,12 @@ diff --git a/test/connectors.test.js b/test/connectors.test.js
  const fresh = () => `ghp_${randomBytes(16).toString('hex')}`
 -const answer = (status, body) => ({ status, ok: status >= 200 && status < 300, json: async () => body })
 +const answer = (status, body) => ({ status, ok: status >= 200 && status < 300, body, json: async () => body })
- 
+
  test('signIn asks GitHub who owns the token', async () => {
    const token = fresh()
 @@ -41,8 +41,7 @@ const teamHome = () => {
  }
- 
+
  // A loader that hands out a fake MCP client and records each mount.
 -function setup({ fail = false, github = { api: 'https://gh.test' } } = {}) {
 -  const home = teamHome()
@@ -7754,11 +7754,11 @@ diff --git a/test/connectors.test.js b/test/connectors.test.js
 +  apply(ctx, { home, github, composio })
    return { ctx, home, mounts }
  }
- 
+
 @@ -75,20 +75,20 @@ async function call(ctx, endpoint, payload) {
    return response.json()
  }
- 
+
 -test('connecting saves the token, kept out of every Bot shell, and mounts GitHub MCP; disconnecting undoes both', async (t) => {
 +test('connecting saves the token for all of the owner\'s Bots (#545) and mounts GitHub MCP; disconnecting undoes both', async (t) => {
    const realFetch = globalThis.fetch
@@ -7768,11 +7768,11 @@ diff --git a/test/connectors.test.js b/test/connectors.test.js
 -  t.after(async () => { await ctx.dispose(); rmSync(home, { recursive: true, force: true, maxRetries: 5 }) })
 +  t.after(async () => { await ctx.dispose(); await cleanHome(home) })
    const token = fresh()
- 
+
    const before = await call(ctx, 'state', {})
 -  assert.deepEqual(before.value.connectors, [{ id: 'github', name: 'GitHub', state: 'off', account: null }])
 +  assert.deepEqual(before.value.connectors[0], { id: 'github', name: 'GitHub', state: 'off', account: null })
- 
+
    const connected = await call(ctx, 'connector-connect', { id: 'github', token: ` ${token} ` })
    assert.equal(connected.ok, true, JSON.stringify(connected))
 -  assert.deepEqual(connected.value, [{ id: 'github', name: 'GitHub', state: 'ready', account: 'octo' }])
@@ -7788,7 +7788,7 @@ diff --git a/test/connectors.test.js b/test/connectors.test.js
 +  assert.deepEqual(state.value.secrets.map(secret => [secret.name, secret.scope]), [['GITHUB_TOKEN', 'all']])
    assert.ok(!JSON.stringify(state).includes(token))
    assert.ok(!readFileSync(join(home, 'state.json'), 'utf8').includes(token))
- 
+
    const off = await call(ctx, 'connector-disconnect', { id: 'github' })
 -  assert.deepEqual(off.value, [{ id: 'github', name: 'GitHub', state: 'off', account: null }])
 +  assert.deepEqual(off.value[0], { id: 'github', name: 'GitHub', state: 'off', account: null })
@@ -7829,7 +7829,7 @@ diff --git a/test/connectors.test.js b/test/connectors.test.js
 @@ -150,13 +150,25 @@ test('deleting GITHUB_TOKEN on the Secrets page unmounts GitHub', async (t) => {
    assert.equal(state.value.connectors[0].state, 'off')
  })
- 
+
 -test('github: false hides the connector', async (t) => {
 +test('github: false, composio: false and feishu: false hide the connectors', async (t) => {
    const home = teamHome()
@@ -7853,7 +7853,7 @@ diff --git a/test/connectors.test.js b/test/connectors.test.js
 +  t.after(async () => { await last.dispose(); await cleanHome(third) })
 +  assert.deepEqual((await call(last, 'state', {})).value.connectors, [])
  })
- 
+
  test('a GitHub address without https refuses to send the token', async (t) => {
 @@ -165,10 +165,730 @@ test('a GitHub address without https refuses to send the token', async (t) => {
    let asked = false
@@ -8598,14 +8598,14 @@ diff --git a/test/follow-through.test.js b/test/follow-through.test.js
 +import { createRuntime, provideFlyBot } from '../index.js'
  import { fakeContext } from './fake-ctx.js'
  import { stripWrittenCalls, writesToolCall } from '../src/host/turns.js'
- 
+
 @@ -27,9 +27,13 @@ const seed = () => ({
  // One DS Bot host on `home`; a second start on the same home is a restart.
  // Hosts by home: a home is removed only after its hosts stopped and their writes landed.
  const started = new Map()
 +// The durable Session log per home (what DSH keeps across a plugin reload or a restart).
 +const durable = new Map()
- 
+
  async function start(home) {
    const ctx = fakeContext()
 +  const log = durable.get(home) ?? []
@@ -8719,7 +8719,7 @@ diff --git a/test/follow-through.test.js b/test/follow-through.test.js
    try { return JSON.parse(readFileSync(join(home, 'inflight.json'), 'utf8')) } catch { return { turns: {}, queued: {} } }
 @@ -104,7 +104,7 @@ async function openRoomTurn(t, host) {
  }
- 
+
  test('a group turn cut off by a restart is picked up once, and the group is told', async (t) => {
 -  t.mock.timers.enable({ apis: ['setTimeout'] })
 +  mockTimers(t)
@@ -8728,7 +8728,7 @@ diff --git a/test/follow-through.test.js b/test/follow-through.test.js
    await openRoomTurn(t, first)
 @@ -143,7 +143,7 @@ test('a group turn cut off by a restart is picked up once, and the group is told
  })
- 
+
  test('a request cut off by a restart goes on under the same exchange; own-chat work resumes in the chat', async (t) => {
 -  t.mock.timers.enable({ apis: ['setTimeout'] })
 +  mockTimers(t)
@@ -8737,7 +8737,7 @@ diff --git a/test/follow-through.test.js b/test/follow-through.test.js
    run(first, 'b', 1, { content: [{ type: 'text', text: '[Message from Chief]\nDraft the plan' }], source: { kind: 'bot', form: 'relay', role: 'request', exchangeId: 'x1', senderName: 'Chief', senderSessionId: 'a', hop: 0 } })
 @@ -165,7 +165,7 @@ test('a request cut off by a restart goes on under the same exchange; own-chat w
  })
- 
+
  test('when only DS Bot restarts, a turn still running or finished meanwhile is not picked up', async (t) => {
 -  t.mock.timers.enable({ apis: ['setTimeout'] })
 +  mockTimers(t)
@@ -8747,7 +8747,7 @@ diff --git a/test/follow-through.test.js b/test/follow-through.test.js
 @@ -195,8 +195,112 @@ test('when only DS Bot restarts, a turn still running or finished meanwhile is n
    assert.deepEqual([third.agentOf('b').calls[0].source.exchangeId, third.agentOf('a').calls.length], ['x1', 0])
  })
- 
+
 +test('a turn that finished while the plugin was not listening is not picked up', async (t) => {
 +  mockTimers(t)
 +  const home = freshHome(t)
@@ -8861,7 +8861,7 @@ diff --git a/test/follow-through.test.js b/test/follow-through.test.js
 @@ -234,7 +234,7 @@ test('a message a shutdown cancelled is sent again once; one still waiting, take
    await settle(() => (notes(home).queued.b ?? []).length === 2)
    await first.stop()
- 
+
 -  t.mock.timers.enable({ apis: ['setTimeout'] })
 +  mockTimers(t)
    const second = await start(home)
@@ -8870,7 +8870,7 @@ diff --git a/test/follow-through.test.js b/test/follow-through.test.js
 @@ -246,6 +246,67 @@ test('a message a shutdown cancelled is sent again once; one still waiting, take
    assert.equal((await second.call('exchange', { a: 'a', b: 'b' })).value.length, 4)
  })
- 
+
 +test('a message sent again is forgotten everywhere once a turn takes it up', async (t) => {
 +  const home = freshHome(t)
 +  const first = await start(home)
@@ -8933,12 +8933,12 @@ diff --git a/test/follow-through.test.js b/test/follow-through.test.js
 +})
 +
  const WRITTEN = 'Checking now.\n<tool_call>\n<function=pwsh>\n<parameter=command>\nGet-ChildItem E:\\\n</parameter>\n</function>\n</tool_call>'
- 
+
  test('a tool call written as text gets one more turn on the same round slot', async (t) => {
 @@ -283,6 +283,29 @@ test('in its own chat, a Bot that wrote a tool call as text is asked to make it'
    assert.match(text(retry), /^\[Your last reply wrote a tool call as text, so nothing ran\]/)
  })
- 
+
 +test('a real-clock wait outlives its round budget (#1012)', async () => {
 +  // Today the wait on a real clock is 20000 setImmediate rounds: about 100 ms on a runner, and the
 +  // relay chain that has to hand a line over can take longer than that while nothing is wrong.
@@ -8978,7 +8978,7 @@ diff --git a/test/group-status.test.js b/test/group-status.test.js
 @@ -24,9 +24,8 @@ const seed = () => ({
    revision: 0,
  })
- 
+
 -async function start() {
 -  const home = mkdtempSync(join(tmpdir(), 'ds-bot-status-'))
 -  writeFileSync(join(home, 'state.json'), JSON.stringify(seed()))
@@ -8998,7 +8998,7 @@ diff --git a/test/group-status.test.js b/test/group-status.test.js
 -  return { agentOf, emit, tool, call, askApproval, stop, archived }
 +  return { agentOf, emit, tool, call, askApproval, stop, archived, home }
  }
- 
+
  // Waits on real I/O (state writes) without timers, which some tests mock.
 @@ -237,14 +237,14 @@ test('a member that fails after the round moved on shows the failure in the grou
    const [approval] = (await host.call('state', {})).value.work.approvals
@@ -9010,7 +9010,7 @@ diff --git a/test/group-status.test.js b/test/group-status.test.js
    const post = host.agentOf('r1').calls[0]
 -  assert.deepEqual([post.source.late, post.source.quiet, post.source.failed], [true, true, { code: 'RATE_LIMIT', status: 429, message: 'Too many requests' }])
 +  assert.deepEqual([post.source.late, post.source.quiet, post.source.failed], [true, true, { code: 'INTERNAL', status: 500, message: 'boom' }])
- 
+
    host.emit('r1', 'user/message', { content: post.content, source: post.source })
    const round = JSON.parse(await host.tool('group_relay', {}, 'r1', { callId: 'c2', signal: new AbortController().signal }))
 -  assert.deepEqual(round.replies.map(reply => [reply.kind, reply.name, reply.code, reply.status]), [['failed', 'Writer', 'RATE_LIMIT', 429]])
@@ -9213,7 +9213,7 @@ diff --git a/test/group-work.test.js b/test/group-work.test.js
  import { fakeContext } from './fake-ctx.js'
  import { ROOM_LATE_ROUNDS, ROOM_WORK_GRACE_MS } from '../src/host/constants.js'
 +import { compactStatus, prepareRoomLine } from '../src/host/room-context.js'
- 
+
  // Chief, the admin of group 'r1', speaks there from 'ga'; Writer from 'gb'; Tester from 'gc'.
  const seed = (room = {}) => ({
 @@ -113,6 +113,7 @@ const settle = async (check) => {
@@ -9223,7 +9223,7 @@ diff --git a/test/group-work.test.js b/test/group-work.test.js
 +const plain = value => JSON.parse(JSON.stringify(value))
  const text = message => message.content.map(block => block.text ?? '').join('\n')
  const kinds = result => result.replies.map(reply => [reply.kind ?? 'message', reply.name])
- 
+
 @@ -287,3 +287,169 @@ test('members still at work show in the team view and in the prompts of the othe
    host.finish('gc', '没问题。')
    await settle(() => result() !== undefined)
@@ -9416,7 +9416,7 @@ diff --git a/test/home-lock.test.js b/test/home-lock.test.js
 +import { createRuntime, provideFlyBot } from '../index.js'
  import { homeLock } from '../src/host/home-lock.js'
  import { fakeContext } from './fake-ctx.js'
- 
+
 @@ -118,10 +118,14 @@ function start(t, home) {
      route = options
      return register(options)
@@ -9432,7 +9432,7 @@ diff --git a/test/home-lock.test.js b/test/home-lock.test.js
 +  call.rt = rt
    return call
  }
- 
+
 @@ -185,3 +185,129 @@ test('a reading host follows the other host\'s keys, never writes them, and keep
    const saved = JSON.parse(readFileSync(secretsPath, 'utf8')).secrets.map(secret => secret.name).sort()
    assert.deepEqual(saved, ['FIRST_KEY', 'MINE', 'SECOND_KEY', 'THIRD_KEY'])
@@ -9596,7 +9596,7 @@ diff --git a/test/images.test.js b/test/images.test.js
  import { test } from 'node:test'
 -import { offloadTargets } from '../src/host/images.js'
 +import { attachmentFilePath, attachmentObjectPath, imagePlaceholder, offloadTargets } from '../src/host/images.js'
- 
+
  test('offloadTargets selects live images from prior user and tool messages', () => {
    const events = [
 @@ -32,3 +32,83 @@ test('offloadTargets selects live images from prior user and tool messages', ()
@@ -9816,7 +9816,7 @@ diff --git a/test/member-status.test.js b/test/member-status.test.js
 @@ -61,7 +61,7 @@ const team = {
  }
  const dock = (sessionId, work) => expand(MemberDock({ sessionId, useRoster: pick => pick(team), useWork: pick => pick(work), actions: {} }))
- 
+
 -test('a member at work in the group gets a row; the speaker, work elsewhere and approvals do not', () => {
 +test('a member at work in the group gets a row, the speaker first; approvals go on the line, work elsewhere nowhere', () => {
    const work = {
@@ -9835,7 +9835,7 @@ diff --git a/test/member-status.test.js b/test/member-status.test.js
 +  assert.deepEqual(rowLabels(dock('r1', work)), ['Quill · Thinking about it…', 'Anvil · Writing changes…'])
 +  assert.deepEqual(plain(busyMembers(team.roomsById.r2, work, team).map(entry => [entry.bot.name, entry.state])), [['Flint', 'work']])
  })
- 
+
  test('a Bot\'s own chat shows the groups it is at work in, unless its own chat runs', () => {
 @@ -82,3 +82,128 @@ test('a Bot\'s own chat shows the groups it is at work in, unless its own chat r
    assert.deepEqual(rowLabels(dock('a', { ...away, bots: { a: { since: 1 } } })), [])
@@ -9971,7 +9971,7 @@ diff --git a/test/memory.test.js b/test/memory.test.js
 +++ b/test/memory.test.js
 @@ -176,6 +176,15 @@ function start({ home = mkdtempSync(join(tmpdir(), 'ds-bot-memory-')), replies =
  }
- 
+
  const settle = () => new Promise(resolve => setTimeout(resolve, 20))
 +// Waits until a Bot's memory summary job has finished, including writing its file;
 +// a fixed delay is too short on a loaded CI disk.
@@ -9982,7 +9982,7 @@ diff --git a/test/memory.test.js b/test/memory.test.js
 +    if ((await call('memory-view', { botId })).value?.summarizing !== true) return
 +  }
 +}
- 
+
  test('remember saves one entry with its source, and forget removes it, both in the journal', async (t) => {
    const { tool, read, journal, stop } = start()
 @@ -336,7 +336,7 @@ test('the memory panel shows every entry and a summary the Bot\'s model writes o
@@ -10040,7 +10040,7 @@ diff --git a/test/memory.test.js b/test/memory.test.js
 -  await settle()
 +  await summarySettled(first.call, 'b2')
    assert.equal(first.requests[0].reasoningEffort, 'low')
- 
+
    const second = start({ replies: ['## ok'], reasoning: {} })
    t.after(() => second.stop())
    await second.tool('remember', { text: 'Likes tea' }, 'b2')
@@ -10049,7 +10049,7 @@ diff --git a/test/memory.test.js b/test/memory.test.js
 +  await summarySettled(second.call, 'b2')
    assert.equal(second.requests[0].reasoningEffort, undefined)
  })
- 
+
 @@ -418,7 +418,7 @@ test('a summary the Bot\'s model refuses is written by the profile default model
    t.after(() => stop())
    await tool('remember', { text: 'Likes tea' }, 'b2')
@@ -10111,7 +10111,7 @@ diff --git a/test/memory.test.js b/test/memory.test.js
 -  await settle()
 +  await summarySettled(call, 'b2')
  })
- 
+
  // Routes such as OpenCode Go turn down a request that names no Session. Each memory
 @@ -1021,7 +1021,7 @@ test('a memory summary names the Bot chat on both of its tries', async (t) => {
    t.after(() => stop())
@@ -10261,7 +10261,7 @@ diff --git a/test/model-menu.test.js b/test/model-menu.test.js
  })
 -const { groupModels, ModelChoiceDock, effortRows } = module.exports
 +const { groupModels, ModelChoiceDock, effortRows, TurnErrorCell, missingModelKey, KeyHelpLink, KEY_HELP_URL } = module.exports
- 
+
  function nodes(tree, match) {
    if (!tree || typeof tree !== 'object') return []
 @@ -89,6 +89,8 @@ test('an empty catalog offers setup choices, and a ready model needs no choice d
@@ -10338,7 +10338,7 @@ diff --git a/test/models.test.js b/test/models.test.js
 @@ -144,6 +144,98 @@ test('a Bot model applies its thinking level, and only re-selects on a change',
    assert.equal(bot.appliedEffort, undefined)
  })
- 
+
 +// The next request uses whatever selectModel last installed. A Session we cannot
 +// read stays out of this, which is what the #289 settled early-return relies on.
 +function routesOf(rt, headers) {
@@ -10437,7 +10437,7 @@ diff --git a/test/models.test.js b/test/models.test.js
 @@ -164,7 +164,7 @@ test('the catalog attaches thinking levels to models a Bot uses', async () => {
    assert.equal(entries.find(entry => entry.ref === 'stepfun/step-5')?.reasoning, undefined)
  })
- 
+
 -test('a greeting waits for the provider of its Bot model to register', async () => {
 +test('a model is applied once the provider of its Bot registers', async () => {
    const { rt, providers, listeners } = bench({ providers: {} })
@@ -10617,11 +10617,11 @@ diff --git a/test/schedules.test.js b/test/schedules.test.js
 +import { createRuntime, provideFlyBot } from '../index.js'
  import { fakeContext } from './fake-ctx.js'
  import { reminderText } from '../src/host/schedules.js'
- 
+
 @@ -21,44 +21,102 @@ const TEAM = {
    questions: {},
  }
- 
+
 +// The record fields DSH stores for each create selector (see dsh-schedule's README).
 +// `every_seconds` is the one DSH anchors to the create instant (now + interval), so a
 +// move that went through create would re-anchor it; the others keep a fixed instant.
@@ -10706,7 +10706,7 @@ diff --git a/test/schedules.test.js b/test/schedules.test.js
    }
 +  return service
  }
- 
+
 -function setup(services = {}) {
 +function setup(services = {}, team = TEAM) {
    const home = mkdtempSync(join(tmpdir(), 'dsb-schedules-'))
@@ -10722,7 +10722,7 @@ diff --git a/test/schedules.test.js b/test/schedules.test.js
 -  return { ctx, home, call }
 +  return { ctx, home, call, rt }
  }
- 
+
  test('without the schedule service the page says so and creating is refused', async (t) => {
    const { ctx, home, call } = setup()
    t.after(async () => { await ctx.dispose(); rmSync(home, { recursive: true, force: true, maxRetries: 5 }) })
@@ -10734,7 +10734,7 @@ diff --git a/test/schedules.test.js b/test/schedules.test.js
 @@ -103,6 +103,39 @@ test('tasks are created on the Bot’s current part, listed by Bot, and deleted'
    assert.match((await call('schedule-delete', { sessionId: 'outside', id: 'schedule-3' })).error.message, /No such task/)
  })
- 
+
 +// #1651 (P-132): DSH takes any interval of 60s or more, and the client now sends seconds,
 +// so a repeat of 90s survives a save that changed only the title.
 +test('a repeat keeps its seconds, and the every selector is the only one that changed (#1651 a, b, e)', async (t) => {
@@ -11551,12 +11551,12 @@ diff --git a/test/session-identity.test.js b/test/session-identity.test.js
 -  return { ctx, rt, bench, hook, stop }
 +  return { ctx, rt, bench, hook, home, stop }
  }
- 
+
  for (const sessionId of ['b2', 'g3']) {
 @@ -124,6 +124,48 @@ for (const sessionId of ['b2', 'g3']) {
    })
  }
- 
+
 +// #917: compaction replaces the span, but the meter's usage anchor only subtracts
 +// its 4-characters-per-token estimate of what it removed. A denser provider
 +// report (the mock's 3 characters per token) still reads above the check line.
@@ -11678,13 +11678,13 @@ diff --git a/test/text.test.js b/test/text.test.js
 +  assert.equal(codePoints('旅行'), 2)
 +  assert.equal(codePoints(`a${'😀'.repeat(4)}`), 5)
 +})
- 
+
  test('textOf joins the text blocks only', () => {
    assert.equal(textOf([{ type: 'text', text: ' a ' }, { type: 'image' }, { type: 'text', text: 'b' }, { type: 'text', text: 3 }]), 'a \nb')
 @@ -63,6 +63,41 @@ test('clip cuts long text and says where the rest is', () => {
    assert.equal(clip('abcdef', 3, 'see part 2'), 'abc… (cut; see part 2)')
  })
- 
+
 +const sameBytes = (kept, prefix) => Buffer.from(kept, 'utf8').equals(Buffer.from(prefix, 'utf8'))
 +
 +test('clip never leaves half of a surrogate pair behind', () => {
@@ -11741,7 +11741,7 @@ diff --git a/test/tool-cells.test.js b/test/tool-cells.test.js
  })
 -const { ToolCell, callTree, QuestionDock, SecretDock, countCards } = module.exports
 +const { ToolCell, callTree, QuestionDock, SecretDock, ScopeEditor, countCards } = module.exports
- 
+
  // Runs the effects collected since the last render; returns the cleanups.
  const mount = () => {
 @@ -329,7 +329,7 @@ test('a PTC group relay shows its replies from the sub-call, live and after relo
@@ -11751,7 +11751,7 @@ diff --git a/test/tool-cells.test.js b/test/tool-cells.test.js
 -  assert.deepEqual(JSON.parse(JSON.stringify(sets)), [{ replies: replies.slice(0, 1), speaking: 'chief' }])
 +  assert.deepEqual(JSON.parse(JSON.stringify(sets)), [{ replies: replies.slice(0, 1) }])
  })
- 
+
  // #105: the secret and question cards of a PTC program showed nowhere.
 @@ -355,3 +355,64 @@ test('PTC secret and question cards show at their sub-calls and act on their own
    assert.doesNotMatch(shown(program([call('ask_user', 'call-0-1:ptc:1')]), { roster }), /Which draft\?/)
@@ -11842,7 +11842,7 @@ diff --git a/test/work-dir.test.js b/test/work-dir.test.js
 @@ -219,6 +219,32 @@ test('an idle Bot\'s own chat moves to its new folder at once, and back', async
    assert.match(handoffOf(agentOf('s2')), new RegExp(`because your working folder changed to ${escapeRegExp(team)}\\.`))
  })
- 
+
 +test('a part move that fails before the handoff keeps the old part current', async (t) => {
 +  const { ctx, call, state, project, created, stop } = await start()
 +  t.after(stop)
@@ -11875,7 +11875,7 @@ diff --git a/test/work-dir.test.js b/test/work-dir.test.js
 @@ -241,6 +241,42 @@ test('a running Bot moves at its next step and carries that step\'s input along'
    assert.equal(await preStep('s1'), 'next')
  })
- 
+
 +test('a turn that moves to a fresh part half-way keeps whose request it answers, so its connector tools are not decided again by luck (#369)', async (t) => {
 +  const { services } = approvalServices('allowed-once')
 +  const { ctx, tool, preStep, agentOf, project, state, stop } = await start({ services })

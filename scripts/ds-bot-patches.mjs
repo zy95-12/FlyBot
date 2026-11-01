@@ -168,9 +168,11 @@ export function applyPatchText(text, dest) {
       const body = []
       let j = h + 1
       for (; j < sectionRows.length; j++) {
-        const row = sectionRows[j]
+        let row = sectionRows[j]
         if (row.startsWith('@@ ') || row.startsWith('diff --git ')) break
-        if (row === '' && j === sectionRows.length - 1) break // the patch's own final newline
+        if (row === '' && j === sectionRows.length - 1 && body.filter(line => line[0] === ' ' || line[0] === '-').length >= oldCount && body.filter(line => line[0] === ' ' || line[0] === '+').length >= newCount) break // the patch's own final newline, after all context
+        // Git's --suppress-blank-empty form omits the context prefix on empty lines.
+        if (row === '') row = ' '
         if (row[0] !== ' ' && row[0] !== '+' && row[0] !== '-' && row[0] !== '\\') throw new Error(`${name}: not a hunk line: ${JSON.stringify(row.slice(0, 60))}`)
         body.push(row)
       }
@@ -309,7 +311,7 @@ export function normalizeDiff(diff, { exact = false } = {}) {
       if (line.startsWith('+')) newLeft--
       else if (line.startsWith('-')) oldLeft--
       else if (!line.startsWith('\\')) { oldLeft--; newLeft-- }
-      out.push(line)
+      out.push(line === ' ' ? '' : line)
       continue
     }
     if (line.startsWith('index ')) continue

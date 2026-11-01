@@ -1,4 +1,5 @@
 // Client channel: the team view the browser renders, and the POST /api/bot endpoints.
+import { personalRoster, requirePersonalSession } from './workbench-personal.js'
 import { randomUUID } from 'node:crypto'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { isApprovalWaiting } from '../shared/approval-waiting.js'
@@ -305,6 +306,41 @@ export function install(rt) {
         case 'workbench-state':
         case 'project-resources':
           return ok(await rt.workbenchEndpoint(endpoint, body, actor))
+        case 'personal-space': {
+          if (!rt.sharedProjectMode() || !actor?.memberId) return fail('Sign in first', 'bot/unauthorized')
+          const operation = body.operation ?? 'list'
+          if (operation === 'list') return ok(personalRoster(rt, actor))
+          let sessionId = requirePersonalSession(rt, actor, String(body.id ?? ''))
+          if (body.partId !== undefined) {
+            const bot = rt.botOf(sessionId)
+            if (operation !== 'read' || !bot || !rt.partsOf(bot.id).some(part => part.sessionId === body.partId)) return fail('Unknown personal conversation part', 'bot/forbidden')
+            sessionId = body.partId
+          }
+          if (operation === 'send') return handle('send', { sessionId, text: body.text }, signal, sessionToken)
+          if (operation === 'memory') {
+            const bot = rt.botOf(sessionId)
+            if (!bot) return fail('Select a personal Bot', 'bot/invalid')
+            const memory = await rt.memoryEndpoint('memory-view', { botId: bot.id })
+            requirePersonalSession(rt, await rt.authenticate(sessionToken), String(body.id ?? ''))
+            return ok({ entries: memory.entries.filter(entry => entry.scope === 'own') })
+          }
+
+          if (operation !== 'read') return fail('Unknown personal operation', 'bot/invalid')
+          if (rt.roomOf(sessionId)) return ok({ messages: rt.roomHistory(sessionId, actor).filter(line => typeof line.text === 'string' && line.text).map(line => ({ id: `${sessionId}:${line.seq}`, botId: line.botId ?? line.authorId, kind: line.authorKind === 'human' ? 'human' : 'assistant', speaker: line.who, text: line.text })), hasMore: false })
+          const agent = await rt.resolveAgent(sessionId)
+          const page = await ctx.sessionController.page({ address: { kind: 'session', sessionId }, throughSeq: Number(agent.session.seq) - 1,
+            ...(Number.isInteger(body.beforeSeq) ? { beforeSeq: body.beforeSeq } : {}), maxMessages: 100 }, AbortSignal.timeout(10000))
+          // A removed member cannot receive an in-flight page after revocation.
+          const currentActor = await rt.authenticate(sessionToken)
+          requirePersonalSession(rt, currentActor, String(body.id ?? ''))
+          const hidden = new Set(state.exchangeTurns[sessionId] ?? [])
+          const messages = page.records.flatMap(({ event }) => {
+            if (hidden.has(event.data?.turn)) return []
+            const entry = rt.historyEntry(event, Boolean(rt.roomOf(sessionId)))
+            return entry?.text ? [{ id: `${sessionId}:${event.seq}`, botId: entry.answer ? rt.botOf(sessionId)?.id : null, kind: entry.answer ? 'assistant' : 'human', speaker: entry.answer ? rt.botOf(sessionId)?.name ?? 'Bot' : currentActor.displayName ?? 'You', text: entry.text }] : []
+          })
+          return ok({ messages, hasMore: page.hasMore, beforeSeq: page.records[0]?.event.seq ?? null })
+        }
         case 'state':
           if (typeof body.locale === 'string' && /^[a-z]{2,3}(-[\w-]+)?$/i.test(body.locale)) uiLocale = body.locale
           if (body.watching !== false) watchedAt = Date.now()
@@ -692,6 +728,7 @@ export function install(rt) {
         case 'project-chief-inspect':
         case 'project-scheduled-task':
         case 'project-queue-cancel':
+        case 'project-queue-retry':
         case 'project-attempt-stop':
         case 'project-credential-status':
         case 'project-github-comment':
@@ -716,6 +753,7 @@ export function install(rt) {
         case 'project-task-reject':
         case 'project-attempt-log':
         case 'project-attempt-cleanup':
+        case 'project-attempt-publication-retry':
         case 'project-members':
         case 'project-invite':
         case 'project-join':

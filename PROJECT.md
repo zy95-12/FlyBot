@@ -10,6 +10,19 @@ Current stage and priorities: [ROADMAP.md](ROADMAP.md). How decisions are made:
 
 ## Fork Project State — 2026-10-31
 
+### Direct backend recovery — 2026-11-01
+
+The owner requires backend repairs in the foreground Codex session; do not
+dispatch backend development through FlyBot. Existing frontend work is preserved
+and resumes through FlyBot only after backend verification. See the
+[execution decision](decisions/2026-11-01-direct-backend-recovery.md).
+R6 adds coalesced event-driven dispatch, manager-controlled retry of blocked queue
+entries under the original requester, and operator-selected workspace preparation
+before each pool receiver and after independent test cleanup. Failed allocation,
+checkout or context preparation releases only proven unbound reservations and
+retains its failure audit. These changes do not imply live UI or R8 acceptance.
+
+
 This is `zy95-12/FlyBot`. Current scope is the [shared-project roadmap](https://github.com/zy95-12/FlyBot/issues/1)
 and [fork decision](decisions/2026-10-31-project-first-fork.md). The inherited mission,
 people and stage descriptions below are historical upstream context; upstream accounts
@@ -355,3 +368,48 @@ summaries continue to come from scoped Project APIs. Failed/blocked Tasks remain
 visible under Needs attention. DOM regression is red on f5eb916 and green locally.
 Chromium screenshots and actual shared-service acceptance for this rework are pending;
 prior functional acceptance does not establish the owner's visual acceptance.
+
+Chief inspection may explicitly select one existing Task in its authorized Project. The host validates Project configuration authority and Task ownership before using the existing scoped snapshot mechanism. Other-Project/missing Tasks are rejected; unscoped inspection is unchanged. This reduces unrelated facts without dropping policy/knowledge or raising context limits.
+
+Owner basic-CI policy is implemented on the existing PR47 local branch: default pinned install/lint/build/canonical/core and plugin unit checks; heavy browser/runtime/package checks explicit extended dispatch. Independent Review and actual UI acceptance remain. Publish only at a safe upstream-binding checkpoint; this local change does not claim live workflow activation.
+
+- R6/#39 existing-PR publication recovery now has a manager-scoped endpoint that
+  revalidates original sealed role/test evidence and uses the guarded publisher.
+  It repairs read-after-push receipt gaps without a new Attempt, fabricated Review
+  or overall Task acceptance; see Project delivery architecture and regressions.
+- Chief resource context retains current/uncertain lease details and digests only
+  proven released history, preserving original records and the 48k admission limit.
+
+### R7 UI continuation — slow connections and public Bot inspection
+
+The same #40/PR48 continuation joins in-flight same-route loads, requests board/resource summaries without discarding audit history, and loads Settings/Workflow/member data only where displayed. Public Bot cards expose persona and attached same-Project/same-role public memory with revision/source. Settings retain existing permission checks. Native personal Chief/Bots/groups coexistence remains required and unfinished; Project rooms do not satisfy it. Browser throttling and current deployed three-account/visual acceptance remain separate from local unit evidence.
+
+
+The returned 653ebc2 candidate failed two repository workflow-shape assertions, not dependency preparation: they still required unconditional extended jobs and the retired shell gate. The #40 continuation aligns these assertions with the authorized basic/extended CI contract while retaining executable failure/cancellation coverage. UI/native-personal compatibility and new candidate host verification remain separate outstanding evidence.
+
+#40 continuation: Chief/private Project transcript now mounts original React
+Bubbles/Markdown and identity marks from scoped history, in lazy named assets.
+This is a partial native component slice, not personal-space/native-group compatibility
+or Owner visual acceptance. Exact checks and remaining adapter work travel with handoff.
+
+
+The current #40 continuation wires the original reply renderer to the Project/room observable source, including concurrent room streams and revocation clearing. It replaces the parallel room Markdown renderer. Personal Chief/Bots/native groups, complete Harness service adapters and current-source desktop/narrow/live acceptance remain unfinished; this is implementation progress, not Task acceptance.
+
+R7 continuation in the preserved #40 draft adds original personal Bot/group identity
+and history navigation, native sends and own-memory reads through a restricted
+adapter, plus original AssistantCell rendering. Focused HTTP/component checks are
+separate from pending full Harness shell/composer integration and actual deployed
+visual acceptance; #40 remains unfinished and no acceptance is claimed.
+
+Attempt8a continuation repaired native bundle/patch whitespace generation with
+red/green regression evidence and 36 focused passing checks. The draft remains
+unsealed; native shell/composer/tool/approval restoration and current-candidate
+verification/visual acceptance remain outstanding.
+
+- Fork basic CI checks out source in its tests-ok aggregation job and validates the current basic/extended policy in default workflow tests. The prior missing-script runner failure and stale inherited heavy-job assertions are repaired together, without bypassing failed verification.
+
+#40 recovered native UI draft continuation preserves original personal identities,
+history and native reply/list components; personal parent trees now use the original
+collapse renderer. This is unaccepted implementation, not full native shell parity.
+Native composer/services, complete personal controls and current browser/three-account
+visual acceptance remain outstanding and must not be inferred from unit checks.

@@ -94,3 +94,20 @@ collaboration APIs, align the workspace with the supplied polished reference, se
 Settings from chat and use actual data throughout. Existing functional checks cannot
 stand in for desktop/narrow-screen visual or live shared-service acceptance. This
 implements the recorded scope without authorizing publication, deployment or merges.
+
+Chief inspection may explicitly select one existing Task in its authorized Project. The host validates Project configuration authority and Task ownership before using the existing scoped snapshot mechanism. Other-Project/missing Tasks are rejected; unscoped inspection is unchanged. This reduces unrelated facts without dropping policy/knowledge or raising context limits.
+
+Owner basic-CI policy is implemented on the existing PR47 local branch: default pinned install/lint/build/canonical/core and plugin unit checks; heavy browser/runtime/package checks explicit extended dispatch. Independent Review and actual UI acceptance remain. Publish only at a safe upstream-binding checkpoint; this local change does not claim live workflow activation.
+
+R7 continuation applies the existing Owner slow-network/public-role inspection scope: preserve history while projecting card data, join in-flight refreshes and retain scope-change cancellation. Public details use existing published role memory and exclude private context. Native personal compatibility remains required, not replaced by Project rooms; the current slice and deterministic checks cannot establish overall UI acceptance.
+
+#40 native-component continuation implements a bounded first mount of original
+Bubbles/identity marks on existing scoped Project history. It leaves personal native
+sessions/groups and sessions/uiConversation/slots adapters explicitly incomplete;
+no owner API exposure, new authorization or overall acceptance follows from this slice.
+
+The owner-authorized #40 draft recovery keeps the published PR48 seed and trusted
+pinned upstream as integration inputs. This continuation reuses original personal
+sidebar tree controls, without adding global owner-shell access. The scoped slice
+is not full native shell parity or Owner visual acceptance; remaining native
+composer/tool/approval integration and browser evidence stay on the same Task.

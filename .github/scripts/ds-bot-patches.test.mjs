@@ -278,3 +278,12 @@ if (gitAvailable) {
     } finally { rmSync(dir, { recursive: true, force: true }) }
   })
 }
+
+ test('blank context has no trailing whitespace and preserves content through both appliers', () => {
+  const before = 'alpha\n\nbeta\n'; const after = 'alpha\n\nchanged\n'
+  const patch = diffOf(before, after)
+  assert.doesNotMatch(patch, /^ $/m)
+  assert.equal(applies(before, patch), after)
+  const dir = mkdtempSync(join(tmpdir(), 'blank-context-'))
+  try { writeFileSync(join(dir, 'x.js'), before); applyPatchText(patch, dir); assert.equal(readFileSync(join(dir, 'x.js'), 'utf8'), after) } finally { rmSync(dir, { recursive: true, force: true }) }
+})

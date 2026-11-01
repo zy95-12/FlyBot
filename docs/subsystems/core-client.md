@@ -429,3 +429,14 @@ M7.4 extends the separate Project workbench with Owner role Harness/model/resour
 ### M7.5 — 2026-10-31
 
 M7.5 Attempt details expose scoped sealed SDK execution evidence, including Harness/version/resource/backend Session. Log selection uses the current Project/Attempt/role; no arbitrary filesystem path is accepted. Existing workbench bundle is regenerated.
+
+The standalone workbench imports the original AssistantCell and marks through a
+lazy native bundle. Both client entries share observable-source.js; the standalone
+projection supplies only scoped public text and member-visible identities, without
+initializing the owner-shell registry. Personal navigation uses the bounded
+personal-space endpoint; it does not treat a Project agent as the personal Chief.
+
+The scoped workbench mounts the same AssistantCell, BotRow, RoomRow and TreeNode
+components as the native sidebar/conversation. Its personal tree derives only from
+member-visible parent IDs; current-part identity is normalized before selection.
+The lazy bundle is regenerated with the main client when these shared components change.

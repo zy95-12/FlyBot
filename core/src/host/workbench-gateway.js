@@ -1,18 +1,19 @@
 // Restricted shared entry. The DSH owner credential stays server-side; members never
 // receive raw Harness APIs or its owner cookie. Project authorization remains in FlyBot.
 import { createServer } from 'node:http'
+import { gzipSync } from 'node:zlib'
 import { readFile, stat } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 export const WORKBENCH_ENDPOINTS = new Set([
-  'auth-mode', 'platform-login', 'auth-whoami', 'auth-revoke', 'auth-invite', 'auth-redeem', 'workbench-state',
+  'personal-space', 'auth-mode', 'platform-login', 'auth-whoami', 'auth-revoke', 'auth-invite', 'auth-redeem', 'workbench-state',
   'projects', 'project-create', 'project-read', 'project-detail', 'project-board', 'project-members', 'project-role',
   'project-invite', 'project-join', 'project-leave', 'project-member-remove', 'project-archive', 'project-delete',
-  'project-quota', 'project-resources', 'project-resource-environment-check', 'project-execution-input', 'project-runtime-check', 'project-terminal-open', 'project-terminal-poll', 'project-terminal-input', 'project-terminal-resize', 'project-terminal-close', 'project-queue-cancel', 'project-workflow',
+  'project-quota', 'project-resources', 'project-resource-environment-check', 'project-execution-input', 'project-runtime-check', 'project-terminal-open', 'project-terminal-poll', 'project-terminal-input', 'project-terminal-resize', 'project-terminal-close', 'project-queue-cancel', 'project-queue-retry', 'project-workflow',
   'task-create', 'task-update', 'task-cancel', 'task-answer-input',
   'project-task-run', 'project-task-detail', 'project-task-accept', 'project-task-reject',
-  'project-attempt-stop', 'project-attempt-log', 'project-attempt-cleanup',
+  'project-attempt-stop', 'project-attempt-log', 'project-attempt-cleanup', 'project-attempt-publication-retry',
   'project-rooms', 'project-room-create', 'project-room-read', 'project-room-message', 'project-room-attachment', 'project-room-stop', 'project-agent-stop',
   'project-agents', 'project-agent-message', 'project-agent-history', 'project-agent-memory-write', 'project-role-memory-write', 'project-agent-definition',
   'project-task-pools', 'project-chief-question', 'project-github-read', 'project-agent-mode',
@@ -35,7 +36,14 @@ export function createWorkbenchGateway({ upstreamOrigin, upstreamCookie, publicO
     res.setHeader('x-frame-options', 'DENY')
     res.setHeader('referrer-policy', 'no-referrer')
     res.setHeader('content-security-policy', "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
-    const respond = (status, value, type = 'application/json; charset=utf-8') => { res.writeHead(status, { 'content-type': type }); res.end(type.startsWith('application/json') ? JSON.stringify(value) : value) }
+    const respond = (status, value, type = 'application/json; charset=utf-8') => {
+      const data = Buffer.from(type.startsWith('application/json') ? JSON.stringify(value) : value)
+      res.setHeader('vary', 'Accept-Encoding')
+      const acceptsGzip = String(req.headers['accept-encoding'] ?? '').split(',').some(part => /^gzip(?:\s*;|$)/i.test(part.trim()) && !/;\s*q=0(?:\.0*)?\s*$/i.test(part))
+      const compressed = acceptsGzip && data.length >= 1024
+      res.writeHead(status, { 'content-type': type, ...(compressed ? { 'content-encoding': 'gzip' } : {}) })
+      res.end(compressed ? gzipSync(data) : data)
+    }
     const port = server.address()?.port
     const allowed = published ? [published.origin] : [`http://127.0.0.1:${port}`, `http://localhost:${port}`, `http://[::1]:${port}`]
     const host = String(req.headers.host ?? '')
@@ -48,7 +56,7 @@ export function createWorkbenchGateway({ upstreamOrigin, upstreamCookie, publicO
       if (url.pathname === '/') return respond(200, HTML, 'text/html; charset=utf-8')
       if (url.pathname === '/health') return respond(200, { status: 'ok' })
       if (url.pathname === '/favicon.ico') { res.writeHead(204); return res.end() }
-      if (['/workbench.js', '/workbench.css'].includes(url.pathname)) {
+      if (['/workbench.js', '/workbench.css', '/workbench-native.js', '/workbench-native.css'].includes(url.pathname)) {
         try { return respond(200, await assets(url.pathname.slice(1)), url.pathname.endsWith('.css') ? 'text/css; charset=utf-8' : 'text/javascript; charset=utf-8') }
         catch { return respond(503, { error: 'Build the Project workbench assets before starting' }) }
       }

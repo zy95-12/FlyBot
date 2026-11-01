@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { test } from 'node:test'
 import { createRuntime } from '../index.js'
 import { createWorkflowService } from '../../plugins/workflow/src/service.js'
+import { createProjectScheduler } from '../src/host/project-scheduler.js'
 import { fakeContext } from './fake-ctx.js'
 
 const alice = { memberId: 'owner-1' }
@@ -26,7 +27,7 @@ async function setup(t) {
   const register = ctx.connection.fetch.register
   ctx.connection.fetch.register = options => { if (options.path.endsWith('bot')) route = options; return register(options) }
   const rt = createRuntime(ctx, { home, projectWorkbench: true })
-  rt.testHttp = async endpoint => (await route.fetch(new Request('http://localhost/api/bot', { method: 'POST', headers: { 'x-flybot-member-session': 'unit-session' }, body: JSON.stringify({ endpoint, payload: { projectId: 'p1' } }) }))).json()
+  rt.testHttp = async (endpoint, payload = { projectId: 'p1' }) => (await route.fetch(new Request('http://localhost/api/bot', { method: 'POST', headers: { 'x-flybot-member-session': 'unit-session' }, body: JSON.stringify({ endpoint, payload }) }))).json()
   await rt.load()
   t.after(async () => { await ctx.dispose(); rmSync(home, { recursive: true, force: true, maxRetries: 5 }) })
   return rt
@@ -162,7 +163,7 @@ test('repair pool, query, delegation and Chief endpoints reach the actual HTTP P
   rt.authenticate = async () => alice
   const prior = rt.projectEndpoint
   rt.projectEndpoint = async endpoint => ({ routedProjectEndpoint: endpoint })
-  for (const endpoint of ['project-rooms', 'project-room-create', 'project-room-read', 'project-room-message', 'project-room-attachment', 'project-room-stop', 'project-agent-stop', 'project-task-pools', 'project-chief-question', 'project-github-read', 'project-agent-mode', 'project-chief-state', 'project-chief-configure', 'project-chief-inspect', 'project-scheduled-task']) {
+  for (const endpoint of ['project-queue-retry', 'project-rooms', 'project-room-create', 'project-room-read', 'project-room-message', 'project-room-attachment', 'project-room-stop', 'project-agent-stop', 'project-task-pools', 'project-chief-question', 'project-github-read', 'project-agent-mode', 'project-chief-state', 'project-chief-configure', 'project-chief-inspect', 'project-scheduled-task']) {
     const result = await rt.testHttp(endpoint)
     assert.equal(result.ok, true, endpoint)
     assert.equal(result.value.routedProjectEndpoint, endpoint)
@@ -172,4 +173,55 @@ test('repair pool, query, delegation and Chief endpoints reach the actual HTTP P
   const denied = await rt.testHttp('project-chief-state')
   assert.equal(denied.ok, false)
   assert.equal(denied.error.code, 'bot/forbidden')
+})
+
+test('scoped Chief inspection keeps human authority and rejects other Project Tasks',async t=>{
+ const rt=await setup(t);rt.state.tasks.owned={id:'owned',projectId:'p1'};rt.state.tasks.other={id:'other',projectId:'p2'};let source
+ rt.projectChiefControl.request=async(projectId,kind,input)=>{source=input;return{id:'inspection'}}
+ await rt.projectEndpoint('project-chief-inspect',{projectId:'p1',requestId:'scoped',taskId:'owned'},alice)
+ assert.equal(source.blockedTaskId,'owned')
+ await assert.rejects(rt.projectEndpoint('project-chief-inspect',{projectId:'p1',requestId:'other',taskId:'other'},alice),/Inspection Task/)
+ await assert.rejects(rt.projectEndpoint('project-chief-inspect',{projectId:'p1',requestId:'missing',taskId:'missing'},alice),/Inspection Task/)
+ await assert.rejects(rt.projectEndpoint('project-chief-inspect',{projectId:'p1',requestId:'member',taskId:'owned'},bob),/access denied/)
+ await rt.projectEndpoint('project-chief-inspect',{projectId:'p1',requestId:'whole'},alice);assert.equal(source.blockedTaskId,undefined)
+})
+
+test('board summaries retain authorized cards without full audit payloads', async t => {
+  const rt = await setup(t)
+  rt.state.tasks.card = { id: 'card', projectId: 'p1', title: 'Visible', status: 'open', requesterId: 'bob', result: 'large private audit', collaboration: { botId: 'chief', claim: { context: 'large execution context' } } }
+  const full = await rt.projectEndpoint('project-detail', { projectId: 'p1' }, bob)
+  const summary = await rt.projectEndpoint('project-detail', { projectId: 'p1', view: 'summary' }, bob)
+  assert.equal(full.tasks[0].result, 'large private audit')
+  assert.equal(summary.tasks[0].title, 'Visible')
+  assert.equal(summary.tasks[0].result, undefined)
+  assert.equal(summary.tasks[0].collaboration.claim, undefined)
+  assert.equal(summary.runs, undefined)
+  await assert.rejects(rt.projectEndpoint('project-detail', { projectId: 'p1', view: 'summary' }, outsider), /access denied/)
+  const resources = await rt.workbenchEndpoint('project-resources', { projectId: 'p1', view: 'summary' }, bob)
+  assert.equal(resources.harnessWorkers, undefined)
+  assert.equal(resources.resourceLeases, undefined)
+  assert.equal(resources.taskExecution[0].taskId, 'card')
+  assert.equal(rt.state.tasks.card.result, 'large private audit')
+})
+
+test('queue recovery reaches live HTTP manager checks and cannot borrow a forged body identity', async t => {
+  const rt = await setup(t)
+  rt.state.tasks.queued = { id: 'queued', projectId: 'p1', requesterId: 'bob', status: 'open' }
+  rt.state.projectQueue = { q: { id: 'q', projectId: 'p1', taskId: 'queued', memberId: 'bob', status: 'blocked', requestId: 'original', reason: 'Missing dependencies' } }
+  rt.state.projectAttempts = { busy1: { projectId: 'p1', status: 'running', id: 'busy1' }, busy2: { projectId: 'p1', status: 'running', id: 'busy2' } }
+  rt.projectScheduler = createProjectScheduler(rt, { preflight: async () => ({}) })
+  rt.authenticate = async () => bob
+  const payload = { queueId: 'q', memberId: 'owner-1', projectId: 'p2' }
+  const denied = await rt.testHttp('project-queue-retry', payload)
+  assert.equal(denied.ok, false)
+  assert.equal(denied.error.code, 'bot/forbidden')
+  assert.equal(rt.state.projectQueue.q.status, 'blocked')
+  rt.authenticate = async () => alice
+  const allowed = await rt.testHttp('project-queue-retry', payload)
+  assert.equal(allowed.ok, true)
+  assert.equal(allowed.value.queue.memberId, 'bob')
+  assert.equal(allowed.value.queue.projectId, 'p1')
+  assert.equal(allowed.value.queue.recoveries[0].by, 'owner-1')
+  await rt.projectScheduler.wake()
+  assert.equal(rt.state.projectQueue.q.status, 'waiting')
 })

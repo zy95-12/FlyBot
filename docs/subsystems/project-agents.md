@@ -309,3 +309,5 @@ Repository previews may reference the separately injected complete policy only a
 verifying the policy hash, source commit, full source hash and preview prefix.
 Unverified previews remain inline under the unchanged 48,000-character limit;
 knowledge, memory and complete policy rules are preserved.
+
+Board-only `project-agents {view: summary}` returns the current public Chief identity after the same membership checks; it neither creates a private carrier nor returns private notes/proposals or role-policy bodies. Full settings/conversation responses retain their existing ownership scope.

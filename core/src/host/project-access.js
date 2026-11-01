@@ -112,7 +112,9 @@ export function install(rt) {
     if (endpoint === 'project-chief-inspect') {
       rt.requireProjectAccess(actor, body.projectId, 'configure')
       if (typeof body.requestId !== 'string' || !/^[A-Za-z0-9_-]{1,100}$/.test(body.requestId)) throw refusal('Chief inspection needs a stable requestId')
-      return { run: await rt.projectChiefControl.request(body.projectId, 'inspection', { requestId: body.requestId, requestedBy: actor.memberId }) }
+      const task = body.taskId === undefined ? null : ownEntry(state.tasks, String(body.taskId))
+      if (body.taskId !== undefined && (!task || task.projectId !== body.projectId)) throw refusal('Inspection Task is unavailable in this Project')
+      return { run: await rt.projectChiefControl.request(body.projectId, 'inspection', { requestId: body.requestId, requestedBy: actor.memberId, ...(task ? { blockedTaskId: task.id } : {}) }) }
     }
     if (endpoint === 'project-scheduled-task') return rt.projectScheduledTasks.endpoint(body, actor)
     if (endpoint === 'project-rooms' || endpoint.startsWith('project-room-') || endpoint === 'project-agent-stop') return rt.projectAgents.endpoint(endpoint, body, actor)
@@ -133,7 +135,8 @@ export function install(rt) {
     }
     if (endpoint === 'project-task-run') return rt.projectScheduler.request(body, actor)
     if (endpoint === 'project-queue-cancel') return rt.projectScheduler.cancel(body, actor)
-    if (['project-attempt-stop', 'project-attempt-log', 'project-task-run', 'project-task-detail', 'project-task-accept', 'project-task-reject', 'project-attempt-cleanup'].includes(endpoint)) return rt.projectDelivery.endpoint(endpoint, body, actor)
+    if (endpoint === 'project-queue-retry') return rt.projectScheduler.retry(body, actor)
+    if (['project-attempt-stop', 'project-attempt-log', 'project-task-run', 'project-task-detail', 'project-task-accept', 'project-task-reject', 'project-attempt-cleanup', 'project-attempt-publication-retry'].includes(endpoint)) return rt.projectDelivery.endpoint(endpoint, body, actor)
     if (endpoint === 'projects') return { projects: rt.listProjects().filter(project => rt.projectCan(actor, project.id)).map(project => safeProject(project, actor)) }
     if (endpoint === 'project-create') return undefined
     if (endpoint === 'project-join') {
@@ -161,7 +164,11 @@ export function install(rt) {
     const bound = ['project-bind', 'project-of'].includes(endpoint) ? rt.projectOfMember(body.kind, body.id) : null
     const id = String(body.projectId ?? bound?.id ?? body.id ?? '')
     const project = rt.requireProjectAccess(actor, id)
-    if (endpoint === 'project-detail') return safeDetail(id, actor)
+    if (endpoint === 'project-detail') {
+      const result = safeDetail(id, actor)
+      if (body.view !== 'summary') return result
+      return { project: result.project, permissions: result.permissions, tasks: result.tasks.map(({ id, title, priority, status, requesterId, createdAt, collaboration }) => ({ id, title, priority, status, requesterId, createdAt, collaboration: collaboration ? { botId: collaboration.botId, status: collaboration.status } : undefined })) }
+    }
     if (endpoint === 'project-of') return { project: safeProject(project, actor) }
     if (endpoint === 'project-read') return { project: safeProject(project, actor), canManage: rt.projectCan(actor, id, 'manage') }
     if (endpoint === 'project-members') {

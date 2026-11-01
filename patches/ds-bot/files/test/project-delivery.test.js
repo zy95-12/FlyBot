@@ -36,7 +36,7 @@ async function setup(t, testCommand = [process.execPath, '--test', 'code.test.mj
   await rt.load()
   const published = []
   const publisher = { publish: async attempt => {
-    const pr = { number: published.length + 1, sha: attempt.candidateSha, url: 'https://example.invalid/pr/1', repository: 'example/demo' }
+    const pr = { number: attempt.publicationBinding?.number ?? published.length + 1, sha: attempt.candidateSha, url: 'https://example.invalid/pr/1', repository: 'example/demo' }
     published.push(pr); return pr
   }, read: async pr => ({ sha: pr.sha, state: 'open', baseRef: 'main', baseSha: git(repository, ['rev-parse', 'main']) }) }
   rt.projectDelivery = createProjectDelivery(rt, { publisher })
@@ -803,6 +803,106 @@ test('context failure releases an actual unbound reservation before registering 
   assert.equal(a.workspaces.developer.status,'allocated')
 })
 
+test('workspace allocation failure releases an actual reservation before any external execution', async t => {
+  const f = await setup(t, undefined, { pool: true })
+  f.rt.projectPools.connect({ validate: () => ({ ok: true }) })
+  f.rt.projectScheduler.wake = () => {}
+  f.rt.config.projectResources = { one: { type: 'local', root: f.directory, capacity: 1, allowedProjectOwnerIds: ['owner-1'], harnesses: ['codex'], profiles: { 'owner-1': { codex: { home: join(f.directory, 'sdk-home'), configDir: join(f.directory, 'sdk-config'), model: 'fixture/model' } } } } }
+  f.rt.state.projectResourceHealth = { one: { status: 'ready', at: Date.now() } }
+  f.rt.state.projectHarnessHealth = { 'p1:one:codex': { status: 'ready' } }
+  await f.rt.projectEndpoint('project-agent-definition', { projectId: 'p1', role: 'developer', execution: { harness: 'codex', resourceIds: ['one'] } }, alice)
+  await f.start('allocation-failure')
+  const a = f.attempt(), task = f.rt.state.tasks[f.task.id]
+  // A real filesystem obstacle after reservation and before git worktree creation.
+  writeFileSync(join(f.directory, 'delivery'), 'Not a directory')
+  const dev = f.rt.projectAgents.deliveryDefinitions('p1').roles.find(row => row.role === 'developer')
+  await assert.rejects(f.rt.projectDelivery.preparePoolRole(task, { id: 'failed-allocation', attemptId: a.id, generation: 1 }, dev), /ENOTDIR|EEXIST/)
+  const lease = Object.values(f.rt.state.projectResourceLeases).find(row => row.attemptId === a.id)
+  assert.equal(lease.status, 'released')
+  assert.equal(lease.releaseProof.kind, 'unbound-reservation-release')
+  assert.equal(a.preparationFailures.at(-1).releasedBeforeExternalStart, true)
+  assert.deepEqual(a.roleSessions, {})
+  assert.equal(Object.values(f.rt.state.projectHarnessWorkers ?? {}).filter(row => row.attemptId === a.id).length, 0)
+})
+
+test('every pool receiver is host-prepared in its own checkout before registering a role Session', async t => {
+  const f = await setup(t, undefined, { pool: true })
+  f.rt.projectPools.connect({ validate: () => ({ ok: true }) })
+  const settings = f.rt.config.projectRepositories['example/demo']
+  // A real child process verifies the cwd and creates only ignored dependency data.
+  settings.workspacePrepareCommand = [process.execPath, '-e', "const fs=require('fs');if(!fs.existsSync('code.mjs'))process.exit(31);fs.mkdirSync('node_modules',{recursive:true});fs.writeFileSync('node_modules/ready',process.cwd())"]
+  await f.start('prepare-receivers')
+  const a = f.attempt(), task = f.rt.state.tasks[f.task.id]
+  for (const [index, role] of ['developer', 'tester', 'reviewer'].entries()) {
+    const definition = f.rt.projectAgents.deliveryDefinitions('p1').roles.find(row => row.role === role)
+    const node = await f.rt.projectDelivery.preparePoolRole(task, { id: `prepare-${role}`, attemptId: a.id, generation: index + 1 }, definition)
+    assert.equal(readFileSync(join(node.executionWorkDir, 'node_modules/ready'), 'utf8'), node.executionWorkDir)
+    assert.equal(a.workspacePreparations.at(-1).workspaceId, a.workspaces[role].id)
+    assert.equal(a.roleSessions[role].status, 'prepared')
+  }
+  assert.equal(a.workspacePreparations.length, 3)
+  assert.equal(new Set(Object.values(a.workspaces).map(row => row.path)).size, 3)
+  settings.workspacePrepareCommand = [process.execPath, '-e', 'process.exit(37)']
+  const previous = structuredClone(a.roleSessions.reviewer)
+  const reviewer = f.rt.projectAgents.deliveryDefinitions('p1').roles.find(row => row.role === 'reviewer')
+  await assert.rejects(f.rt.projectDelivery.preparePoolRole(task, { id: 'prepare-failed', attemptId: a.id, generation: 9 }, reviewer), error => error.code === 37)
+  assert.deepEqual(a.roleSessions.reviewer, previous)
+  assert.equal(a.workspacePreparations.length, 3)
+  assert.equal(a.preparationFailures.at(-1).role, 'reviewer')
+})
+
+test('independent host tests prepare dependencies after cleaning their exact candidate checkout', async t => {
+  const f = await setup(t, [process.execPath, '-e', "const fs=require('fs');if(fs.readFileSync('node_modules/ready','utf8')!==process.cwd())process.exit(33)"])
+  f.rt.config.projectRepositories['example/demo'].workspacePrepareCommand = [process.execPath, '-e', "const fs=require('fs');fs.mkdirSync('node_modules',{recursive:true});fs.writeFileSync('node_modules/ready',process.cwd())"]
+  await f.start('host-preparation')
+  await implement(f)
+  const a = f.attempt(), path = a.workspaces.tester.path
+  mkdirSync(join(path, 'node_modules')); writeFileSync(join(path, 'node_modules/stale'), 'Must be removed')
+  await f.gate('tester')
+  assert.equal(a.evidence.tests.passed, true)
+  assert.equal(a.workspacePreparations.at(-1).workspaceId, a.workspaces.tester.id)
+  assert.equal((await import('node:fs')).existsSync(join(path, 'node_modules/stale')), false)
+})
+
+test('bound-resource preparation executes before SDK registration and failure retains unknown occupancy', async t => {
+  const f = await setup(t, undefined, { pool: true })
+  f.rt.projectPools.connect({ validate: () => ({ ok: true }) })
+  f.rt.projectScheduler.wake = () => {}
+  f.rt.config.projectResources = { one: { type: 'local', root: f.directory, capacity: 1, allowedProjectOwnerIds: ['owner-1'], harnesses: ['codex'], profiles: { 'owner-1': { codex: { home: join(f.directory, 'sdk-home'), configDir: join(f.directory, 'sdk-config'), model: 'fixture/model' } } } } }
+  f.rt.state.projectResourceHealth = { one: { status: 'ready', at: Date.now() } }
+  f.rt.state.projectHarnessHealth = { 'p1:one:codex': { status: 'ready' } }
+  await f.rt.projectEndpoint('project-agent-definition', { projectId: 'p1', role: 'developer', execution: { harness: 'codex', resourceIds: ['one'] } }, alice)
+  const settings = f.rt.config.projectRepositories['example/demo']
+  settings.workspacePrepareCommand = [process.execPath, '-e', "if(!require('fs').existsSync('code.mjs'))process.exit(31)"]
+  await f.start('resource-preparation')
+  const a = f.attempt(), task = f.rt.state.tasks[f.task.id]
+  const dev = f.rt.projectAgents.deliveryDefinitions('p1').roles.find(row => row.role === 'developer')
+  await f.rt.projectDelivery.preparePoolRole(task, { id: 'prepared-resource', attemptId: a.id, generation: 1 }, dev)
+  assert.equal(a.workspacePreparations.at(-1).resourceId, 'one')
+  const original = structuredClone(a.roleSessions.developer)
+  const first = a.resourceLeases.developer
+  await f.rt.projectResources.release(first.id, first.generation)
+  const preparationCommand = settings.workspacePrepareCommand
+  settings.workspacePrepareCommand = [process.execPath, '-e', 'process.exit(37)']
+  await assert.rejects(f.rt.projectDelivery.preparePoolRole(task, { id: 'resource-command-failed', attemptId: a.id, generation: 2 }, dev), error => error.code === 37)
+  assert.equal(f.rt.state.projectResourceLeases[a.resourceLeases.developer.id].status, 'released')
+  assert.equal(a.preparationFailures.at(-1).releasedBeforeExternalStart, true)
+  settings.workspacePrepareCommand = preparationCommand
+  const command = f.rt.projectResources.command
+  f.rt.projectResources.command = async (...args) => {
+    const lease = a.resourceLeases.developer
+    await f.rt.projectResources.markStarted(lease.id, lease.generation, { kind: 'sdk', handle: 'unknown-worker' })
+    await command(...args)
+    throw new Error('Connection lost after external registration')
+  }
+  await assert.rejects(f.rt.projectDelivery.preparePoolRole(task, { id: 'unknown-preparation', attemptId: a.id, generation: 2 }, dev), /Connection lost/)
+  const held = f.rt.state.projectResourceLeases[a.resourceLeases.developer.id]
+  assert.equal(held.status, 'running')
+  assert.equal(held.worker.handle, 'unknown-worker')
+  assert.equal(a.preparationFailures.at(-1).releasedBeforeExternalStart, false)
+  assert.deepEqual(a.roleSessions.developer, original)
+})
+
 test('unstarted bound delivery refreshes a verified descendant target without replacing its draft or Attempt',async t=>{
   for(const variant of ['safe','reserved','unknown','worker','session','history','execution','candidate','cancel','native','unproven-release','released-bound','stale-state','unrelated','missing','moved-head','moved-ref']){
     const f=await setup(t,undefined,{pool:true});f.rt.projectScheduler.wake=()=>{} // Keep deliberate lease snapshots stable during admission checks.
@@ -847,4 +947,71 @@ test('unstarted bound delivery refreshes a verified descendant target without re
     assert.equal(readFileSync(join(path,'code.mjs'),'utf8'),'export const preservedDraft = true;\n')
     assert.equal(git(path,['rev-parse','HEAD']),base)
   }
+})
+
+async function publicationFailure(t) {
+  const f = await setup(t)
+  await f.start('publication-recovery')
+  await implement(f); await f.gate('tester')
+  const a = f.attempt()
+  f.rt.state.projectHarnessWorkers ??= {}; f.rt.state.projectResourceLeases ??= {}
+  a.publicationBinding = { number: 48, repository: 'example/demo', branch: a.branch, previousSha: a.baseSha, upstreamSha: a.baseSha, upstreamRef: 'main' }
+  f.publisher.publish = async () => { throw new Error('PR head does not match the tested candidate') }
+  await assert.rejects(f.rt.projectDelivery.completePoolRole({ task: { ...f.task, collaboration: { kind: 'code' } }, claim: { attemptId: a.id }, role: 'reviewer', outputs: { review: JSON.stringify({ commit: a.candidateSha, verdict: 'approve', summary: 'Independent exact-commit review' }) } }), /PR head does not match/)
+  assert.equal(a.status, 'running'); assert.equal(a.pr, undefined)
+  f.publisher.publish = async attempt => { const pr = { number: 48, sha: attempt.candidateSha, repository: 'example/demo' }; f.published.push(pr); return pr }
+  const retry = actor => f.rt.projectEndpoint('project-attempt-publication-retry', { attemptId: a.id }, actor ?? alice)
+  return { ...f, a, retry }
+}
+
+test('existing-PR recovery reuses sealed tests/Review and stays subject to Chief acceptance', async t => {
+  const f = await publicationFailure(t), a = f.a
+  a.protocol = 'project-handoff/v1'
+  const evidence = structuredClone(a.evidence), sessions = structuredClone(a.roleSessions)
+  const first = await f.retry()
+  assert.equal(first.attempt.pr.number, 48); assert.equal(first.attempt.status, 'waiting-acceptance')
+  assert.equal(f.rt.state.tasks[f.task.id].status, 'result-ready')
+  assert.deepEqual(a.evidence, evidence); assert.deepEqual(a.roleSessions, sessions)
+  assert.equal(Object.keys(f.rt.state.projectAttempts).length, 1)
+  assert.equal((await f.retry()).already, true)
+  assert.equal(a.publicationRecoveries.length, 1)
+  await assert.rejects(f.rt.projectEndpoint('project-task-accept', { attemptId: a.id }, alice), /Chief arbitration/)
+})
+
+test('publication recovery refuses unauthorized, stale and still-executing evidence before any push', async t => {
+  const f = await publicationFailure(t), a = f.a
+  await assert.rejects(f.retry(bob), /access denied/)
+  for (const mutate of [
+    () => { a.evidence.tests.sha = 'wrong' },
+    () => { a.evidence.review.verdict = 'request-changes' },
+    () => { f.rt.state.tasks[f.task.id].criteria = 'changed' },
+    () => { a.cancelRequested = true },
+    () => { a.status = 'returned' },
+    () => { delete a.publicationBinding },
+    () => { delete a.roleSessions.reviewer },
+    () => { f.rt.state.projectHarnessWorkers.fake = { attemptId: a.id, status: 'running' } },
+    () => { f.rt.state.projectResourceLeases.fake = { attemptId: a.id, status: 'reserved' } },
+    () => { f.rt.state.tasks[f.task.id].deliveryAttemptId = 'other' },
+    () => { a.evidence.tests.sha256 = 'changed' },
+    () => { a.roleSessions.reviewer.execution.harness = 'codex-sdk' },
+  ]) {
+    const before = structuredClone(a), task = structuredClone(f.rt.state.tasks[f.task.id])
+    mutate(); await assert.rejects(f.retry()); assert.equal(f.published.length, 0)
+    for (const key of Object.keys(a)) delete a[key]
+    Object.assign(a, before); f.rt.state.tasks[f.task.id] = task
+    delete f.rt.state.projectHarnessWorkers.fake; delete f.rt.state.projectResourceLeases.fake
+  }
+  writeFileSync(join(a.workspaces.developer.path, 'code.mjs'), 'modified after testing')
+  await assert.rejects(f.retry(), /Candidate changed/); assert.equal(f.published.length, 0)
+})
+
+test('failed PR reconciliation never fabricates a receipt or consumes prior evidence', async t => {
+  const f = await publicationFailure(t), before = structuredClone(f.a.evidence)
+  f.publisher.publish = async () => { throw new Error('Existing PR upstream changed') }
+  await assert.rejects(f.retry(), /upstream changed/)
+  assert.equal(f.a.pr, undefined); assert.equal(f.a.status, 'running')
+  assert.deepEqual(f.a.evidence, before)
+  f.publisher.publish = async () => ({ number: 48, sha: 'wrong' })
+  await assert.rejects(f.retry(), /does not match candidate/)
+  assert.equal(f.a.pr, undefined)
 })

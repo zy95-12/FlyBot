@@ -457,8 +457,9 @@ export function createProjectAgents(rt) {
       const agent = await serial(() => ensure(projectId, actor, body.visibility === 'public' ? 'public' : 'private'))
       return { agent: structuredClone(agent), live: liveFor(agent), messages: structuredClone(logOf(agent.id)), busy: delegations.has(agent.id) || Boolean(rt.activityView?.()[agent.botId]) }
     }
-    const mine = await serial(() => ensure(projectId, actor))
     const publicAgent = await serial(() => ensure(projectId, actor, 'public'))
+    if (body.view === 'summary') return { projectId: project.id, public: { id: publicAgent.id, botId: publicAgent.botId, visibility: 'public' } }
+    const mine = await serial(() => ensure(projectId, actor))
     return { projectId: project.id, delegation: rt.projectDelegations?.view(mine.id) ?? { mode: 'safe', grant: null }, definitions: structuredClone(definitionSet(projectId)),
       public: { id: publicAgent.id, botId: publicAgent.botId, visibility: 'public' }, mine: structuredClone(mine),
       privateMemory: structuredClone(ownEntry(privateNotes(), mine.id) ?? []),

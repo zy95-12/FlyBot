@@ -193,3 +193,60 @@ Not run: full `npm run verify`, Chromium, deployment/real-service acceptance
 and independent Review. This documentation/fragment-only change leaves core,
 client builds and generated patches byte-unchanged. Tester should request the
 configured host verification after sealing; no complete-role PASS is claimed here.
+
+## Preserved Attempt8a continuation — 2026-11-01
+
+Working HEAD remains `2d9391d8ec714c214ac8ade27526e1fef752bee4`; changes are
+unsealed and have no candidate SHA. Dependency preparation passed using the configured
+verifier `--prepare-only`. The draft adds original AssistantCell rendering, scoped
+personal Chief/Bot/group entry, own-memory filtering and original per-part history
+selection. Existing native `send` and room membership-window history remain the
+behavioral owners. It does not install a replacement Harness browser service.
+
+Red evidence: copied HEAD's unchanged app module into a temporary module in this
+worktree and ran the new `personal entry` JSDOM regression against that module;
+exit 1 because the original personal entry was absent. Both temporary files were
+removed. The new helper capability test also failed initially with the missing
+module, but that module-load failure is not substituted for the behavioral red.
+Focused component/client/source/HTTP suite passed 20/20 before the final own-memory
+assertion; the final rerun and build/patch results are reported in the role handoff.
+
+Full `PATH=/usr/local/lib/flybot-shared:$PATH TZ=UTC npm run verify` was attempted.
+Lint, generated build checks and patch gates passed, then execution was terminated
+by the sandbox's explicit `Network access to "127.0.0.1" was blocked` refusal during
+core tests. This is incomplete verification, not PASS. Host configured verification,
+Chromium/screenshots, smoke and actual deployed acceptance are Not run here.
+The full native shell sessions/uiConversation/slots, composer/sidebar/tree and
+personal tool/approval interaction remain implementation gaps; the bounded
+AssistantCell integration must not be described as full native compatibility.
+
+Final focused run: 21/21 passed using `DSH_HARNESS=$PWD/core/dev/harness`
+with Node's harness-resolve import and workbench-personal/client/native-source/
+native-render tests. This includes actual channel dispatch, cross-owner refusal,
+logout during paging, own-versus-team memory filtering, original component
+rendering, personal group clicks and late-memory route fencing. Final client build
+check, workbench build, core lint/arch-docs and changelog format check passed.
+New canonical files were staged before final patch regeneration so they are
+included in generated mirrors; patch check/canonical must include those new files.
+No Git commit, remote write, new Attempt, PR or deployment was created here.
+
+The final byte scan initially found intentional replacement-character literals in
+imported parser dependencies. Regenerating the native bundle with ASCII escapes
+and whitespace minification passed the byte scan (0 occurrences). The native-render
+regression now executes the actual generated served bundle and passed 1/1. This
+is generation/encoding evidence, not a claim of Chromium or deployed acceptance.
+
+## Attempt8a bounded whitespace repair
+
+At working HEAD `2d9391d8ec714c214ac8ade27526e1fef752bee4`, the bounded
+check reproduced five findings (exit 2, 8,427,878 bytes). Native generator output
+now lowers template literals without altering string contents. Patch normalization
+emits blank context without a space; both appliers preserve blank source lines.
+The added blank-context defect test failed before the generator fix; the final
+combined patch/personal/client/native-source/native-render run passed 36/36.
+The sidebar regression now clicks the actual row button instead of an avatar.
+Patch generate/check, workbench build --check and byte-damage scan passed; bounded
+git diff --check returned exit 0 with zero findings. These are unsealed draft
+checks, not candidate evidence. Full host verification, Chromium screenshots,
+real deployed acceptance and independent Review were not run in this continuation.
+The previously documented native shell/composer/tool/approval gaps remain open.

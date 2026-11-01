@@ -9,6 +9,14 @@ owned_paths:
 
 # Shared Project access (fork M2)
 
+R6 `project-queue-retry {queueId}` passes through the restricted gateway and HTTP
+dispatcher to scheduler authorization. It requires current Owner/Maintainer
+run-control permission on the queue's Project, then independently validates the
+original initiating human before requeueing the same request. Body identity and
+management of another Project grant no recovery authority. Read-only/query agents
+gain no access to this operation.
+
+
 M2 is an explicitly configured Project workbench path. It reuses unchanged
 control-plane `/api/auth/login`, `/api/auth/session`, `/api/auth/logout` and account
 administration. FlyBot owns the subject adapter, Project roles/invites/policy and
@@ -208,3 +216,7 @@ channel dispatcher and restricted gateway into current Project membership checks
 Restricted rooms additionally require an explicit participant; document IDs are scoped
 to that room. No primary-owner or ambient raw Session bypass exists. SDK resource read
 models hide workers bound to rooms the caller cannot read.
+
+Chief inspection may explicitly select one existing Task in its authorized Project. The host validates Project configuration authority and Task ownership before using the existing scoped snapshot mechanism. Other-Project/missing Tasks are rejected; unscoped inspection is unchanged. This reduces unrelated facts without dropping policy/knowledge or raising context limits.
+
+Board reads may request `project-detail {view: summary}`. The same Project/member policy runs first; the response contains Project/permissions and card fields only, omitting Task results/claim contexts and Run/Workspace history. Full detail remains unchanged.

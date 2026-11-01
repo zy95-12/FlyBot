@@ -12,13 +12,13 @@ diff --git a/src/client/activity-row.js b/src/client/activity-row.js
 +import { RUNNING_HOST, TAIL_HOST, findRunningHostIn } from './activity-row-host.js'
 +
 +export { RUNNING_HOST, TAIL_HOST, findRunningHostIn } from './activity-row-host.js'
- 
+
  // -------------------------------------------------------------------------
  // The activity row: the Bot's mark and a shimmering phrase at the transcript
 @@ -20,21 +20,74 @@ export function elapsedLabel(ms) {
  }
  export { reducedMotion }
- 
+
 -function useRunningHost(active) {
 +// Where the row draws: the shell's running status while a turn runs; between turns of a
 +// friend's chat (#443), the tail of the transcript's last turn, so it stays below the last message.
@@ -92,7 +92,7 @@ diff --git a/src/client/activity-row.js b/src/client/activity-row.js
 +  }, [active, where])
    return host
  }
- 
+
 @@ -94,16 +94,38 @@ export function ActivityIndicator({ sessionId, useRoster, useSessionStatus, useL
    const entries = useMemo(() => Object.values(JSON.parse(liveKey)), [liveKey])
    const streaming = entries.some(entry => entry.text)
@@ -188,7 +188,7 @@ diff --git a/src/client/at-menu.js b/src/client/at-menu.js
 +import { cleanPeerName, friendBotTitle, ownerNameOf, remoteBotTitle, remoteCallName, listedChatBots, seatOwnerName } from '../shared/remote-label.js'
  import { t } from './i18n.js'
  import { currentPart, relativeShort } from './text.js'
- 
+
 @@ -25,18 +25,76 @@ const conversationOf = (roster, sessionId) => {
  export function mentionRows(roster, sessionId, query = '') {
    const here = conversationOf(roster, sessionId)
@@ -242,7 +242,7 @@ diff --git a/src/client/at-menu.js b/src/client/at-menu.js
 +    ...remoteMentionRows(roster, query),
 +  ]
  }
- 
+
 +const isFaceRoom = room => room?.origin === 'face-to-face'
 +const memberCount = count => t(count === 1 ? '{count} member' : '{count} members', { count })
 +const botCount = count => (count === 1 ? t('1 Bot') : t('{count} Bots', { count }))
@@ -315,7 +315,7 @@ diff --git a/src/client/bot-draft.js b/src/client/bot-draft.js
 @@ -8,17 +8,39 @@ export function freshBotName(roster, base = 'New Bot') {
    return `${base} ${index}`
  }
- 
+
 -// The form starts on the DSH default model when it is served, else the first one.
 +// The form starts on the model the Main Bot runs on now (its chosen model, else the
 +// one it last ran on). When that one is not served anymore it falls back to the DSH
@@ -328,7 +328,7 @@ diff --git a/src/client/bot-draft.js b/src/client/bot-draft.js
 +  const main = roster.byId?.[roster.mainBotId] ?? (roster.bots ?? []).find(bot => bot.id === roster.mainBotId)
 +  return (served(main?.model) ?? served(main?.appliedModel) ?? served(roster.defaultModel) ?? models[0])?.ref ?? ''
  }
- 
+
 -// The model is always sent: the host fixes it on the Bot at creation.
 -export function createPayload({ name, look, image, model, effort, brief }) {
 +// The model is always sent: the host fixes it on the Bot at creation. The card never sends a
@@ -378,12 +378,12 @@ diff --git a/src/client/bot-settings.js b/src/client/bot-settings.js
  import { SPRING_SHAPE, SPRING_TAP, spring, useGlide } from './motion.js'
  import { t } from './i18n.js'
 +import { StandingApprovalsCard } from './standing-approvals.js'
- 
+
  const capitalize = word => word[0].toUpperCase() + word.slice(1)
- 
+
 @@ -77,9 +77,10 @@ export function Switch({ on, label, disabled, onChange }) {
  }
- 
+
  // A row with a switch. Not a label: a click on the copy must not flip it twice.
 -export function SwitchRow({ label, hint, on, disabled, onChange }) {
 +// `showLabel: false` when the card title already says it (#230): the switch keeps the label for screen readers.
@@ -393,7 +393,7 @@ diff --git a/src/client/bot-settings.js b/src/client/bot-settings.js
 +    h('span', { className: 'bt-set-copy' }, showLabel ? h('span', { className: 'bt-bs-label' }, label) : null, hint ? h('span', { className: 'bt-set-hint' }, hint) : null),
      h(Switch, { on, label, disabled, onChange }))
  }
- 
+
 @@ -199,6 +199,7 @@ export function BotSettingsForm({ bot, roster, actions, run }) {
      const timer = setTimeout(() => setConfirming(false), 4000)
      return () => clearTimeout(timer)
@@ -500,16 +500,16 @@ diff --git a/src/client/cells.js b/src/client/cells.js
 +import { call } from './api.js'
  import { failureLabel } from './diagnostics.js'
  import { turnReasoning } from './turn-reasoning.js'
- 
+
 @@ -45,8 +45,27 @@ export function Bubbles({ texts, roster, selfId, actions, streaming, sessionId,
      }))
  }
- 
+
 +// A held send is shown by its card and the sidebar mark, not by a line in a Face-to-face room's history:
 +// older rooms still hold this line from when the social plugin posted it for a direct message (#278).
 +const WAITING_OTHERS_NOTICE = "Waiting for the owner's approval"
  const REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏']
- 
+
 +// The closed status line already says who left (#1103). Same rule as
 +// plugins/social/src/face-rooms.js leaveNoticeCoveredByClose: the plugin does not post the short
 +// line when it already knows the room closed, and a line posted earlier is not drawn beside the banner.
@@ -532,7 +532,7 @@ diff --git a/src/client/cells.js b/src/client/cells.js
 @@ -100,9 +100,45 @@ function MessageTools({ text, name, sessionId, react, actions }) {
        item(t('Copy'), CopyIcon, copy), item(t('Download'), DownloadIcon, download)), document.body) : null)
  }
- 
+
 +// The first line with something on it, inner runs of whitespace squeezed: a folded row shows it, so
 +// the row never reads as an empty frame while the text it names sits behind the caret (#1624).
 +const PEEK_MAX = 160
@@ -575,11 +575,11 @@ diff --git a/src/client/cells.js b/src/client/cells.js
 +      peek ? h('span', { className: 'bt-think-peek' }, peek) : null),
      h('div', { className: 'bt-think-text' }, text))
  }
- 
+
 @@ -119,14 +119,34 @@ function useFileMentions({ node, openFile, fileMentions, useTurnData }) {
    }, [fileMentions, openFile, seq, tail, turn])
  }
- 
+
 +// Whether this text is the one that closes its turn (no turn data: assume it is).
 +function useClosingText(node, useTurnData) {
 +  const tail = useTurnData?.('turn-tail')
@@ -653,12 +653,12 @@ diff --git a/src/client/cells.js b/src/client/cells.js
 +    h('span', { className: 'bt-group-name' }, name),
 +    h(Bubbles, { texts, roster, selfId, actions, sessionId, msgKey, useUi, lead }))
  }
- 
+
  function EventLine({ prefix, bots, joiner = t('and'), onOpen, whole = false }) {
 @@ -170,16 +170,183 @@ function EventLine({ prefix, bots, joiner = t('and'), onOpen, whole = false }) {
    return h('div', { className: 'bt-event' }, parts)
  }
- 
+
 +// A Bot line that Bot Social holds for the owner's approval has its text in the approval card only, and
 +// the room draws no bubble for it until Approve (#306, #456). The host's pending list (`pendingApprovals`)
 +// carries the held text whitespace-collapsed and capped at 800 characters (799 once trimmed), without a "To the room:" lead.
@@ -720,7 +720,7 @@ diff --git a/src/client/cells.js b/src/client/cells.js
 +  return h('div', { className: 'bt-group-msg' }, name,
      h(Bubbles, { texts: [text], roster, selfId: bot.id, actions, sessionId: room?.id, msgKey, useUi, lead }))
  }
- 
+
 +// A friend's remote Bot speaking in this chat, laid out like any chat partner: its own
 +// avatar (the one its sidebar row shows), its name, a small globe and its @handle. The
 +// words are shown as data; the Bot reading them still gets them fenced as untrusted.
@@ -845,7 +845,7 @@ diff --git a/src/client/cells.js b/src/client/cells.js
    return h('div', { className: 'bt-event' },
 @@ -331,17 +331,31 @@ export function TriggerCell({ node, sessionId, useRoster, useSessions, useTurnCl
      : body
- 
+
    function triggerBody() {
 +    // A friend's message in its remote chat: the reply below shows it (remote-chat.js).
 +    if (source.form === 'remote-chat') return null
@@ -879,9 +879,9 @@ diff --git a/src/client/cells.js b/src/client/cells.js
          const poster = roster.byId[source.senderSessionId] ?? { id: source.senderSessionId, name: source.senderName ?? t('a Bot'), color: 'gray' }
          return h(GroupMessage, { bot: poster, text: stripHeader(contentText(data.content)), room, roster, actions, msgKey: `${sessionId}:${data.turn}:post`, useUi })
 @@ -411,6 +411,55 @@ export function TurnProcessCell({ node, sessionId, turnProcess, useRoster, useUi
- 
+
  export function Nothing() { return null }
- 
+
 +// DSH writes a developer `tool-removal` context row when FlyBot `restrict()`s
 +// `ask_user_question` off Bot sessions. The chat then shows "Tool removed: …".
 +// Hide those notices. A tool a person turns on, and an unrelated removal, still show.
@@ -951,13 +951,13 @@ diff --git a/src/client/cells.js b/src/client/cells.js
 +// The unread divider has been on screen and the chat moved on, so nothing from before this visit
 +// is new any more: `seen` catches up with `entered` and every divider of the visit goes (#275).
 +export const settledVisit = visit => (typeof visit?.seen === 'number' && visit.seen < visit.entered ? { ...visit, seen: visit.entered } : visit)
- 
+
  // An entry in DSH's own turn tail, after what other plugins put there (the cards of
  // the files a turn delivered). The tail sits right before the next turn's first row,
 @@ -524,10 +524,16 @@ function toolActivity(name, arg, findBot, self) {
    }
  }
- 
+
 -// What a Bot busy elsewhere is doing, from its current tool alone.
 +// What a Bot busy elsewhere is doing, from its current tool alone. A tool without a
 +// phrase is named, so the line never says only "On it".
@@ -971,12 +971,12 @@ diff --git a/src/client/cells.js b/src/client/cells.js
 +export function workText(tool, step) {
 +  return step ? t('{action}: {detail}', { action: workPhrase(tool), detail: step }) : `${workPhrase(tool)}…`
  }
- 
+
  // Transcript rows report what is in flight to the one activity row at the tail.
 @@ -540,8 +540,8 @@ function useLiveNote(actions, sessionId, id, entry) {
    }, [sessionId, id, key])
  }
- 
+
 -function GroupReplies({ sessionId, callId, done, content, roster, actions, useUi, useWork }) {
 -  const [live, setLive] = useState({ replies: [], speaking: null })
 +export function GroupReplies({ sessionId, callId, done, content, roster, actions, useUi }) {
@@ -1070,11 +1070,11 @@ diff --git a/src/client/cells.js b/src/client/cells.js
 +      return h(GroupMessage, { key: `${reply.botId}-${index}`, bot, text: reply.text, room, roster, actions, msgKey: callId ? `${sessionId}:${callId}:${index}` : undefined, useUi, seq: reply.seq })
      }))
  }
- 
+
 @@ -643,7 +643,7 @@ function useShownCards(actions, sessionId, callIds) {
    }, [sessionId, key])
  }
- 
+
 -function renderCall(call, { sessionId, roster, actions, useUi, useWork, findBot }) {
 +function renderCall(call, { sessionId, roster, actions, useUi, findBot }) {
    const tool = toolName(call)
@@ -1092,7 +1092,7 @@ diff --git a/src/client/cells.js b/src/client/cells.js
 @@ -719,12 +719,12 @@ function renderCall(call, { sessionId, roster, actions, useUi, useWork, findBot
    }
  }
- 
+
 -export function ToolCell({ node, sessionId, useRoster, useUi, useWork, actions }) {
 +export function ToolCell({ node, sessionId, useRoster, useUi, actions }) {
    const roster = useRoster(value => value)
@@ -1122,7 +1122,7 @@ diff --git a/src/client/context-menu.js b/src/client/context-menu.js
 +import { useSidebarStructure } from './flybot-slots.js'
 +import { pluginItems } from './flybot-registry.js'
 +import { LinkIcon } from './icons.js'
- 
+
  export function ContextMenu({ menu, roster, actions, leaving = false }) {
    useEscape(() => actions.closeMenu())
 @@ -12,6 +12,7 @@ export function ContextMenu({ menu, roster, actions, leaving = false }) {
@@ -1205,7 +1205,7 @@ diff --git a/src/client/create-bot.js b/src/client/create-bot.js
 --- a/src/client/create-bot.js
 +++ b/src/client/create-bot.js
 @@ -18,7 +18,7 @@ const randomLook = (avoid = {}) => {
- 
+
  // The new-Bot form: look first, then name and model. Nothing exists until Create.
  // `inline` drops the pane's header for a form shown inside Settings.
 -export function CreateBot({ roster, actions, start, brief = '', onBack, canGoBack, onCreated, inline = false }) {
@@ -1247,7 +1247,7 @@ diff --git a/src/client/exchange.js b/src/client/exchange.js
 +import { stripFence } from '../shared/preview.js'
  import { useEscape, usePaneLeft } from './overlay-hooks.js'
  import { t } from './i18n.js'
- 
+
  const SHEET_EXIT_MS = 220
 +
 +// What a person reads and copies from the exchange sheet. A stored line carries its routing: a
@@ -1305,7 +1305,7 @@ diff --git a/src/client/icons.js b/src/client/icons.js
 @@ -1,4 +1,5 @@
  import { createElement as h } from 'react'
 +import { FLYBOT_BODY, FLYBOT_WING, FLYBOT_WING_LOW } from './brand.js'
- 
+
  export function PlusIcon() {
    return h('svg', { width: 18, height: 18, viewBox: '0 0 20 20', 'aria-hidden': true }, h('path', { d: 'M10 3.5v13M3.5 10h13', stroke: 'currentColor', strokeWidth: 1.6, strokeLinecap: 'round' }))
 @@ -59,6 +59,8 @@ export const DownloadIcon = lineIcon(['M10 3.5v9', 'M6.5 9.5L10 13l3.5-3.5', 'M4
@@ -1414,9 +1414,9 @@ diff --git a/src/client/index.js b/src/client/index.js
  import { USER_MESSAGE_CSS, UserMessageCell, canDrawUserMessages } from './user-message.js'
  import { noticeApprovals } from './approval-notices.js'
 +import { STATS_DOCK, statsDocks } from './stats-dock.js'
- 
+
  export const inject = ['sessions', 'uiWorkspace', 'uiConversation', 'slots', 'theme', 'layout']
- 
+
  export function apply(ctx) {
 +  // FlyBot: the browser `flybot` service for client plugins (bots(), fields.on, slots).
 +  const flybot = createFlyBotClient()
@@ -1525,9 +1525,9 @@ diff --git a/src/client/index.js b/src/client/index.js
      }
      render()
 @@ -325,7 +325,7 @@ export function apply(ctx) {
- 
+
    ctx.inject(['shortcuts'], scope => { scope.effect(() => holdShellShortcuts(scope.shortcuts), 'ds-bot: settings shortcut') })
- 
+
 -  const after = promise => promise.then(async (value) => { await pull().catch(() => {}); return value })
 +  const after = promise => promise.then(async (value) => { await pull().catch(() => { /* a stale team list is fixed by the next pull; the call itself succeeded */ }); return value })
    // A Bot id, or any part of its chat, opens the Bot's current part.
@@ -1707,11 +1707,11 @@ diff --git a/src/client/index.js b/src/client/index.js
      roster,
 @@ -715,10 +715,23 @@ export function apply(ctx) {
    }
- 
+
    const shadow = (name, options, component) => ctx.slots.inject(name, () => ctx.slots.register({ name, ...options }, component))
 +  // The shell's run-stats footer, drawn by the shell's own entry with FlyBot's plurals (#419).
 +  const runStats = statsDocks(name => ctx.slots.entries?.(name) ?? [])
- 
+
    // The "@" menu's Bot group and the chats "+" references. The composer's controller
    // for a Session is the shell's own, so the chats open at its caret.
    let atMenu = null
@@ -1871,7 +1871,7 @@ diff --git a/src/client/new-chat.js b/src/client/new-chat.js
 +import { newChatActionRows } from './flybot-registry.js'
 +import { SlotIcon } from './flybot-slots.js'
 +import { copiedToClipboard, listedChatBots, pickerBotLabel, splitRoomPicks, ungrantedLocalFix } from '../shared/remote-label.js'
- 
+
  export function NewChat({ mode, roster, actions }) {
    const [query, setQuery] = useState('')
    const [picked, setPicked] = useState([])
@@ -2116,7 +2116,7 @@ diff --git a/src/client/overlays.js b/src/client/overlays.js
 +import { InboxDialog } from './inbox.js'
 +import { KanbanDialog } from './kanban.js'
  import { useLinger } from './motion.js'
- 
+
  // How long a closing dialog or menu stays for its exit (see their [data-leaving] CSS).
 @@ -36,8 +36,12 @@ export function Overlays({ useRoster, useUi, useSessions, useSessionStatus, useA
    }, [ui.details, ui.view, ui.renaming, ui.tab])
@@ -2157,7 +2157,7 @@ diff --git a/src/client/palette.js b/src/client/palette.js
  import { t } from './i18n.js'
 +import { isListedRemoteChat, pickerBotLabel } from '../shared/remote-label.js'
 +import { seatedCount } from './group-settings.js'
- 
+
  // Search is a command palette: a 560px dialog, a search header, and 49px
  // rows (24px avatar, title, subtitle). Bots and groups match on name and role; past
 -// messages match on their text.
@@ -2236,13 +2236,13 @@ diff --git a/src/client/sidebar.js b/src/client/sidebar.js
 +import { InboxRow } from './inbox.js'
 +import { KanbanRow } from './kanban.js'
 +import { ProjectsNav } from './projects-nav.js'
- 
+
  // -------------------------------------------------------------------------
  // Sidebar
 @@ -37,77 +37,151 @@ const workKeys = text => (text === '' ? [] : text.split(',').map((key) => {
  }))
  const workLine = (lead, tool, more) => h(Shimmer, null, `${lead} · ${workPhrase(tool)}…${more > 0 ? ` +${more}` : ''}`)
- 
+
 -function BotRow({ bot, roster, actions, useSessions, useSessionStatus, useSessionRetainInfo, useActivity, useWork, wide, marked }) {
 +function BotRow({ bot, roster, actions, useSessions, useSessionStatus, useSessionRetainInfo, useActivity, useWork, wide, marked, asRow = false }) {
    const id = bot.id
@@ -2360,7 +2360,7 @@ diff --git a/src/client/sidebar.js b/src/client/sidebar.js
 +      h('circle', { cx: 9, cy: 8, r: 3 }), h('circle', { cx: 16, cy: 9, r: 2.5 }),
 +      h('path', { d: 'M4 18a5 5 0 0 1 10 0M14 18a4 4 0 0 1 6 0' })))
  }
- 
+
  function RoomRow({ room, roster, actions, useSessions, useSessionStatus, useSessionRetainInfo, useWork, wide, marked }) {
    const id = room.id
 -  const fallback = useSessions(list => previewOf(list, id))
@@ -2408,11 +2408,11 @@ diff --git a/src/client/sidebar.js b/src/client/sidebar.js
 +  wide && alert && !active ? h('span', { className: 'bt-unread bt-unread-wait', 'aria-hidden': true })
      : wide && unread && !active ? h('span', { className: 'bt-unread', 'aria-hidden': true }) : null)
  }
- 
-@@ -235,6 +235,31 @@ function useListGlide(listRef, layout, key) {
+
+@@ -235,6 +235,57 @@ function useListGlide(listRef, layout, key) {
    }, [layout, key])
  }
- 
+
 +// One Bot of the sidebar tree: its usual row, indented by depth, with a toggle when it has children.
 +// `actions` is the structure entry's optional nodeActions component (e.g. the tree's "Copy invite
 +// link"), drawn after the row; a failing one draws nothing.
@@ -2436,6 +2436,32 @@ diff --git a/src/client/sidebar.js b/src/client/sidebar.js
 +      h(BotRow, { ...rowProps, bot, asRow: true, marked: markedUnread[bot.id] === true }),
 +      typeof actions === 'function' ? h(NodeActions, { component: actions, bot }) : null),
 +    closed ? null : children.map(child => h(TreeNode, { key: child.bot.id, node: child, rowProps, markedUnread, collapsed, toggle, actions })))
++}
++
++// Shared member-facing list: the owner shell and scoped workbench use the
++// same rows, avatars, selection and room membership rendering. No global slots
++// or owner-shell menus are mounted by the scoped entry point.
++export function ScopedChatList({ roster, selectedId, openSession, openDetails }) {
++  const [collapsed, setCollapsed] = useState({})
++  const toggle = id => setCollapsed(value => ({ ...value, [id]: !value[id] }))
++  const mainId = roster.mainBotId
++  const tree = roster.bots.some(bot => bot.parentId) ? botTree(roster.bots, mainId, id => roster.byId[id]?.parentId) : []
++  const sessions = { ids: [], byId: {} }
++  const status = new Map()
++  const props = {
++    roster, wide: true, marked: false,
++    useSessions: select => select(sessions),
++    useSessionStatus: select => select(status),
++    useSessionRetainInfo: (id, select) => select({ retainedBy: { mainView: id === (roster.byId[selectedId] ? currentPart(roster.byId[selectedId]) : selectedId) ? 1 : 0 } }),
++    useActivity: select => select({}),
++    actions: { openSession: id => { if (roster.byId[id] || roster.roomsById[id]) openSession(id) },
++      openMenu: ({ id }) => { if (roster.byId[id] || roster.roomsById[id]) openDetails?.(id) },
++      openSettings: (_section, id) => { if (roster.byId[id] || roster.roomsById[id]) openDetails?.(id) } },
++  }
++  return h('div', { className: 'bt-list', role: 'region', 'aria-label': t('Bot list') },
++    tree.length ? tree.map(node => h(TreeNode, { key: node.bot.id, node, rowProps: props, markedUnread: {}, collapsed, toggle }))
++      : roster.bots.map(bot => h(BotRow, { ...props, key: bot.id, bot, asRow: true })),
++    roster.rooms.map(room => h(RoomRow, { ...props, key: room.id, room })))
 +}
 +
  export function TeamSidebar(props) {
@@ -2491,7 +2517,7 @@ diff --git a/src/client/sidebar.js b/src/client/sidebar.js
 +          : h(AgentRow, { key: entry.item.id, ...rowProps, agent: entry.item, marked: markedUnread[entry.item.id] === true }))),
 +      wide ? h(FlyBotSections, { roster, actions, renderBot: bot => h(BotRow, { key: bot.id, ...rowProps, bot, asRow: true, marked: markedUnread[bot.id] === true }) }) : null))
  }
- 
+
  // The update button at the sidebar's top right: a cloud while a newer DS Bot —
 @@ -327,29 +327,29 @@ function UpdateButton({ useUpdate, actions }) {
      setDshError('')
@@ -2533,7 +2559,7 @@ diff --git a/src/client/sidebar.js b/src/client/sidebar.js
 @@ -372,36 +372,12 @@ function UpdateButton({ useUpdate, actions }) {
                  }, dshPhase === 'installing' ? t('Updating…') : dshPhase === 'failed' ? t('Try again') : t('Update')))) : null), document.body) : null)
  }
- 
+
 -// The footer entry to the shell's plugin panel, marked as not yet adapted: the red
 -// badge and a hover tip explain that plugin support lands step by step.
 -export function ConnectPlugins({ wide, actions }) {
@@ -2569,12 +2595,12 @@ diff --git a/src/client/sidebar.js b/src/client/sidebar.js
 +    h('button', { type: 'button', className: 'bt-connect bt-connect-foot', onClick: () => actions.openConnectors() },
 +      h(PlugIcon), t('Connect apps')))
  }
- 
+
  // Account seat of the Settings trigger: the visible label stays for assistive tech only.
 @@ -442,6 +442,26 @@ export function openHarnessOnboarding(id) {
    })
  }
- 
+
 +// The launcher seat's openSettings() takes no section, but a settings.onboarding step
 +// is handed openSection (#407). This step exists only to be opened on purpose: it then
 +// opens Settings on the Models page and hands back. In first-run onboarding it skips
@@ -2601,7 +2627,7 @@ diff --git a/src/client/sidebar.js b/src/client/sidebar.js
 @@ -466,8 +466,12 @@ function pressSettingsShortcut() {
    }))
  }
- 
+
 -// The footer avatar opens an account menu above itself, with Bot settings as one
 -// entry. Shell panels hidden from the Bot sidebar (plugins, automation) live here too.
 +// The footer avatar opens an account menu above itself, with Settings as one entry.
@@ -2658,7 +2684,7 @@ diff --git a/src/client/sidebar.js b/src/client/sidebar.js
 +    h(FlyBotMark, { size: 20 }),
 +    wide ? h('span', { className: 'bt-return-name' }, t('FlyBot')) : null)
  }
- 
+
  // Agent mode has none of the shell-group styles, so the return button carries its own.
 @@ -582,22 +582,22 @@ export const RETURN_CSS = `
  .bt-return{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:36px;padding:0 14px;border:0;border-radius:999px;background:none;color:inherit;font:inherit;font-size:14px;line-height:20px;cursor:pointer;transition:background-color .12s ease}
@@ -2672,7 +2698,7 @@ diff --git a/src/client/sidebar.js b/src/client/sidebar.js
  .bt-return .bt-mark{--bt-ink-deepseek:#4D6BFE}
  .bt-return-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
  `
- 
+
  export function BrandMark({ size = 24 }) {
 -  return h('span', { className: 'bt-brand-whale' }, h(BotMark, { look: MAIN_LOOK, size }))
 +  return h('span', { className: 'bt-brand-mark' }, h(FlyBotMark, { size }))
@@ -2681,7 +2707,7 @@ diff --git a/src/client/sidebar.js b/src/client/sidebar.js
 -  return h('span', { style: { fontWeight: 600, fontSize: 14 } }, 'DS Bot')
 +  return h('span', { style: { fontWeight: 600, fontSize: 14 } }, t('FlyBot'))
  }
- 
+
  // With the whale holding the settings seat, the footer row is just the account menu
 -// and Connect plugins; FooterAccount only shows when the seat went to no one. The
 +// and Connect apps; FooterAccount only shows when the seat went to no one. The
@@ -2801,7 +2827,7 @@ diff --git a/src/client/styles.js b/src/client/styles.js
  @keyframes bt-tip-in{from{opacity:0;transform:scale(.96);filter:blur(4px)}}
 -@media (prefers-reduced-motion:reduce){.bt-connect-tip{animation:none}}
 +@media (prefers-reduced-motion:reduce){}
- 
+
  .bt-head{position:relative;display:flex;justify-content:center;align-items:center;height:40px;flex:none;pointer-events:none}
  .bt-pill{pointer-events:auto;display:inline-flex;align-items:center;gap:8px;height:40px;padding:7.5px 13.5px 7.5px 7.5px;border-radius:999px;background:var(--bt-main);border:.5px solid var(--bt-line-2);box-shadow:0 2px 8px -1px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);color:var(--bt-ink);font-family:inherit;font-size:14px;line-height:20px;cursor:pointer;max-width:70%;box-sizing:border-box;transition:background-color .12s ease,transform ${SPRING_TAP.duration}ms ${SPRING_TAP.easing}}
  .bt-pill:hover{background:color-mix(in srgb,var(--bt-main),#777 9%)}
@@ -2813,7 +2839,7 @@ diff --git a/src/client/styles.js b/src/client/styles.js
  .bt-pill[data-memory=updated] .bt-pill-mem{width:var(--bt-mem-w);margin-left:0;transition:${spring(SPRING_STRETCH, 'width', 'margin-left')}}
  .bt-pill-mem-in{flex:none;display:inline-flex;align-items:center;gap:5px;white-space:nowrap;color:var(--bt-ink-2);font-size:13px;font-weight:500;opacity:0;filter:blur(6px);transform:translateX(-8px);transition:opacity .14s ease,filter .18s ease,${spring(SPRING_SHAPE, 'transform')}}
 @@ -174,6 +174,7 @@ body[data-bt-motion=quiet] .bt-mark[data-poke]{cursor:default}
- 
+
  .bt-astack{display:flex;flex-direction:column;align-items:flex-start;gap:4px;margin:0}
  .bt-bubble{max-width:min(80%,560px,calc(100% - 82px));background:var(--bt-bubble);color:var(--bt-ink);border-radius:18px;padding:7px 12px;font-size:var(--dsh-content-font-size,14px);line-height:calc(var(--dsh-content-font-size,14px) + 8px);box-sizing:border-box;overflow-wrap:anywhere}
 +.bt-event.bt-not-sent{gap:6px;color:var(--bt-ink-3)}
@@ -2822,7 +2848,7 @@ diff --git a/src/client/styles.js b/src/client/styles.js
  .bt-bubble [class*="_markdown"]>*+*{margin-top:10px}
 @@ -267,6 +267,7 @@ button.bt-q-opt:active{background:var(--bt-active)}
  @media (prefers-reduced-motion:reduce){.bt-q{animation:bt-fade .12s ease-out backwards}.bt-q-settled{animation:none}.bt-q-submit{animation:none}}
- 
+
  .bt-newchat{flex:1;display:flex;flex-direction:column;min-width:0;position:relative;animation:bt-veil-in .18s ease-out}
 +.bt-pane[data-menu]{background:transparent}.bt-pane[data-menu] .bt-newchat{flex:none;align-self:flex-start;width:min(280px,calc(100% - 16px));max-height:calc(100% - 16px);margin:8px;overflow:auto;background:var(--bt-card);border:1px solid var(--bt-line-2);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.14),0 2px 6px rgba(0,0,0,.06)}.bt-newchat[data-menu] .bt-drop{position:relative;top:0;left:0;width:auto;max-height:none;margin:0;box-shadow:none;border:0;max-width:none}
  .bt-to{display:flex;align-items:center;flex-wrap:wrap;gap:6px;min-height:48px;padding:6px 12px;border-bottom:1px solid var(--bt-line);font-size:14px;box-sizing:border-box}
@@ -2847,13 +2873,13 @@ diff --git a/src/client/styles.js b/src/client/styles.js
 +.bt-fix-btn{font:inherit;font-size:12px;padding:3px 10px;border-radius:999px;border:1px solid currentColor;background:transparent;color:inherit;cursor:pointer}
 +.bt-fix .bt-note{margin-top:6px}
 +.bt-fix-link{margin-top:6px;color:inherit;user-select:all}
- 
+
  .bt-pane{position:fixed;top:var(--dsh-frame-chrome-top,0px);right:0;bottom:0;z-index:45;pointer-events:auto;background:var(--bt-main);color:var(--bt-ink);display:flex;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}
  .bt-dialog{flex:1;display:flex;flex-direction:column;min-width:0}
 @@ -332,11 +332,11 @@ button.bt-q-opt:active{background:var(--bt-active)}
  .bt-soft:hover{background:var(--bt-active)}
  .bt-time{display:block;text-align:center;font-size:12px;line-height:16px;color:var(--bt-ink-2);padding:6px 0}
- 
+
 -.bt-panel{position:fixed;top:var(--dsh-frame-chrome-top,0px);right:0;bottom:0;width:var(--bt-panel-w,320px);pointer-events:auto;z-index:40;background:var(--bt-main);border-left:.5px solid var(--bt-line-2);display:flex;flex-direction:column;color:var(--bt-ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;box-sizing:border-box;animation:bt-pane-in .3s cubic-bezier(.2,0,0,1);transition:width ${SPRING_SHAPE.duration}ms ${SPRING_SHAPE.easing}}
 +.bt-panel{position:fixed;top:var(--dsh-frame-chrome-top,0px);right:0;bottom:0;width:var(--bt-panel-w,320px);pointer-events:auto;z-index:40;background:var(--bt-main);border-left:.5px solid var(--bt-line-2);display:flex;flex-direction:column;color:var(--bt-ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;box-sizing:border-box;animation:bt-pane-in .3s cubic-bezier(.2,0,0,1);transition:width ${SPRING_SHAPE.duration}ms ${SPRING_SHAPE.easing};container:bt-panel/inline-size}
  .bt-panel[data-leaving]{transform:translateX(100%);transition:transform .3s cubic-bezier(.2,0,0,1);pointer-events:none}
@@ -2884,7 +2910,7 @@ diff --git a/src/client/styles.js b/src/client/styles.js
  .bt-avedit-tabs{position:relative;display:flex;gap:2px;background:var(--bt-hover);border-radius:999px;padding:2px}
 @@ -419,9 +419,23 @@ button.bt-q-opt:active{background:var(--bt-active)}
  .bt-seg button.bt-perm-danger,.bt-seg button.bt-perm-danger[aria-pressed=true]{color:#e02135}
- 
+
  /* Settings dialog: a 198px page list beside the page. */
 -.bt-settings-layer{position:fixed;inset:var(--dsh-frame-chrome-top,0px) 0 0;z-index:60;display:flex;align-items:center;justify-content:center;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}
 +/* #1347: dialogs, sheets and scrims sit in a tier of their own, well clear of everything the
@@ -2976,7 +3002,7 @@ diff --git a/src/client/styles.js b/src/client/styles.js
 +.bt-wf-remove{position:absolute;top:-8px;right:-8px;width:18px;height:18px;border-radius:50%;border:1px solid var(--bt-line);background:var(--bt-card);cursor:pointer;line-height:16px;padding:0}
 +.bt-wf-par{position:absolute;border:1px dashed var(--bt-ink-3);border-radius:14px;pointer-events:none}
 +.bt-wf-plabel{position:absolute;top:-9px;left:50%;transform:translateX(-50%);font-size:10.5px;color:var(--bt-ink-2);background:var(--bt-card);padding:0 6px;white-space:nowrap}
- 
+
  /* Settings → Connectors. */
  .bt-connector{display:flex;flex-direction:column;gap:10px;padding:12px}
 @@ -490,8 +490,17 @@ button.bt-set-row:hover{background:var(--bt-hover)}
@@ -2994,7 +3020,7 @@ diff --git a/src/client/styles.js b/src/client/styles.js
 +.bt-connector-app-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 +.bt-app-status{color:var(--bt-ink-3)}
 +[data-status=sign-in]>.bt-app-status{color:#c46a00}
- 
+
  /* Shell chrome reshaped for the team view. Selectors use stable data attributes where the
     shell offers them and CSS-module name suffixes elsewhere. */
 @@ -543,7 +543,7 @@ button.bt-set-row:hover{background:var(--bt-hover)}
@@ -3009,7 +3035,7 @@ diff --git a/src/client/styles.js b/src/client/styles.js
 @@ -562,7 +562,7 @@ button:hover .bt-you{background:color-mix(in srgb,var(--bt-ink) 9%,var(--bt-side
  .bt-you-wrap{display:inline-flex;padding:0}
  .bt-connect-foot{width:100%;height:36px}
- 
+
 -.bt-menu{position:fixed;pointer-events:auto;z-index:60;min-width:200px;padding:6px;border-radius:12px;background:var(--bt-main);border:.5px solid var(--bt-line-2);box-shadow:0 10px 20px -3px rgba(0,0,0,.1),0 4px 6px -4px rgba(0,0,0,.1),0 0 0 1px rgba(228,228,228,.04);display:flex;flex-direction:column;gap:2px;transform-origin:var(--bt-origin,top left);animation:bt-pop-drop ${SPRING_TAP.duration}ms ${SPRING_TAP.easing},bt-veil-in .14s ease-out;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;box-sizing:border-box}
 +.bt-menu{position:fixed;pointer-events:auto;z-index:130;min-width:200px;padding:6px;border-radius:12px;background:var(--bt-main);border:.5px solid var(--bt-line-2);box-shadow:0 10px 20px -3px rgba(0,0,0,.1),0 4px 6px -4px rgba(0,0,0,.1),0 0 0 1px rgba(228,228,228,.04);display:flex;flex-direction:column;gap:2px;transform-origin:var(--bt-origin,top left);animation:bt-pop-drop ${SPRING_TAP.duration}ms ${SPRING_TAP.easing},bt-veil-in .14s ease-out;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;box-sizing:border-box}
  .bt-menu button{display:flex;align-items:center;gap:4px;width:100%;min-height:30px;text-align:left;border:0;background:none;border-radius:6px;padding:6px 8px;font:inherit;font-size:13px;line-height:18px;color:var(--bt-ink);cursor:pointer;box-sizing:border-box}
@@ -3044,7 +3070,7 @@ diff --git a/src/client/styles.js b/src/client/styles.js
  .bt-mem{position:relative;width:min(680px,calc(100vw - 48px));height:min(760px,calc(100vh - 2*max(32px,var(--dsh-frame-overlay-top,32px))));background:var(--bt-main);border-radius:20px;border:.5px solid var(--bt-line-2);box-shadow:0 24px 80px rgba(0,0,0,.24);display:flex;flex-direction:column;overflow:hidden;color:var(--bt-ink);animation:bt-dialog-rise ${SPRING_SHAPE.duration}ms ${SPRING_SHAPE.easing},bt-veil-in .2s ease-out}
  .bt-mem-head{position:relative;display:flex;align-items:center;gap:8px;height:60px;flex:none;padding:0 14px 0 24px;border-bottom:.5px solid var(--bt-line);box-sizing:border-box}
 @@ -780,9 +780,20 @@ body[data-ds-dark-theme] .bt-theme-chip i{background:var(--da)}
- 
+
  export const CONVERSATION_CSS = `
  .bt-think{font-size:13px;line-height:18px;color:var(--bt-ink-2);margin:2px 0 4px;max-width:min(560px,78%)}
 -.bt-think summary{cursor:pointer;list-style:none;display:inline-flex;align-items:center;gap:6px}
@@ -3201,12 +3227,12 @@ diff --git a/src/client/user-message.js b/src/client/user-message.js
  import { dateLocale, t } from './i18n.js'
 +import { cleanPeerName, faceAliases, remoteBotTitle, remoteMentionLabel } from '../shared/remote-label.js'
 +import { facePeople, faceSeatLabel, faceSeats } from './face-seats.js'
- 
+
  // -------------------------------------------------------------------------
  // The user's own messages. DSH draws every "@word" in them as a file reference, and
 @@ -28,10 +28,85 @@ export function contentParts(content) {
  }
- 
+
  // In a group only its members are called; elsewhere a mention opens that Bot's chat.
 -export function mentionableBots(roster, sessionId) {
 +// A friend's Bot is called from any chat I can write in, and the roster knows it before a chat of
@@ -3291,7 +3317,7 @@ diff --git a/src/client/user-message.js b/src/client/user-message.js
 +    mine: roster?.self?.memberId === authorId,
 +  }
  }
- 
+
  // Runs of plain text and Bot mentions, in order.
 @@ -43,16 +43,25 @@ export function userTextParts(text, bots, referenceLabels = []) {
      if (span.start > cursor) parts.push({ text: text.slice(cursor, span.start) })
@@ -3304,7 +3330,7 @@ diff --git a/src/client/user-message.js b/src/client/user-message.js
    if (cursor < text.length) parts.push({ text: text.slice(cursor) })
    return parts
  }
- 
+
  function UserText({ text, bots, referenceLabels, skillNames, references, actions }) {
 -  return userTextParts(text, bots, referenceLabels).map((part, index) => (part.bot
 -    ? h('button', { key: index, type: 'button', className: 'bt-umention', title: `@${part.bot.name}`, onClick: () => actions.openSession(part.bot.id) },
@@ -3321,7 +3347,7 @@ diff --git a/src/client/user-message.js b/src/client/user-message.js
 +      : h('span', { key: index, className: 'bt-umention', title }, chip(part))
 +  })
  }
- 
+
  function Attachments({ attachments, renderMessageImages }) {
 @@ -87,11 +87,34 @@ export function UserMessageCell({ node, sessionId, useRoster, actions, renderMes
    const referenceLabels = data.referenceLabels ?? []
@@ -3361,7 +3387,7 @@ diff --git a/src/client/user-message.js b/src/client/user-message.js
        referenceLabels.length > 0 ? h('div', { className: 'bt-urefs' }, t('Referenced {labels}', { labels: referenceLabels.join(t(', ')) })) : null),
      text === '' ? null : h('div', { className: 'bt-utools' }, h(CopyButton, { text })))
 @@ -99,8 +99,15 @@ export function UserMessageCell({ node, sessionId, useRoster, actions, renderMes
- 
+
  export const USER_MESSAGE_CSS = `
  .bt-umsg{display:flex;flex-direction:row-reverse;align-items:center;justify-content:flex-start;gap:4px}
 +.bt-umsg-other{flex-direction:row}
@@ -3384,12 +3410,12 @@ diff --git a/test/create-bot.test.js b/test/create-bot.test.js
  import assert from 'node:assert/strict'
 -import { createPayload, freshBotName, startModel } from '../src/client/bot-draft.js'
 +import { afterCreate, createPayload, freshBotName, startModel } from '../src/client/bot-draft.js'
- 
+
  const models = [
    { ref: 'ollama/ds-flash', name: 'DS Flash', providerName: 'Ollama' },
    { ref: 'cloud/qwen-max', name: 'Qwen Max', providerName: 'Cloud' },
  ]
- 
+
 -test('the form starts on the DSH default model, else the first served one', () => {
 +test('the form starts on the Main Bot\'s model, then the DSH default, then the first served one (#230)', () => {
 +  const chief = { id: 'chief', name: 'Chief', model: 'cloud/qwen-max' }
@@ -3412,7 +3438,7 @@ diff --git a/test/create-bot.test.js b/test/create-bot.test.js
    assert.equal(startModel({ models, defaultModel: null }), 'ollama/ds-flash')
    assert.equal(startModel({ models: [], defaultModel: 'cloud/qwen-max' }), '')
  })
- 
+
 -test('the payload carries the look, the chosen model, and the brief', () => {
 +test('the payload carries the look and the chosen model, and never a brief (#645)', () => {
    const look = { shape: 'star', color: 'blue' }
@@ -3425,7 +3451,7 @@ diff --git a/test/create-bot.test.js b/test/create-bot.test.js
 +  assert.deepEqual(payload, { name: 'A', color: 'blue', avatar: { shape: 'star', image: 'data:image/png;base64,AA' } })
 +  assert.equal(payload.brief, undefined)
  })
- 
+
  test('the suggested name skips taken names', () => {
 @@ -27,3 +27,36 @@ test('the suggested name skips taken names', () => {
    assert.equal(freshBotName(roster, 'Kimi'), 'Kimi 2')
@@ -3474,12 +3500,12 @@ diff --git a/test/looks.test.js b/test/looks.test.js
 -import { DEFAULT_COLORS, DEFAULT_SHAPES, MAIN_LOOK, defaultColor, defaultShape, lookOf } from '../src/client/characters.js'
 +import { DEFAULT_COLORS, DEFAULT_SHAPES, MAIN_LOOK, defaultColor, defaultShape, lookOf, lookKey, lookKeys, lookAvoidingLocals, PICKER_SHAPES } from '../src/client/characters.js'
  import { indexRoster } from '../src/client/sources.js'
- 
+
  const ids = Array.from({ length: 3000 }, (_, index) => `session-${index.toString(16).padStart(8, '0')}-look`)
 @@ -29,19 +29,135 @@ test('the whale is only a stored look: the browser gives no Bot a look by its pl
    assert.equal(photo.shape, defaultShape('chief'))
  })
- 
+
 -test('Bot settings is the only settings entry; nothing is called Team settings', () => {
 +test('the whole Settings dialog is Settings; one Bot opens as Edit Bot or Bot settings; nothing is called Team settings', () => {
    const dir = new URL('../src/client/', import.meta.url)
@@ -3622,7 +3648,7 @@ diff --git a/test/mention-rule.test.js b/test/mention-rule.test.js
 @@ -83,9 +83,57 @@ test('the user bubble keeps the text around a mention, and a group only calls it
    assert.equal(canDrawUserMessages(), false)
  })
- 
+
 +test("a friend's Bot answers its handle too, and the chip reads its display name (#71)", () => {
 +  const remote = { id: 'f', name: '代码审查官', remote: { handle: '@bot-2a758c0f.danyang.home', home: '@danyang.home' } }
 +  const members = mentionableBots({ bots: [remote], byId: { f: remote }, roomsById: { r: { members: ['f'] } } }, 'r')
@@ -3686,7 +3712,7 @@ diff --git a/test/turn-tail.test.js b/test/turn-tail.test.js
  import { runInNewContext } from 'node:vm'
 +import { readFileSync } from 'node:fs'
  import { build } from 'esbuild'
- 
+
  const bundle = await build({
 @@ -28,7 +28,7 @@ runInNewContext(bundle.outputFiles[0].text, {
      return platform[name]
@@ -3694,7 +3720,7 @@ diff --git a/test/turn-tail.test.js b/test/turn-tail.test.js
  })
 -const { AssistantCell, TurnTailCell } = module.exports
 +const { AssistantCell, TurnTailCell, TurnProcessCell, movedOnSince, settledVisit, unseenSince } = module.exports
- 
+
  // Renders the named components of an element tree, leaving the rest as elements.
  const expand = (node, names) => {
 @@ -101,3 +101,74 @@ test('the turn tail entry notes when the turn ended and shows the pause before t

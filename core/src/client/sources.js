@@ -4,20 +4,7 @@ import { setPluginTools } from './text.js'
 // -------------------------------------------------------------------------
 // Small observable sources for the inject `hooks` compartment.
 
-export function createSource(initial) {
-  let value = initial
-  const listeners = new Set()
-  return {
-    getSnapshot: () => value,
-    subscribe: (listener) => { listeners.add(listener); return () => { listeners.delete(listener) } },
-    set(next) {
-      const resolved = typeof next === 'function' ? next(value) : next
-      if (resolved === value) return
-      value = resolved
-      for (const listener of [...listeners]) listener()
-    },
-  }
-}
+export { createSource } from './observable-source.js'
 
 export const EMPTY_ROSTER = { revision: -1, mainBotId: null, mainBotIds: [], bots: [], rooms: [], humans: [], self: null, agents: [], exchangeTurns: {}, remoteTypedTurns: {}, remoteAwaiting: {}, questions: {}, secrets: [], capabilities: [], capabilityStatuses: {}, secretRequests: {}, models: [], defaultModel: null, modelsKey: null, prefs: {}, byId: {}, roomsById: {}, agentsById: {}, agentOf: {}, ready: false }
 // Any Main Bot holds the Main Bot powers; `mainBotId`, the first one, is the sidebar tile.

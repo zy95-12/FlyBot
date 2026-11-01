@@ -7,6 +7,12 @@ owned_paths:
 
 # Per-Bot Project task pools and handoff
 
+After saving a new handoff receipt, the pool wakes the existing Project dispatcher
+immediately. Dispatch coalesces concurrent events; it does not await a scheduler
+wake from inside the pool's serialized mutation. Duplicate receipts do not emit
+another wake, and confirmed-exit/authority/evidence gates remain unchanged.
+
+
 New shared deliveries default to `project-handoff/v1`, with
 `project-delivery/pools-v1` Attempts. `projectDispatch: workflow` explicitly selects
 the historical fixed DAG; saved v1–v4 Attempts are unchanged. The existing Workflow

@@ -56,6 +56,11 @@ try {
     assert.ok(rt.state.bots[agent.mine.botId])
     assert.notEqual(agent.public.botId, agent.mine.botId)
   }
+  const publicMemory = await channel('owner-1', 'project-role-memory-write', { projectId: 'one', role: 'chief', text: 'Published inspection lesson', source: { kind: 'human', reference: 'Browser inspection evidence' } })
+  assert.equal(publicMemory.ok, true)
+  assert.equal((await channel('owner-1', 'project-agent-definition', { projectId: 'one', role: 'chief', instructions: 'Coordinate with evidence', memoryRefs: [publicMemory.value.memory.id] })).ok, true)
+  assert.equal((await channel('member', 'project-role-memory-write', { projectId: 'one', role: 'chief', text: 'Unauthorized change', source: { kind: 'human', reference: 'Denied' } })).ok, false)
+  await channel('owner-1', 'project-agent-memory-write', { projectId: 'one', text: 'Owner-only inspection secret' })
   const roomsResponse = token => channel(token, 'project-rooms', { projectId: 'one' })
   assert.equal((await roomsResponse('unknown')).ok, false)
   rt.state.authSessions.member.revokedAt = Date.now()
@@ -117,6 +122,12 @@ try {
       await page.getByRole('button', { name: 'Public Bots', exact: true }).click()
       await page.locator('.chat-panel .composer textarea').waitFor()
       assert.equal(await page.locator('#chief-policy-enabled').count(), 0)
+      await page.getByText('About chief', { exact: true }).click()
+      await page.getByRole('heading', { name: 'Persona', exact: true }).waitFor()
+      await page.getByRole('heading', { name: 'Attached public memory', exact: true }).waitFor()
+      await page.getByText('Published inspection lesson', { exact: true }).waitFor()
+      await page.getByText('Source: Browser inspection evidence', { exact: true }).waitFor()
+      assert.equal(await page.getByText('Owner-only inspection secret', { exact: true }).count(), 0)
       if (screenshotDir) await page.screenshot({ path: join(screenshotDir, page === owner ? 'desktop-chief.png' : 'narrow-chief.png'), fullPage: true })
       await page.getByRole('button', { name: 'Settings', exact: true }).click()
       await page.getByRole('heading', { name: 'Project settings', exact: true }).waitFor()
@@ -125,6 +136,23 @@ try {
       await page.locator('.task-group').first().waitFor()
       if (screenshotDir) await page.screenshot({ path: join(screenshotDir, page === owner ? 'desktop-board.png' : 'narrow-board.png'), fullPage: true })
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false)
+    }
+    if (process.argv.includes('--slow-network')) {
+      const page = await owner.context().newPage(), cdp = await owner.context().newCDPSession(page)
+      let transferredBytes = 0, aborted = 0, requests = 0
+      await cdp.send('Network.enable')
+      cdp.on('Network.loadingFinished', event => { transferredBytes += event.encodedDataLength })
+      cdp.on('Network.loadingFailed', event => { if (event.canceled) aborted++ })
+      page.on('request', request => { if (request.url().endsWith('/api/bot')) requests++ })
+      await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 150, downloadThroughput: 64 * 1024, uploadThroughput: 64 * 1024 })
+      const start = Date.now()
+      await page.goto(`${entry}/#/projects/one/board`)
+      await page.locator('.task-group').first().waitFor({ timeout: 30000 })
+      const usableMs = Date.now() - start
+      await page.waitForTimeout(4500)
+      assert.equal(aborted, 0, 'same-route polls must not cancel requests')
+      console.log(JSON.stringify({ kind: 'deterministic-fixture-slow-network', bandwidthBytesPerSecond: 65536, latencyMs: 150, usableMs, transferredBytes, requests, aborted, notClaimed: 'deployed-service performance or Owner acceptance' }))
+      await page.close()
     }
     const privateRoom = await rt.projectEndpoint('project-room-create', { projectId: 'one', name: 'Owner only room', memberIds: ['owner-1'], roles: ['chief'] }, { memberId: 'owner-1' })
     const member = pages.member

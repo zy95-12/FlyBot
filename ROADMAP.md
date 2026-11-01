@@ -2,6 +2,15 @@
 
 ## Active fork roadmap — 2026-10-31
 
+Current execution order (Owner, 2026-11-01): repair and verify backend directly in
+the foreground session, then resume the existing #40 Task/PR48 through FlyBot.
+Do not use FlyBot to assign backend repairs. R6 recovery covers serialized wake
+bursts, immediate persisted handoff/Chief events, original-requester queue recovery
+and receiving-workspace preparation before inference and host testing. Remaining
+live integration, frontend restoration and R8 acceptance retain their existing
+issues; no passing unit suite alone completes them.
+
+
 The owner-approved plan is [fork #1](https://github.com/zy95-12/FlyBot/issues/1), recorded
 in [the fork decision](decisions/2026-10-31-project-first-fork.md). Historical upstream
 stages below do not restrict the fork's approved Project and frontend refactor.
@@ -210,3 +219,32 @@ separate Settings, and expandable Task reading hierarchy on original Task40/PR48
 No new backend authorization or framework optimization is bundled. New-candidate
 host tests, independent Review and desktop/narrow-screen visual/live acceptance
 remain required; the inherited candidate's evidence is not reused as a new PASS.
+
+Chief inspection may explicitly select one existing Task in its authorized Project. The host validates Project configuration authority and Task ownership before using the existing scoped snapshot mechanism. Other-Project/missing Tasks are rejected; unscoped inspection is unchanged. This reduces unrelated facts without dropping policy/knowledge or raising context limits.
+
+Owner basic-CI policy is implemented on the existing PR47 local branch: default pinned install/lint/build/canonical/core and plugin unit checks; heavy browser/runtime/package checks explicit extended dispatch. Independent Review and actual UI acceptance remain. Publish only at a safe upstream-binding checkpoint; this local change does not claim live workflow activation.
+
+R7 continuation implements non-overlapping polling, page-specific reads and summary projections, public Bot inspection and the Settings locator repair. Native personal-space compatibility, current-source browser throttling and actual deployed visual acceptance remain outstanding on #40/PR48; no completion or acceptance is claimed.
+
+
+R7 returned-candidate repair: workflow contract tests now match the authorized basic/extended split and executable result gate. This repairs the two observed host failures at 653ebc2; it does not complete native personal-space compatibility or actual UI acceptance.
+
+#40 native conversation slice: original Bubbles/identity marks are mounted in Project
+Chief/private chats; sessions/uiConversation/slots, personal-space/native-group
+compatibility and versioned desktop/narrow visual acceptance remain outstanding.
+
+
+R7 native conversation continuation: connect scoped observable history to Chief/private/room rendering and concurrent role streams. Personal space and sessions/uiConversation/slots integration remain the next required implementation slice; no overall completion or visual acceptance is recorded.
+
+R7 native continuation: preserved original personal Chief/Bot/group entry now has
+bounded identity/history/send/own-memory adapters and original AssistantCell reuse.
+Full native shell sessions/slots/composer and tool/approval integration, screenshots
+and deployed acceptance remain outstanding; component tests do not close #40.
+
+R7 Attempt8a: bounded diagnostics now reproduce and clear all five whitespace
+findings through source generators; 36 focused regressions pass. This is partial
+unsealed implementation progress, not full native compatibility or UI acceptance.
+
+#40 continuation recovers the preserved draft and pinned upstream together; adds
+native personal tree controls. Full native composer/tool/approval parity and actual
+candidate screenshots/service acceptance remain explicit remaining work.

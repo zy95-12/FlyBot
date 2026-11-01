@@ -46,6 +46,12 @@ export function install(rt) {
     const id = String(body.projectId ?? '')
     const project = rt.requireProjectAccess(actor, id)
     const repository = await repositoryReadiness(rt, project)
+    if (body.view === 'summary') return {
+      projectId: id, quota: project.quota ?? { maxConcurrent: 2 }, activeSlots: rt.projectScheduler.slots(id), repository,
+      queue: Object.values(rt.state.projectQueue ?? {}).filter(row => row.projectId === id && ['waiting', 'blocked'].includes(row.status)).map(({ id, taskId, status, reason }) => ({ id, taskId, status, reason })),
+      taskExecution: Object.values(rt.state.tasks).filter(task => task.projectId === id).map(task => taskExecutionStatus(rt.state, task)),
+      metrics: deliveryMetrics(rt.state, id),
+    }
     const workers = Object.values(rt.state.bots).filter(bot => bot.projectId === id && bot.ephemeral).map(bot => ({ id: bot.id, role: bot.role, attemptId: bot.attemptId ?? null, workspaceId: bot.workspaceId ?? null, createdAt: bot.createdAt }))
     const nowCpu = process.cpuUsage(), now = process.hrtime.bigint()
     const elapsedMicros = Number(now - measured) / 1000

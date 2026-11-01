@@ -33,3 +33,15 @@ remain independent requirements, not waived by these regressions.
 
 
 Current rework at seed c9f9b5d6e548ddae8343ac4b1e1a4f0df3ea06e8 reproduces the full bootstrap failure and invalid changelog fragment. The available complete host log verify-9f7840bf-7851-418f-9500-fc8bf6139ecf.log is 1903547 bytes, SHA256 30989f8ce2884717408082c44949872b46ac9b1daea07059898aff41b3aafff6, differing from the handoff hash d592c49d; it records core/plugin successes and the changelog validator failure, not the older install-order failure. Existing failure history is retained. New full verification and actual browser evidence are required independently.
+
+
+Implementation continuation: Project Chief/private/room replies now share the original reply components and scoped observable source. Multiple room-role streams are rendered independently; route/logout/auth failure clears content. Existing authority and scope are unchanged. Native personal-space/service adapter and visual acceptance requirements remain open.
+
+Written-by: Developer
+
+Native continuation uses the existing AssistantCell/marks and shared observable,
+with personal-space capability limited to original owned Bots and authorized local
+rooms. Room history follows existing membership windows; personal memory excludes
+team scope. This implements existing Owner scope without granting raw Harness or
+connector access. The full native shell/composer and deployed visual acceptance
+remain outstanding, not implied by this implementation slice.

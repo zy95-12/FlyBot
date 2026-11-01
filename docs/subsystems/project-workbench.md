@@ -17,6 +17,26 @@ owned_paths:
 
 # Project workbench (fork M5)
 
+## Backend dispatch recovery (R6)
+
+Scheduler wakes coalesce the complete resource reconciliation, admission, pool,
+scheduled-task and Chief pass. Only one pass executes at a time; events during
+a pass request one fresh follow-up. Failure clears the lock and preserves unknown
+resource occupancy. Persisted handoff/Chief requests and confirmed releases wake
+the dispatcher directly; the existing one-second admission timer is a fallback,
+separate from the configurable Chief inspection schedule.
+
+`project-queue-retry {queueId}` is an explicit current Owner/Maintainer operation
+for blocked queue entries after provisioning repair. It rechecks the original
+requester's current authority/background grant and repository preflight, refuses
+ended Tasks or active Attempts, and retains the queue/request ID and initiator.
+Recovery records the manager and old reason, requeues through normal admission
+and wakes execution; it does not fabricate a worker, reset evidence, replace the
+requester with the manager or start a second Task. Failed preflight leaves the
+entry blocked. Optional operator workspace preparation is validated as argv;
+readiness never runs it. See [delivery](project-delivery.md).
+
+
 The shared entry is a separate browser application, built with esbuild into committed
 `core/workbench.js` and `.css`. The legacy operator UI remains available at the private
 Harness entry. Members receive only the restricted gateway URL. Never share the Harness
@@ -203,3 +223,84 @@ sections. Counts and execution/next-step summaries use actual Task/resource reco
 reference-demo PR/Issue numbers and sample metrics are never imported. Failed Tasks
 remain actionable instead of being grouped as successful completion. Fold state is local
 to Project and survives polling. No raw owner APIs or new credentials are introduced.
+
+## Slow-network and public role inspection continuation
+
+Same-route refreshes share one in-flight promise; route changes abort and fence old responses. The board requests summary Project/resource projections, while full audit, workers and leases remain on detail/resource endpoints and in storage. Members, Workflow and pools are fetched only by consuming screens. The Project shell renders before these reads complete. Gateway responses negotiate gzip above 1 KiB while retaining no-store, CSP and credential stripping; unversioned assets remain uncached to avoid stale deployments. Public role cards show only explicitly attached same-role/Project published memory, its revision/source and persona; private notes are never rendered there. Settings keep the existing configure gate.
+
+The native personal-space entry is still missing. Personal Chief/Bot/group compatibility must preserve existing IDs, relationships, history and owner/grant guards through bounded adapters; Project rooms are not a replacement. This continuation does not claim that acceptance criterion complete.
+
+### Native conversation component slice (#40)
+
+Chief/private Project chats and Project rooms mount the original `cells.js::Bubbles` and
+`mark.js::BotMark/PersonMark` through React, with original conversation styles.
+The fixed `/workbench-native.js` and `.css` assets load only on conversation entry;
+board loading does not import the native dependency graph. The gateway serves only
+these named assets, never arbitrary paths. Each render disposes its previous React
+root; delayed asset callbacks verify the transcript is still connected. Roster input
+contains only the current API-visible agent identity. No raw Session API, global
+roster, owner credential or synthetic Harness provider is supplied.
+
+`native-source.js` is the live Project/room-bound observable source consumed by
+all three conversation surfaces. Polls reuse that source and issue one authenticated
+history read per refresh, not a duplicate component-side request. Route changes,
+logout, failed authorization and disposal clear it and fence delayed asset mounts.
+Room transcripts and each active role's public streaming text use original Bubbles;
+room controls, attachments and runtime metadata remain scoped workbench controls.
+This does not implement Harness sessions/uiConversation/slots adapters, personal
+Chief/Bot/group entry, native composer or tool/approval cells. Human text retains
+a plain-text fallback because pinned primitives lacks the capability required by
+original UserMessageCell. No substitute Harness provider is invented.
+
+The native standalone build pins React 18.2 and published primitives 0.2.1-rc.2
+plus their browser dependency graph as development dependencies in the canonical
+package/lock. Provisioned symlinks alone are not a reproducible CI dependency
+contract. Both generated native assets are included in the package file allowlist.
+
+The existing createSource primitive lives in observable-source.js and remains exported
+by sources.js. The workbench imports that small module directly so initial board
+loading does not pull in the original character roster/assets.
+
+### Native personal continuation — 2026-11-01
+
+The lazy conversation bundle now mounts the original `cells.js::AssistantCell`
+(with its `Bubbles`/Markdown renderer and message toolbar) and `mark.js` identities.
+Its observable comes from the same `createSource` implementation as the native
+client, extracted into `observable-source.js` to avoid global roster side effects.
+Only published text blocks enter this projection; private reasoning is not mapped
+into native turn data. UserMessageCell retains its pinned-primitives version guard.
+
+`personal-space` is the only new gateway capability. It lists original owned,
+non-Project local Bots and visible internal groups, preserving IDs and relationships.
+Read pages use the original `historyEntry` interpretation and exclude hidden
+exchange turns. Group reads use `roomHistory` and its membership windows rather
+than raw group Session pages. Own memory reads strip team entries. Native send
+re-enters the existing channel authorization, reference checks and `send` behavior.
+Paging and memory reads reauthenticate before returning; the client clears its
+observable on route/logout/revocation and fences late responses. The endpoint does
+not expose arbitrary Session, filesystem, owner APIs, credentials or connector calls.
+
+This remains a bounded native-component integration, not installation of the entire
+Harness browser shell. Full sessions/uiConversation/slots services, native composer,
+sidebar/tree and tool/approval cells are not yet mounted in this entry. Existing
+Project controls remain available; original personal group creation/settings and
+live tool/approval interactions still need continuation. Browser screenshots and
+actual deployed three-account acceptance are required separately and are not
+inferred from JSDOM/component checks.
+
+The native bundle uses ASCII escapes and whitespace minification. Imported parser
+libraries intentionally contain replacement-character literals/comments; emitting
+those bytes would trip the repository corruption scanner. Escaping preserves
+runtime code points and minification removes those comments while reducing the
+lazy asset size. The renderer regression executes the committed served bundle.
+
+The native bundle disables template literals during generation so whitespace inside
+CSS/string literals is escaped without changing runtime string values. ASCII
+encoding remains required for dependency replacement-character literals.
+
+Recovery continuation retains the pinned PR target alongside the published seed.
+The personal list now also mounts `sidebar.js::TreeNode` and the existing
+`botTree` cycle/orphan handling over the authorized roster's original parent IDs.
+Collapse state stays inside that mounted list; no global tree registry or foreign
+Bot lookup is used. The component test reproduces the missing tree on the recovered
+draft and checks selection, collapse and expansion on the served bundle.

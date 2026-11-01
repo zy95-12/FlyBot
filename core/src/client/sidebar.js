@@ -340,6 +340,32 @@ function TreeNode({ node, rowProps, markedUnread, collapsed, toggle, actions }) 
     closed ? null : children.map(child => h(TreeNode, { key: child.bot.id, node: child, rowProps, markedUnread, collapsed, toggle, actions })))
 }
 
+// Shared member-facing list: the owner shell and scoped workbench use the
+// same rows, avatars, selection and room membership rendering. No global slots
+// or owner-shell menus are mounted by the scoped entry point.
+export function ScopedChatList({ roster, selectedId, openSession, openDetails }) {
+  const [collapsed, setCollapsed] = useState({})
+  const toggle = id => setCollapsed(value => ({ ...value, [id]: !value[id] }))
+  const mainId = roster.mainBotId
+  const tree = roster.bots.some(bot => bot.parentId) ? botTree(roster.bots, mainId, id => roster.byId[id]?.parentId) : []
+  const sessions = { ids: [], byId: {} }
+  const status = new Map()
+  const props = {
+    roster, wide: true, marked: false,
+    useSessions: select => select(sessions),
+    useSessionStatus: select => select(status),
+    useSessionRetainInfo: (id, select) => select({ retainedBy: { mainView: id === (roster.byId[selectedId] ? currentPart(roster.byId[selectedId]) : selectedId) ? 1 : 0 } }),
+    useActivity: select => select({}),
+    actions: { openSession: id => { if (roster.byId[id] || roster.roomsById[id]) openSession(id) },
+      openMenu: ({ id }) => { if (roster.byId[id] || roster.roomsById[id]) openDetails?.(id) },
+      openSettings: (_section, id) => { if (roster.byId[id] || roster.roomsById[id]) openDetails?.(id) } },
+  }
+  return h('div', { className: 'bt-list', role: 'region', 'aria-label': t('Bot list') },
+    tree.length ? tree.map(node => h(TreeNode, { key: node.bot.id, node, rowProps: props, markedUnread: {}, collapsed, toggle }))
+      : roster.bots.map(bot => h(BotRow, { ...props, key: bot.id, bot, asRow: true })),
+    roster.rooms.map(room => h(RoomRow, { ...props, key: room.id, room })))
+}
+
 export function TeamSidebar(props) {
   const { wide, useRoster, useUi, useSessions, actions } = props
   const listRef = useRef(null)
