@@ -430,3 +430,9 @@ Preparation-only retries retain an inherited sealed seed even when no new candid
 was produced, so restarting after context repair cannot silently discard prior UI.
 
 #40 CSS/logout slice: original shell/conversation/sidebar rules now ship in the same-origin native stylesheet under the existing CSP. Sign out invalidates pending work immediately, including when an action is busy. Focused local tests are distinct from deployed visual acceptance; native composer/tool/approval and full legacy interaction parity remain outstanding.
+
+Failed-test rework now receives a bounded, redacted, hash-verified diagnostic from
+its own current or inherited candidate; unavailable private logs are not a model
+debugging prerequisite. Complete host logs remain retained and cannot mint PASS.
+
+#40 verification repair: the popup layering regression now follows the canonical extracted sidebar stylesheet, preserving its z-index assertions and checking the native sidebar re-export. Local red/green evidence is 11/12 → 12/12; this does not complete native composer or deployed three-account/weak-network acceptance.

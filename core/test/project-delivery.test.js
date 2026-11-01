@@ -826,6 +826,34 @@ test('a preparation-only successor retains its inherited sealed seed across anot
   assert.equal(next.status, 'interrupted', 'Original failed preparation history remains')
 })
 
+test('a rework receiver gets hash-verified bounded failed-test facts instead of an inaccessible hash alone', async t => {
+  const f = await setup(t, [process.execPath, '-e', "console.log('not ok 1 - popup layer regression');console.log('  error: missing z-index');console.log('padding\\n'.repeat(12000));console.log('# fail 1');process.exit(1)"], {pool: true})
+  f.rt.projectScheduler.wake = () => {}
+  f.rt.projectPools.connect({validate: () => ({ok: true})})
+  await f.start('failure-feedback')
+  const a = f.attempt(), task = f.rt.state.tasks[f.task.id], roles = f.rt.projectAgents.deliveryDefinitions('p1').roles
+  const dev = roles.find(row => row.role === 'developer'), tester = roles.find(row => row.role === 'tester')
+  await f.rt.projectDelivery.preparePoolRole(task, {id: 'dev', attemptId: a.id, generation: 1}, dev)
+  writeFileSync(join(a.workspaces.developer.path, 'code.mjs'), 'export const add = (a,b) => a+b;\n')
+  await f.rt.projectDelivery.completePoolRole({task, claim: {attemptId: a.id}, role: 'developer', outputs: {}})
+  await f.rt.projectDelivery.preparePoolRole(task, {id: 'test', attemptId: a.id, generation: 2}, tester)
+  await assert.rejects(f.rt.projectDelivery.completePoolRole({task, claim: {attemptId: a.id}, role: 'tester', outputs: {tests: 'Run host tests'}}), /tests failed/)
+  const id = await f.rt.projectDelivery.reworkPool({task, claim: {attemptId: a.id, id: 'failed-test-return', botId: 'chief'}, reason: 'Fix actual failure', force: true})
+  const next = f.rt.state.projectAttempts[id]
+  await f.rt.projectDelivery.preparePoolRole(task, {id: 'repair', attemptId: id, generation: 3}, dev)
+  const context = next.roleSessions.developer.context.text
+  assert.ok(context.includes('popup layer regression'))
+  assert.ok(context.includes(a.evidence.tests.sha256))
+  assert.ok(context.length < 48000)
+  const deepId = await f.rt.projectDelivery.reworkPool({task, claim: {attemptId: id, id: 'preparation-only-return', botId: 'chief'}, reason: 'Preserve failure across preparation retry', force: true})
+  await f.rt.projectDelivery.preparePoolRole(task, {id: 'deep-repair', attemptId: deepId, generation: 4}, dev)
+  assert.ok(f.rt.state.projectAttempts[deepId].roleSessions.developer.context.text.includes('popup layer regression'))
+  writeFileSync(a.evidence.tests.log, 'tampered failure')
+  await assert.rejects(f.rt.projectDelivery.preparePoolRole(task, {id: 'stale-log', attemptId: deepId, generation: 5}, dev), /log changed/)
+  a.projectId = 'another-project'
+  await assert.rejects(f.rt.projectDelivery.preparePoolRole(task, {id: 'foreign-log', attemptId: deepId, generation: 6}, dev), /another Task or Project/)
+})
+
 test('workspace allocation failure releases an actual reservation before any external execution', async t => {
   const f = await setup(t, undefined, { pool: true })
   f.rt.projectPools.connect({ validate: () => ({ ok: true }) })

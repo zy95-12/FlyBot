@@ -260,3 +260,9 @@ checkpoint, then restore the same086 Attempt through scoped Chief judgement. Ori
 PR48/native styles/composer/legacy interactions remain accepted frontend work.
 
 #40 continuation integrates pinned backend b3a1a6ed without discarding native UI changes. Same-origin native CSS and immediate logout isolation are the current verification slice. Native composer/tool/approval/stop integration and real three-account/weak-network screenshots remain required before Chief completion.
+
+R6 follow-up from real UI64 return: supply exact-source failed-test diagnostics
+to the next role so a hash-only Chief return does not require manual log hunting.
+Keep independent full logs, redaction, same-Task/SHA checks and bounded excerpts.
+
+#40 continuation integrates pinned backend 45b499bf without discarding the candidate CSS/logout slice. Popup layering verification follows the extracted canonical stylesheet. Native composer/tool/approval parity and actual three-account/weak-network screenshots remain open; host verification and independent review are still required.

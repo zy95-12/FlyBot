@@ -474,3 +474,15 @@ without hiding originals. Do not raise caps, truncate criteria or blindly retry.
 ### 2026-11-01 — Native component styles must survive the shared CSP
 
 Seen 1×. Mounting original components with an inline style silently lost mark dimensions under style-src self. Generate shared shell/conversation/sidebar rules into the same-origin asset, keep extracted animation dependencies explicit, and assert the generated asset. Logout must invalidate pending actions before awaiting remote revocation.
+
+### 2026-11-01 — A failed-test hash alone cannot drive autonomous repair
+
+Seen 1×. Actual UI64 failed a popup z-index test, but the host wrapper returned
+only its log tail and Developer could not find the requested receipt. Preserve
+early failure details in verifier output and feed a bounded, hash-verified excerpt
+from the same Task/candidate into rework. Redact before truncating long lines;
+retain full originals and never confuse diagnostic text with verification PASS.
+
+### 2026-11-01 — Extracted styles keep their behavioral assertions
+
+Seen 1×. Moving sidebar CSS to a shared same-origin module left the layering regression reading its former file and reporting NaN. Follow the canonical stylesheet and verify its consumer import; retain the z-index boundary assertion rather than weakening it.

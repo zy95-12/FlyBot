@@ -314,3 +314,5 @@ authorization discard late pages. Project conversation refresh semantics are unc
 ## Native CSS and logout isolation
 
 The workbench native stylesheet includes canonical shell, conversation and sidebar rules as a same-origin asset. Conversation mounting inserts no inline stylesheet. Sign out bypasses the action busy lock, increments the scope epoch, aborts current reads, disposes conversation roots and clears local credentials/state before awaiting remote revocation. Late action results cannot restore the former view. Local component checks do not establish deployed browser acceptance or complete native composer integration.
+
+The popup layering regression reads `sidebar-styles.js`, the canonical extracted rules, and checks that the native sidebar re-exports them. Extraction must preserve the existing dialog/panel stacking assertions; the test is not a deployed visual acceptance claim.
