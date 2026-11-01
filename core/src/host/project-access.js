@@ -112,7 +112,9 @@ export function install(rt) {
     if (endpoint === 'project-chief-inspect') {
       rt.requireProjectAccess(actor, body.projectId, 'configure')
       if (typeof body.requestId !== 'string' || !/^[A-Za-z0-9_-]{1,100}$/.test(body.requestId)) throw refusal('Chief inspection needs a stable requestId')
-      return { run: await rt.projectChiefControl.request(body.projectId, 'inspection', { requestId: body.requestId, requestedBy: actor.memberId }) }
+      const task = body.taskId === undefined ? null : ownEntry(state.tasks, String(body.taskId))
+      if (body.taskId !== undefined && (!task || task.projectId !== body.projectId)) throw refusal('Inspection Task is unavailable in this Project')
+      return { run: await rt.projectChiefControl.request(body.projectId, 'inspection', { requestId: body.requestId, requestedBy: actor.memberId, ...(task ? { blockedTaskId: task.id } : {}) }) }
     }
     if (endpoint === 'project-scheduled-task') return rt.projectScheduledTasks.endpoint(body, actor)
     if (endpoint === 'project-agent-mode') return rt.projectDelegations.mode(body, actor)

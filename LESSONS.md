@@ -366,3 +366,5 @@ Measure each context component before blaming public knowledge: full repository 
 A backend repair can advance the stacked PR target while an unstarted rework Attempt still pins the previous target. Re-read actual refs through the host broker before allocation; refresh only a verified descendant on a proven pre-execution boundary, audit both inputs, retain draft/seed/history, and keep later publication movement checks strict.
 
 When browser acceptance stalls waiting for a side effect, inspect host proposals and authorization state before blaming model transport or retrying. A safe-mode proposal requires explicit human publication; align the real browser scenario with that contract and retain no-early-effect, cross-user and duplicate-publication assertions.
+
+Chief inspection may explicitly select one existing Task in its authorized Project. The host validates Project configuration authority and Task ownership before using the existing scoped snapshot mechanism. Other-Project/missing Tasks are rejected; unscoped inspection is unchanged. This reduces unrelated facts without dropping policy/knowledge or raising context limits.

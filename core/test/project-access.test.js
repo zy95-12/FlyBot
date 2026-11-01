@@ -173,3 +173,14 @@ test('repair pool, query, delegation and Chief endpoints reach the actual HTTP P
   assert.equal(denied.ok, false)
   assert.equal(denied.error.code, 'bot/forbidden')
 })
+
+test('scoped Chief inspection keeps human authority and rejects other Project Tasks',async t=>{
+ const rt=await setup(t);rt.state.tasks.owned={id:'owned',projectId:'p1'};rt.state.tasks.other={id:'other',projectId:'p2'};let source
+ rt.projectChiefControl.request=async(projectId,kind,input)=>{source=input;return{id:'inspection'}}
+ await rt.projectEndpoint('project-chief-inspect',{projectId:'p1',requestId:'scoped',taskId:'owned'},alice)
+ assert.equal(source.blockedTaskId,'owned')
+ await assert.rejects(rt.projectEndpoint('project-chief-inspect',{projectId:'p1',requestId:'other',taskId:'other'},alice),/Inspection Task/)
+ await assert.rejects(rt.projectEndpoint('project-chief-inspect',{projectId:'p1',requestId:'missing',taskId:'missing'},alice),/Inspection Task/)
+ await assert.rejects(rt.projectEndpoint('project-chief-inspect',{projectId:'p1',requestId:'member',taskId:'owned'},bob),/access denied/)
+ await rt.projectEndpoint('project-chief-inspect',{projectId:'p1',requestId:'whole'},alice);assert.equal(source.blockedTaskId,undefined)
+})

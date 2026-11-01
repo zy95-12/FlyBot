@@ -202,3 +202,5 @@ A Chief role name alone grants no access. New control endpoints remain Project s
 
 Authenticated HTTP route regressions cover every R3–R6 collaboration endpoint
 and reject a nonmember at the real Project boundary, beyond direct service tests.
+
+Chief inspection may explicitly select one existing Task in its authorized Project. The host validates Project configuration authority and Task ownership before using the existing scoped snapshot mechanism. Other-Project/missing Tasks are rejected; unscoped inspection is unchanged. This reduces unrelated facts without dropping policy/knowledge or raising context limits.
