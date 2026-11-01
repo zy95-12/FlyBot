@@ -2,8 +2,9 @@
 
 ## Active fork roadmap — 2026-10-31
 
-Current execution order (Owner, 2026-11-01): repair and verify backend directly in
-the foreground session, then resume the existing #40 Task/PR48 through FlyBot.
+Current execution order (Owner update, 2026-11-01): keep the existing frontend
+#40 Task/PR48 autonomous while implementing backend #49–#55 directly in the
+foreground session, in separate issue worktrees and with staged verified rollout.
 Do not use FlyBot to assign backend repairs. R6 recovery covers serialized wake
 bursts, immediate persisted handoff/Chief events, original-requester queue recovery
 and receiving-workspace preparation before inference and host testing. Remaining
@@ -45,6 +46,15 @@ The 30–43 person-day estimate is provisional pending interfaces/frontend desig
 
 User explicitly authorized sequential implementation and a separate PR for every issue,
 including long-term memory, architecture and tests. Merge/deployment is separate.
+
+## Automatic development service sequence
+
+[#49](https://github.com/zy95-12/FlyBot/issues/49) tracks S1 #50 service/TaskView →
+S2 #51 durable Effects/outbox → S3 #52 input/role receipts → S4 #53 external
+Task subscriptions. S5 #54 trusted deployment/authority follows S1 and applies
+throughout; S6 #55 integrated recovery acceptance follows all five. One PR per
+implementation issue; no extra tracking-only PR. S1 source implementation is in
+progress, not live or independently reviewed. Original #34–#41 residuals remain.
 
 ## Historical upstream roadmap
 

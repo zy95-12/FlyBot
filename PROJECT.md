@@ -13,8 +13,8 @@ Current stage and priorities: [ROADMAP.md](ROADMAP.md). How decisions are made:
 ### Direct backend recovery — 2026-11-01
 
 The owner requires backend repairs in the foreground Codex session; do not
-dispatch backend development through FlyBot. Existing frontend work is preserved
-and resumes through FlyBot only after backend verification. See the
+dispatch backend development through FlyBot. Existing frontend work is preserved and now continues autonomously while new
+backend service work is developed independently (owner update, 2026-11-01). See the
 [execution decision](decisions/2026-11-01-direct-backend-recovery.md).
 R6 adds coalesced event-driven dispatch, manager-controlled retry of blocked queue
 entries under the original requester, and operator-selected workspace preparation
@@ -76,6 +76,17 @@ See [baseline ownership and tests](docs/subsystems/demo-baseline.md).
   identity/history and per-Attempt temporary Session bindings. M7.2–M7.5 code is on PRs #27–#30: resource leases, SDK Harnesses, Owner setup and
   verified Git handoffs. Authenticated mixed-resource acceptance remains outstanding;
   the later owner-authorized local Codex-only run passed, as recorded below.
+
+### Automatic development service — 2026-11-01
+
+Owner approved [#49–#55](https://github.com/zy95-12/FlyBot/issues/49), sequential
+backend issue/PR delivery alongside existing frontend Task40/PR48. S1 introduces
+one versioned service facade, legacy adapters and a shared derived TaskView;
+[contract](docs/subsystems/project-development-service.md),
+[decision](decisions/2026-11-01-development-service.md). Durable Effects, input
+receipts, external subscriptions, trusted deployment boundaries and recovery
+acceptance remain S2–S6. Source checks and staged live rollout are separate;
+healthy frontend work and native schedules must not be interrupted for deployment.
 
 ## Historical upstream Project State
 

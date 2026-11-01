@@ -1,0 +1,108 @@
+---
+subsystem: project-development-service
+owned_paths:
+  - core/src/host/project-development-service.js
+  - core/test/project-development-service.test.js
+---
+
+# Automatic development application service
+
+S1 (#50, parent #49) introduces one application facade in the existing FlyBot
+process. It owns routing and the derived TaskView, not another Task store,
+executor, permission policy or workflow engine. Existing pools, admission,
+delivery, delegation and Chief modules remain the authoritative implementations.
+No storage migration, external dependency or new service listener is required.
+
+## Transport contract
+
+The existing authenticated `POST /api/bot` accepts endpoint `project-development`:
+
+```json
+{
+  "endpoint": "project-development",
+  "payload": {
+    "version": "project-development/v1",
+    "kind": "command",
+    "name": "task.run",
+    "projectId": "project-id",
+    "requestId": "stable-request-id",
+    "expectedGeneration": 4,
+    "payload": { "taskId": "task-id" }
+  }
+}
+```
+
+The value is `{version, requestId?, result}` inside the existing channel response.
+`kind=query` has no required requestId. Version, operation kind, payload shape and
+target Project are checked before dispatch. Task/Attempt/queue targets must agree;
+body actor/member/role fields never replace the authenticated actor. Project
+membership and each underlying operation's existing permission checks still apply.
+An optional expectedGeneration/expectedCandidateSha is an admission precondition;
+the existing domain claim/candidate fences remain authoritative across async work.
+Errors retain channel codes: invalid contract, forbidden scope, conflict for stale
+preconditions, read-only host and existing module-specific errors. No raw event or
+role-token submission is available through this HTTP endpoint.
+
+| Kind | Names |
+| --- | --- |
+| Query | tasks, task, task.detail, attempt.log, chief.state, pools |
+| Command | task.run, task.accept, task.reject, attempt.stop, attempt.cleanup, attempt.publication-retry |
+| Command | queue.cancel, queue.retry, chief.inspect, chief.configure, schedule.configure, agent.mode, proposal.publish, execution.input |
+
+`tasks` takes limit 1–200 (default 50) and optional `after=taskId`, sorted by
+creation time then id within the authorized Project. Unknown/foreign cursors are
+refused; queries do not create definitions, agents or mutate stored task records.
+`task` returns the compact view; `task.detail` retains original Task/Attempt detail
+and adds `view`. `proposal.publish` still publishes only the requester's own
+proposal through the original safe/watch contract. requestId is propagated to the
+existing operation; S1 does not claim uniform durable command replay for operations
+that did not already implement it. Persistent Effects/receipts belong to S2/S3.
+
+Legacy endpoints route through this same facade and retain response shapes, with
+only additive task-detail/view and workbench taskViews. Scoped agent run/watch
+tools already use those endpoints, so they share the same human operation path.
+The service's trusted roleCommand port delegates claim and handoff/return/transfer/
+complete/arbitrate to the original fenced pool, preserving independent role rules.
+The Workflow plugin's authorized poolResult callback enters roleResult; stable
+claim/worker identity and duplicate-result handling remain in the pool. Logical
+schedule occurrence delivery enters scheduled after the original schedule module
+has checked authority and persisted its occurrence id. Native schedules retain
+their configured timing; there is no new Chief timer. These ports are not public
+HTTP commands and do not establish a new grant.
+
+## One derived TaskView
+
+The read model includes Project/Task identity, phase, waitingFor/reason, logical
+Bot/role, generation, Attempt/execution/worker/queue ids, candidate SHA, progress
+evidence references and permission-filtered nextActions. It excludes raw prompts,
+private chat/memory, worker paths, credentials and full execution logs.
+
+Precedence is terminal → stopping → explicit Chief human question → Chief wait →
+blocked → admission queue → role queue → claimed execution → acceptance wait →
+failure → legacy Run state. A stored native Bot is not proof of execution: its
+live activity or a correctly scoped running SDK worker is required. Resource
+waiting, role waiting, worker startup and user input remain distinguishable.
+Evidence includes explicit current-SHA flags; old tests/review do not approve a
+new candidate. Meaningful progress reuses Chief's verified evidence projection,
+never heartbeat, message count or an arbitrary new commit.
+
+The legacy compact taskExecution DTO is derived from the same function; existing
+workbench readers can continue using it. nextActions is advisory discovery based
+on current permissions/state: the actual command rechecks all configuration,
+resource, evidence and authority conditions. Unknown/foreign Attempt or worker
+references do not contribute execution/candidate evidence.
+
+## Rollout and verification
+
+The owner authorized backend implementation alongside healthy autonomous frontend
+work, on independent branches/workspaces, with staged deployment. Source testing
+must not stop Task40/PR48 or its configured inspections. No restart while active
+workers/host verification own workspaces; a verified quiescent boundary and source/
+configuration backup are required for each upgrade. No automatic merge or release
+is implied. Control-plane, native UI assets and running task records are preserved.
+
+Focused tests cover contracts, legacy equivalence, stale generations/candidates,
+scope/permissions, deterministic pagination, projection purity, phase precedence,
+role/schedule ports and actual HTTP/gateway routing. Full verify includes real DSH
+deterministic runtime probes; these are not real-model or independent Review PASS.
+S2–S6 retain their own fault-injection and live acceptance obligations.

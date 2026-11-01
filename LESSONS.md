@@ -13,6 +13,15 @@ Dated, short lessons from real FlyBot work. Agents read this **before coding**. 
 
 ## Open lessons
 
+### 2026-11-01 — A stored worker record is not a running turn
+
+Seen 1×. Service status inspection found the old workbench projection treated any
+stored native Bot as running. Derive status from current scoped SDK execution or
+native live activity, retain starting/waiting states, and share one projection
+between service/detail/workbench readers. Test stale records and wrong-Project
+candidate/worker references; heartbeat alone is not meaningful progress.
+
+
 ### 2026-11-01 — Preparation belongs to every receiver, not one successful checkout
 
 Seen 2×. The real Tester lacked native dependencies although Developer preparation
