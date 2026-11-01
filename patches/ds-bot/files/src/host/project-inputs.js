@@ -19,7 +19,7 @@ export function createProjectInputs(rt) {
   const taskOf = id => { const task = ownEntry(rt.state.tasks, id); if (!task?.projectId) throw refuse('Unknown Project Task'); return task }
   const writable = () => { if (rt.readOnly?.() !== undefined) throw refuse('Task inbox is read-only') }
   const authorized = (row, task) => {
-    if (row.source.kind !== 'human') return true
+    if (!['human', 'github'].includes(row.source.kind)) return true
     try { rt.requireProjectAccess({ memberId: row.source.memberId }, task.projectId, 'task-write', task); return true } catch { return false }
   }
   const pending = task => Object.values(rt.state.projectTaskInputs ?? {}).filter(row => row.projectId === task.projectId && row.taskId === task.id && row.status === 'accepted' && row.version === INPUT_PROTOCOL && authorized(row, task))
@@ -187,6 +187,12 @@ export function createProjectInputs(rt) {
     if (pending(task).some(row => row.kind !== 'handoff' && !allowed.has(row.id))) throw refuse('Task still has unhandled inputs; current role or Chief must acknowledge them before closure')
   }
   return { publish: (body, actor) => serial(() => publish(body, actor)), list, stageHandoff,
+    // Internal Source adapter only; public input.publish cannot set provenance.
+    stageExternal(task, source, text) {
+      if (source?.kind !== 'github' || !source.memberId || typeof text !== 'string' || !text.length || text.length > 4000 || ended(task)) throw refuse('Invalid active external Task input')
+      return stage(task, source, text, 'external-feedback')
+    },
+    discardExternal(id) { const row = ownEntry(rows(), id); if (row?.source.kind === 'github' && !row.deliveries.length) delete rows()[id] },
     chiefActor(actor, taskId, saved, run, receipts) {
       const plan = chiefPlan(taskId, saved, run, receipts)
       if (!plan) return actor
@@ -206,7 +212,7 @@ export function createProjectInputs(rt) {
       for (const row of pending(task).filter(row => row.kind === 'handoff' && row.source.eventId === handoffId)) { row.status = 'handled'; row.routingReceipt = { chiefDecisionId: decisionId, at: Date.now(), proof: 'validated-chief-routing-decision' } }
     },
     revokeSource(projectId, memberId) {
-      for (const row of Object.values(rt.state.projectTaskInputs ?? {})) if (row.projectId === projectId && row.source.kind === 'human' && row.source.memberId === memberId && row.status === 'accepted') { row.status = 'cancelled'; row.cancelledAt = Date.now(); row.cancellation = 'Source Project membership was revoked' }
+      for (const row of Object.values(rt.state.projectTaskInputs ?? {})) if (row.projectId === projectId && ['human', 'github'].includes(row.source.kind) && row.source.memberId === memberId && row.status === 'accepted') { row.status = 'cancelled'; row.cancelledAt = Date.now(); row.cancellation = 'Source Project membership was revoked' }
     },
     finishHandoff(taskId, claim) {
       const task = taskOf(taskId); current(task, claim)

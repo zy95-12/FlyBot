@@ -24,6 +24,14 @@ Native agents use `project_agent_github`. SDK Chief can request bounded host rea
 with `github_read` actions; host-confirmed results are appended separately from the
 model narrative. A model action or prose is not evidence that a read or write ran.
 
+S4 adds `thread-events` with a validated issue/pull kind, number and independent
+page cursors. It returns comments/edits, submitted Reviews and inline replies,
+checks and head/state facts through the same credential and authority broker.
+Canonical repository/thread checks and a second PR-head read reject moved inputs;
+pending private Review drafts are omitted. Lists rotate20-entry pages and report
+their observation limits, including unseen intermediate edits. See
+[Source subscriptions](project-sources.md); these facts grant no write or verdict.
+
 
 Repair R5 (#38): Watch reads validate their current persistent
 actor instead of requiring a browser cookie. Personal credential selection remains

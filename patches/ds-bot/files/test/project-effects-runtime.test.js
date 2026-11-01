@@ -74,6 +74,23 @@ test('handoff input is rolled back when dispatch intent cannot even be staged', 
   assert.equal(f.rt.state.tasks.task.collaboration.history.length,0)
 })
 
+test('v1 GitHub subscription polling commits source cursor and original Task input through the real store', async t => {
+  const f=await fixture(t),actor={memberId:'owner-1'}
+  f.rt.state.projects.p.repository='owner/repo'
+  f.rt.projectGithubRead=async body=>({repository:'owner/repo',data:{threadKind:body.threadKind,number:body.number,pages:{comments:1},events:[{id:'comments:7',type:'comments',text:'Keep the native multi-Bot chat',sha:null}]}})
+  const command=(name,payload)=>f.rt.projectEndpoint('project-development',{version:'project-development/v1',kind:'command',projectId:'p',name,requestId:name.replaceAll('.','-'),payload},actor)
+  const sub=(await command('source.subscribe',{taskId:'task',threadKind:'pull',number:48,includeHistory:true})).result.subscription
+  const polled=await command('source.poll',{threadId:sub.threadId})
+  assert.equal(polled.result.inputs,1)
+  const disk=JSON.parse(readFileSync(join(f.home,'state.json'),'utf8'))
+  const input=Object.values(disk.projectTaskInputs)[0]
+  assert.ok(disk.projectSourceEvents[input.source.eventId])
+  assert.equal(disk.projectThreads[sub.threadId].cursor.pages.comments,1)
+  assert.ok(Object.values(disk.projectEffects).some(row=>row.kind==='input.notify'&&row.payload.inputId===input.id))
+  assert.equal(Object.keys(disk.tasks).length,1)
+  assert.equal((await command('source.poll',{threadId:sub.threadId})).result.inputs,0)
+})
+
 test('real membership removal cancels its pending input but preserves the Project Task and rejects source replay', async t => {
   const f=await fixture(t)
   f.rt.state.members.bob={id:'bob'}

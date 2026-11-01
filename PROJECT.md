@@ -10,6 +10,25 @@ Current stage and priorities: [ROADMAP.md](ROADMAP.md). How decisions are made:
 
 ## Fork Project State — 2026-10-31
 
+### GitHub feedback subscriptions — S4 / issue53, 2026-11-02
+
+Source/Thread/TaskSubscription now feeds the existing durable inbox through scoped
+GitHub reads and configurable native schedules. Stable revisions, cursor replay,
+atomic event/input/Effect persistence and current-Task routing preserve Bot handoff
+choice. Old-SHA checks/Review and remote closure never grant current evidence or
+local closure. Default activation keeps earlier discussion as context, explicit
+history backfill is available; stopped/context Tasks never wake. Long feedback is
+retained losslessly in bounded parts, and unsubmitted Review drafts are excluded.
+See [Source architecture](docs/subsystems/project-sources.md). Source tests and a
+real UID998 scoped GitHub read are recorded; complete live feedback/handoff
+acceptance remains separate until actually run.
+
+S1/S2/S3 and the #60 host-seal compatibility repair are deployed together at
+e20262ed, with4384 full checks and actual three-account authorization probes.
+Original frontend Task40/PR48 resumed through Chief and sealed a new candidate;
+the native Tester handoff is active, not final UI acceptance. Current backend
+development remains in the foreground session, without frontend Task replacement.
+
 ### Approved integration sealing — issue60, 2026-11-02
 
 S3/PR61 is verified (4374 tests and exact-source real Codex inbox→Chief-pool

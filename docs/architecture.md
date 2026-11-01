@@ -143,6 +143,14 @@ feedback waits for the same worker/thread's safe turn; Chief closure commits its
 input receipt with acceptance. No additional workflow, frontend, clock or platform
 service is introduced.
 
+S4 adds [GitHub Source/Thread subscriptions](subsystems/project-sources.md) at that
+same boundary. The scoped GitHub broker observes immutable revisions; event routes,
+S3 inputs, Effects and polling cursors commit together after all asynchronous
+authority checks. Subscriptions identify Tasks, whose current responsibility
+selects the receiving Bot. Existing configurable logical schedules drive polling;
+remote state, CI and Review are facts and cannot grant Task closure or candidate
+verification. No additional executor, listener, DAG or control-plane change.
+
 
 Issue60 extends the same service/delivery boundary with explicit approved operator
 integration inputs. Current manager authority, released execution proof, exact

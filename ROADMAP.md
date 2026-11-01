@@ -2,6 +2,13 @@
 
 ## Active fork roadmap — 2026-10-31
 
+S4/#53 implements scoped GitHub feedback→existing Task inputs with persistent
+revisions, bounded source sweeps and native schedule configuration. Full exact-head
+verification, compatible checkpoint rollout and actual GitHub→Bot handoff evidence
+must precede delivery claims. S5/#54 trust/capability boundary and S6/#55 integrated
+fault/recovery acceptance follow. S1–S3/#60 are deployed; original frontend Task40/
+PR48 now advances its new sealed candidate through native Tester/Reviewer roles.
+
 Immediate #60 foreground repair completes approved extra-merge host sealing before
 S2/S3 batch rollout and current frontend Attempt resumption. Keep the existing
 index/MERGE_HEAD, shared-ref restriction, Task/PR and independent candidate gates.

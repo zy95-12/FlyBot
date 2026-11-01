@@ -473,6 +473,15 @@ from the same Task/candidate into rework. Redact before truncating long lines;
 retain full originals and never confuse diagnostic text with verification PASS.
 
 
+### 2026-11-02 — Finish asynchronous preflight before staging a source batch
+
+Seen 1× in S4's concurrent-save regression. An async principal check between event
+insertion and input/cursor staging lets another host save commit a half-event;
+restart deduplication would then skip undelivered feedback. Finish async preflight
+first, recheck synchronous authority, stage the complete batch without a yield,
+and obtain the existing save/rename proof. A deterministic unrelated-save regression
+fails before the repair and preserves complete event/input/cursor binding after it.
+
 ### 2026-11-02 — Occupancy guards must bind to the current owner
 
 Seen 1× during live operator-source admission. Seven released historical Chief
