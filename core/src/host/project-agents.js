@@ -5,7 +5,7 @@ import { defineTool } from './tool-schema.js'
 import { output } from './tools.js'
 import { textOf } from './text.js'
 import { resolveAgentSkills } from './project-agent-skills.js'
-import { roleContext } from './project-role-context.js'
+import { roleContext, contextHash, KNOWLEDGE_CHECKPOINT_VERSION } from './project-role-context.js'
 import { deliveryGraph } from './project-delivery-template.js'
 
 const digest = text => createHash('sha256').update(text).digest('hex')
@@ -429,7 +429,15 @@ export function createProjectAgents(rt) {
       if (!text) throw refuse('Shared knowledge needs text')
       state.projectKnowledge ??= {}
       const rows = ownEntry(state.projectKnowledge, projectId) ?? []
-      rows.push({ id: randomUUID(), kind: body.kind === 'decision' ? 'decision' : 'fact', text, createdBy: actor.memberId, at: Date.now() })
+      let checkpoint
+      if (body.supersedes !== undefined) {
+        rt.requireProjectAccess(actor, projectId, 'configure')
+        const refs = body.supersedes
+        if (!Array.isArray(refs) || !refs.length || refs.length > 512 || refs.some(ref => !ref || typeof ref.id !== 'string' || !/^[a-f0-9]{64}$/.test(ref.sha256 ?? '')) || new Set(refs.map(ref => ref.id)).size !== refs.length) throw refuse('Knowledge checkpoint needs unique exact-source references')
+        if (refs.some(ref => { const source = rows.find(row => row.id === ref.id); return !source || contextHash(JSON.stringify(source)) !== ref.sha256 })) throw refuse('Knowledge checkpoint sources are stale or belong to another Project')
+        checkpoint = { version: KNOWLEDGE_CHECKPOINT_VERSION, supersedes: refs.map(({ id, sha256 }) => ({ id, sha256 })) }
+      }
+      rows.push({ id: randomUUID(), kind: body.kind === 'decision' ? 'decision' : 'fact', text, createdBy: actor.memberId, at: Date.now(), ...(checkpoint ? { checkpoint } : {}) })
       setEntry(state.projectKnowledge, projectId, rows)
       await rt.save()
       return { saved: true }

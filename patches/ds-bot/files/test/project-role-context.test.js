@@ -23,3 +23,40 @@ test('complete pinned policy replaces duplicate previews without losing rules or
   assert.throws(()=>roleContext({...input,repository:[{...repository[0],commit:'b'.repeat(40)}]}),/exceeds/)
   assert.throws(()=>roleContext({...input,policy:{...policy,text:policy.text+'tampered'}}),/exceeds/)
 })
+
+test('explicit verified knowledge checkpoints retain history provenance and newer facts under the same cap', () => {
+  const history = Array.from({length: 12}, (_, i) => ({id: `fact-${i}`, text: 'Old verified facts '.repeat(350), createdBy: 'owner', at: i}))
+  const checkpoint = {id: 'current', text: 'Current decision: preserve native UI and all permissions.', checkpoint: {version: 'project-knowledge-checkpoint/v1', supersedes: history.map(row => ({id: row.id, sha256: contextHash(JSON.stringify(row))}))}}
+  const knowledge = [...history, checkpoint, {id: 'delta', text: 'New frontend failure requires repair.'}]
+  const before = structuredClone(knowledge)
+  for (const role of ['developer', 'chief']) {
+    const input = {projectId: 'p', role, definition: {instructions: 'Keep the role contract'}, knowledge, requirement: {criteria: 'All original acceptance criteria'}}
+    const result = roleContext(input)
+    const data = JSON.parse(result.text.split('<untrusted-role-context>\n')[1].split('\n</untrusted-role-context>')[0])
+    assert.equal(data.knowledge.length, 2)
+    assert.equal(data.knowledge[0].text, checkpoint.text)
+    assert.equal(data.knowledge[0].checkpoint.sourceCount, 12)
+    assert.equal(data.knowledge[0].checkpoint.sourceSha256, contextHash(JSON.stringify(checkpoint.checkpoint.supersedes)))
+    assert.deepEqual(data.knowledge[1], knowledge.at(-1))
+    assert.equal(data.knowledgeHistory.count, 12)
+    assert.equal(data.knowledgeHistory.retained, true)
+    assert.equal(data.requirement.criteria, input.requirement.criteria)
+    assert.equal(result.sources.knowledge.length, 14)
+    assert.ok(result.text.length < ROLE_CONTEXT_LIMIT)
+    const tampered = structuredClone(knowledge); tampered[0].text += 'changed'
+    assert.throws(() => roleContext({...input, knowledge: tampered}), /exceeds/)
+  }
+  assert.deepEqual(knowledge, before)
+})
+
+test('unknown, duplicate or forward checkpoint references never hide knowledge', () => {
+  const old = {id: 'old', text: 'Must remain visible'}
+  const ref = {id: old.id, sha256: contextHash(JSON.stringify(old))}
+  for (const supersedes of [[{...ref, id: 'foreign'}], [ref, ref], [{...ref, sha256: 'wrong'}], [null], [], 'invalid']) {
+    const checkpoint = {id: 'summary', text: 'Summary', checkpoint: {version: 'project-knowledge-checkpoint/v1', supersedes}}
+    const result = roleContext({projectId: 'p', role: 'chief', definition: {instructions: ''}, knowledge: [old, checkpoint]})
+    assert.ok(result.text.includes('Must remain visible'))
+  }
+  const forward = {id: 'forward', checkpoint: {version: 'project-knowledge-checkpoint/v1', supersedes: [ref]}}
+  assert.ok(roleContext({projectId: 'p', role: 'chief', definition: {instructions: ''}, knowledge: [forward, old]}).text.includes('Must remain visible'))
+})

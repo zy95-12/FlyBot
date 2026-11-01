@@ -349,3 +349,9 @@ Owner basic-CI policy is implemented on the existing PR47 local branch: default 
   proven released history, preserving original records and the 48k admission limit.
 
 - Fork basic CI checks out source in its tests-ok aggregation job and validates the current basic/extended policy in default workflow tests. The prior missing-script runner failure and stale inherited heavy-job assertions are repaired together, without bypassing failed verification.
+
+R6 context recovery: managers may publish an exact-source knowledge checkpoint
+through project-knowledge-write with hashed supersedes references. Original facts,
+versions and authors remain readable; role snapshots contain the current summary,
+newer facts and history digests under the unchanged48k cap. Invalid/stale checkpoints
+never hide original records. See Project agents architecture.

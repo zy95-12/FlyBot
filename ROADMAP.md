@@ -203,3 +203,9 @@ P0 now includes the reproduced M6 fixture/contract mismatch: complete actual saf
 Chief inspection may explicitly select one existing Task in its authorized Project. The host validates Project configuration authority and Task ownership before using the existing scoped snapshot mechanism. Other-Project/missing Tasks are rejected; unscoped inspection is unchanged. This reduces unrelated facts without dropping policy/knowledge or raising context limits.
 
 Owner basic-CI policy is implemented on the existing PR47 local branch: default pinned install/lint/build/canonical/core and plugin unit checks; heavy browser/runtime/package checks explicit extended dispatch. Independent Review and actual UI acceptance remain. Publish only at a safe upstream-binding checkpoint; this local change does not claim live workflow activation.
+
+Current frontend recovery blocker: shared operational history exceeded role context
+admission. R6 adds explicit manager-published knowledge checkpoints preserving all
+source records; test and deploy the current projection, publish an authorized concise
+checkpoint, then restore the same086 Attempt through scoped Chief judgement. Original
+PR48/native styles/composer/legacy interactions remain accepted frontend work.

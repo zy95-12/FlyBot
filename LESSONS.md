@@ -388,3 +388,11 @@ When browser acceptance stalls waiting for a side effect, inspect host proposals
 Chief inspection may explicitly select one existing Task in its authorized Project. The host validates Project configuration authority and Task ownership before using the existing scoped snapshot mechanism. Other-Project/missing Tasks are rejected; unscoped inspection is unchanged. This reduces unrelated facts without dropping policy/knowledge or raising context limits.
 
 Owner basic-CI policy is implemented on the existing PR47 local branch: default pinned install/lint/build/canonical/core and plugin unit checks; heavy browser/runtime/package checks explicit extended dispatch. Independent Review and actual UI acceptance remain. Publish only at a safe upstream-binding checkpoint; this local change does not claim live workflow activation.
+
+### 2026-11-01 — Append-only history must not become an unbounded prompt
+
+Seen 1×. Actual41-entry shared knowledge blocked Developer before SDK registration
+and Chief failed without execution evidence. Preserve source records/authors and
+publish a current manager checkpoint bound to exact prior hashes. Project only
+verified covered history to digests, retain newer facts, and reject stale references
+without hiding originals. Do not raise caps, truncate criteria or blindly retry.
