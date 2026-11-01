@@ -329,3 +329,23 @@ if(m.type==='input'||m.type==='permission')throw Error('Ordinary Task feedback m
   assert.deepEqual(await harness.taskInputWake(task.id),{woken:false,waitingFor:'permission'})
   await harness.release(id)
 })
+
+test('a result callback failing after confirmed release cannot poison the worker lifecycle', async t => {
+  const { rt, harness, cwd } = await fixture(t)
+  const id = await harness.spawn({ executionProjectId: 'p', executionWorkDir: cwd, prompt: 'Callback lifecycle' })
+  let finished
+  const done = new Promise(resolve => { finished = resolve })
+  harness.onResult(async () => {
+    await harness.release(id)
+    finished()
+    throw new Error('Downstream result handling failed after release')
+  })
+  await harness.dispatch({ botId: id, taskId: 't', brief: 'Frozen requirement', outputs: [{ name: 'implementation' }] })
+  await done
+  await new Promise(resolve => setTimeout(resolve, 30))
+  const row=rt.state.projectHarnessWorkers[id]
+  assert.equal(row.status,'released')
+  assert.equal(row.releaseProof.kind,'sdk-stop-ack-and-process-exit')
+  assert.equal(rt.projectResources.occupied('r'),0)
+  assert.equal(row.failure,undefined)
+})
