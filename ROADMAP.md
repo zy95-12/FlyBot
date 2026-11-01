@@ -2,6 +2,12 @@
 
 ## Active fork roadmap — 2026-10-31
 
+S5/#54 adds the trusted-private compatibility profile and execution-boundary query,
+without per-Bot OS infrastructure or live identity/sandbox migration. Current-role,
+safe/watch, private-data and concurrency regression suites guard existing rights.
+Exact-head full checks and dedicated-account metadata probes are separate from
+S6/#55 integrated GitHub/SDK/recovery/UI acceptance, which remains required.
+
 S4/#53 implements scoped GitHub feedback→existing Task inputs with persistent
 revisions, bounded source sweeps and native schedule configuration. Full exact-head
 verification, compatible checkpoint rollout and actual GitHub→Bot handoff evidence

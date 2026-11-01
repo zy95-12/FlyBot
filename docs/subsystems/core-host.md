@@ -16,6 +16,10 @@ before Chief/scheduler recovery. Its Source adapter registers native configurabl
 polling and feeds the existing durable Task inbox; it adds no listener, execution
 engine or hardcoded clock. See [Source contract](project-sources.md).
 
+S5 installs an execution-boundary query over the same Project services. Its default
+trust profile does not provision accounts or alter SDK sandbox configuration.
+See [boundary contract](project-execution-boundary.md).
+
 # core-host
 
 The server side of the patched `ds-bot` core (`core/`): the part of [ds-bot-core](ds-bot-core.md) that runs in DSH. Split out of that page so a change to the browser client or to the pin and patch tooling does not have to edit this one. Pin, patch format, `core/dev/` and the invariants about `ds-bot/` and `client.js` stay on [ds-bot-core](ds-bot-core.md).

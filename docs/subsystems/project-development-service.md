@@ -18,6 +18,11 @@ plus a trusted scheduledSource host adapter over the same Source implementation.
 Current Project configuration and Task-write authority bind subscriptions, and
 ordinary feedback uses the existing inbox/pools. See [Source contract](project-sources.md).
 
+S5 adds the read-only execution.boundary query with optional current Task scope.
+It revalidates current principal/Project/Task after async metadata checks and returns
+only this human's rights/delegation/credential selection, safe resources and honest
+preflight/isolation limits. It grants no operation. See [boundary contract](project-execution-boundary.md).
+
 ## Transport contract
 
 The existing authenticated `POST /api/bot` accepts endpoint `project-development`:

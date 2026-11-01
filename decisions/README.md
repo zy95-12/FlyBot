@@ -80,3 +80,4 @@ keep it to what a reader must act on.
 - [Task-role context and resident Chief memory](2026-11-01-task-role-context.md)
 
 - [2026-11-01: backend service alongside autonomous frontend](2026-11-01-development-service.md).
+- [2026-11-02: trusted private service execution](2026-11-02-trusted-execution-service.md).
