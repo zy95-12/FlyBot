@@ -82,3 +82,24 @@ test('thread reader rejects invalid cursor, repository/kind mismatch, moving hea
   const issue=createProjectGithubRead(f.rt,{identity:async()=>({login:'automation',token:'private-token'}),request:async url=>Response.json(url.includes('/comments?')?[]:{number:7,html_url:'https://github.com/owner/repo/issues/7',state:'closed',updated_at:'2026-11-01',pull_request:{}})})
   await assert.rejects(issue({...base,threadKind:'issue'},actor),/mismatch/)
 })
+
+test('trusted scheduled Project reads use current principal proof without a browser cookie or personal credential fallback',async()=>{
+  const f=setup(),actor={memberId:'alice'}
+  let checked=0
+  f.rt.platformIdentityEnabled=true;f.rt.validateHumanActor=async()=>false
+  f.rt.projectDelegations={async background(id){assert.equal(id,'alice');checked++}}
+  await assert.rejects(f.read({projectId:'p',background:true,actor:{trusted:true}},actor),/revoked/)
+  assert.equal((await f.read.background({projectId:'p',operation:'issues'},actor)).executorLogin,'automation')
+  assert.ok(checked>=2)
+  await assert.rejects(f.read.background({projectId:'p',scope:'personal'},actor),/Project automation/)
+  f.rt.projectDelegations.background=async()=>{throw Error('principal disabled')}
+  await assert.rejects(f.read.background({projectId:'p'},actor),/disabled/)
+})
+
+test('a mutable Project cannot retarget its captured repository while credential selection is suspended',async()=>{
+  const project={id:'p',repository:'owner/repo'},rt={config:{projectRepositories:{'owner/repo':{github:{login:'automation'}}}},requireProjectAccess(){return project}}
+  let calls=0
+  const read=createProjectGithubRead(rt,{identity:async()=>{project.repository='victim/private';return{login:'automation',token:'secret'}},request:async()=>{calls++;return Response.json([])}})
+  await assert.rejects(read({projectId:'p'},{memberId:'owner'}),/repository changed/)
+  assert.equal(calls,0)
+})

@@ -93,6 +93,12 @@ original logical scheduled-task service handles timing, persistent occurrences,
 principal checks and delivery; its adapter invokes the same development service
 port. Nothing installs a hardcoded polling interval or changes Chief's own schedule.
 
+Unattended polls use the broker's host-only, current-principal Project automation
+port rather than a departed browser cookie. Source subscription/configure authority
+and current background principal proof remain mandatory; JSON cannot forge that
+port or select personal credentials. Real-store tests close the browser identity
+and still observe exactly the original Task input through this explicit path.
+
 UT/ST covers real store commits, retries/restart, edits/out-of-order observations,
 partial-state-save regression, scope and revocation negatives, stopped/context
 Tasks, exact-SHA history, lossless chunks and the native schedule adapter. Mock

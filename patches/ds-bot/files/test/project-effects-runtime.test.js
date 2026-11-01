@@ -6,6 +6,7 @@ import { test } from 'node:test'
 import { createRuntime } from '../index.js'
 import { fakeContext } from './fake-ctx.js'
 import { validateHandoff } from '../../plugins/workflow/src/pool-contract.js'
+import { createProjectGithubRead } from '../src/host/project-github-read.js'
 
 async function fixture(t) {
   const home = mkdtempSync(join(tmpdir(), 'flybot-effects-runtime-'))
@@ -89,6 +90,21 @@ test('v1 GitHub subscription polling commits source cursor and original Task inp
   assert.ok(Object.values(disk.projectEffects).some(row=>row.kind==='input.notify'&&row.payload.inputId===input.id))
   assert.equal(Object.keys(disk.tasks).length,1)
   assert.equal((await command('source.poll',{threadId:sub.threadId})).result.inputs,0)
+})
+
+test('scheduled Source polling survives closed browser sessions using scoped current-principal broker proof',async t=>{
+  const f=await fixture(t),actor={memberId:'owner-1'}
+  f.rt.state.projects.p.repository='owner/repo'
+  f.rt.config.projectRepositories={'owner/repo':{github:{login:'automation'}}}
+  f.rt.projectGithubRead=createProjectGithubRead(f.rt,{identity:async()=>({login:'automation',token:'private-token'}),request:async url=>Response.json(url.includes('/comments?')?[{id:7,body:'Existing Task feedback',updated_at:new Date().toISOString()}]:{number:48,state:'open',html_url:'https://github.com/owner/repo/issues/48',updated_at:new Date().toISOString()})})
+  const sub=await f.rt.projectSources.subscribe({projectId:'p',taskId:'task',threadKind:'issue',number:48,includeHistory:true,requestId:'offline-source'},actor)
+  f.rt.platformIdentityEnabled=true;f.rt.validateHumanActor=async()=>false
+  await assert.rejects(f.rt.projectGithubRead({projectId:'p',operation:'issues',background:true},actor),/revoked/)
+  const polled=await f.rt.projectDevelopment.scheduledSource({projectId:'p',threadId:sub.subscription.threadId},actor)
+  assert.equal(polled.inputs,1)
+  const disk=JSON.parse(readFileSync(join(f.home,'state.json'),'utf8'))
+  assert.equal(Object.values(disk.projectTaskInputs)[0].source.kind,'github')
+  assert.equal(Object.keys(disk.tasks).length,1)
 })
 
 test('real membership removal cancels its pending input but preserves the Project Task and rejects source replay', async t => {

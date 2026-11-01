@@ -74,7 +74,8 @@ export function createProjectSources(rt) {
     await rt.projectDelegations?.background(actor.memberId, actor.sessionId)
     const before = clone(thread.cursor), subscriptions = Object.values(table('projectTaskSubscriptions')).filter(s => s.threadId === thread.id && s.enabled)
     for (const sub of subscriptions) if (sub.version !== SOURCE_PROTOCOL || sub.projectId !== thread.projectId || sub.sourceId !== thread.sourceId) throw refuse('Subscription protocol or scope changed')
-    const response = await rt.projectGithubRead({ projectId: thread.projectId, scope: 'project', operation: 'thread-events', threadKind: thread.kind, number: thread.number, pages: before.pages, headSha: before.headSha }, actor)
+    const read = rt.projectGithubRead.background ?? rt.projectGithubRead
+    const response = await read({ projectId: thread.projectId, scope: 'project', operation: 'thread-events', threadKind: thread.kind, number: thread.number, pages: before.pages, headSha: before.headSha }, actor)
     threadOf(body, actor); rt.projects.requireActive(thread.projectId)
     const batch = response.data
     if (response.repository !== thread.repository || batch?.threadKind !== thread.kind || batch.number !== thread.number || !Array.isArray(batch.events) || batch.events.length > 81) throw refuse('Source observation is outside its thread')
