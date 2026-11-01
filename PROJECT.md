@@ -362,3 +362,7 @@ was produced, so restarting after context repair cannot silently discard prior U
 Failed-test rework now receives a bounded, redacted, hash-verified diagnostic from
 its own current or inherited candidate; unavailable private logs are not a model
 debugging prerequisite. Complete host logs remain retained and cannot mint PASS.
+
+
+### Task-scoped SDK context and resident Chief memory — 2026-11-01
+Owner requires a resident Chief with durable Project memory and one logical Session per Task/role. Codex/Claude own their supported conversation persistence and automatic compaction; FlyBot does not inject a second model-history compactor. SDK role rework reuses a confirmed released Task-role cwd/thread under the same principal/resource/profile/model/persona binding, while preserving separate immutable Attempt/claim/log/test/Review evidence. Changed bindings rotate backend threads with recorded lineage. Chief memory uses the original own-Bot MEMORY.md/topics/journal, never global team or private-user memory. Context admission keeps current bounded facts and hash-bound full source archives for scoped retrieval. Backend changes are foreground work; frontend Task40/PR48 resumes through FlyBot after validation.

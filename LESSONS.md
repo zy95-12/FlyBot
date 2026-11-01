@@ -404,3 +404,7 @@ only its log tail and Developer could not find the requested receipt. Preserve
 early failure details in verifier output and feed a bounded, hash-verified excerpt
 from the same Task/candidate into rework. Redact before truncating long lines;
 retain full originals and never confuse diagnostic text with verification PASS.
+
+
+### 2026-11-01 — Keep memory, logical Session and execution evidence separate
+Seen 1×. A FlyBot48k role-admission cap precedes the SDK; Codex automatic compaction cannot fix inputs rejected before it starts. A1MiB event-size failure is transport, not model context. Use bounded current facts plus exact retrievable source snapshots, preserve full requirements and role rules, and let each Harness manage its own history. Task rework must not throw away its role thread/cwd; resumption requires matching Project/Task/role/principal/resource/profile/model/persona and confirmed process/lease exit. Never reuse a Developer thread for independent Review or carry a verdict across commits. Chief long-term facts reuse original own-memory topics/journal, with no private/team scope fallback.

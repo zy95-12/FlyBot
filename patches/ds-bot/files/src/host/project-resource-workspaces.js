@@ -73,7 +73,7 @@ export function createResourceWorkspaces(rt, { hostGit, artifacts }) {
   }
   async function cleanup(workspace) {
     const resource = resourceOf(workspace)
-    if (!workspace.path.startsWith(resource.root + '/delivery/') || workspace.path !== join(resource.root, 'delivery', workspace.attemptId, workspace.role)) throw new Error('Unregistered remote cleanup target')
+    if (!workspace.path.startsWith(resource.root + '/delivery/') || workspace.path !== join(resource.root, 'delivery', workspace.storageAttemptId ?? workspace.attemptId, workspace.role)) throw new Error('Unregistered remote cleanup target')
     await rt.projectResources.command(workspace.projectId, workspace.resourceId, { cwd: resource.root, argv: ['rm', '-rf', '--', workspace.path] })
   }
   return { allocate, git, importCandidate, checkout, cleanup, bundle, putBundle }

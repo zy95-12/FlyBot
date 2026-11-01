@@ -213,3 +213,7 @@ PR48/native styles/composer/legacy interactions remain accepted frontend work.
 R6 follow-up from real UI64 return: supply exact-source failed-test diagnostics
 to the next role so a hash-only Chief return does not require manual log hunting.
 Keep independent full logs, redaction, same-Task/SHA checks and bounded excerpts.
+
+
+### Resident Chief and Task-role context — 2026-11-01
+Implemented Task-role logical identity, binding-checked SDK resume across rework, retained cwd ownership/cleanup and current candidate inputs. Added original-store Chief topic-memory read/write/replace and same-thread scoped retrieval rounds, plus immutable context archives instead of re-sending unbounded history. Native DSH keeps its original parts/steward/compaction; SDK uses its own runtime compaction. Verification must include real resource-user/runtime continuation and Chief memory before claiming live delivery. Current native workflow carriers remain per execution; their logical Task identity and retrievable facts are retained, not falsely described as SDK backend threads.

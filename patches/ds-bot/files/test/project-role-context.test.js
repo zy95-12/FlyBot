@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import {test} from 'node:test'
-import {roleContext,contextHash,ROLE_CONTEXT_LIMIT} from '../src/host/project-role-context.js'
+import {roleContext,contextHash,ROLE_CONTEXT_LIMIT,readContextArchive} from '../src/host/project-role-context.js'
 import {assembleRolePolicy,roleExecutionPrompt} from '../src/host/project-role-policy.js'
 
 test('complete pinned policy replaces duplicate previews without losing rules or knowledge', () => {
@@ -59,4 +59,30 @@ test('unknown, duplicate or forward checkpoint references never hide knowledge',
   }
   const forward = {id: 'forward', checkpoint: {version: 'project-knowledge-checkpoint/v1', supersedes: [ref]}}
   assert.ok(roleContext({projectId: 'p', role: 'chief', definition: {instructions: ''}, knowledge: [forward, old]}).text.includes('Must remain visible'))
+})
+
+
+test('SDK context keeps an exact retrievable archive instead of overflowing on growing shared history', () => {
+  const knowledge = Array.from({length: 50}, (_, i) => ({id: `note-${i}`, kind: i % 5 ? 'fact' : 'decision', text: '公开项目记录'.repeat(650), at: i}))
+  const result = roleContext({projectId: 'p', role: 'developer', definition: {instructions: 'Keep scoped access'}, requirement: {criteria: 'All original requirements'}, knowledge, retrieval: true})
+  assert.ok(result.text.length < ROLE_CONTEXT_LIMIT)
+  assert.deepEqual(result.archive.knowledge, knowledge)
+  assert.equal(result.archive.projectId, 'p')
+  assert.equal(result.archiveSha256, contextHash(JSON.stringify(result.archive)))
+  assert.ok(result.text.includes('All original requirements'))
+  assert.equal(result.sources.knowledge.length, knowledge.length)
+  assert.deepEqual(knowledge, result.archive.knowledge)
+})
+
+
+test('retrieval pages bind immutable source hashes and refuse unknown sources', () => {
+  const result = roleContext({projectId: 'p', role: 'chief', definition: {}, knowledge: [{id: 'one', text: 'a'.repeat(14000)}], retrieval: true})
+  const [first] = readContextArchive(result, [{kind: 'knowledge', id: 'one'}])
+  assert.equal(first.nextOffset, 6000)
+  assert.equal(first.text.length, 6000)
+  assert.equal(readContextArchive(result, [{kind:'index',id:'knowledge'}])[0].text.includes('one'),true)
+  assert.equal(readContextArchive(result, [{kind:'knowledge',id:'one',offset:12000}])[0].nextOffset,null)
+  for (const requests of [[], Array(5).fill({}), [{kind:'private',id:'one'}], [{kind:'memory',id:'foreign'}], [{kind:'knowledge',id:'one',offset:-1}]]) assert.throws(()=>readContextArchive(result,requests))
+  result.archive.knowledge[0].text='tampered'
+  assert.throws(()=>readContextArchive(result,[{kind:'knowledge',id:'one'}]),/changed/)
 })

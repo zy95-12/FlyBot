@@ -210,7 +210,7 @@ test('managed delivery definitions and role/model snapshots cannot be edited or 
   const attempt = fixture.attempt()
   assert.equal(attempt.workflowDefinition.nodes[0].model, 'fixture/model')
   for (const operation of ['graph', 'set-model', 'concurrency', 'reset', 'delete']) await assert.rejects(fixture.rt.projectEndpoint('project-workflow', { projectId: 'p1', workflowId: attempt.workflowId, operation, nodes: [] }, alice), /immutable/)
-  assert.equal(attempt.workflowVersion, 'project-delivery/v4')
+  assert.equal(attempt.workflowVersion, 'project-delivery/v5')
 })
 
 
@@ -471,11 +471,11 @@ if(!m.settings.readOnly){
 const rework=code.includes('stage-one');writeFileSync('code.mjs',rework?'export const add=(a,b)=>a+b;\\n':'export const add=(a,b)=>a+b; // stage-one\\n');
 if(rework)writeFileSync('code.test.mjs',readFileSync('code.test.mjs','utf8')+'assert.equal(add(-4.5,0),-4.5);\\n');
 decision={action:'handoff',to:'p1:reviewer',reason:rework?'Regression added; run tests':'Review before testing',outputs:{implementation:'Fixed addition'}};
-}else if(m.prompt.includes('(project-role-policy/v1, reviewer)')){
+}else if(m.prompt.includes('Independently review the candidate diff')){
 if(code.includes('stage-one'))decision={action:'return',to:'p1:developer',reason:'Add fractional negative-zero regression before further verification'};
 else if(!m.prompt.includes('\"passed\":true'))decision={action:'transfer',to:'p1:tester',reason:'Run tests before final review'};\nelse decision={action:'complete',reason:'Candidate matches criteria; request Chief judgement',outputs:{review:JSON.stringify({commit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),verdict:'approve',summary:'Inspected exact candidate and regression'})}};
 }else decision={action:'handoff',to:'p1:reviewer',reason:'Host tests should verify this candidate',outputs:{tests:'Inspected regression'}};
-write({type:'sdk-event',event:{type:'thread.started',thread_id:'pool-'+process.pid}});write({type:'completed',sessionId:'pool-'+process.pid,text:'OUTPUT handoff: '+JSON.stringify(decision),usage:{input_tokens:1}});
+write({type:'sdk-event',event:{type:'thread.started',thread_id:m.settings.sessionId??('pool-'+process.pid)}});write({type:'completed',sessionId:m.settings.sessionId??('pool-'+process.pid),text:'OUTPUT handoff: '+JSON.stringify(decision),usage:{input_tokens:1}});
 });`)
   rt.config.projectResources = { one: { type: 'local', root: directory, runtimeDir, capacity: 1, allowedProjectOwnerIds: ['owner-1'], harnesses: ['codex'], profiles: { 'owner-1': { codex: { home: join(directory, 'sdk-home'), configDir: join(directory, 'sdk-config'), model: 'contract-model' } } } } }
   rt.state.projectResourceHealth = { one: { status: 'ready', at: Date.now() } }
@@ -502,6 +502,18 @@ write({type:'sdk-event',event:{type:'thread.started',thread_id:'pool-'+process.p
   const reviewLogs = Object.values(rt.state.projectHarnessWorkers).filter(row => row.role === 'reviewer').map(row => row.sealedLog)
   assert.equal(new Set(reviewLogs).size, 3, 'Revisited role Sessions must retain distinct immutable SDK logs')
   assert.equal(fixture.attempt().roleSessionHistory.length, 1)
+  const devSessions = Object.values(rt.state.projectAttempts).map(a => a.roleSessions.developer)
+  assert.ok(devSessions.every(row => row.logicalSessionId && row.logicalSessionId === devSessions[0].logicalSessionId), 'A Task role retains its logical Session through rework')
+  const devWorkspaces = Object.values(rt.state.projectAttempts).map(a => a.workspaces.developer.path)
+  assert.equal(new Set(devWorkspaces).size, 1, 'Task-role SDK rework retains its bound cwd')
+  const developerWorkers = Object.values(rt.state.projectHarnessWorkers).filter(row => row.role === 'developer')
+  assert.equal(developerWorkers.length, 2)
+  assert.equal(developerWorkers[1].continuedFrom, developerWorkers[0].id)
+  assert.equal(developerWorkers[1].backendSessionId, developerWorkers[0].backendSessionId)
+  assert.equal(developerWorkers[1].cwd, developerWorkers[0].cwd)
+  const saved = JSON.parse(readFileSync(join(rt.home, 'state.json'), 'utf8'))
+  assert.ok(saved.projectTaskSessions[developerWorkers[1].logicalSessionId].bindings.length >= 2, 'Thread bindings survive the ordinary store snapshot')
+
   assert.equal(fixture.attempt().status, 'waiting-acceptance', JSON.stringify(rt.state.tasks[fixture.task.id].collaboration.history.at(-1)))
   assert.equal(fixture.workflow.state().workflows.filter(row => row.projectId === 'p1').length, 0)
   await assert.rejects(rt.projectEndpoint('project-task-accept', { attemptId: fixture.attempt().id }, alice), /Chief arbitration/)
@@ -517,9 +529,9 @@ const write=v=>process.stdout.write(JSON.stringify(v)+'\\n');write({type:'ready'
 createInterface({input:process.stdin}).on('line',line=>{const m=JSON.parse(line);if(m.type==='stop'){write({type:'stopped',released:true});setTimeout(()=>process.exit(0),20);return;}if(m.type!=='start')return;
 let text;if(m.settings.noTools){const context=JSON.parse(m.prompt.split('<untrusted-role-context>\\n')[1].split('\\n</untrusted-role-context>')[0]);const missing=!context.projectFacts.tasks[0].evidence.implementation.paths.includes('code.test.mjs');text=JSON.stringify({summary:'Chief checked exact candidate and requested fractional regression before closure',decisions:[{taskId:${JSON.stringify(fixture.task.id)},action:missing?'return':'close',targetBotId:'p1:developer',reason:missing?'Add the explicit fractional regression required by acceptance criteria':'Requested code fix and draft delivery evidence are complete',criteria:[{criterion:context.projectFacts.tasks[0].criteria,passed:true,evidence:'Matching host test SHA, sealed SDK review and open candidate PR'}]}]});}
 else if(!m.settings.readOnly){if(readFileSync('code.mjs','utf8').includes('a+b'))writeFileSync('code.test.mjs',readFileSync('code.test.mjs','utf8')+'assert.equal(add(-4.5,1.5),-3);\\n');writeFileSync('code.mjs','export const add=(a,b)=>a+b;\\n');text='OUTPUT handoff: '+JSON.stringify({action:'handoff',to:'p1:tester',reason:'Implementation ready for tests',outputs:{implementation:'Fixed addition'}});}
-else if(m.prompt.includes('(project-role-policy/v1, reviewer)')){text='OUTPUT handoff: '+JSON.stringify({action:'complete',reason:'Request Chief final judgement',outputs:{review:JSON.stringify({commit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),verdict:'approve',summary:'Reviewed exact candidate'})}});}
+else if(m.prompt.includes('Independently review the candidate diff')){text='OUTPUT handoff: '+JSON.stringify({action:'complete',reason:'Request Chief final judgement',outputs:{review:JSON.stringify({commit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),verdict:'approve',summary:'Reviewed exact candidate'})}});}
 else text='OUTPUT handoff: '+JSON.stringify({action:'handoff',to:'p1:reviewer',reason:'Configured tests will verify candidate',outputs:{tests:'Inspect actual host result'}});
-write({type:'sdk-event',event:{type:'thread.started',thread_id:'chief-contract-'+process.pid}});write({type:'completed',sessionId:'chief-contract-'+process.pid,text,usage:{input_tokens:1}});
+write({type:'sdk-event',event:{type:'thread.started',thread_id:m.settings.sessionId??('chief-contract-'+process.pid)}});write({type:'completed',sessionId:m.settings.sessionId??('chief-contract-'+process.pid),text,usage:{input_tokens:1}});
 });`)
   rt.config.projectResources = { one: { type: 'local', root: directory, runtimeDir, capacity: 1, allowedProjectOwnerIds: ['owner-1'], harnesses: ['codex'], profiles: { 'owner-1': { codex: { home: join(directory, 'chief-sdk-home'), configDir: join(directory, 'chief-sdk-config'), model: 'contract-model' } } } } }
   rt.state.projectResourceHealth = { one: { status: 'ready', at: Date.now() } }; rt.state.projectHarnessHealth = { 'p1:one:codex': { status: 'ready' } }
@@ -778,7 +790,7 @@ test('failed context admission preserves an existing unsealed developer workspac
   const path=a.workspaces.developer.path
   writeFileSync(join(path,'code.mjs'),'export const preserved = true;\n')
   a.seedSha=a.baseSha
-  f.rt.state.projectKnowledge={p1:[{id:'large',text:'x'.repeat(49000)}]}
+  dev.instructions='x'.repeat(49000) // Required persona cannot be summarized away.
   await assert.rejects(f.rt.projectDelivery.preparePoolRole(task,{id:'second',attemptId:a.id,generation:2},dev),/exceeds/)
   assert.equal(readFileSync(join(path,'code.mjs'),'utf8'),'export const preserved = true;\n')
   assert.equal(a.preparationFailures.at(-1).releasedBeforeExternalStart,false)
@@ -792,7 +804,7 @@ test('context failure releases an actual unbound reservation before registering 
   await f.rt.projectEndpoint('project-agent-definition',{projectId:'p1',role:'developer',execution:{harness:'codex',resourceIds:['one']}},alice)
   await f.start('unbound-context-failure')
   const a=f.attempt(),task=f.rt.state.tasks[f.task.id],dev=f.rt.projectAgents.deliveryDefinitions('p1').roles.find(r=>r.role==='developer')
-  f.rt.state.projectKnowledge={p1:[{id:'large',text:'x'.repeat(49000)}]}
+  dev.instructions='x'.repeat(49000) // Required persona cannot be summarized away.
   await assert.rejects(f.rt.projectDelivery.preparePoolRole(task,{id:'rejected',attemptId:a.id,generation:1},dev),/exceeds/)
   const lease=Object.values(f.rt.state.projectResourceLeases).find(x=>x.attemptId===a.id)
   assert.equal(lease.status,'released')
@@ -960,9 +972,9 @@ test('unstarted bound delivery refreshes a verified descendant target without re
     f.rt.projectPools.connect({validate:()=>({ok:true})});await f.start('target-refresh-'+variant)
     const a=f.attempt(),task=f.rt.state.tasks[f.task.id],dev=f.rt.projectAgents.deliveryDefinitions('p1').roles.find(r=>r.role==='developer'),base=a.baseSha
     a.seedSha=base;a.publicationBinding={number:48,repository:'example/demo',branch:'original-delivery',previousSha:base,upstreamSha:base,upstreamRef:'main'}
-    f.rt.state.projectKnowledge={p1:[{id:'oversize',text:'x'.repeat(49000)}]}
+    const originalInstructions=dev.instructions;dev.instructions='x'.repeat(49000)
     await assert.rejects(f.rt.projectDelivery.preparePoolRole(task,{id:'before',attemptId:a.id,generation:1},dev),/exceeds/)
-    f.rt.state.projectKnowledge={p1:[]}
+    dev.instructions=originalInstructions
     const path=a.workspaces.developer.path;writeFileSync(join(path,'code.mjs'),'export const preservedDraft = true;\n')
     writeFileSync(join(f.repository,'backend.mjs'),'export const backend = 2;\n');git(f.repository,['add','backend.mjs']);git(f.repository,['commit','-m','Advance trusted target'])
     const target=git(f.repository,['rev-parse','HEAD']),old=structuredClone(a.publicationBinding)
@@ -1065,4 +1077,29 @@ test('failed PR reconciliation never fabricates a receipt or consumes prior evid
   f.publisher.publish = async () => ({ number: 48, sha: 'wrong' })
   await assert.rejects(f.retry(), /does not match candidate/)
   assert.equal(f.a.pr, undefined)
+})
+
+
+test('SDK Task rework preserves an unsealed same-base draft and old cleanup cannot remove the live cwd', async t => {
+  const f=await setup(t,undefined,{pool:true})
+  f.rt.projectScheduler.wake=()=>{};f.rt.projectPools.connect({validate:()=>({ok:true})})
+  f.rt.config.projectResources={one:{type:'local',root:f.directory,capacity:1,allowedProjectOwnerIds:['owner-1'],harnesses:['codex'],profiles:{'owner-1':{codex:{home:join(f.directory,'sdk-home'),configDir:join(f.directory,'sdk-config'),model:'fixture/model'}}}}}
+  f.rt.state.projectResourceHealth={one:{status:'ready',at:Date.now()}};f.rt.state.projectHarnessHealth={'p1:one:codex':{status:'ready'}}
+  await f.rt.projectEndpoint('project-agent-definition',{projectId:'p1',role:'developer',execution:{harness:'codex',resourceIds:['one']}},alice)
+  await f.start('retained-draft')
+  const previous=f.attempt(),task=f.rt.state.tasks[f.task.id],dev=f.rt.projectAgents.deliveryDefinitions('p1').roles.find(r=>r.role==='developer')
+  await f.rt.projectDelivery.preparePoolRole(task,{id:'first',attemptId:previous.id,generation:1},dev)
+  const cwd=previous.workspaces.developer.path
+  writeFileSync(join(cwd,'code.mjs'),'export const preservedDraft = true;\n')
+  const lease=previous.resourceLeases.developer
+  await f.rt.projectResources.release(lease.id,lease.generation)
+  previous.status='interrupted'
+  const id=await f.rt.projectDelivery.reworkPool({task,claim:{id:'recover',attemptId:previous.id,botId:'p1:chief'},reason:'Resume confirmed idle draft',force:true})
+  const next=f.rt.state.projectAttempts[id]
+  await f.rt.projectDelivery.preparePoolRole(task,{id:'second',attemptId:id,generation:2},dev)
+  assert.equal(next.workspaces.developer.path,cwd)
+  assert.equal(next.workspaces.developer.retainedDraft,true)
+  assert.equal(readFileSync(join(cwd,'code.mjs'),'utf8'),'export const preservedDraft = true;\n')
+  await f.rt.projectEndpoint('project-attempt-cleanup',{attemptId:previous.id},alice)
+  assert.equal(readFileSync(join(cwd,'code.mjs'),'utf8'),'export const preservedDraft = true;\n')
 })

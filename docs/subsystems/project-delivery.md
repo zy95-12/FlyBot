@@ -378,3 +378,11 @@ and original test-log hash before extracting bounded early-failure/tail facts.
 Excerpts redact configured secrets before per-line/total truncation, retain source
 Attempt/log hashes and do not grant authority or passing evidence. Stale/foreign
 logs are refused; complete logs remain behind existing Project read authorization.
+
+
+## Task-role Sessions (delivery/v5, pools-v2)
+New definitions/Attempts use the bumped contract; historical versions and evidence stay unchanged. Each pool execution receives a distinct execution Session plus a stable logicalSessionId for its Task/role. SDK rework may reuse its previous registered cwd only for the same Project/Task/role/resource/root/repository, a terminal previous Attempt, clean exact prior candidate and confirmed released worker/lease. Unverified dirty drafts and unknown exits refuse reuse. New Workspace records retain reusesWorkspaceId/storageAttemptId rather than rewriting historical ownership. Developer gets a new Attempt branch; old commits/evidence remain immutable. Cleanup of an older alias cannot remove a currently allocated shared path. Native sources are also available in immutable host archive files; SDK sources are copied into private execution scratch.
+
+A resumed Reviewer remains a separate role/thread from Dev and must inspect the new exact candidate with fresh evidence. Session continuity does not imply old Review/test validity.
+
+An unsealed same-base Developer draft may also be retained after confirmed exit; it is explicitly marked retainedDraft and never reset to its seed. A changed sealed candidate, dirty read-only checkout, unexpected HEAD or incomplete allocation refuses reuse. Retained drafts remain unverified and subject to ordinary path/commit/test/Review gates.
