@@ -121,7 +121,8 @@
       "paths": [
         "dev/demo/test/artifact.test.mjs",
         "dev/demo/test/control-plane-guards.test.mjs",
-        "dev/demo/test/service-recovery.test.mjs"
+        "dev/demo/test/service-recovery.test.mjs",
+        "dev/demo/test/worktree-preparation.test.mjs"
       ],
       "command": "npm run test:demo",
       "note": "Offline file/evidence, platform-entry and isolated service-recovery runner guards; Python 3 required. Controlled adapters, no real vendor/network. Run in verify and the existing test:demo suite."

@@ -3,6 +3,8 @@ subsystem: service-acceptance
 owned_paths:
   - dev/demo/service-recovery.mjs
   - dev/demo/test/service-recovery.test.mjs
+  - dev/demo/prepare-worktree.mjs
+  - dev/demo/test/worktree-preparation.test.mjs
 ---
 
 # Development service recovery acceptance (S6)
@@ -40,3 +42,10 @@ No manual input relay, duplicate acceptance Task, production reset or fake vendo
 proof is allowed. Code/component/config origins, timestamps and cleanup are recorded
 privately without credentials. The original UI/dual-mode/inspection residuals in
 #41 remain separate; this service matrix does not silently close them.
+
+The operator preparation adapter pins one complete release dependency graph and
+refuses unknown entries/symlinked parents. It does not mix three packages from an
+older private cache into a newer complete release. Existing incompatible managed
+directories are not deleted by the adapter: an operator must verify a registered,
+released workspace, preserve them outside its source tree and re-run preparation.
+No code/index/history, credentials or sandbox policy is changed by that migration.

@@ -94,3 +94,12 @@ S4 GitHub-source authorization adapter after source-input admission; do not sile
 restore old state or an older adapter that treats external principals differently.
 Prefer a forward fix when state/contracts have advanced. No merge/release, public
 hosting, control-plane or credential migration is implied by this runbook.
+
+
+S6 dependency preparation uses the complete deployed release graph, including native
+React/UI packages, rather than mixing the old private native cache. The versioned
+`dev/demo/prepare-worktree.mjs` adapter refuses unknown existing entries. For legacy
+managed workspaces, first prove SDK/leases released and preserve Git HEAD/index/status;
+back up their untracked dependency directory outside the worktree, then prepare as
+the service UID. Preserve the original Task/PR and source-admit the current Attempt
+through the Owner API. This operator migration does not edit task state or Git code.

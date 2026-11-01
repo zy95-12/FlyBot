@@ -672,3 +672,12 @@ Issue60 live follow-up: a completed arbitration deferral now leaves its own Chie
 claim waiting-human instead of active. Actual released SDK/lease proof remains
 required before source admission. This fixes the observed current-Attempt operator
 checkpoint without changing Task history, source trust or workspace ownership.
+
+
+S6 dependency preparation uses the complete deployed release graph, including native
+React/UI packages, rather than mixing the old private native cache. The versioned
+`dev/demo/prepare-worktree.mjs` adapter refuses unknown existing entries. For legacy
+managed workspaces, first prove SDK/leases released and preserve Git HEAD/index/status;
+back up their untracked dependency directory outside the worktree, then prepare as
+the service UID. Preserve the original Task/PR and source-admit the current Attempt
+through the Owner API. This operator migration does not edit task state or Git code.
