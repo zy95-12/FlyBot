@@ -127,3 +127,8 @@ S2–S6 retain their own fault-injection and live acceptance obligations.
 ## Durable effects and outbox (S2)
 
 S2 adds query effects {taskId?,limit?} and commands effect.retry {effectId}, comment.publish {issueNumber,text}. Retry requires current configuration authority and stable requestId and cannot revive cancelled/stopped work. Effect status responses omit payload/history/body references. TaskView shows current-candidate publication waits and retry actions; an older candidate cannot mask a current failure. See [effect contract](project-effects.md).
+
+
+## Durable Task inbox integration (S3)
+
+S3 adds command input.publish and query inputs, with current Project/Task authorization, stable requestId, bounded body/pages and host-owned provenance/routing. TaskView includes at most20 pending feedback metadata rows, no bodies. Existing acceptance refuses unhandled feedback; effect receipt never implies reading. See [input contract](project-inputs.md).

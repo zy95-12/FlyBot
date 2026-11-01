@@ -411,3 +411,8 @@ The previous Attempt must still be terminal and match the same Project/Task;
 checkpoint HEAD, clean sealed candidates, permitted unsealed Developer drafts and
 all released leases remain required. No role output, task terminal flag or missing
 PID proves exit. Historical workspace ownership and draft contents are retained.
+
+
+## Durable Task inbox integration (S3)
+
+S3 bumps new delivery contracts to v6/pools-v3; historical definitions/Attempts remain readable. Role handoff JSON may declare read/handled ids for exact injected batches. Completed-role gates precede handling, Chief/human acceptance refuses unresolved feedback, and successful closure commits Chief input receipts with Task acceptance. No inbox signal grants candidate/test/Review evidence. See [inputs](project-inputs.md).

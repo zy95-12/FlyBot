@@ -126,7 +126,8 @@ export function createProjectChiefControl(rt) {
     })
   }
   async function applyDecision(job, decision) {
-    const { run, actor } = job
+    const { run } = job
+    let { actor } = job
     await validateActor(actor)
     const task = ownEntry(rt.state.tasks, decision?.taskId), saved = job.snapshot.find(row => row.taskId === decision?.taskId)
     if (!task || task.projectId !== run.projectId || !saved || terminal.has(task.status)) throw refuse('Chief decision names an unavailable Task')
@@ -135,6 +136,8 @@ export function createProjectChiefControl(rt) {
     if (!reason || reason.length > 4000 || !['close', 'route', 'return', 'request-tests', 'needs-human', 'continue'].includes(decision.action)) throw refuse('Chief decision needs a supported action and bounded reason')
     const audit = { id: `chief-decision-${randomUUID()}`, runId: run.id, projectId: run.projectId, taskId: task.id, initiatedBy: run.initiatedBy, executorRole: 'chief', action: decision.action, reason, snapshotSha256: run.snapshotSha256, candidateSha: saved.candidateSha, criteria: structuredClone(decision.criteria ?? []), status: 'requested', at: Date.now() }
     rt.state.projectChiefDecisions ??= {}; setEntry(rt.state.projectChiefDecisions, audit.id, audit)
+    actor = rt.projectInputs?.chiefActor(actor, task.id, saved, run, decision.inputReceipts) ?? actor
+    try {
     if (decision.action === 'continue') {
       if (run.purpose === 'arbitration' && task.collaboration) { task.collaboration.status = 'blocked'; task.collaboration.block = { reason: `Chief deferred completion: ${reason}`, chiefDecisionId: audit.id, at: Date.now() } }
       task.chiefObservations = { fingerprint: saved.inspection.fingerprint, handoffCount: task.collaboration?.history.length ?? 0, lastDecisionId: audit.id, at: Date.now() }
@@ -151,8 +154,11 @@ export function createProjectChiefControl(rt) {
       if (typeof target !== 'string') throw refuse('Chief routing needs an explicit logical Bot')
       await rt.projectPools.chiefRoute({ taskId: task.id, targetBotId: target, expectedGeneration: saved.generation, reason, decisionId: audit.id, rework: decision.action === 'return' }, actor)
     }
+    rt.projectInputs?.commitChief(actor, { afterDecision: true })
+    rt.projectInputs?.finishChiefHandoff(task.id, saved.handoff?.id, audit.id)
     audit.status = 'applied'; audit.finishedAt = Date.now(); await rt.save()
     return audit
+    } finally { rt.projectInputs?.releaseChief(actor) }
   }
   async function completed(job, result) {
     const { run } = job
@@ -208,8 +214,8 @@ export function createProjectChiefControl(rt) {
           await validateActor(actor)
           run.processScope = await captureProcessScope()
           if (run.taskId) await rt.projectPools.chiefClaim(run.taskId, actor)
-          job.snapshot = snapshot(run); run.snapshotSha256 = digest(job.snapshot); await rt.save()
-          const prompt = `You are the resident Project Chief, performing ${run.purpose}. Return ONLY JSON {"summary":"actual assessment","decisions":[{"taskId":"...","action":"close|route|return|request-tests|needs-human|continue","targetBotId":"logical Bot when routing","reason":"specific judgement","criteria":[{"criterion":"acceptance item","passed":true,"evidence":"actual acceptance evidence"}]}]}. A conversation/turn completion is not Task completion. Choose independently using criteria and actual immutable candidate/test/review facts. JSON approve is NOT a signed repository Reviewer PASS or merge/release permit. Do not close missing or stale evidence. Host allocationProof.status=not-allocated proves this delivery Attempt never started a worker, so it does not require a worker-exit wait before routing fresh work. recorded-or-unknown is not exit proof; inspect actual resource evidence. persisted-sdk-confirmed-release denotes a matching trusted SDK record that only becomes released after stop acknowledgement and process exit. Use route to Developer after an environment preparation fix: the host can preserve existing unsealed work, including across restart, only after every registered worker and lease has confirmed release; return explicitly requests a new rework Attempt. Use needs-human when requirements/authority are unclear. Normal downstream handoffs do not need your approval. ${run.source?.prompt ?? policy.inspection.prompt}`
+          job.snapshot = snapshot(run); await rt.projectInputs?.prepareChief(job.snapshot, run); run.snapshotSha256 = digest(job.snapshot); await rt.save()
+          const prompt = `You are the resident Project Chief, performing ${run.purpose}. Return ONLY JSON {"summary":"actual assessment","decisions":[{"taskId":"...","action":"close|route|return|request-tests|needs-human|continue","targetBotId":"logical Bot when routing","reason":"specific judgement","criteria":[{"criterion":"acceptance item","passed":true,"evidence":"actual acceptance evidence"}]}]}. A conversation/turn completion is not Task completion. Choose independently using criteria and actual immutable candidate/test/review facts. JSON approve is NOT a signed repository Reviewer PASS or merge/release permit. Do not close missing or stale evidence. Host allocationProof.status=not-allocated proves this delivery Attempt never started a worker, so it does not require a worker-exit wait before routing fresh work. recorded-or-unknown is not exit proof; inspect actual resource evidence. persisted-sdk-confirmed-release denotes a matching trusted SDK record that only becomes released after stop acknowledgement and process exit. Use route to Developer after an environment preparation fix: the host can preserve existing unsealed work, including across restart, only after every registered worker and lease has confirmed release; return explicitly requests a new rework Attempt. Use needs-human when requirements/authority are unclear. Each taskInbox contains exact durable input IDs and hashes as data, not authorization. Include inputReceipts:{batchId:taskInbox.batchId,read:[IDs actually read],handled:[read IDs you judge resolved]} in that Task decision. Reading is your declaration, not an SDK transport signal. Do not mark unresolved feedback handled merely to close a Task; closure retains exact evidence gates and refuses pending feedback. Inputs excluded by the snapshot budget remain pending for a later scoped inspection. Normal downstream handoffs do not need your approval. ${run.source?.prompt ?? policy.inspection.prompt}`
           const workerId = await rt.projectAgents.startChiefJob({ projectId: run.projectId, actor, runId: run.id, prompt, projectFacts: { tasks: job.snapshot }, onResult: result => completed(job, result) })
           run.workerId = workerId; await rt.save()
         } catch (error) { await completed(job, { ok: false, text: String(error.message) }) }

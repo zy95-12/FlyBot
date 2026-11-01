@@ -134,3 +134,11 @@ TaskView; no second executor/store or new control-plane component is introduced.
 The [effect/outbox layer](subsystems/project-effects.md) commits host action intents
 with existing Project state and reconciles results through the same authorized
 adapters. It does not replace role pools, SDK lifecycle or Chief adjudication.
+
+
+S3 adds [durable Task inputs](subsystems/project-inputs.md) to the existing service,
+store, Effect engine and per-Bot pools. Receipt evidence separates persistence,
+adapter delivery, SDK observation and declared reading/validated handling. Busy SDK
+feedback waits for the same worker/thread's safe turn; Chief closure commits its
+input receipt with acceptance. No additional workflow, frontend, clock or platform
+service is introduced.

@@ -174,6 +174,7 @@ export function install(rt) {
       project.roles.members = (project.roles.members ?? []).filter(value => value !== memberId)
       for (const invitation of Object.values(invites())) if (invitation.projectId === id && invitation.createdBy === memberId && !invitation.usedAt) invitation.revokedAt = Date.now()
       rt.projectAgents?.revoke(id, memberId)
+      rt.projectInputs?.revokeSource(id, memberId)
       await rt.projectRuntimeSetup?.revoke(null, id, memberId)
       rt.projectScheduler?.revalidate(id)
       // Accepted project work continues under project authority; removal revokes new requests immediately.

@@ -19,9 +19,10 @@ const operations = Object.freeze({
   'chief.inspect': 'project-chief-inspect', 'chief.configure': 'project-chief-configure', 'chief.state': 'project-chief-state',
   'schedule.configure': 'project-scheduled-task', 'agent.mode': 'project-agent-mode',
   'proposal.publish': 'project-agent-proposal-apply', 'execution.input': 'project-execution-input',
+  'inputs': 'project-task-inputs', 'input.publish': 'project-task-input',
   'pools': 'project-task-pools', 'effect.retry': 'project-effect-retry', 'comment.publish': 'project-github-comment',
 })
-const queries = new Set(['tasks', 'task', 'task.detail', 'effects', 'attempt.context', 'attempt.log', 'chief.state', 'pools'])
+const queries = new Set(['tasks', 'task', 'task.detail', 'inputs', 'effects', 'attempt.context', 'attempt.log', 'chief.state', 'pools'])
 const legacy = new Set(Object.values(operations))
 const readEndpoints = new Set([...queries].map(name => operations[name]).filter(Boolean))
 export const developmentQuery = body => record(body) && body.version === DEVELOPMENT_PROTOCOL && body.kind === 'query' && queries.has(body.name)
@@ -72,6 +73,7 @@ export function taskView(state, task, { activity = {} } = {}) {
     lastMeaningfulProgress: progress.lastMeaningfulProgressAt === null ? null : { at: progress.lastMeaningfulProgressAt, evidence: progress.progressEvidence },
     evidence: { tests: tests ? { sha: tests.sha, sha256: tests.sha256, passed: tests.passed === true, current: Boolean(sha && tests.sha === sha) } : null,
       review: review ? { sha: review.sha, verdict: review.verdict, current: Boolean(sha && review.sha === sha) } : null },
+    inputs: Object.values(state.projectTaskInputs ?? {}).filter(row => sameTask(row, task) && row.version === 'project-task-input/v1' && row.kind !== 'handoff' && row.status === 'accepted').slice(0, 20).map(row => ({ id: row.id, sha256: row.sha256, createdAt: row.createdAt, deliveries: row.deliveries.length, readConfirmed: row.deliveries.some(d => Boolean(d.readAt)) })),
     effects: pendingEffects.map(({ id, kind, status, failures, dueAt, error, waitingFor }) => ({ id, kind, status, failures, dueAt, error: error ?? null, waitingFor: waitingFor ?? null })), nextActions: [] }
 }
 
@@ -141,6 +143,8 @@ export function createDevelopmentService(rt) {
     return { run: await rt.projectChiefControl.request(body.projectId, 'inspection', { requestId: body.requestId, requestedBy: actor.memberId, ...(task ? { blockedTaskId: task.id } : {}) }) }
   }
   async function invoke(endpoint, body, actor) {
+    if (endpoint === 'project-task-inputs') return rt.projectInputs.list(body, actor)
+    if (endpoint === 'project-task-input') return rt.projectInputs.publish(body, actor)
     if (endpoint === 'project-github-comment') return rt.projectCredentials.endpoint(endpoint, body, actor)
     if (endpoint === 'project-effect-retry') return rt.projectEffects.retry(body, actor)
     if (endpoint === 'project-task-run') return rt.projectScheduler.request(body, actor)
