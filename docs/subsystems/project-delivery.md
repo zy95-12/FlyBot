@@ -400,3 +400,14 @@ unchanged; the live25-Attempt Task previously exceeded the gateway8MiB cap.
 ## Durable effects and outbox (S2)
 
 Sealed PR publication now saves a stable github.publish intent before I/O and records its receipt with delivery state. Recovery verifies current source, principal, exact tests/role evidence and confirmed exit, then reconciles the original PR/branch. First publication searches all PR states; closed/changed/ambiguous artifacts cannot cause replacement PRs. Unresolved prior publication blocks blind rework. Task closure remains Chief/human acceptance. See [effect contract](project-effects.md).
+
+
+### Supervisor-confirmed workspace release (#57)
+
+Workspace reuse uses the same `confirmedWorkerExit` predicate as logical Task-role
+Session resumption. It accepts host-confirmed prior systemd invocation exit only
+with the exact released lease/worker/generation/role/resource/process-scope binding.
+The previous Attempt must still be terminal and match the same Project/Task;
+checkpoint HEAD, clean sealed candidates, permitted unsealed Developer drafts and
+all released leases remain required. No role output, task terminal flag or missing
+PID proves exit. Historical workspace ownership and draft contents are retained.

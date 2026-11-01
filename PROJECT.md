@@ -10,6 +10,15 @@ Current stage and priorities: [ROADMAP.md](ROADMAP.md). How decisions are made:
 
 ## Fork Project State — 2026-10-31
 
+### Verified supervisor exit compatibility — 2026-11-02
+
+Foreground repair #57 unifies workspace and logical Task-role resumption for
+host-confirmed SDK exit and prior systemd invocation exit. The latter must match
+the exact released worker/lease, generation, role, resource and process scope.
+Unknown exits remain blocked; no state or lock deletion is a recovery mechanism.
+Task40/PR48 retains its current Attempt and all draft/history records. Verification
+and safe-checkpoint deployment precede Chief resumption; no frontend code is edited.
+
 ### Direct backend recovery — 2026-11-01
 
 The owner requires backend repairs in the foreground Codex session; do not
