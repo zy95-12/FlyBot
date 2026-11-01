@@ -19,7 +19,7 @@ lines.on('line',line=>{const m=JSON.parse(line);
  if(m.type==='stop'){write({type:'stopped',released:true});setTimeout(()=>process.exit(0),20);}
  if(m.type==='start') {
   write({type:'sdk-event',event:{type:'thread.started',thread_id:'bound-thread'}});
-  write({type:'sdk-event',event:{type:'debug',value:m.settings.env.OPENAI_API_KEY,taskId:'task-1234567890abcdef',unknownCredential:'sk-unitsecret123456789012345'}});
+  write({type:'sdk-event',event:{type:'debug',noTools:m.settings.noTools,readOnly:m.settings.readOnly,value:m.settings.env.OPENAI_API_KEY,taskId:'task-1234567890abcdef',unknownCredential:'sk-unitsecret123456789012345'}});
   write({type:'completed',sessionId:'bound-thread',text:'OUTPUT implementation: actual contract worker output',usage:{input_tokens:1}});
  }
 });`)
@@ -150,4 +150,22 @@ if(m.type==='input'){if(!m.prompt.includes('Verified pnpm decision'))process.exi
   await harness.release(id)
   assert.equal(rt.projectResources.occupied('r'),0)
   assert.match(await readFile(rt.state.projectHarnessWorkers[id].sealedLog,'utf8'),/contextRequests/)
+})
+
+
+test('conversation carriers for non-Chief roles cannot gain development shell or write capabilities', async t => {
+  const {rt,harness}=await fixture(t)
+  rt.config.projectResources.r.harnesses=['codex'];rt.state.projectResourceHealth={r:{status:'ready',at:Date.now()}};rt.state.projectHarnessHealth={'p:r:codex':{status:'ready'}};delete rt.state.projectResourceLeases.l
+  rt.projectAgents={isDelegationActive:()=>true}
+  for(const role of ['developer','reviewer']) {
+    const agent={id:'room-'+role,projectId:'p',role,roomId:'room',lastRequest:{}}
+    let finish;const done=new Promise(resolve=>{finish=resolve})
+    const id=await harness.chiefTurn({agent,delegation:{id:'d-'+role,definitionRevision:1,readOnly:true},definition:{instructions:'Room conversation only',execution:{harness:'codex',resourceIds:['r'],model:'test-model'}},context:{text:'Scoped room context'},text:'Answer this ordinary room question',onResult:finish})
+    assert.equal((await done).ok,true)
+    const events=(await readFile(rt.state.projectHarnessWorkers[id].sealedLog,'utf8')).trim().split('\n').map(line=>JSON.parse(line))
+    const flags=events.find(row=>row.event?.type==='debug').event
+    assert.equal(flags.noTools,true,'A role label does not authorize tools for a conversation carrier')
+    assert.equal(flags.readOnly,true)
+    await harness.release(id)
+  }
 })

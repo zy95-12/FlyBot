@@ -43,7 +43,7 @@ export function createProjectAgents(rt) {
   }
   async function contextExchange(agentId, delegationId, { contextRequests = [], memoryUpdates = [], memoryRequests = [] }, snapshot) {
     const agent = ownEntry(agents(), agentId)
-    if (!agent || agent.visibility !== 'public' || !isDelegationActive(agentId, delegationId)) throw refuse('Chief context delegation is unavailable')
+    if (!agent || agent.id !== `public-${agent.projectId}` || agent.visibility !== 'public' || !isDelegationActive(agentId, delegationId)) throw refuse('Chief context delegation is unavailable')
     const authority = await authorize(rt.botOf(agent.botId))
     if (authority.delegation.readOnly && memoryUpdates.length) throw refuse('Read-only conversations cannot publish memory')
     if (snapshot?.archive?.projectId !== agent.projectId || snapshot.archive.role !== 'chief') throw refuse('Context belongs to another Project or role')

@@ -434,6 +434,8 @@ test('Chief uses original topic memory across turns and restart without reading 
   const agent = rt.state.projectAgents[sent.agent.id], bot = rt.botOf(agent.botId)
   const response = await rt.projectAgents.context(bot, {memoryUpdates:[{text:'本项目统一使用 pnpm。',topic:'development'}]})
   assert.equal(response.writes[0].changed,true)
+  assert.ok((await get(rt,bob)).chiefMemory.topics.includes('development'))
+  assert.ok((await rt.projectEndpoint('project-agents',{projectId:'p1',memoryTopic:'development'},bob)).chiefMemory.entries[0].text.includes('pnpm'))
   assert.equal(rt.memoryDigest(bot.id).topics.includes('development'),true)
   assert.ok(rt.botMemoryRecall(bot.id,{topic:'development'}).entries.some(row=>row.text.includes('pnpm')))
   assert.equal((await rt.projectAgents.context(bot,{memoryRequests:[{topic:'development'}]})).memories[0].entries.length,1)
