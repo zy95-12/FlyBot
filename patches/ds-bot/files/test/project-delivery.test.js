@@ -1335,3 +1335,18 @@ test('approved object availability alone cannot replace a real merge or reuse an
   assert.equal(git(f.path,['rev-parse','HEAD']),f.seed)
   assert.equal(f.attempt.candidateSha,undefined)
 })
+
+test('Chief non-rework recovery retains a clean interrupted Attempt and its approved integration metadata', async t => {
+  const f=await setup(t,undefined,{pool:true});await f.start('resume-clean-approved')
+  const a=f.attempt(),path=join(f.directory,'clean-worktree')
+  git(f.repository,['worktree','add','--detach',path,a.baseSha])
+  a.workspaces.developer={id:'clean-w',kind:'worktree',status:'allocated',repository:f.repository,path}
+  a.status='interrupted';a.integrationInputs=[{ref:'refs/remotes/operator/backend',sha:a.baseSha}]
+  a.integrationAdmissions=[{id:'immutable-admission'}]
+  const before={head:git(path,['rev-parse','HEAD']),status:git(path,['status','--porcelain']),inputs:structuredClone(a.integrationInputs),admissions:structuredClone(a.integrationAdmissions)}
+  const id=await f.rt.projectDelivery.reworkPool({task:f.rt.state.tasks[f.task.id],claim:{id:'clean-resume',attemptId:a.id,botId:'p1:chief'},reason:'Operator restart completed, no code rework',force:false})
+  assert.equal(id,a.id);assert.equal(a.status,'running');assert.equal(f.rt.state.tasks[f.task.id].deliveryAttemptId,a.id)
+  assert.deepEqual(a.integrationInputs,before.inputs);assert.deepEqual(a.integrationAdmissions,before.admissions)
+  assert.equal(git(path,['rev-parse','HEAD']),before.head);assert.equal(git(path,['status','--porcelain']),before.status)
+  assert.equal(Object.keys(f.rt.state.projectAttempts).length,1)
+})

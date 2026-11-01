@@ -696,3 +696,10 @@ only when worker ID/generation, Project/Attempt/role/resource and both worker/le
 stop proofs match a released SDK lease exactly. Unknown/unreachable exits, missing
 proofs and mismatched leases remain refused. This preserves historical failure
 attribution without blocking every future integration admission for the same Task.
+
+
+Chief route with rework=false resumes an interrupted allocated pre-candidate
+Attempt after all role workers/leases/native occupancy are confirmed released,
+whether its worktree is clean or dirty. A clean operator-restart checkpoint must
+not manufacture a successor and discard its Attempt-scoped integration admission.
+Explicit returns/rework and unknown worker occupancy retain existing isolation.

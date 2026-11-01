@@ -858,7 +858,8 @@ export function createProjectDelivery(rt, { publisher } = {}) {
       const workers = Object.values(state.projectHarnessWorkers ?? {}).filter(row => row.attemptId === previous.id)
       const native = Object.values(state.bots ?? {}).filter(row => row.ephemeral && row.attemptId === previous.id)
       const knownExited = leases.every(row => row.status === 'released') && workers.every(row => row.status === 'released') && !native.length
-      if (knownExited && await workspaceGit(previous.workspaces.developer, ['status', '--porcelain'])) {
+      if (knownExited) {
+        await workspaceGit(previous.workspaces.developer, ['status', '--porcelain']) // Validate access; clean and dirty unsealed checkpoints both resume.
         const previousRunId = previous.runId
         previous.runId = `pool-run-${randomUUID()}`
         previous.resumptions ??= []
