@@ -8,7 +8,7 @@
   "scripts": {
     "demo:check": "node dev/demo/run.mjs",
     "lint:demo": "node scripts/lint-demo.mjs",
-    "test:demo": "node --test dev/demo/test/artifact.test.mjs dev/demo/test/control-plane-guards.test.mjs && node --import ./core/test/harness-resolve.mjs dev/demo/collaboration-browser.mjs --channel-only",
+    "test:demo": "node --test dev/demo/test/artifact.test.mjs dev/demo/test/control-plane-guards.test.mjs && node --import ./core/test/harness-resolve.mjs dev/demo/collaboration-browser.mjs --channel-only dev/demo/test/service-recovery.test.mjs",
     "test:demo:runtime": "node --test dev/demo/test/runtime.test.mjs",
     "verify": "npm --prefix core run lint && node scripts/lint-plugins.mjs && node core/scripts/build-client.mjs --check && node core/scripts/build-workbench.mjs --check && node scripts/ds-bot-patches.mjs check && node scripts/ds-bot-patches.mjs canonical && npm --prefix core test && npm --prefix plugins/social test && npm --prefix plugins/tree test && npm --prefix plugins/timeline test && npm --prefix plugins/workflow test && node --test \".github/scripts/*.test.mjs\" && npm run lint:interop && npm run test:interop && npm run lint:live-e2e && npm run test:live-e2e && npm run lint:demo && npm run test:demo && npm run test:demo:runtime",
     "lint:interop": "node scripts/lint-interop.mjs",
@@ -16,6 +16,7 @@
     "demo:interop": "node --import ./dev/interop/no-network.mjs dev/interop/demo.mjs",
     "lint:live-e2e": "node scripts/lint-live-e2e.mjs",
     "test:live-e2e": "node --test \"dev/live-e2e/test/*.test.mjs\"",
-    "test:demo:browser": "node dev/demo/browser-check.mjs"
+    "test:demo:browser": "node dev/demo/browser-check.mjs",
+    "demo:service-recovery": "node dev/demo/service-recovery.mjs"
   }
 }

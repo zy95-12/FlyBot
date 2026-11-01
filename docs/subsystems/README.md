@@ -64,3 +64,4 @@ Persistent Project effects and GitHub receipts: [project-effects](project-effect
 - [Project Task inputs](project-inputs.md) — S3 durable inbox, current-role receipts and bounded safe turns.
 - [Project Sources](project-sources.md) — S4 scoped GitHub Thread subscriptions, revision replay and current-Task feedback.
 - [Execution boundary](project-execution-boundary.md) — S5 trusted private profile, current authority and honest capability preflight.
+- [Service acceptance](service-acceptance.md) — S6 isolated recovery matrix and separately recorded real Source/SDK handoffs.

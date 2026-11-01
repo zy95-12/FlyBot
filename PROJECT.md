@@ -10,6 +10,18 @@ Current stage and priorities: [ROADMAP.md](ROADMAP.md). How decisions are made:
 
 ## Fork Project State — 2026-10-31
 
+### Service recovery acceptance — S6 / issue55, 2026-11-02
+
+The final stage composes the verified S5 service with the native frontend candidate
+from original Task40/PR48, preserving both source histories. An operator CLI repeats
+isolated real-store/Git/controlled-adapter recovery scenarios; it never injects
+production faults or represents mocks as vendor execution. Real GitHub feedback
+has automatically reached the original Task's actual Codex Developer, with explicit
+read/handled receipts and downstream Tester handoff, without manual relay/new Task.
+Matching candidate test/Review/PR and Chief decisions remain separately recorded.
+See [runbook](docs/service-recovery-demo.md). Integration/real UI screenshots and
+#41's remaining visual/dual-mode matrix are not established by this CLI.
+
 ### Trusted execution boundary — S5 / issue54, 2026-11-02
 
 The compatible profile explicitly supports trusted private execution on one

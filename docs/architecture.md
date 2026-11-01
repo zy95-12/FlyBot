@@ -158,6 +158,12 @@ optional. The read-only capability query cannot grant rights, and unsupported
 profiles fail existing repository/resource preflight. Private data, current
 authorization, leases/generation/exit and exact-SHA gates remain unchanged.
 
+S6 adds an [operator acceptance harness](subsystems/service-acceptance.md), not a
+production executor. Fixed isolated regressions cover fault/replay/scope boundaries;
+real Source/SDK/original-Task evidence is recorded separately. A verified frontend
+candidate is composed with the service baseline without replacing its Task/PR,
+and original UI acceptance #41 keeps its own unresolved scope.
+
 
 Issue60 extends the same service/delivery boundary with explicit approved operator
 integration inputs. Current manager authority, released execution proof, exact
