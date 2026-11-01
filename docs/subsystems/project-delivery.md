@@ -1,6 +1,8 @@
 ---
 subsystem: project-delivery
 owned_paths:
+  - core/src/host/project-test-diagnostics.js
+  - core/test/project-test-diagnostics.test.js
   - core/src/host/project-delivery.js
   - core/src/host/project-delivery-template.js
   - core/src/host/project-github.js
@@ -369,3 +371,10 @@ A successor without a new candidate retains previous.seedSha across another
 rework/retry; published delivery prefers that inherited seed before falling back
 to the published PR head. Old failed preparation records remain immutable. Fresh
 receivers check out that sealed input and keep normal upstream integration/tests.
+
+Pool role context includes testFailure diagnostics for a failed current candidate
+or its exact inherited seed. The host verifies Project/Task lineage, candidate SHA
+and original test-log hash before extracting bounded early-failure/tail facts.
+Excerpts redact configured secrets before per-line/total truncation, retain source
+Attempt/log hashes and do not grant authority or passing evidence. Stale/foreign
+logs are refused; complete logs remain behind existing Project read authorization.

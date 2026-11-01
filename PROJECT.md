@@ -358,3 +358,7 @@ never hide original records. See Project agents architecture.
 
 Preparation-only retries retain an inherited sealed seed even when no new candidate
 was produced, so restarting after context repair cannot silently discard prior UI.
+
+Failed-test rework now receives a bounded, redacted, hash-verified diagnostic from
+its own current or inherited candidate; unavailable private logs are not a model
+debugging prerequisite. Complete host logs remain retained and cannot mint PASS.

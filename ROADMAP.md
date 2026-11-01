@@ -209,3 +209,7 @@ admission. R6 adds explicit manager-published knowledge checkpoints preserving a
 source records; test and deploy the current projection, publish an authorized concise
 checkpoint, then restore the same086 Attempt through scoped Chief judgement. Original
 PR48/native styles/composer/legacy interactions remain accepted frontend work.
+
+R6 follow-up from real UI64 return: supply exact-source failed-test diagnostics
+to the next role so a hash-only Chief return does not require manual log hunting.
+Keep independent full logs, redaction, same-Task/SHA checks and bounded excerpts.

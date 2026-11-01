@@ -396,3 +396,11 @@ and Chief failed without execution evidence. Preserve source records/authors and
 publish a current manager checkpoint bound to exact prior hashes. Project only
 verified covered history to digests, retain newer facts, and reject stale references
 without hiding originals. Do not raise caps, truncate criteria or blindly retry.
+
+### 2026-11-01 — A failed-test hash alone cannot drive autonomous repair
+
+Seen 1×. Actual UI64 failed a popup z-index test, but the host wrapper returned
+only its log tail and Developer could not find the requested receipt. Preserve
+early failure details in verifier output and feed a bounded, hash-verified excerpt
+from the same Task/candidate into rework. Redact before truncating long lines;
+retain full originals and never confuse diagnostic text with verification PASS.
