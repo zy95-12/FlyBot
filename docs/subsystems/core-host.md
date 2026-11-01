@@ -905,3 +905,8 @@ The authenticated channel and shared-mode authorizer register project-developmen
 ## Durable effects and outbox (S2)
 
 S2 store snapshots capture effect generation/revision metadata and acknowledge it only after state.json rename, before optional journal recording. Project effects remain on the same writer/lock and recover after original delivery/resource/pool recovery; awaiting a no-op save cannot authorize external I/O. See [effect contract](project-effects.md).
+
+
+## Durable Task inbox integration (S3)
+
+S3 installs project-inputs after Effects and before callers. It shares the existing state snapshots, scopes all service input operations to current Project/Task and introduces no timer/executor. See [Task input contract](project-inputs.md).

@@ -116,3 +116,8 @@ A later preparation/authority failure records a blocked state with its decision 
 ## Durable effects and outbox (S2)
 
 Each offered handoff saves its exact pool.dispatch intent in the same state snapshot. Failed pre-commit offers roll back; only a committed effect may enter the targeted original pool pump. Restart migrates old queued receipts without changing identity, and preserves interrupted/unknown claims. Dispatch receipts are not model-read or completed-work evidence; S3 adds that contract. See [effect contract](project-effects.md).
+
+
+## Durable Task inbox integration (S3)
+
+S3 stores a handoff input with each pool.dispatch offer, rolls it back only with an uncommitted offer and migrates old pending offers without changing ids. Current-claim injected-batch acknowledgements follow successful completed-role gates. Routing receipts resolve handoff transport without manufacturing a model read; remaining feedback follows current responsibility. Closure checks unhandled inputs. See [inputs](project-inputs.md).

@@ -13,6 +13,21 @@ Dated, short lessons from real FlyBot work. Agents read this **before coding**. 
 
 ## Open lessons
 
+### 2026-11-02 — Model input acknowledgement is not a Task acceptance receipt
+
+Seen 1× (fault regression). Planning a Chief decision must not consume input if
+its evidence or routing later fails. Validate a host-local receipt permit, recheck
+new input/generation at closure, and save handling with acceptance. A model's read
+declaration is distinct from transport/SDK output and independent verification.
+
+### 2026-11-02 — Real SDK probes must use the real workspace contract
+
+Seen 1× (isolated probe). An empty non-Git fixture failed Codex before thread start;
+deterministic protocol workers had hidden that precondition. Initialize the bounded
+Git fixture like the host allocator, keep failed evidence and diagnose without
+printing raw SDK stderr or bypassing the repository check.
+
+
 ### 2026-11-01 — Awaited save is not proof an intent reached disk
 
 Seen 1× (fault probe). A reading/no-op store save can resolve without committing,

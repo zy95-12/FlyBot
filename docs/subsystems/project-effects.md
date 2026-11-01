@@ -116,3 +116,8 @@ state backup and compatibility checks. After S2 writes pending effects, rolling 
 to code unaware of effects requires reconciliation or its matching pre-upgrade
 data/operation boundary; do not blindly restore state over newer accepted work.
 No control-plane, credential, merge/release or per-Bot sandbox changes are included.
+
+
+## Durable Task inbox integration (S3)
+
+S3 input.notify persists with admitted Task feedback and input.inbox proves its exact claim/snapshot batch reached the store before adapter dispatch. Notification waits for configured Chief recovery only when already blocked/arbitrating; it never interrupts a healthy worker or implies a model read. See [inputs](project-inputs.md).

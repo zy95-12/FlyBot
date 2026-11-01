@@ -2,6 +2,13 @@
 
 ## Active fork roadmap — 2026-10-31
 
+Service #49 implementation order: S1/#50 (PR56, deployed), S2/#51 (PR58, verified,
+awaiting compatible batch rollout), S3/#52 (durable Task inbox and safe turns under
+verification), then source subscriptions/#53, trusted execution boundary/#54 and
+integrated fault/recovery acceptance/#55. #57/PR59 compatibility repair is deployed;
+original Chief resumed actual frontend Dev without changing Task40/PR48 ownership.
+Each stage keeps memory, architecture and regression evidence with its own PR.
+
 Immediate compatibility repair #57 removes the verified prior-invocation workspace
 and Session resumption blocker before continuing service #51–#55. Preserve the
 current frontend Task/Attempt/PR and unknown-exit protections.

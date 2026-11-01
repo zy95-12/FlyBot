@@ -210,7 +210,7 @@ test('managed delivery definitions and role/model snapshots cannot be edited or 
   const attempt = fixture.attempt()
   assert.equal(attempt.workflowDefinition.nodes[0].model, 'fixture/model')
   for (const operation of ['graph', 'set-model', 'concurrency', 'reset', 'delete']) await assert.rejects(fixture.rt.projectEndpoint('project-workflow', { projectId: 'p1', workflowId: attempt.workflowId, operation, nodes: [] }, alice), /immutable/)
-  assert.equal(attempt.workflowVersion, 'project-delivery/v5')
+  assert.equal(attempt.workflowVersion, 'project-delivery/v6')
 })
 
 

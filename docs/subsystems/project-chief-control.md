@@ -121,3 +121,8 @@ DSH configuration, independent of event-driven job execution.
 ## Development service compatibility (S1)
 
 The original logical schedule handler enters the development service scheduled port after occurrence persistence and authority checks, then invokes the existing Chief implementation. Occurrence IDs, request deduplication, configurable timing and Chief adjudication are retained. See [service contract](project-development-service.md).
+
+
+## Durable Task inbox integration (S3)
+
+S3 snapshots durably bind bounded Task input batches. Unforgeable in-process receipt permits validate source/generation without consumption; failed decisions leave pending input. Closure rechecks later input and commits its receipt with acceptance; routing acknowledges only after success. The original configured periodic inspection remains unchanged. See [inputs](project-inputs.md).

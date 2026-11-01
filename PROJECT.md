@@ -10,6 +10,21 @@ Current stage and priorities: [ROADMAP.md](ROADMAP.md). How decisions are made:
 
 ## Fork Project State — 2026-10-31
 
+### Durable Task inputs — S3 / issue52, 2026-11-02
+
+The service now distinguishes persisted input, durable role inbox, adapter delivery,
+SDK output observation, declared reading and validated handling. Current-claim
+receipts and bounded same-thread safe turns preserve existing Bot handoff authority.
+Chief receipt plans cannot consume inputs on failed decisions; closure and input
+handling share the final state commit. New pending feedback, unknown protocols,
+revoked source and changed hashes keep their fences. See [input contract](docs/subsystems/project-inputs.md).
+
+S1/PR56 and #57/PR59 are deployed with original UI preserved; S2/PR58 passed4350
+checks and fork CI. S3 source/real Codex receipt validation is in progress, not
+live delivery or final UI acceptance. The original frontend Task40/PR48 continues
+through its own Chief/Dev/Reviewer/Tester flow. No backend development Task,
+control-plane edit, merge/queue/release or new per-Bot sandbox is authorized here.
+
 ### Verified supervisor exit compatibility — 2026-11-02
 
 Foreground repair #57 unifies workspace and logical Task-role resumption for

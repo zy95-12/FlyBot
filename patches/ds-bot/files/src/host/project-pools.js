@@ -66,7 +66,11 @@ export function createProjectPools(rt) {
     if (expectedGeneration !== undefined && c.generation !== expectedGeneration) throw refuse('Claim generation changed before handoff admission')
     const row = { id: `handoff-${randomUUID()}`, version: POOL_PROTOCOL, policyVersion: 'project-role-policy/v1', definitionRevision: definitions(task.projectId).revision, projectId: task.projectId, taskId: task.id, attemptId, initiatedBy: c.initiatedBy, from, to, reason, requestId, purpose, evidence: clone(trustedEvidence), claims: clone(evidence), requirements: { title: task.title, criteria: task.criteria ?? '' }, status: 'pending', generation: c.generation + 1, createdAt: Date.now() }
     const before = rt.projectEffects ? { collaboration: clone(c), handoff: task.handoff, question: task.chiefQuestion } : null
-    const intent = dispatchIntent(task, row)
+    const input = rt.projectInputs?.stageHandoff(task, row)
+    if (input) row.inputId = input.row.id
+    let intent
+    try { intent = dispatchIntent(task, row) }
+    catch (error) { if (input?.created) rt.projectInputs.discardHandoff(input.row.id); throw error }
     c.generation = row.generation
     c.history.push(row); c.botId = to; c.status = target.role === 'chief' ? 'arbitration' : 'queued'; c.currentHandoffId = row.id; delete c.claim
     if (c.block) { row.resolvedBlock = clone(c.block); delete c.block }
@@ -75,6 +79,7 @@ export function createProjectPools(rt) {
     try { if (intent) await rt.projectEffects.persist(intent); else await rt.save() }
     catch (error) {
       if (intent && rt.projectEffects.discardUncommitted(intent)) {
+        if (input?.created) rt.projectInputs.discardHandoff(input.row.id)
         for (const key of Object.keys(c)) delete c[key]
         Object.assign(c, before.collaboration)
         if (before.handoff === undefined) delete task.handoff; else task.handoff = before.handoff
@@ -136,6 +141,9 @@ export function createProjectPools(rt) {
     await current(task, token)
     if (action === 'handoff' || action === 'complete') await adapter.complete({ task, claim, role, outputs: decision.outputs ?? {} })
     await current(task, token)
+    await rt.projectInputs?.acknowledge(task.id, claim, decision.inputReceipts)
+    await current(task, token)
+    rt.projectInputs?.finishHandoff(task.id, claim)
     claim.status = 'completed'; claim.decision = { action, reason, intentHash: intentHash(decision), at: Date.now() }
     const receipt = c.history.find(row => row.id === c.currentHandoffId)
     receipt.finishedAt = Date.now(); receipt.decision = clone(claim.decision); receipt.execution = clone(claim)
@@ -231,6 +239,7 @@ export function createProjectPools(rt) {
   }
   async function validateClosure(taskId, actor, evidence) {
     const task = taskOf(taskId)
+    rt.projectInputs?.requireHandled(taskId, actor)
     rt.projectChiefControl.requireJobActor(actor, task.projectId)
     const roles = definitions(task.projectId).roles
     const result = adapter.validate({ card: task.id, fromRole: 'chief', toRole: 'chief', attempt: 0, owner: actor.memberId, acceptance: task.acceptance, evidence }, { roles: roles.map(row => row.role), pools: Object.fromEntries(roles.map(row => [row.role, { workers: 1 }])), execOwner: actor.memberId, seen: new Set() })
@@ -306,7 +315,10 @@ export function createProjectPools(rt) {
         const c = task.collaboration
         if (!['queued', 'arbitration'].includes(c?.status)) continue
         const receipt = c.history?.find(row => row.id === c.currentHandoffId)
-        if (receipt?.status === 'pending') dispatchIntent(task, receipt)
+        if (receipt?.status === 'pending') {
+          if (rt.projectInputs && !receipt.inputId) { receipt.inputId = rt.projectInputs.stageHandoff(task, receipt).row.id; changed = true }
+          dispatchIntent(task, receipt)
+        }
       }
       if (Object.keys(rt.state.projectEffects ?? {}).length !== count) changed = true
     }
