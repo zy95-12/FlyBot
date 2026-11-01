@@ -208,3 +208,11 @@ blocked. Original thread/cwd/profile and current Task-role authorization checks 
 S3 observes actual SDK output separately from explicit read declarations. A completed SDK turn can receive at most4 bounded additional inbox turns in the same worker/thread/claim before its handoff is applied; original timeout and evidence budgets remain. No ordinary feedback interrupts a worker, answers a permission or creates a second Dev. Native dispatch/read guarantees remain explicitly distinct; real Codex receipt fixtures do not establish native/Claude acceptance. See [inputs](project-inputs.md).
 
 S3 also wakes a current SDK message-wait at its safe idle boundary, revalidating the original Task principal, claim and lease before send. Permission waits remain untouched. Durable batches prepared but not written remain eligible for later delivery; remaining counts exclude earlier actually injected batches. SDK dispatch records its own adapter-write receipt; native dispatch records only its own adapter acceptance.
+
+
+A late result-handler failure cannot overwrite a confirmed released SDK lifecycle.
+Historical failed-status rows with a successful process exit may still prove exit
+only when worker ID/generation, Project/Attempt/role/resource and both worker/lease
+stop proofs match a released SDK lease exactly. Unknown/unreachable exits, missing
+proofs and mismatched leases remain refused. This preserves historical failure
+attribution without blocking every future integration admission for the same Task.

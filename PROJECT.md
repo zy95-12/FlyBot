@@ -688,3 +688,11 @@ registration. Dormant native DSH turn/end events must not consume the scheduled 
 job during that setup window; only its fenced SDK callback may finish it. The
 regression injects that event before a worker ID exists, then requires exactly one
 completion from the actual bound callback. Native-only execution retains its events.
+
+
+A late result-handler failure cannot overwrite a confirmed released SDK lifecycle.
+Historical failed-status rows with a successful process exit may still prove exit
+only when worker ID/generation, Project/Attempt/role/resource and both worker/lease
+stop proofs match a released SDK lease exactly. Unknown/unreachable exits, missing
+proofs and mismatched leases remain refused. This preserves historical failure
+attribution without blocking every future integration admission for the same Task.

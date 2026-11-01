@@ -72,3 +72,17 @@ test('exit proof guards reject missing workers, unconfirmed generations and unbo
   assert.equal(confirmedWorkerExit({}, {status:'released',generation:2,releaseProof:{kind:'systemd-prior-invocation-exited'}}), false)
   assert.equal(confirmedWorkerExit({}, {status:'released',generation:2,leaseId:'absent',releaseProof:{kind:'systemd-prior-invocation-exited',previousInvocationId:'a'.repeat(32)}}), false)
 })
+
+test('late callback failure cannot erase a fully fenced SDK stop and lease exit proof', () => {
+  const proof={kind:'sdk-stop-ack-and-process-exit',workerId:'w',generation:2,at:123}
+  const worker={id:'w',projectId:'p',taskId:'t',attemptId:'a',role:'chief',resourceId:'r',leaseId:'l',generation:2,status:'failed',releasedAt:123,exit:{code:0,signal:null},releaseProof:proof}
+  const lease={projectId:'p',attemptId:'a',role:'chief',resourceId:'r',generation:2,status:'released',worker:{kind:'sdk',handle:'w'},releaseProof:proof}
+  const state={projectResourceLeases:{l:lease}}
+  assert.equal(confirmedWorkerExit(state,worker),true)
+  for(const mutate of [w=>{w.releaseProof=null},w=>{w.releaseProof.workerId='other'},w=>{w.releaseProof.generation=3},w=>{w.exit.code=null},w=>{w.status='unreachable'},w=>{w.releasedAt=null},w=>{w.attemptId='other'}]) {
+    const w=structuredClone(worker);mutate(w);assert.equal(confirmedWorkerExit(state,w),false)
+  }
+  for(const mutate of [l=>{l.status='unreachable'},l=>{l.releaseProof=null},l=>{l.worker.handle='other'},l=>{l.generation=3},l=>{l.role='developer'}]) {
+    const l=structuredClone(lease);mutate(l);assert.equal(confirmedWorkerExit({projectResourceLeases:{l}},worker),false)
+  }
+})
