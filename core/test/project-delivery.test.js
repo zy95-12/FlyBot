@@ -1100,6 +1100,8 @@ test('SDK Task rework preserves an unsealed same-base draft and old cleanup cann
   assert.equal(next.workspaces.developer.path,cwd)
   assert.equal(next.workspaces.developer.retainedDraft,true)
   assert.equal(readFileSync(join(cwd,'code.mjs'),'utf8'),'export const preservedDraft = true;\n')
+  f.rt.state.projectWorkspaces=structuredClone(f.rt.state.projectWorkspaces) // Store reload gives each snapshot its own objects.
   await f.rt.projectEndpoint('project-attempt-cleanup',{attemptId:previous.id},alice)
+  assert.equal(f.rt.state.projectWorkspaces[previous.workspaces.developer.id].status,'released')
   assert.equal(readFileSync(join(cwd,'code.mjs'),'utf8'),'export const preservedDraft = true;\n')
 })

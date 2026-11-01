@@ -470,7 +470,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     for (const workspace of Object.values(attempt.workspaces)) {
       if (workspace.status === 'released') continue
       if (Object.values(state.projectWorkspaces).some(row => row.id !== workspace.id && row.projectId === workspace.projectId && row.path === workspace.path && row.resourceId === workspace.resourceId && row.status === 'allocated')) {
-        workspace.status = 'released'; workspace.releasedAt = Date.now(); await rt.save(); continue
+        workspace.status = 'released'; workspace.releasedAt = Date.now(); Object.assign(state.projectWorkspaces[workspace.id], { status: 'released', releasedAt: workspace.releasedAt }); await rt.save(); continue
       }
       if (workspace.kind === 'resource-clone') {
         await resourceWorkspaces.cleanup(workspace)
