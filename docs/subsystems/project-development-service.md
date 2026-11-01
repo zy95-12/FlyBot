@@ -35,7 +35,9 @@ The existing authenticated `POST /api/bot` accepts endpoint `project-development
 The value is `{version, requestId?, result}` inside the existing channel response.
 `kind=query` has no required requestId. Version, operation kind, payload shape and
 target Project are checked before dispatch. Task/Attempt/queue targets must agree;
-body actor/member/role fields never replace the authenticated actor. Project
+Proposal and worker targets are also bound to the envelope Project, even when
+the actor can access both Projects. Body actor/member/role fields never replace
+the authenticated actor. Project
 membership and each underlying operation's existing permission checks still apply.
 An optional expectedGeneration/expectedCandidateSha is an admission precondition;
 the existing domain claim/candidate fences remain authoritative across async work.
@@ -56,7 +58,9 @@ refused; queries do not create definitions, agents or mutate stored task records
 and adds `view`. `proposal.publish` still publishes only the requester's own
 proposal through the original safe/watch contract. requestId is propagated to the
 existing operation; S1 does not claim uniform durable command replay for operations
-that did not already implement it. Persistent Effects/receipts belong to S2/S3.
+that did not already implement it. For execution.input, payload.requestId retains
+the worker permission-question identity; the outer requestId identifies the
+transport command. Persistent Effects/receipts belong to S2/S3.
 
 Legacy endpoints route through this same facade and retain response shapes, with
 only additive task-detail/view and workbench taskViews. Scoped agent run/watch

@@ -32,6 +32,8 @@ export function taskView(state, task, { activity = {} } = {}) {
   const claim = c?.claim
   const worker = ownEntry(state.projectHarnessWorkers ?? {}, claim?.workerId)
   const sdk = sameTask(worker, task) || worker && attempt && worker.projectId === task.projectId && worker.attemptId === attempt.id ? worker : null
+  const native = ownEntry(state.bots ?? {}, claim?.workerId)
+  const nativeActive = native?.projectId === task.projectId && (!attempt || native.attemptId === attempt.id) && activity[claim?.workerId]
   const execution = attempt?.runId ? ownEntry(state.projectExecutions ?? {}, attempt.runId) : null
   const run = sameTask(execution, task) ? execution : null
   const currentRole = (state.projectAgentDefinitions?.[task.projectId]?.roles ?? []).find(row => row.id === c?.botId)?.role ?? (c?.botId?.startsWith(`${task.projectId}:`) && roles.has(c.botId.slice(task.projectId.length + 1)) ? c.botId.slice(task.projectId.length + 1) : null)
@@ -46,7 +48,7 @@ export function taskView(state, task, { activity = {} } = {}) {
   else if (c?.status === 'queued') { phase = 'queued'; waitingFor = 'role' }
   else if (c?.status === 'claimed') {
     if (sdk?.status === 'waiting-input') { phase = 'awaiting-input'; waitingFor = 'owner' }
-    else if (claim?.status === 'active' && (sdk?.status === 'running' || !sdk && activity[claim.workerId])) phase = 'running'
+    else if (claim?.status === 'active' && (sdk?.status === 'running' || !sdk && nativeActive)) phase = 'running'
     else { phase = 'starting'; waitingFor = 'execution' }
   }
   else if (attempt?.status === 'waiting-acceptance') { phase = 'awaiting-acceptance'; waitingFor = 'owner' }
@@ -59,6 +61,7 @@ export function taskView(state, task, { activity = {} } = {}) {
   return { version: DEVELOPMENT_PROTOCOL, projectId: task.projectId, taskId: task.id, publication: 'published', phase, waitingFor, reason,
     botId: c?.botId ?? null, currentRole, generation: c?.generation ?? null, attemptId: attempt?.id ?? null,
     executionId: claim?.id ?? run?.id ?? null, workerId: claim?.workerId ?? null, queueId: queue?.id ?? null, candidateSha: sha,
+    executionGeneration: sdk?.generation ?? null, inputRequestId: sdk?.pending?.id ?? null,
     lastMeaningfulProgress: progress.lastMeaningfulProgressAt === null ? null : { at: progress.lastMeaningfulProgressAt, evidence: progress.progressEvidence },
     evidence: { tests: tests ? { sha: tests.sha, sha256: tests.sha256, passed: tests.passed === true, current: Boolean(sha && tests.sha === sha) } : null,
       review: review ? { sha: review.sha, verdict: review.verdict, current: Boolean(sha && review.sha === sha) } : null }, nextActions: [] }
@@ -82,6 +85,8 @@ export function createDevelopmentService(rt) {
     if (result.queueId && ['queued', 'blocked'].includes(result.phase) && allowed('task-write')) result.nextActions.push('queue.cancel')
     if (result.queueId && result.phase === 'blocked' && allowed('run-control')) result.nextActions.push('queue.retry')
     if (result.attemptId && ['running', 'starting', 'awaiting-input', 'paused'].includes(result.phase) && allowed('run-control')) result.nextActions.push('attempt.stop')
+    const pending = ownEntry(rt.state.projectHarnessWorkers ?? {}, result.workerId)?.pending
+    if (result.phase === 'awaiting-input' && allowed('task-write') && (pending?.kind !== 'permission' || allowed('configure'))) result.nextActions.push('execution.input')
     if (result.phase === 'awaiting-acceptance' && allowed('accept')) result.nextActions.push('task.accept', 'task.reject')
     if (!['accepted', 'cancelled'].includes(result.phase) && allowed('configure')) result.nextActions.push('chief.inspect')
     return result
@@ -120,6 +125,14 @@ export function createDevelopmentService(rt) {
     if (body.kind === 'command' && !stableId(body.requestId)) throw failure('A command needs a stable requestId')
     const args = { ...(body.payload ?? {}), projectId, ...(body.requestId !== undefined ? { requestId: body.requestId } : {}) }
     if (body.payload?.projectId !== undefined && body.payload.projectId !== projectId) throw failure('Payload belongs to another Project', 'bot/forbidden')
+    // These targets have their own authority in the existing services, but the
+    // envelope must also reject a target in another Project the actor can access.
+    for (const [key, table] of [['proposalId', rt.state.projectAgentProposals], ['workerId', rt.state.projectHarnessWorkers]]) {
+      if (args[key] === undefined) continue
+      const target = ownEntry(table ?? {}, String(args[key]))
+      if (!target || target.projectId !== projectId) throw failure('Target is unavailable in this Project', 'bot/forbidden')
+    }
+    if (name === 'execution.input') args.requestId = body.payload?.requestId
     let task
     for (const [key, table] of [['taskId', rt.state.tasks], ['attemptId', rt.state.projectAttempts], ['queueId', rt.state.projectQueue]]) {
       if (args[key] === undefined) continue

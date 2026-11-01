@@ -65,6 +65,10 @@ test('TaskView distinguishes publication, queue, resource wait and confirmed exe
   task.collaboration.claim = { id: 'claim', status: 'active', workerId: 'w', botId: 'p:developer', generation: 2 }
   state.bots.w = { id: 'w' }
   assert.equal(taskView(state, task).phase, 'starting', 'a stored Bot is not proof of a running turn')
+  state.bots.w.projectId = 'foreign'
+  assert.equal(taskView(state, task, { activity: { w: 'thinking' } }).phase, 'starting')
+  state.bots.w.projectId = 'p'
+  assert.equal(taskView(state, task, { activity: { w: 'thinking' } }).phase, 'running')
   state.projectHarnessWorkers.w = { id: 'w', projectId: 'p', taskId: 't', status: 'running' }
   assert.equal(taskView(state, task).phase, 'running')
   state.projectHarnessWorkers.w.status = 'waiting-input'
@@ -123,4 +127,43 @@ test('trusted role and schedule ports retain original claims, authority and even
   assert.equal(seen.at(-1), result)
   assert.equal(await service.scheduled(work), 'scheduled')
   assert.equal(seen.at(-1), work)
+})
+
+test('proposal/worker targets stay in envelope scope and permission request identity is preserved', async () => {
+  const { service, state, rt, actor } = fixture()
+  state.projectAgentProposals = { foreign: { projectId: 'other', memberId: 'alice' } }
+  state.projectHarnessWorkers = { foreign: { projectId: 'other' }, own: { projectId: 'p' } }
+  let calls = 0
+  rt.projectAgents.endpoint = async () => { calls++; return {} }
+  rt.projectHarness = { input: async body => { calls++; assert.equal(body.requestId, 'permission-request'); return { sent: true } } }
+  const command = { version: DEVELOPMENT_PROTOCOL, kind: 'command', projectId: 'p', requestId: 'transport-command' }
+  for (const [name, payload] of [['proposal.publish', { proposalId: 'foreign' }], ['execution.input', { workerId: 'foreign' }]]) {
+    await assert.rejects(service.endpoint('project-development', { ...command, name, payload }, actor), /another Project|unavailable/)
+  }
+  assert.equal(calls, 0)
+  const result = await service.endpoint('project-development', { ...command, name: 'execution.input', payload: { workerId: 'own', requestId: 'permission-request' } }, actor)
+  assert.equal(result.requestId, 'transport-command')
+  assert.equal(calls, 1)
+})
+
+test('stopping, blocked admission, acceptance and legacy paused runs have actionable views', async () => {
+  const { service, state, actor } = fixture(), task = state.tasks.t
+  task.deliveryAttemptId = 'a'
+  const attempt = state.projectAttempts.a = { id: 'a', projectId: 'p', taskId: 't', status: 'running', runId: 'run', cancelRequested: true }
+  assert.equal(service.view(task, actor).waitingFor, 'worker-exit')
+  attempt.cancelRequested = false
+  state.projectQueue.q = { id: 'q', projectId: 'p', taskId: 't', status: 'blocked', reason: 'Preflight failed' }
+  assert.deepEqual(service.view(task, actor).nextActions, ['queue.cancel', 'queue.retry', 'chief.inspect'])
+  delete state.projectQueue.q
+  attempt.status = 'waiting-acceptance'
+  assert.ok(service.view(task, actor).nextActions.includes('task.accept'))
+  attempt.status = 'running'
+  state.projectExecutions.run = { id: 'run', projectId: 'p', taskId: 't', status: 'paused' }
+  assert.equal(service.view(task, actor).phase, 'paused')
+  task.collaboration = { status: 'claimed', generation: 1, history: [], claim: { id: 'c', workerId: 'w', status: 'active' } }
+  state.projectHarnessWorkers.w = { id: 'w', projectId: 'p', taskId: 't', generation: 9, status: 'waiting-input', pending: { kind: 'permission', id: 'pending' } }
+  const input = service.view(task, actor)
+  assert.ok(input.nextActions.includes('execution.input'))
+  assert.equal(input.executionGeneration, 9)
+  assert.equal(input.inputRequestId, 'pending')
 })
