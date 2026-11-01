@@ -88,3 +88,9 @@ Context repair retains the 48,000-character boundary and complete separately inj
 A Chief route keeps the existing unstarted Attempt. Host preparation may refresh its stale trusted upstream only after authenticated original-PR/head/ref checks, provisioned object/descendant proof and absence of registered execution with all leases released. Old/new bindings and claim generation are audited; no manual live-state edit, new Attempt, workspace reset or relaxed publisher check is an alternative. Owner feedback that the UI still looks old remains an explicit #40 residual requiring demo comparison and real interaction evidence.
 
 Owner-approved P0 proceeds through supported target refresh and the reproduced M6 failure. Preserve production safe-mode gates: repair the stale browser expectation by actually publishing the requester’s proposal through UI, not by granting watch mode, forging a Task or weakening assertions. Platform maintenance, actual delivery, CI and UI acceptance remain separately evidenced.
+
+Owner visual feedback takes priority for R7 rework: retain original Task/PR and scoped
+collaboration APIs, align the workspace with the supplied polished reference, separate
+Settings from chat and use actual data throughout. Existing functional checks cannot
+stand in for desktop/narrow-screen visual or live shared-service acceptance. This
+implements the recorded scope without authorizing publication, deployment or merges.

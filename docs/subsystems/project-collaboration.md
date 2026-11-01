@@ -77,3 +77,23 @@ The installation-order contract includes the Project native `llm/stream` observe
 
 
 The socket-free preflight now executes workbench-state, Project detail/resources/agents/members, scoped Workflow state, rooms and pools for Owner/Maintainer/Member. Fixture Bot creation calls runtime save, which owns Session indexing; no private index method is invented. This exercises lazy public/private role initialization before Chromium and does not replace browser assertions.
+
+The visual rework adds desktop/narrow chat and board navigation checks to the existing
+Chromium/backend fixture. `FLYBOT_SCREENSHOT_DIR` optionally captures desktop/narrow
+Chief and board pages for comparison with the owner reference. These screenshots are
+fixture evidence; real shared-service UI acceptance remains a separate operator step.
+Role editing now lives at Settings, leaving the public conversation focused on chat.
+
+Rework validation at inherited HEAD `f5eb916eb26171ae0cd21891e9c67370ac12d692`
+with an unsealed working diff: `workbench-client.test.js` passes 9/9; the new
+conversation-layout regression failed before implementation (7/8 passed). Workbench
+build/check, original-client check, patch check/canonical, demo lint and focused client
+lint pass (the existing terminal control-regex warning remains). Full `TZ=UTC npm run
+verify` was attempted but has no completed result in this SDK sandbox; the independent
+host command is required. A combined gateway/room test encountered blocked loopback.
+Chromium execution failed at dependency loading (`playwright` absent), before clicks;
+no screenshots or new browser acceptance are claimed. Tester should run the configured
+host verification and the Chromium fixture with prepared `FLYBOT_BROWSER_TOOLS` and
+`FLYBOT_SCREENSHOT_DIR`, then inspect desktop/narrow captures against the supplied
+reference. Actual deployed three-account acceptance is still the operator's separate
+step, followed by Chief judgement; this record does not close Task40.

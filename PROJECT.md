@@ -345,3 +345,13 @@ R7 P0 maintenance now resolves the pinned `e3ff1d26` upstream into the original
 `56d14be` candidate, retaining both collaboration and backend repairs. This is an
 unsealed integration draft until host tests and independent Review; Owner visual
 feedback remains outstanding and no overall completion is claimed.
+
+### R7 visual rework — 2026-11-01
+
+Issue #40/PR48 now separates the shared chat workspace from Settings, with persistent
+Project/room navigation, dedicated transcript/composer and expandable Task groups.
+The reference demo guides layout only; metrics, role configuration and execution
+summaries continue to come from scoped Project APIs. Failed/blocked Tasks remain
+visible under Needs attention. DOM regression is red on f5eb916 and green locally.
+Chromium screenshots and actual shared-service acceptance for this rework are pending;
+prior functional acceptance does not establish the owner's visual acceptance.

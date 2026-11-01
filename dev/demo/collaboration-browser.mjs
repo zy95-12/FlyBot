@@ -2,7 +2,7 @@
 // deterministic fixture; this is NOT the operator's real shared-service acceptance.
 import assert from 'node:assert/strict'
 import { createRequire } from 'node:module'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { createServer } from 'node:http'
@@ -110,6 +110,21 @@ try {
       await page.getByRole('button', { name: 'Send to room', exact: true }).click()
       await page.getByText(`@chief hello from ${memberId}`, { exact: true }).waitFor()
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'no narrow-screen overflow')
+    }
+    const screenshotDir = process.env.FLYBOT_SCREENSHOT_DIR
+    if (screenshotDir) await mkdir(screenshotDir, { recursive: true })
+    for (const page of [owner, pages.member]) {
+      await page.getByRole('button', { name: 'Public Bots', exact: true }).click()
+      await page.locator('.chat-panel .composer textarea').waitFor()
+      assert.equal(await page.locator('#chief-policy-enabled').count(), 0)
+      if (screenshotDir) await page.screenshot({ path: join(screenshotDir, page === owner ? 'desktop-chief.png' : 'narrow-chief.png'), fullPage: true })
+      await page.getByRole('button', { name: 'Settings', exact: true }).click()
+      await page.getByRole('heading', { name: 'Project settings', exact: true }).waitFor()
+      assert.equal(await page.locator('.composer').count(), 0)
+      await page.getByRole('button', { name: 'Task board', exact: true }).click()
+      await page.locator('.task-group').first().waitFor()
+      if (screenshotDir) await page.screenshot({ path: join(screenshotDir, page === owner ? 'desktop-board.png' : 'narrow-board.png'), fullPage: true })
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false)
     }
     const privateRoom = await rt.projectEndpoint('project-room-create', { projectId: 'one', name: 'Owner only room', memberIds: ['owner-1'], roles: ['chief'] }, { memberId: 'owner-1' })
     const member = pages.member

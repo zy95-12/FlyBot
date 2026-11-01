@@ -99,6 +99,9 @@ test('Owner role form preserves persona, supports checked resource pools and pro
     return undefined
   })
   await tick(); dom.window.location.hash = '/projects/a/bots'; await tick(); await tick()
+  assert.equal(root.querySelector('#role-developer-instructions'), null, 'role editor stays out of the public conversation')
+  assert.match(root.querySelector('.role-strip').textContent, /developer/)
+  dom.window.location.hash = '/projects/a/settings'; await tick(); await tick()
   const form = root.querySelector('#role-developer-instructions').form
   assert.equal(form.elements.instructions.value, 'Preserve this persona')
   assert.equal(form.querySelector('input[value="local"]').checked, true)
@@ -136,4 +139,33 @@ test('rooms click through scoped routing, safe Markdown and registered artifacts
   ;[...root.querySelectorAll('button')].find(node => node.textContent === 'Scope.md').click(); await tick()
   assert.match(root.textContent, /Only this room/)
   assert.ok(calls.every(row => !['state', 'earlier', 'room-history', 'send'].includes(row.endpoint)))
+})
+
+test('conversation workspace separates settings and preserves Project navigation', async t => {
+  const { dom, root } = fixture(t)
+  await tick(); dom.window.location.hash = '/projects/a/bots'; await tick()
+  assert.ok(root.querySelector('.project-nav button[aria-current="page"]'))
+  assert.ok(root.querySelector('.chat-panel .conversation[role="log"]'))
+  assert.ok(root.querySelector('.chat-panel .composer textarea'))
+  assert.equal(root.querySelector('#chief-policy-enabled'), null)
+  const settings = [...root.querySelectorAll('.project-nav button')].find(row => row.textContent === 'Settings')
+  assert.ok(settings); settings.click(); await tick()
+  assert.match(dom.window.location.hash, /\/settings$/)
+  assert.equal(root.querySelector('.composer'), null)
+})
+
+
+test('board keeps failures actionable and polling preserves Project-scoped Task folds', async t => {
+  const { dom, root, app } = fixture(t, endpoint => endpoint === 'project-detail' ? {
+    project: { id: 'a', name: 'Alpha', role: 'member' }, permissions: {},
+    tasks: [{ id: 'failed', title: 'Repair parser', status: 'failed' }, { id: 'done', title: 'Accepted parser', status: 'accepted' }],
+  } : undefined)
+  await tick()
+  const groups = () => [...root.querySelectorAll('.task-group')]
+  const attention = groups().find(group => group.querySelector('summary').textContent.startsWith('Needs attention'))
+  assert.match(attention.textContent, /Repair parser/)
+  assert.doesNotMatch(groups().find(group => group.querySelector('summary').textContent.startsWith('Completed')).textContent, /Repair parser/)
+  attention.open = false; attention.dispatchEvent(new dom.window.Event('toggle'))
+  await app.refresh()
+  assert.equal(groups().find(group => group.querySelector('summary').textContent.startsWith('Needs attention')).open, false)
 })

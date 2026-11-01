@@ -204,3 +204,9 @@ Context admission repair is source-tested on the existing PR47 branch. Deploy on
 The same-Attempt target-refresh host repair needs exact-head verification and integration/deployment before Chief routes the existing #40 Task. Owner UI feedback remains unaccepted work on #40/PR48: match the original polished demo and native FlyBot interactions using real API state; functional browser checks alone do not establish visual acceptance.
 
 P0 now includes the reproduced M6 fixture/contract mismatch: complete actual safe-mode approval in browser and preserve negative authorization/duplicate checks, then assess current-head CI. Target refresh166 is integrated/deployed independently; UI remains unaccepted and P1 efficiency work remains queued until its real path is executed.
+
+R7 visual rework follows the owner's demo-first priority: conversation-focused shell,
+separate Settings, and expandable Task reading hierarchy on original Task40/PR48.
+No new backend authorization or framework optimization is bundled. New-candidate
+host tests, independent Review and desktop/narrow-screen visual/live acceptance
+remain required; the inherited candidate's evidence is not reused as a new PASS.

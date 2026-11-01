@@ -188,3 +188,18 @@ Original Harness UI primitives require its private module loader and cannot be i
 into this standalone entry; the safe DOM renderer loads no remote content. The complete
 [source/API/UI inventory and verification limits](project-collaboration.md) is authoritative
 for this restoration. No raw owner Session/group/plugin API is added to the gateway.
+
+## R7 reference-layout rework
+
+The standalone shell retains Project switching and adds active-page navigation plus
+scoped room shortcuts. Public Chief and private companion use a transcript/composer
+layout. Role/persona/Skills/memory and Chief inspection editors move to the explicit
+`settings` route; server configure checks are unchanged. The public chat retains
+read-only configured Harness/model summaries, while Task details retain actual frozen
+execution evidence. Neither configuration nor an idle chat implies an active worker.
+
+The board groups Tasks into expandable Open, In progress, Needs attention and Completed
+sections. Counts and execution/next-step summaries use actual Task/resource records;
+reference-demo PR/Issue numbers and sample metrics are never imported. Failed Tasks
+remain actionable instead of being grouped as successful completion. Fold state is local
+to Project and survives polling. No raw owner APIs or new credentials are introduced.

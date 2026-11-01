@@ -98,7 +98,7 @@
     const doc = root.ownerDocument, win = doc.defaultView;
     let bootstrap, mode, selected = "", tab = "board", taskId = "", detail, resources, agents, members, history, taskDetail, workflowState;
     let epoch = 0, controller, error = "", notice = "", timer, disposed = false, busy = false;
-    const drafts = /* @__PURE__ */ new Map();
+    const drafts = /* @__PURE__ */ new Map(), expanded = /* @__PURE__ */ new Map();
     let runtimeTerminal, terminalTimer, terminalPolling = false, rooms, roomView, pools;
     async function closeTerminal() {
       const terminal = runtimeTerminal;
@@ -293,7 +293,7 @@
     }
     function changeRoute() {
       void closeTerminal();
-      const match = win.location.hash.match(/^#\/projects\/([^/]+)\/(board|tasks|members|bots|resources|private|rooms|activity)(?:\/([^/]+))?$/);
+      const match = win.location.hash.match(/^#\/projects\/([^/]+)\/(board|tasks|members|bots|resources|private|rooms|activity|settings)(?:\/([^/]+))?$/);
       try {
         selected = match ? decodeURIComponent(match[1]) : "";
         tab = match?.[2] ?? "board";
@@ -318,6 +318,13 @@
       const execution = resources.taskExecution?.find((row) => row.taskId === task.id);
       const queued = resources.queue.some((row) => row.taskId === task.id && row.status === "waiting");
       node.append(button(task.title, () => route(selected, "tasks", task.id)), el("small", `${task.priority ?? "normal"} · ${task.status} · ${execution?.phase || phase || (queued ? "waiting for quota" : task.requesterId)}`));
+      const metadata = el("div", null, "task-meta");
+      for (const [label, value] of [["Current role", task.collaboration?.botId?.split(":").at(-1) ?? (phase || "Unassigned")], ["Execution", execution?.phase ?? (queued ? "Queued" : "Not started")], ["Next step", task.status === "blocked" ? "Provide requested input" : task.status === "result-ready" ? "Await Chief / acceptance" : ["accepted", "cancelled"].includes(task.status) ? "View evidence" : "Open Task for actions"]]) {
+        const field = el("div");
+        field.append(el("small", label), el("strong", value));
+        metadata.append(field);
+      }
+      node.append(metadata);
       return node;
     }
     function attemptsPanel() {
@@ -379,7 +386,9 @@
           if (session.live?.text) conversation.append(box(`${session.role} answering…`, conversationText(doc, session.live.text)));
           if (["queued", "running"].includes(session.phase)) conversation.append(button(`Stop ${session.role}`, () => act(() => scoped("project-room-stop", { roomId: roomView.id, role: session.role })), busy));
         }
-        node.append(conversation, form(`room-message-${roomView.id}`, [["text", "Room message (@role)", "textarea"], ["attachmentIds", "Include registered documents", "checkboxes", roomView.attachments.map((row) => ({ value: row.id, label: row.name }))]], (values) => scoped("project-room-message", { roomId: roomView.id, ...values }), "Send to room"));
+        const composer = el("div", null, "composer");
+        composer.append(form(`room-message-${roomView.id}`, [["text", "Room message (@role)", "textarea"], ["attachmentIds", "Include registered documents", "checkboxes", roomView.attachments.map((row) => ({ value: row.id, label: row.name }))]], (values) => scoped("project-room-message", { roomId: roomView.id, ...values }), "Send to room"));
+        node.append(conversation, composer);
         const attachments = box("Registered documents and artifacts", el("p", "Text documents stay in this room; raw filesystem paths and remote images are unavailable."));
         for (const row of roomView.attachments) attachments.append(button(row.name, () => act(async () => {
           const captured = epoch, id = selected;
@@ -418,9 +427,19 @@ ${result.text}`;
       const stats = el("div", null, "stats");
       for (const [label, value] of [["Accepted / 7 days", metrics.acceptedTasks], ["Active slots", `${resources.activeSlots}/${resources.quota.maxConcurrent}`], ["Waiting", resources.queue.filter((row) => row.status === "waiting").length], ["Median delivery", metrics.duration.medianMs == null ? "No samples" : `${Math.round(metrics.duration.medianMs / 6e4)} min`]]) stats.append(box(label, el("strong", value)));
       node.append(stats, el("p", "Delivery duration: Task creation to human acceptance, including queue and human wait."));
-      const columns = el("div", null, "columns");
-      const groups = [["Open", (task) => !["working", "result-ready", "accepted", "cancelled", "failed"].includes(task.status)], ["In progress", (task) => ["working", "result-ready"].includes(task.status)], ["Completed", (task) => ["accepted", "cancelled", "failed"].includes(task.status)]];
-      for (const [label, predicate] of groups) columns.append(box(label, ...(detail.tasks ?? []).filter(predicate).sort((a, b) => ["urgent", "high", "normal", "low"].indexOf(a.priority ?? "normal") - ["urgent", "high", "normal", "low"].indexOf(b.priority ?? "normal")).map(taskPanel)));
+      const columns = el("div", null, "task-groups");
+      const groups = [["Open", (task) => !["working", "result-ready", "blocked", "accepted", "cancelled", "failed"].includes(task.status)], ["In progress", (task) => ["working", "result-ready"].includes(task.status)], ["Needs attention", (task) => ["blocked", "failed"].includes(task.status)], ["Completed", (task) => ["accepted", "cancelled"].includes(task.status)]];
+      for (const [label, predicate] of groups) {
+        const tasks = (detail.tasks ?? []).filter(predicate).sort((a, b) => ["urgent", "high", "normal", "low"].indexOf(a.priority ?? "normal") - ["urgent", "high", "normal", "low"].indexOf(b.priority ?? "normal"));
+        const group = el("details", null, "task-group"), key = `${selected}:${label}`;
+        group.open = expanded.get(key) ?? label !== "Completed";
+        group.ontoggle = () => {
+          if (group.isConnected) expanded.set(key, group.open);
+        };
+        group.append(el("summary", `${label} · ${tasks.length}`), ...tasks.map(taskPanel));
+        if (!tasks.length) group.append(el("p", "No Tasks in this group", "empty-state"));
+        columns.append(group);
+      }
       node.append(columns);
       if (detail.permissions.create) node.append(box("Create Task", form("task", [["title", "Requirement"], ["criteria", "Acceptance criteria", "textarea"], ["note", "Context", "optional"], ["priority", "Priority", "text", ["normal", "high", "urgent", "low"]], ["target", "Source Issue / PR (optional)", "optional"]], (values) => scoped("task-create", { ...values, botId: agents.public.botId }), "Create Task")));
       return node;
@@ -443,17 +462,33 @@ ${result.text}`;
     function agentsPanel() {
       const privateView = tab === "private", visibility = privateView ? "private" : "public";
       const node = box(privateView ? "My Project agent" : "Public Chief", el("p", privateView ? "Your conversation, notes and unpublished proposals are private to this Project and account." : "This conversation is shared with current Project members."));
-      for (const message of history?.messages ?? []) node.append(box(message.speaker ?? (message.kind === "human" ? "You" : privateView ? "Project companion" : "Chief"), conversationText(doc, message.text ?? message.content ?? "")));
-      if (history?.live) node.append(box("Answering…", conversationText(doc, history.live.text), history.live.tool ? el("p", `Using ${history.live.tool}`) : null));
-      if (history?.busy) node.append(button("Stop reply", () => act(() => scoped("project-agent-stop", { visibility })), busy));
-      node.append(form("message", [["text", "Message", "textarea"]], (values) => scoped("project-agent-message", { ...values, visibility }), history?.busy ? "Agent busy" : "Send"));
+      const transcript = el("div", null, "conversation");
+      transcript.setAttribute("role", "log");
+      transcript.setAttribute("aria-label", privateView ? "Private conversation" : "Chief conversation");
+      if (tab !== "settings") {
+        node.classList.add("chat-panel");
+        for (const message of history?.messages ?? []) {
+          const bubble = box(message.speaker ?? (message.kind === "human" ? "You" : privateView ? "Project companion" : "Chief"), conversationText(doc, message.text ?? message.content ?? ""));
+          if (message.kind === "human") bubble.classList.add("mine");
+          transcript.append(bubble);
+        }
+        if (history?.live) transcript.append(box("Answering…", conversationText(doc, history.live.text), history.live.tool ? el("p", `Using ${history.live.tool}`) : null));
+        if (history?.busy) node.append(button("Stop reply", () => act(() => scoped("project-agent-stop", { visibility })), busy));
+        if (!history?.messages?.length && !history?.live) transcript.append(el("p", privateView ? "Your private Project companion. Ask a question or discuss your next step." : "Coordinate work with Chief. Ask about progress or discuss a requirement.", "empty-state"));
+        node.append(transcript);
+        const composer = el("div", null, "composer");
+        composer.append(form("message", [["text", "Message", "textarea"]], (values) => scoped("project-agent-message", { ...values, visibility }), history?.busy ? "Agent busy" : "Send"));
+        node.append(composer);
+      } else {
+        node.replaceChildren(el("h2", "Project settings"), el("p", "Role definitions, published memory and Chief inspection. Running Sessions retain their execution snapshots."));
+      }
       if (privateView) {
         node.append(el("p", `Agent mode: ${agents.delegation?.mode ?? "safe"}. Safe mode requires approval before Task publication. Watch mode acts with your current Project permissions until revoked.`));
         node.append(form("agent-mode", [["mode", "Agent mode", "select", ["safe", "watch"], agents.delegation?.mode ?? "safe"]], (values) => scoped("project-agent-mode", values), "Set agent mode"));
         node.append(form("chief-question", [["text", "Question for Chief", "textarea"]], (values) => scoped("project-chief-question", { ...values, requestId: win.crypto.randomUUID() }), "Ask Chief without a Task"));
         node.append(box("Private notes", ...agents.privateMemory.map((note) => el("p", note.text)), form("memory", [["text", "Remember privately", "textarea"]], (values) => scoped("project-agent-memory-write", values))));
         for (const proposal of agents.proposals) node.append(box(proposal.taskId ? "Published Task" : "Unpublished proposal", el("p", proposal.taskId ? "Published; execution requires a separate run request." : "Private proposal; it has not been published or assigned."), el("h3", proposal.fields.title), el("p", proposal.fields.criteria), el("p", proposal.fields.note), button(proposal.taskId ? "Published" : "Publish as shared Task", () => act(() => scoped("project-agent-proposal-apply", { proposalId: proposal.id })), Boolean(proposal.taskId) || busy)));
-      } else {
+      } else if (tab === "settings") {
         const chief = resources.chief, settings = chief?.policy.inspection ?? chief?.template;
         if (chief && settings) {
           const card = box("Chief arbitration and scheduled inspection", el("p", `Arbitration ${chief.policy.enabled ? "enabled" : "disabled"} · inspection ${chief.schedule?.status ?? "not configured"}`));
@@ -509,6 +544,11 @@ ${result.text}`;
         }
         node.append(box("Shared knowledge", ...agents.knowledge.map((row) => el("p", row.text)), form("share-summary", [["text", "Publish a verified summary", "textarea"]], (values) => scoped("project-knowledge-write", { ...values, kind: "fact" }), "Share summary")));
       }
+      if (tab === "bots") {
+        const roster = el("div", null, "role-strip");
+        for (const role of agents.definitions.roles) roster.append(box(role.role, el("small", `${role.execution?.harness ?? "flybot"} · ${role.execution?.model ?? role.model ?? "Project default"}`)));
+        node.prepend(roster);
+      }
       return node;
     }
     function resourcesPanel() {
@@ -544,7 +584,7 @@ ${result.text}`;
       const active = doc.activeElement, focus = active?.id, start2 = active?.selectionStart, end = active?.selectionEnd;
       root.replaceChildren();
       const shell = el("div", null, "shell"), sidebar = el("aside"), main = el("main");
-      sidebar.append(el("h1", "FlyBot"), el("p", "Project workbench"));
+      sidebar.append(el("h1", "✦ FlyBot"), el("small", "SHARED PROJECT WORKSPACE"));
       if (!bootstrap) {
         main.append(box("Sign in", el("p", mode?.mode === "platform" ? "Use your existing control-plane account." : "Use an operator-issued member invitation."), form("login", mode?.mode === "platform" ? [["email", "Email", "email"], ["password", "Password", "password"]] : [["token", "Member invitation"], ["displayName", "Display name"]], async (values) => {
           const result = await api.call(mode?.mode === "platform" ? "platform-login" : "auth-redeem", values);
@@ -565,7 +605,21 @@ ${result.text}`;
         }
         picker.onchange = () => route(picker.value);
         sidebar.append(picker);
-        for (const [key, title] of [["board", "Task board"], ["members", "Members"], ["bots", "Public Bots"], ["rooms", "Rooms & mentions"], ["activity", "Pools & Timeline"], ["resources", "Resources"], ["private", "My Project agent"]]) sidebar.append(button(title, () => route(selected, key), !selected));
+        const navigation = el("nav", null, "project-nav");
+        navigation.setAttribute("aria-label", "Project navigation");
+        for (const [key, title] of [["board", "Task board"], ["members", "Members"], ["bots", "Public Bots"], ["rooms", "Rooms & mentions"], ["activity", "Pools & Timeline"], ["resources", "Resources"], ["private", "My Project agent"], ["settings", "Settings"]]) {
+          const item = button(title, () => route(selected, key), !selected);
+          if (tab === key || key === "board" && tab === "tasks") item.setAttribute("aria-current", "page");
+          navigation.append(item);
+        }
+        sidebar.append(navigation);
+        if (selected) {
+          const roomNav = el("nav", null, "room-nav");
+          roomNav.setAttribute("aria-label", "Project rooms");
+          roomNav.append(el("small", "PROJECT CONVERSATIONS"));
+          for (const room of rooms?.rooms ?? []) roomNav.append(button(room.name, () => route(selected, "rooms", room.id)));
+          sidebar.append(roomNav);
+        }
         sidebar.append(button("All Projects", () => {
           win.location.hash = "";
         }), button("Sign out", () => act(async () => {
@@ -589,8 +643,10 @@ ${result.text}`;
             route(result.project.id);
           }, "Join")));
         } else if (detail) {
-          main.append(el("h1", detail.project.name), el("p", `${detail.project.role} · ${detail.project.status} · ${detail.project.repository ?? "No repository"}`));
-          main.append(taskDetail ? attemptsPanel() : tab === "members" ? membersPanel() : ["bots", "private"].includes(tab) ? agentsPanel() : tab === "resources" ? resourcesPanel() : tab === "rooms" ? roomsPanel() : tab === "activity" ? activityPanel() : boardPanel());
+          const heading = el("header", null, "project-header");
+          heading.append(el("small", "Projects / " + ({ bots: "Public Chief", private: "My Project agent", rooms: "Conversations", settings: "Settings", tasks: "Task detail" }[tab] ?? tab)), el("h1", detail.project.name), el("p", `${detail.project.role} · ${detail.project.status} · ${detail.project.repository ?? "No repository"}`));
+          main.append(heading);
+          main.append(taskDetail ? attemptsPanel() : tab === "members" ? membersPanel() : ["bots", "private", "settings"].includes(tab) ? agentsPanel() : tab === "resources" ? resourcesPanel() : tab === "rooms" ? roomsPanel() : tab === "activity" ? activityPanel() : boardPanel());
         } else main.append(el("p", error ? "Project unavailable. Select another Project or refresh." : "Loading Project…"));
       }
       if (mode?.panelUrl) sidebar.append(link("Control-plane account panel", mode.panelUrl, true));
