@@ -905,3 +905,7 @@ Bots and authorized internal room history without opening raw owner routes.
 `workbench-personal.js` excludes Project carriers and retains original identities;
 room history retains membership-window filtering and async own-chat/memory reads
 reauthenticate before returning. Sends reuse channel `send` authorization.
+
+
+## Project Chief memory adapter
+`memory.js` exposes botMemoryRecall/botMemoryRemember for an already host-bound own Bot. They reuse original topic validation, entry/file limits, secret scan, replace handling, serialized writes and journal. Caller-supplied scope/Bot IDs are ignored; Project adapter derives the resident public Chief. Memory index is supplied per request and topic details are retrieved on demand; files survive SDK process release and host restart. The original DSH parts/steward implementation is unchanged.

@@ -5,6 +5,7 @@
 export const NAMESPACE = 'ds-bot'
 
 const ZH = {
+
   // Workflows settings (#1364). The page lists factory pipelines and your own graphs.
   Workflows: '工作流',
   'A workflow is a group of your Bots. Drag the flowchart to change who hands work to whom.':

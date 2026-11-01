@@ -1,10 +1,11 @@
+import { nativeAssetLoader } from './native-assets.js'
 import { createScopedConversation } from './native-source.js'
 // The shared entry uses only Project-scoped APIs. Never bootstrap from the owner roster.
 export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
   const doc = root.ownerDocument, win = doc.defaultView
   let bootstrap, mode, selected = '', tab = 'board', taskId = '', personalPart = '', detail, resources, agents, members, history, taskDetail, workflowState
   let loading, epoch = 0, controller, error = '', notice = '', timer, disposed = false, busy = false
-  let personal, personalMemory, nativeUnmount, nativeListUnmount, nativeLoading
+  let personal, personalMemory, nativeUnmount, nativeListUnmount, nativeComposerUnmount
   let conversationSource = createScopedConversation(api)
   function clearConversation() { conversationSource.dispose(); conversationSource = createScopedConversation(api) }
   async function readConversation(binding) {
@@ -228,6 +229,7 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
       const composer = el('div', null, 'composer')
       composer.append(form(`room-message-${roomView.id}`, [['text', 'Room message (@role)', 'textarea'], ['attachmentIds', 'Include registered documents', 'checkboxes', roomView.attachments.map(row => ({ value: row.id, label: row.name }))]], values => scoped('project-room-message', { roomId: roomView.id, ...values }), 'Send to room'))
       node.append(conversation, composer)
+      mountComposer(composer, (roomView.roles ?? []).map(role => ({ id: role, name: role })), roomView.attachments)
       const attachments = box('Registered documents and artifacts', el('p', 'Text documents stay in this room; raw filesystem paths and remote images are unavailable.'))
       for (const row of roomView.attachments) attachments.append(button(row.name, () => act(async () => { const captured = epoch, id = selected; const result = await scoped('project-room-attachment', { roomId: roomView.id, attachmentId: row.id }); if (captured === epoch && selected === id) notice = `${result.name}\n${result.text}` })))
       attachments.append(form(`attachment-${roomView.id}`, [['name', 'Document name'], ['text', 'Document content', 'textarea']], values => scoped('project-room-attachment', { roomId: roomView.id, ...values }), 'Register document'))
@@ -283,16 +285,7 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
     if (detail.permissions.configure) node.append(button('Create one-use Project invitation', () => act(async () => { const invite = await scoped('project-invite'); notice = `Project invitation (expires ${new Date(invite.expiresAt).toLocaleString()}): ${invite.token}` }), busy))
     return node
   }
-  function loadNative() {
-    if (win.FlyBotNativeConversation) return Promise.resolve()
-    if (!nativeLoading) nativeLoading = new Promise((resolve, reject) => {
-      const css = el('link'); css.rel = 'stylesheet'; css.href = '/workbench-native.css'; doc.head.append(css)
-      const script = el('script'); script.src = '/workbench-native.js'
-      script.onload = resolve; script.onerror = () => reject(new Error('Original conversation components could not load'))
-      doc.head.append(script)
-    })
-    return nativeLoading
-  }
+  const loadNative = nativeAssetLoader(doc, win)
   function mountPersonalList(target) {
     const captured = epoch, roster = personal
     void loadNative().then(() => {
@@ -320,11 +313,21 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
         },
       })
     }
-    if (win.FlyBotNativeConversation) win.queueMicrotask(mount)
-    else {
+    {
       transcript.append(el('p', 'Loading original conversation components…'))
       void loadNative().then(mount).catch(failure => { if (source === conversationSource && transcript.isConnected) transcript.replaceChildren(el('p', failure.message, 'error')) })
     }
+  }
+  function mountComposer(container, mentions = [], attachments = []) {
+    const source = conversationSource, captured = epoch, chat = source.chat()
+    const draftKey = `${selected}:${tab}:${taskId}:native-composer`
+    void loadNative().then(() => {
+      if (disposed || captured !== epoch || source !== conversationSource || !container.isConnected) return
+      const original = container.querySelector('textarea[name=text]')
+      const initialText = drafts.get(draftKey) ?? original?.value ?? ''
+      container.replaceChildren()
+      nativeComposerUnmount = win.FlyBotNativeConversation.mountNativeComposer(container, { chat, mentions, attachments, initialText, onDraft: text => { if (source === conversationSource) drafts.set(draftKey, text) } })
+    }).catch(failure => { if (!disposed && captured === epoch) { error = failure.message } })
   }
   function agentsPanel() {
     const privateView = tab === 'private', visibility = privateView ? 'private' : 'public'
@@ -339,6 +342,7 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
       const composer = el('div', null, 'composer')
       composer.append(form('message', [['text', 'Message', 'textarea']], values => conversationSource.chat().send(values.text), history?.busy ? 'Agent busy' : 'Send'))
       node.append(composer)
+      mountComposer(composer)
     } else { node.replaceChildren(el('h2', 'Project settings'), el('p', 'Role definitions, published memory and Chief inspection. Running Sessions retain their execution snapshots.')) }
     if (privateView) {
       node.append(el('p', `Agent mode: ${agents.delegation?.mode ?? 'safe'}. Safe mode requires approval before Task publication. Watch mode acts with your current Project permissions until revoked.`))
@@ -440,7 +444,7 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
     const terminalInputValue = doc.getElementById('runtime-terminal-input')?.value ?? ''
     if (disposed) return
     const active = doc.activeElement, focus = active?.id, start = active?.selectionStart, end = active?.selectionEnd
-    nativeUnmount?.(); nativeUnmount = undefined; nativeListUnmount?.(); nativeListUnmount = undefined
+    nativeComposerUnmount?.(); nativeComposerUnmount = undefined; nativeUnmount?.(); nativeUnmount = undefined; nativeListUnmount?.(); nativeListUnmount = undefined
     root.replaceChildren()
     const shell = el('div', null, 'shell'), sidebar = el('aside'), main = el('main')
     sidebar.append(el('h1', '✦ FlyBot'), el('small', 'SHARED PROJECT WORKSPACE'))
@@ -483,7 +487,11 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
           }
           if (history.hasMore) main.append(button('Load earlier messages', () => act(async () => { await conversationSource.loadEarlier(); history = conversationSource.getSnapshot() })))
           const transcript = el('div'); main.append(box('Original conversation', transcript)); mountConversation(transcript, personal?.bots ?? [])
-          if (!personalPart) main.append(form('personal-message', [['text', 'Message', 'textarea']], values => conversationSource.chat().send(values.text), 'Send'))
+          if (!personalPart) {
+            const composer = el('div', null, 'composer')
+            composer.append(form('personal-message', [['text', 'Message', 'textarea']], values => conversationSource.chat().send(values.text), 'Send'))
+            main.append(composer); mountComposer(composer, personal.rooms.find(room => room.id === taskId)?.members.map(id => personal.bots.find(bot => bot.id === id)).filter(Boolean) ?? personal.bots)
+          }
         }
       } else if (!selected) {
         main.append(el('h1', 'Projects'), ...bootstrap.projects.map(project => box(project.name, el('p', `${project.role} · ${project.status}`), button('Open Project', () => route(project.id)))))
@@ -522,5 +530,5 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
   }
   win.addEventListener('hashchange', changeRoute)
   render(); void start()
-  return { refresh, dispose() { clearConversation(); nativeUnmount?.(); nativeListUnmount?.(); void closeTerminal(); disposed = true; ++epoch; controller?.abort(); win.clearInterval(timer); win.removeEventListener('hashchange', changeRoute); root.replaceChildren(); drafts.clear() } }
+  return { refresh, dispose() { clearConversation(); nativeComposerUnmount?.(); nativeUnmount?.(); nativeListUnmount?.(); void closeTerminal(); disposed = true; ++epoch; controller?.abort(); win.clearInterval(timer); win.removeEventListener('hashchange', changeRoute); root.replaceChildren(); drafts.clear() } }
 }

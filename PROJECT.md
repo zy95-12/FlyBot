@@ -451,3 +451,39 @@ Task40 continuation moves native math fonts from CSP-blocked inline data URLs to
 individually loaded same-origin build assets. The stylesheet is 217104 bytes; local
 render regressions pass. Full host verification and actual shared-browser evidence
 remain pending; native composer/tool/approval integration remains unfinished.
+
+
+### Task-scoped SDK context and resident Chief memory — 2026-11-01
+Owner requires a resident Chief with durable Project memory and one logical Session per Task/role. Codex/Claude own their supported conversation persistence and automatic compaction; FlyBot does not inject a second model-history compactor. SDK role rework reuses a confirmed released Task-role cwd/thread under the same principal/resource/profile/model/persona binding, while preserving separate immutable Attempt/claim/log/test/Review evidence. Changed bindings rotate backend threads with recorded lineage. Chief memory uses the original own-Bot MEMORY.md/topics/journal, never global team or private-user memory. Context admission keeps current bounded facts and hash-bound full source archives for scoped retrieval. Backend changes are foreground work; frontend Task40/PR48 resumes through FlyBot after validation.
+
+Task40 continuation integrates trusted backend `91792c1b` into preserved candidate
+`25607404` without committing or publishing. Room-scoped messages/streaming and role
+identity are retained alongside Chief retrieval/memory and binding-checked SDK resume.
+The inherited changelog failure reproduces (6/7) and the single-entry repair passes
+(7/7). Generated patches match canonical core. Direct integration testing requires
+DSH's registered loader: plain node cannot resolve `@deepseek-ai/dsh-llm` from the
+new scheduled-task module. This is not a passing integration result. Native composer,
+tool/approval/stop/stream, personal/group interactions, CSS-load synchronization and
+actual deployed three-account/weak-network acceptance remain open.
+
+Follow-up local check used the required harness loader:
+`cd core && node --import ./test/harness-resolve.mjs --test test/project-agents.test.js test/project-harness.test.js`
+passed 40/40 on the staged merge draft. The earlier plain-node failure was a loader
+invocation error, not a missing prepared dependency. Full verify, smoke, independent
+Review and deployed acceptance are Not run for this draft.
+
+Task40 adds a CSS/JS readiness barrier (defect tests 0/2 → 2/2) and mounts the scoped
+composer from original composer.js for Project agents and personal conversations.
+The original dictation hook is reused with disposal; captured chat handles retain
+scope revocation. A base-bundle composer test fails because the capability is absent;
+current native render/client/asset checks pass 27/27. These are local draft checks,
+not host full verification, independent Review or deployed three-account acceptance.
+
+The room composer now shares that native mount and existing registered-document
+IDs, while personal groups restrict mention choices to their visible members.
+Actual native workText labels render scoped live tool names. Final focused UI
+checks pass 33/33. Full verify was attempted during editing and is not valid final
+verification; a later process-control/result request was refused by sandbox
+loopback policy. Request actual configured host verification through Tester, then
+return this partial implementation to Developer for remaining tool-result,
+approval, personal live/stop and full interaction work. Do not close Task40.

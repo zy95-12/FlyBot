@@ -338,3 +338,9 @@ Regressions cover actual API manager/member/Project boundaries, no side effects 
 refusal, immutable history, invalid/forward/duplicate/tampered refs, subsequent facts
 and both Developer/Chief admission below the unchanged cap. Live publication and
 actual execution recovery are separate acceptance evidence.
+
+
+## Resident Chief memory and context retrieval
+Chief memory index/head comes from the original resident Bot's own MEMORY.md/topic files. Scoped project_agent_context accepts memoryRequests and memoryUpdates (topic, text, replace) only for the active public Chief; SDK uses the same host contextExchange. Normal platform/delegation and Project membership checks still run. No requested Bot ID, team scope, another Project or private agent can retarget the store; private/read-only conversations cannot publish shared memory. Source references name the actual Chief request and journal preserves replaced facts. SDK instructions request short durable public facts rather than execution logs, repository rules or credentials.
+
+RoleContext retrieval mode retains the48k admission ceiling and all original requirements/persona. Recent public knowledge is inline within8k; older/large rows and oversized attached memory remain in a content-hashed immutable archive. Exact source IDs/hashes stay in evidence. Chief reads paginated index/source pages through contextRequests; command-enabled roles read only needed archive entries. Each page is6000characters, maximum4 per request. Unknown kinds/IDs, negative offsets and changed archives fail closed. This is source retrieval before execution, separate from model-history compaction. Legacy explicit checkpoint records remain valid and retained.

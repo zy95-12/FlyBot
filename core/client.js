@@ -12006,6 +12006,81 @@ function ComposerPlus({ sessionId, inputActions, useRoster, actions }) {
     ), document.body) : null
   );
 }
+function ScopedComposer({ chat, mentions = [], initialText = "", attachments = [], onDraft, onError }) {
+  const [text2, setText] = (0, import_react21.useState)(initialText);
+  const [sending, setSending] = (0, import_react21.useState)(false);
+  const pending = (0, import_react21.useRef)(false);
+  const [included, setIncluded] = (0, import_react21.useState)([]);
+  const [failure, setFailure] = (0, import_react21.useState)("");
+  const input = (0, import_react21.useRef)(null);
+  const current = (0, import_react21.useRef)(text2);
+  current.current = text2;
+  const update = (value) => {
+    setText(value);
+    onDraft?.(value);
+  };
+  const dictation = useDictation((value, final) => {
+    if (final) update(current.current + value);
+  });
+  const query = text2.match(/(?:^|\s)@([^\s@]*)$/)?.[1];
+  const rows = query === void 0 ? [] : mentions.filter((row) => row.name.toLowerCase().includes(query.toLowerCase())).slice(0, 8);
+  const send = async (event) => {
+    event.preventDefault();
+    if (pending.current || !text2.trim()) return;
+    pending.current = true;
+    setSending(true);
+    setFailure("");
+    try {
+      await chat.send(text2, included.length ? { attachmentIds: included } : void 0);
+      update("");
+      setIncluded([]);
+    } catch (error) {
+      setFailure(error.message);
+      onError?.(error);
+    } finally {
+      pending.current = false;
+      setSending(false);
+    }
+  };
+  return (0, import_react21.createElement)(
+    "form",
+    { className: "bt-scoped-composer", onSubmit: send, "data-composer-card": "" },
+    (0, import_react21.createElement)("textarea", {
+      ref: input,
+      name: "text",
+      "aria-label": t("Message"),
+      value: text2,
+      disabled: sending,
+      onInput: (event) => update(event.target.value),
+      onKeyDown: (event) => {
+        if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) send(event);
+      }
+    }),
+    attachments.length ? (0, import_react21.createElement)("fieldset", null, (0, import_react21.createElement)("legend", null, "Include registered documents"), attachments.map((row) => (0, import_react21.createElement)(
+      "label",
+      { key: row.id },
+      (0, import_react21.createElement)("input", { type: "checkbox", checked: included.includes(row.id), onChange: (event) => setIncluded((value) => event.target.checked ? [...value, row.id] : value.filter((id) => id !== row.id)) }),
+      row.name
+    ))) : null,
+    rows.length ? (0, import_react21.createElement)("div", { role: "listbox", "aria-label": t("Bots") }, rows.map((row) => (0, import_react21.createElement)("button", {
+      key: row.id,
+      type: "button",
+      role: "option",
+      onClick: () => {
+        update(text2.slice(0, text2.length - query.length) + row.name + " ");
+        input.current?.focus();
+      }
+    }, row.name))) : null,
+    (0, import_react21.createElement)("button", {
+      type: "button",
+      "aria-label": dictation.listening ? t("Stop dictation") : t("Dictate"),
+      onClick: () => dictation.listening ? dictation.stop() : dictation.start()
+    }, (0, import_react21.createElement)(MicIcon)),
+    (0, import_react21.createElement)("button", { type: "submit", disabled: sending || !text2.trim() }, t("Send")),
+    failure ? (0, import_react21.createElement)("p", { role: "alert" }, failure) : null,
+    dictation.note ? (0, import_react21.createElement)("p", { role: "status" }, dictation.note) : null
+  );
+}
 
 // src/client/at-menu.js
 var BOTS_SOURCE = "ds-bot";

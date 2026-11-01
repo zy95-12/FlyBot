@@ -1489,9 +1489,27 @@ export function install(rt) {
     }
   }
 
+  // Project adapters bind the Bot themselves; this seam never resolves team/other scopes.
+  function botMemoryRecall(botId, { topic, query } = {}) {
+    if (rt.botOf(botId) === undefined) throw new Error('That Bot is gone')
+    const parsed = topicArg(topic)
+    if (parsed.error) throw new Error(parsed.error)
+    const files = loadScope(ownScope(botId)).filter(file => parsed.topic === undefined || file.topic === parsed.topic)
+    const entries = allEntries(files)
+    return { ...memoryDigest(botId), entries: (query ? matchEntries(entries, String(query).slice(0, 200)) : entries).slice(0, 40).map(entry => ({ text: entry.text, meta: entry.meta ?? {}, topic: entry.file.topic ?? null })) }
+  }
+  function botMemoryRemember(botId, { text, topic, replace } = {}, source = {}) {
+    const bot = rt.botOf(botId)
+    if (!bot) throw new Error('That Bot is gone')
+    const clean = cleanEntry(text), problem = entryProblem(clean), parsed = topicArg(topic)
+    if (problem || parsed.error) throw new Error(problem ?? parsed.error)
+    const context = { scope: ownScope(botId), topic: parsed.topic, text: clean, meta: { source: source.reference, added: today() }, actor: { id: botId, name: bot.name }, label: 'your memory' }
+    return replace ? replaceEntry({ ...context, match: String(replace) }) : addEntry(context)
+  }
+
   Object.assign(rt, {
     memoryEnabled: true, renewMemory, archiveBotMemory, memoryEndpoint, memoryReviews,
     memoryNews: () => Object.fromEntries(news),
-    botMemoryRead, botMemoryAppend, memoryDigest,
+    botMemoryRead, botMemoryAppend, memoryDigest, botMemoryRecall, botMemoryRemember,
   })
 }

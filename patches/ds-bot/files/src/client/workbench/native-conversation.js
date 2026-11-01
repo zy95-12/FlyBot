@@ -1,6 +1,7 @@
+import { ScopedComposer } from '../composer.js'
 import { createElement as h, useSyncExternalStore } from 'react'
 import { createRoot } from 'react-dom/client'
-import { AssistantCell } from '../cells.js'
+import { AssistantCell, workText } from '../cells.js'
 import { BotMark, PersonMark } from '../mark.js'
 import { ScopedChatList, SIDEBAR_CSS } from '../sidebar.js'
 import { SHELL_CSS, CONVERSATION_CSS } from '../styles.js'
@@ -28,6 +29,8 @@ function Conversation({ source, roster, openBot, onQuote }) {
   }
   return h('div', { className: 'bt-native-conversation', role: 'log' },
     snapshot.messages.map((row, index) => reply(row, row.id ?? index)),
+    snapshot.live?.tool ? h('p', { role: 'status', 'data-native-tool': '' }, workText(snapshot.live.tool)) : null,
+    (snapshot.sessions ?? []).filter(session => session.live?.tool).map(session => h('p', { key: `tool:${session.role}`, role: 'status', 'data-native-tool': '' }, `${session.role}: ${workText(session.live.tool)}`)),
     snapshot.live?.text ? reply({ ...snapshot.live, speaker: snapshot.live.speaker ?? 'Bot' }, 'live', true) : null,
     (snapshot.sessions ?? []).filter(session => session.live?.text).map(session =>
       reply({ ...session.live, speaker: session.role }, `live:${session.role}`, true)))
@@ -51,5 +54,11 @@ export function mountNativeChatList(node, { bots = [], rooms = [], mainBotIds = 
     roomsById: Object.fromEntries(rooms.map(room => [room.id, room])),
     exchangeTurns: {}, remoteTypedTurns: {}, questions: {} }
   root.render(h(ScopedChatList, { roster, selectedId, openSession, openDetails }))
+  return () => root.unmount()
+}
+
+export function mountNativeComposer(node, options) {
+  const root = createRoot(node)
+  root.render(h(ScopedComposer, options))
   return () => root.unmount()
 }

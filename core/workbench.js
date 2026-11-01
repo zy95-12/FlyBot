@@ -18,6 +18,39 @@
     };
   }
 
+  // src/client/workbench/native-assets.js
+  function nativeAssetLoader(doc, win) {
+    let loading;
+    return () => {
+      if (loading) return loading;
+      if (win.FlyBotNativeConversation) return Promise.resolve();
+      loading = new Promise((resolve, reject) => {
+        let styled = false, scripted = false;
+        const ready = () => {
+          if (styled && scripted) resolve();
+        };
+        const css = doc.createElement("link");
+        css.rel = "stylesheet";
+        css.href = "/workbench-native.css";
+        css.onload = () => {
+          styled = true;
+          ready();
+        };
+        css.onerror = () => reject(new Error("Original conversation styles could not load"));
+        doc.head.append(css);
+        const script = doc.createElement("script");
+        script.src = "/workbench-native.js";
+        script.onload = () => {
+          scripted = true;
+          ready();
+        };
+        script.onerror = () => reject(new Error("Original conversation components could not load"));
+        doc.head.append(script);
+      });
+      return loading;
+    };
+  }
+
   // src/client/observable-source.js
   function createSource(initial) {
     let value = initial;
@@ -91,12 +124,16 @@
       chat() {
         const selected = binding, captured = generation;
         return {
-          async send(text) {
+          async send(text, options) {
             if (disposed || !selected || captured !== generation) throw new Error("Conversation handle is retired");
             if (selected.personalPart) throw new Error("Cannot send to a historical conversation part");
             if (typeof text !== "string" || !text.trim()) throw new Error("Message is empty");
             const endpoint = selected.personalId ? "personal-space" : selected.roomId ? "project-room-message" : "project-agent-message";
             const payload = selected.personalId ? { operation: "send", id: selected.personalId, text } : { ...selected, text };
+            if (options?.attachmentIds?.length) {
+              if (!selected.roomId || !Array.isArray(options.attachmentIds) || options.attachmentIds.some((id) => typeof id !== "string")) throw new Error("Attachments require a registered room document");
+              payload.attachmentIds = [...new Set(options.attachmentIds)];
+            }
             await api.call(endpoint, payload);
             if (!disposed && captured === generation) await refresh();
           }
@@ -119,7 +156,7 @@
     const doc = root.ownerDocument, win = doc.defaultView;
     let bootstrap, mode, selected = "", tab = "board", taskId = "", personalPart = "", detail, resources, agents, members, history, taskDetail, workflowState;
     let loading, epoch = 0, controller, error = "", notice = "", timer, disposed = false, busy = false;
-    let personal, personalMemory, nativeUnmount, nativeListUnmount, nativeLoading;
+    let personal, personalMemory, nativeUnmount, nativeListUnmount, nativeComposerUnmount;
     let conversationSource = createScopedConversation(api);
     function clearConversation() {
       conversationSource.dispose();
@@ -481,6 +518,7 @@
         const composer = el("div", null, "composer");
         composer.append(form(`room-message-${roomView.id}`, [["text", "Room message (@role)", "textarea"], ["attachmentIds", "Include registered documents", "checkboxes", roomView.attachments.map((row) => ({ value: row.id, label: row.name }))]], (values) => scoped("project-room-message", { roomId: roomView.id, ...values }), "Send to room"));
         node.append(conversation, composer);
+        mountComposer(composer, (roomView.roles ?? []).map((role) => ({ id: role, name: role })), roomView.attachments);
         const attachments = box("Registered documents and artifacts", el("p", "Text documents stay in this room; raw filesystem paths and remote images are unavailable."));
         for (const row of roomView.attachments) attachments.append(button(row.name, () => act(async () => {
           const captured = epoch, id = selected;
@@ -551,21 +589,7 @@ ${result.text}`;
       }), busy));
       return node;
     }
-    function loadNative() {
-      if (win.FlyBotNativeConversation) return Promise.resolve();
-      if (!nativeLoading) nativeLoading = new Promise((resolve, reject) => {
-        const css = el("link");
-        css.rel = "stylesheet";
-        css.href = "/workbench-native.css";
-        doc.head.append(css);
-        const script = el("script");
-        script.src = "/workbench-native.js";
-        script.onload = resolve;
-        script.onerror = () => reject(new Error("Original conversation components could not load"));
-        doc.head.append(script);
-      });
-      return nativeLoading;
-    }
+    const loadNative = nativeAssetLoader(doc, win);
     function mountPersonalList(target) {
       const captured = epoch, roster = personal;
       void loadNative().then(() => {
@@ -614,13 +638,29 @@ ${result.text}`;
           }
         });
       };
-      if (win.FlyBotNativeConversation) win.queueMicrotask(mount);
-      else {
+      {
         transcript.append(el("p", "Loading original conversation components…"));
         void loadNative().then(mount).catch((failure) => {
           if (source === conversationSource && transcript.isConnected) transcript.replaceChildren(el("p", failure.message, "error"));
         });
       }
+    }
+    function mountComposer(container, mentions = [], attachments = []) {
+      const source = conversationSource, captured = epoch, chat = source.chat();
+      const draftKey = `${selected}:${tab}:${taskId}:native-composer`;
+      void loadNative().then(() => {
+        if (disposed || captured !== epoch || source !== conversationSource || !container.isConnected) return;
+        const original = container.querySelector("textarea[name=text]");
+        const initialText = drafts.get(draftKey) ?? original?.value ?? "";
+        container.replaceChildren();
+        nativeComposerUnmount = win.FlyBotNativeConversation.mountNativeComposer(container, { chat, mentions, attachments, initialText, onDraft: (text) => {
+          if (source === conversationSource) drafts.set(draftKey, text);
+        } });
+      }).catch((failure) => {
+        if (!disposed && captured === epoch) {
+          error = failure.message;
+        }
+      });
     }
     function agentsPanel() {
       const privateView = tab === "private", visibility = privateView ? "private" : "public";
@@ -637,6 +677,7 @@ ${result.text}`;
         const composer = el("div", null, "composer");
         composer.append(form("message", [["text", "Message", "textarea"]], (values) => conversationSource.chat().send(values.text), history?.busy ? "Agent busy" : "Send"));
         node.append(composer);
+        mountComposer(composer);
       } else {
         node.replaceChildren(el("h2", "Project settings"), el("p", "Role definitions, published memory and Chief inspection. Running Sessions retain their execution snapshots."));
       }
@@ -750,6 +791,8 @@ ${result.text}`;
       const terminalInputValue = doc.getElementById("runtime-terminal-input")?.value ?? "";
       if (disposed) return;
       const active = doc.activeElement, focus = active?.id, start2 = active?.selectionStart, end = active?.selectionEnd;
+      nativeComposerUnmount?.();
+      nativeComposerUnmount = void 0;
       nativeUnmount?.();
       nativeUnmount = void 0;
       nativeListUnmount?.();
@@ -846,7 +889,12 @@ ${result.text}`;
             const transcript = el("div");
             main.append(box("Original conversation", transcript));
             mountConversation(transcript, personal?.bots ?? []);
-            if (!personalPart) main.append(form("personal-message", [["text", "Message", "textarea"]], (values) => conversationSource.chat().send(values.text), "Send"));
+            if (!personalPart) {
+              const composer = el("div", null, "composer");
+              composer.append(form("personal-message", [["text", "Message", "textarea"]], (values) => conversationSource.chat().send(values.text), "Send"));
+              main.append(composer);
+              mountComposer(composer, personal.rooms.find((room) => room.id === taskId)?.members.map((id) => personal.bots.find((bot2) => bot2.id === id)).filter(Boolean) ?? personal.bots);
+            }
           }
         } else if (!selected) {
           main.append(el("h1", "Projects"), ...bootstrap.projects.map((project) => box(project.name, el("p", `${project.role} · ${project.status}`), button("Open Project", () => route(project.id)))));
@@ -932,6 +980,7 @@ ${result.text}`;
     void start();
     return { refresh, dispose() {
       clearConversation();
+      nativeComposerUnmount?.();
       nativeUnmount?.();
       nativeListUnmount?.();
       void closeTerminal();

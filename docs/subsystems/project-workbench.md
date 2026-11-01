@@ -337,3 +337,22 @@ with build hashes and font extensions, never arbitrary paths or query strings.
 The existing self-only CSP remains unchanged. Generated binary assets are compared
 as bytes in build checks and mirrored by the canonical patch generator. Local
 render checks are separate from loopback host tests and deployed weak-network acceptance.
+
+Task40 continuation shares an explicit native asset loader between sidebar and
+conversation mounts. Readiness requires both same-origin JavaScript and CSS load;
+stylesheet errors never mount unstyled controls. Every asynchronous mount retains
+the existing conversation identity/epoch fence. The scoped composer is exported
+from the original `composer.js` and reuses its dictation lifecycle; the native
+conversation bundle mounts it with a captured authorized chat handle, supplied
+visible mention identities and draft callbacks. Personal and Project drafts use
+separate route keys; disposal retires sends and tears down microphone listeners.
+This is a scoped composer adaptation, not the entire DSH shell composer: original
+attachment, tool/approval and personal running-state projections remain outstanding.
+
+The room composer uses the same native mount with existing registered-document
+choices; only document IDs reach project-room-message. Private/personal sends
+reject room-document options, and retired captured handles cannot send. Mention
+choices for a personal group are limited to its supplied member roster. Live tool
+labels reuse original `cells.js` workText and only the scoped live tool name;
+arguments, private reasoning and raw SDK logs are not exposed. Tool-result cards,
+blocking approvals and personal live/stop controls still need implementation.

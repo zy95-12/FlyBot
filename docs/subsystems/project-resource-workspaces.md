@@ -86,3 +86,9 @@ exact cross-host crash resume; unknown workers require confirmed operator reconc
 M6 real-provider evidence remains valid for its exact historical executable commit; it is
 not borrowed to mark changed M7 code accepted. See docs/m7-acceptance.md for the current
 replay commands and explicit validation boundary.
+
+
+## Rework workspace continuity
+SDK Task-role aliases may retain their confirmed idle cwd across Attempts. A new immutable Workspace record names reusesWorkspaceId and original storageAttemptId, while the former record becomes retained. Cross-resource checkout still imports only sealed Git objects and reset/clean remains candidate-bound. Cleanup validates against the original storageAttemptId path and never removes a path another allocated alias uses. Configuration/root/repository changes do not reuse an old path or backend binding.
+
+An unsealed same-base Developer draft may also be retained after confirmed exit; it is explicitly marked retainedDraft and never reset to its seed. A changed sealed candidate, dirty read-only checkout, unexpected HEAD or incomplete allocation refuses reuse. Retained drafts remain unverified and subject to ordinary path/commit/test/Review gates.

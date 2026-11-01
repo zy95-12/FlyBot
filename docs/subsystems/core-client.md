@@ -444,3 +444,10 @@ The lazy bundle is regenerated with the main client when these shared components
 ## Shared native stylesheet
 
 Sidebar rules live in sidebar-styles.js with their motion dependency, re-exported by the original sidebar. The workbench build includes these plus original shell/conversation rules in workbench-native.css; shared CSP does not require inline style injection. Original client build still consumes the same canonical rules.
+
+Task40 scoped workbench composer adaptation is exported from composer.js and
+shares the original dictation lifecycle. It receives a captured scoped chat
+handle, visible mention list and registered room-document choices; it never
+consults the global owner roster or owner API. The workbench native entry mounts
+and unmounts it with the existing scope fences. See project-workbench.md for the
+remaining native interaction/acceptance limits.

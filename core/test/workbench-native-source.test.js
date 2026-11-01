@@ -92,3 +92,16 @@ test('an earlier personal page cannot leak after navigation or revocation', asyn
   await assert.rejects(source.loadEarlier(), /Revoked/)
   assert.deepEqual(source.getSnapshot().messages, [])
 })
+
+test('composer attaches only registered document IDs on its captured room binding', async () => {
+  const calls = []
+  const source = createScopedConversation({ async call(endpoint, payload) { calls.push({ endpoint, payload }); return { messages: [] } } })
+  await source.open({ projectId: 'p', roomId: 'r' })
+  const room = source.chat()
+  await room.send('@chief read this', { attachmentIds: ['document-1', 'document-1'] })
+  assert.deepEqual(calls.at(-2), { endpoint: 'project-room-message', payload: { projectId: 'p', roomId: 'r', text: '@chief read this', attachmentIds: ['document-1'] } })
+  await source.open({ projectId: 'p', visibility: 'private' })
+  await assert.rejects(source.chat().send('wrong scope', { attachmentIds: ['document-1'] }), /registered room/)
+  await assert.rejects(room.send('retired room', { attachmentIds: ['document-1'] }), /retired/)
+  source.dispose()
+})

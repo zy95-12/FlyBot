@@ -10,7 +10,7 @@ test('actual original reply component renders scoped Markdown and unmounts on di
   const bundle = await readFile(join(import.meta.dirname, '../workbench-native.js'), 'utf8')
   const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost/', runScripts: 'outside-only', pretendToBeVisual: true })
   let unmount
-  const source = createScopedConversation({ async call() { return { sessions: [{ role: 'developer', live: { text: '**Developer streaming**' } }, { role: 'reviewer', live: { text: '**Reviewer streaming**' } }], messages: [{ speaker: 'chief', text: '**Original reply**\n\n`safe`\n\n<script>bad()</script>\n\n[bad](javascript:alert)' }] } } })
+  const source = createScopedConversation({ async call() { return { sessions: [{ role: 'developer', live: { text: '**Developer streaming**', tool: 'read_file' } }, { role: 'reviewer', live: { text: '**Reviewer streaming**' } }], messages: [{ speaker: 'chief', text: '**Original reply**\n\n`safe`\n\n<script>bad()</script>\n\n[bad](javascript:alert)' }] } } })
   try {
     dom.window.eval(bundle)
     await source.open({ projectId: 'a', visibility: 'public' })
@@ -20,6 +20,7 @@ test('actual original reply component renders scoped Markdown and unmounts on di
     assert.equal(node.querySelector('.bt-bubble strong')?.textContent, 'Original reply')
     assert.ok(node.querySelector('.bt-mark svg'))
     assert.match(node.textContent, /Developer streaming/)
+    assert.ok(node.querySelector('[data-native-tool]'), 'real scoped tool progress is visible')
     assert.match(node.textContent, /Reviewer streaming/)
     assert.equal(node.querySelector('script'), null)
     assert.equal(node.querySelector('[href^="javascript:"]'), null)
@@ -105,4 +106,32 @@ test('native math fonts are lazy same-origin assets rather than CSP-blocked data
   const fonts = [...css.matchAll(/url\((?:["'])?(\/workbench-fonts\/[^)"']+)/g)]
   assert.ok(fonts.length > 0, 'math fonts must retain same-origin sources')
   for (const [, path] of fonts) assert.ok((await readFile(join(import.meta.dirname, '..', path))).length > 0)
+})
+
+test('native scoped composer selects a visible mention, submits once and retains failed drafts', async () => {
+  const bundle = await readFile(process.env.NATIVE_COMPOSER_BUNDLE ?? join(import.meta.dirname, '../workbench-native.js'), 'utf8')
+  const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost/', runScripts: 'outside-only', pretendToBeVisual: true })
+  let unmount, rejectSend
+  const sent = [], pause = () => new Promise(resolve => setTimeout(resolve, 40))
+  try {
+    dom.window.eval(bundle)
+    const node = dom.window.document.getElementById('root')
+    unmount = dom.window.FlyBotNativeConversation.mountNativeComposer(node, {
+      initialText: 'Hello @Ch', mentions: [{ id: 'chief', name: 'Chief' }],
+      chat: { send(text) { sent.push(text); return new Promise((resolve, reject) => { rejectSend = reject }) } },
+    })
+    await pause()
+    assert.equal(node.querySelectorAll('[role=option]').length, 1)
+    node.querySelector('[role=option]').click(); await pause()
+    assert.equal(node.querySelector('textarea').value, 'Hello @Chief ')
+    node.querySelector('form').dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
+    node.querySelector('form').dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true })); await pause()
+    assert.deepEqual(sent, ['Hello @Chief '])
+    assert.equal(node.querySelector('button[type=submit]').disabled, true)
+    rejectSend(new Error('Conversation handle is retired')); await pause()
+    assert.equal(node.querySelector('textarea').value, 'Hello @Chief ')
+    assert.match(node.querySelector('[role=alert]').textContent, /retired/)
+    unmount(); unmount = null
+    assert.equal(node.textContent, '')
+  } finally { unmount?.(); dom.window.close() }
 })

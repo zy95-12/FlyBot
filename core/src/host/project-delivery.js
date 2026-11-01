@@ -11,6 +11,7 @@ import { createResourceWorkspaces, fileDigest } from './project-resource-workspa
 import { ROLE_POLICY_FILES, assembleRolePolicy, verifyRolePolicy, deliveryReviewReport, checkDevelopmentEvidence } from './project-role-policy.js'
 import { roleContext, contextHash } from './project-role-context.js'
 import { githubPublisher } from './project-github.js'
+import { taskSessionId } from './project-task-sessions.js'
 import { testFailureExcerpt } from './project-test-diagnostics.js'
 
 const exec = promisify(execFile)
@@ -71,6 +72,13 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     if (hash(text) !== tests.sha256) throw reject('Failure diagnostic log changed')
     return { sourceAttemptId: source.id, sha: tests.sha, logSha256: tests.sha256, excerpt: testFailureExcerpt(text, process.env), completeLogRetained: true, source: 'project-attempt-log; bounded host-verified diagnostic, not a passing result' }
   }
+  async function archiveForNative(context, attempt, role, suffix) {
+    if (!context.archive) return
+    const directory = join(artifacts, attempt.id)
+    await mkdir(directory, { recursive: true, mode: 0o700 })
+    context.archivePath = join(directory, `${role}-${suffix}-context.json`)
+    await writeFile(context.archivePath, JSON.stringify(context.archive), { mode: 0o600 })
+  }
   async function prepareWorkspace(attempt, workspace, settings) {
     if (!settings.workspacePrepareCommand) return
     const argv = settings.workspacePrepareCommand
@@ -125,20 +133,36 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     await mkdir(root, { recursive: true, mode: 0o700 })
     if (await realpath(root) !== root) throw reject('Delivery root must not be a symlink')
     for (const role of roles) {
-      if (attempt.workspaces[role]) continue
+      if (attempt.workspaces[role]) { if (attempt.workspaces[role].status !== 'allocated') throw reject('Workspace allocation is incomplete; reconcile before retry'); continue }
       if (attempt.cancelRequested) throw reject('Delivery was stopped')
       const lease = attempt.resourceLeases?.[role]
       const resource = lease ? rt.projectResources.requireBinding(project.id, lease) : null
       const workspaceRoot = resource?.root ?? root
-      const path = resource ? join(workspaceRoot, 'delivery', attempt.id, role) : join(root, attempt.id, role)
+      const logicalSessionId = taskSessionId(project.id, attempt.taskId, role)
+      const reusable = lease && lease.harness !== 'flybot' ? Object.values(state.projectWorkspaces ?? {}).findLast(row => row.taskSessionId === logicalSessionId && row.resourceId === lease.resourceId && row.repository === repository && row.resourceRoot === workspaceRoot && row.status === 'allocated' && row.attemptId !== attempt.id) : null
+      if (reusable) {
+        const previous = ownEntry(attempts(), reusable.attemptId)
+        const workers = Object.values(state.projectHarnessWorkers ?? {}).filter(row => row.attemptId === reusable.attemptId && row.role === role)
+        const leases = Object.values(state.projectResourceLeases ?? {}).filter(row => row.attemptId === reusable.attemptId && row.role === role)
+        if (!previous || previous.projectId !== project.id || previous.taskId !== attempt.taskId || ongoing.has(previous.status) || previous.status === 'waiting-acceptance' || workers.some(row => row.status !== 'released' || row.releaseProof?.kind !== 'sdk-stop-ack-and-process-exit') || leases.some(row => row.status !== 'released')) throw reject('Task workspace is still held by previous execution')
+        const dirty = await workspaceGit(reusable, ['status', '--porcelain'])
+        const head = await workspaceGit(reusable, ['rev-parse', 'HEAD'])
+        if (head !== (previous.candidateSha ?? previous.seedSha ?? previous.baseSha) || dirty && (role !== 'developer' || previous.candidateSha)) throw reject('Task workspace changed after its checkpoint; preserve it before reuse')
+        reusable.retainedDraft = Boolean(dirty)
+      }
+      const path = reusable?.path ?? (resource ? join(workspaceRoot, 'delivery', attempt.id, role) : join(root, attempt.id, role))
       if (!resource || resource.type === 'local') await mkdir(resource ? join(workspaceRoot, 'delivery', attempt.id) : join(root, attempt.id), { recursive: true, mode: 0o700 })
-      const workspace = { id: `workspace-${randomUUID()}`, projectId: project.id, attemptId: attempt.id, role, path, repository,
+      const workspace = { id: `workspace-${randomUUID()}`, projectId: project.id, attemptId: attempt.id, role, path, repository, taskSessionId: logicalSessionId, ...(reusable ? { reusesWorkspaceId: reusable.id, storageAttemptId: reusable.storageAttemptId ?? reusable.attemptId, retainedDraft: reusable.retainedDraft } : {}),
         kind: resource?.type === 'docker' ? 'resource-clone' : 'worktree', resourceId: lease?.resourceId ?? null, resourceRoot: workspaceRoot, ...(lease ? { resourceLease: lease } : {}), status: 'allocating', createdAt: Date.now() }
       setEntry(state.projectWorkspaces, workspace.id, workspace)
       attempt.workspaces[role] = workspace
       await rt.save() // Persist cleanup intent before git creates the worktree.
       const args = role === 'developer' ? ['worktree', 'add', '-b', attempt.branch, path, attempt.baseSha] : ['worktree', 'add', '--detach', path, attempt.baseSha]
-      if (workspace.kind === 'resource-clone') await resourceWorkspaces.allocate(workspace, attempt)
+      if (reusable) {
+        if (workspace.kind === 'worktree' && await realpath(path) !== path) throw reject('Task workspace resolves through a symlink')
+        if (role === 'developer' && workspace.kind === 'worktree') await workspaceGit(workspace, ['switch', '-c', attempt.branch])
+        reusable.status = 'retained'
+      } else if (workspace.kind === 'resource-clone') await resourceWorkspaces.allocate(workspace, attempt)
       else await git(repository, args)
       workspace.status = 'allocated'
       await rt.save()
@@ -179,7 +203,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
       attempt.agentDefinitions = definitions
       if (config.projectDispatch !== 'workflow') {
         attempt.protocol = 'project-handoff/v1'
-        attempt.workflowVersion = 'project-delivery/pools-v1'
+        attempt.workflowVersion = 'project-delivery/pools-v2'
         attempt.baseSha ??= await git(settings.path, ['rev-parse', 'HEAD'])
         attempt.roleSessions = {}; attempt.rolePolicies = {}; attempt.resourceLeases = {}
         attempt.runId = `pool-run-${randomUUID()}`
@@ -209,8 +233,9 @@ export function createProjectDelivery(rt, { publisher } = {}) {
         node.model = definition.model || model
         const policy = await repositoryRolePolicy(project.id, attempt.baseSha, node.id)
         attempt.rolePolicies[node.id] = policy
-        const context = roleContext({ policy, projectId: project.id, role: node.id, revision: definitions?.revision ?? 0, definition, memory: definition.memory,
+        const context = roleContext({ retrieval: true, policy, projectId: project.id, role: node.id, revision: definitions?.revision ?? 0, definition, memory: definition.memory,
           knowledge: ownEntry(state.projectKnowledge ?? {}, project.id) ?? [], requirement: attempt.requirement, feedback: attempt.feedback, repository })
+        if ((definition.execution?.harness ?? 'flybot') === 'flybot') await archiveForNative(context, attempt, node.id, 'workflow')
         attempt.roleSessions[node.id] = { id: `role-session-${randomUUID()}`, projectId: project.id, taskId: task.id, attemptId: attempt.id, role: node.id,
           ...(attempt.resourceLeases[node.id] ? { resourceLease: attempt.resourceLeases[node.id] } : {}),
           policy, definitionRevision: definitions?.revision ?? 0, execution: structuredClone(definition.execution), context, status: 'prepared', generation: 1, createdAt: Date.now() }
@@ -444,6 +469,9 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     if (Object.values(state.projectResourceLeases ?? {}).some(lease => lease.attemptId === attempt.id && lease.status !== 'released')) throw reject('Execution resource release has not been confirmed')
     for (const workspace of Object.values(attempt.workspaces)) {
       if (workspace.status === 'released') continue
+      if (Object.values(state.projectWorkspaces).some(row => row.id !== workspace.id && row.projectId === workspace.projectId && row.path === workspace.path && row.resourceId === workspace.resourceId && row.status === 'allocated')) {
+        workspace.status = 'released'; workspace.releasedAt = Date.now(); Object.assign(state.projectWorkspaces[workspace.id], { status: 'released', releasedAt: workspace.releasedAt }); await rt.save(); continue
+      }
       if (workspace.kind === 'resource-clone') {
         await resourceWorkspaces.cleanup(workspace)
         workspace.status = 'released'; workspace.releasedAt = Date.now()
@@ -584,13 +612,13 @@ export function createProjectDelivery(rt, { publisher } = {}) {
       await allocate(attempt, project, settings, [role])
       workspace = attempt.workspaces[role]
       if (lease) workspace.resourceLease = lease
-      if (attempt.seedSha && role === 'developer' && !attempt.candidateSha && freshWorkspace) await workspaceGit(workspace, ['reset', '--hard', attempt.seedSha])
+      if (attempt.seedSha && role === 'developer' && !attempt.candidateSha && freshWorkspace && !workspace.retainedDraft) await workspaceGit(workspace, ['reset', '--hard', attempt.seedSha])
       if (attempt.candidateSha) {
         if (workspace.kind === 'resource-clone') await resourceWorkspaces.checkout(workspace, attempt)
         else await workspaceGit(workspace, ['reset', '--hard', attempt.candidateSha])
       }
       await prepareWorkspace(attempt, workspace, settings)
-      context = roleContext({ policy, projectId: project.id, role, revision: attempt.agentDefinitions.revision, definition, memory: definition.memory, knowledge: ownEntry(state.projectKnowledge ?? {}, project.id) ?? [], requirement: attempt.requirement, feedback: attempt.feedback, projectFacts: { testFailure: await failureContext(attempt), publicationBinding: attempt.publicationBinding ?? null, integrationInstruction: attempt.publicationBinding ? 'Merge the pinned upstreamSha into the published candidate using --no-commit, resolve and stage conflicts before handoff. Host sealing retains both trusted inputs; never fabricate parents or discard backend changes.' : null, workingDraft: !attempt.candidateSha && attempt.workspaces.developer ? { kind: 'unverified-workspace-reference', resourceId: attempt.workspaces.developer.resourceId, path: attempt.workspaces.developer.resourceId === workspace.resourceId ? attempt.workspaces.developer.path : null, note: 'Unsealed source, not candidate or verification evidence. Cross-resource drafts require a sealed artifact before verification.' } : null, handoff: task.collaboration?.history.at(-1) ? { purpose: task.collaboration.history.at(-1).purpose, reason: task.collaboration.history.at(-1).reason } : null, candidateSha: attempt.candidateSha ?? null, tests: attempt.evidence.tests ? { sha: attempt.evidence.tests.sha, passed: attempt.evidence.tests.passed, sha256: attempt.evidence.tests.sha256, command: attempt.evidence.tests.command } : null, review: attempt.evidence.review ? { sha: attempt.evidence.review.sha, verdict: attempt.evidence.review.verdict, summary: attempt.evidence.review.summary } : null }, repository: await repositoryContext(project.id, attempt.baseSha) })
+      context = roleContext({ retrieval: true, policy, projectId: project.id, role, revision: attempt.agentDefinitions.revision, definition, memory: definition.memory, knowledge: ownEntry(state.projectKnowledge ?? {}, project.id) ?? [], requirement: attempt.requirement, feedback: attempt.feedback, projectFacts: { testFailure: await failureContext(attempt), publicationBinding: attempt.publicationBinding ?? null, integrationInstruction: attempt.publicationBinding ? 'Merge the pinned upstreamSha into the published candidate using --no-commit, resolve and stage conflicts before handoff. Host sealing retains both trusted inputs; never fabricate parents or discard backend changes.' : null, workingDraft: !attempt.candidateSha && attempt.workspaces.developer ? { kind: 'unverified-workspace-reference', resourceId: attempt.workspaces.developer.resourceId, path: attempt.workspaces.developer.resourceId === workspace.resourceId ? attempt.workspaces.developer.path : null, note: 'Unsealed source, not candidate or verification evidence. Cross-resource drafts require a sealed artifact before verification.' } : null, handoff: task.collaboration?.history.at(-1) ? { purpose: task.collaboration.history.at(-1).purpose, reason: task.collaboration.history.at(-1).reason } : null, candidateSha: attempt.candidateSha ?? null, tests: attempt.evidence.tests ? { sha: attempt.evidence.tests.sha, passed: attempt.evidence.tests.passed, sha256: attempt.evidence.tests.sha256, command: attempt.evidence.tests.command } : null, review: attempt.evidence.review ? { sha: attempt.evidence.review.sha, verdict: attempt.evidence.review.verdict, summary: attempt.evidence.review.summary } : null }, repository: await repositoryContext(project.id, attempt.baseSha) })
     } catch (error) {
       const registered = lease && ownEntry(state.projectResourceLeases ?? {}, lease.id)
       const unbound = registered && registered.generation === lease.generation && !registered.worker && !registered.processScope && !Object.values(state.projectHarnessWorkers ?? {}).some(row => row.leaseId === lease.id) && !Object.values(attempt.roleSessions ?? {}).some(row => row.id === sessionId)
@@ -600,7 +628,8 @@ export function createProjectDelivery(rt, { publisher } = {}) {
       throw error
     }
     attempt.rolePolicies[role] = policy
-    const session = { id: sessionId, projectId: project.id, taskId: task.id, attemptId: attempt.id, role, execution: cloneExecution(execution), policy, context, generation: claim.generation, poolClaimId: claim.id, status: 'prepared', ...(lease ? { resourceLease: lease } : {}) }
+    if ((execution.harness ?? 'flybot') === 'flybot') await archiveForNative(context, attempt, role, sessionId)
+    const session = { id: sessionId, logicalSessionId: taskSessionId(project.id, task.id, role), projectId: project.id, taskId: task.id, attemptId: attempt.id, role, execution: cloneExecution(execution), policy, context, generation: claim.generation, poolClaimId: claim.id, status: 'prepared', ...(lease ? { resourceLease: lease } : {}) }
     if (attempt.roleSessions[role]) {
       (attempt.roleSessionHistory ??= []).push(structuredClone({ ...attempt.roleSessions[role], executionEvidence: attempt.evidence.execution?.[role] ?? null }))
       if (attempt.evidence.execution) delete attempt.evidence.execution[role]
@@ -683,7 +712,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     const id = `attempt-${randomUUID()}`
     if (['running', 'waiting-acceptance'].includes(previous.status)) previous.status = 'returned'
     previous.returned = { at: Date.now(), by: claim.botId, reason }
-    const next = { id, protocol: previous.protocol, projectId: previous.projectId, taskId: task.id, requestKey: hash(`${task.projectId}\n${task.id}\n${claim.id}`), workflowVersion: previous.workflowVersion, status: 'running', initiatedBy: previous.initiatedBy, executionOwnerId: previous.executionOwnerId, baseSha: !previous.candidateSha && (force || previous.status === 'interrupted') ? await git(settingsOf(projectOf(task.projectId)).path, ['rev-parse', 'HEAD']) : previous.baseSha, seedSha: previous.candidateSha ?? previous.seedSha, ...(publicationBinding ? { publicationBinding } : {}), requirement: structuredClone(previous.requirement), feedback: { previousAttemptId: previous.id, kind: 'bot-return', reason, candidateSha: previous.candidateSha }, agentDefinitions: rt.projectAgents.deliveryDefinitions(task.projectId), roleSessions: {}, rolePolicies: {}, resourceLeases: {}, workspaces: {}, evidence: {}, createdAt: Date.now(), updatedAt: Date.now(), runId: `pool-run-${randomUUID()}` }
+    const next = { id, protocol: previous.protocol, projectId: previous.projectId, taskId: task.id, requestKey: hash(`${task.projectId}\n${task.id}\n${claim.id}`), workflowVersion: previous.protocol === 'project-handoff/v1' ? 'project-delivery/pools-v2' : previous.workflowVersion, status: 'running', initiatedBy: previous.initiatedBy, executionOwnerId: previous.executionOwnerId, baseSha: !previous.candidateSha && (force || previous.status === 'interrupted') ? await git(settingsOf(projectOf(task.projectId)).path, ['rev-parse', 'HEAD']) : previous.baseSha, seedSha: previous.candidateSha ?? previous.seedSha, ...(publicationBinding ? { publicationBinding } : {}), requirement: structuredClone(previous.requirement), feedback: { previousAttemptId: previous.id, kind: 'bot-return', reason, candidateSha: previous.candidateSha }, agentDefinitions: rt.projectAgents.deliveryDefinitions(task.projectId), roleSessions: {}, rolePolicies: {}, resourceLeases: {}, workspaces: {}, evidence: {}, createdAt: Date.now(), updatedAt: Date.now(), runId: `pool-run-${randomUUID()}` }
     previous.supersededBy = id
     setEntry(attempts(), id, next); task.deliveryAttemptId = id
     rt.bindProject({ kind: 'run', id: previous.runId, projectId: task.projectId, taskId: task.id, attemptId: previous.id, status: 'failed' })

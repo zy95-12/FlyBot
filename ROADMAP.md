@@ -281,3 +281,12 @@ Task40 font-loading repair reduces initial native CSS to 217104 bytes and preser
 self-only CSP. It does not complete rich native interaction or real three-account
 acceptance. Continue composer, tool/approval, stop/continue and weak-network validation
 after independent host checks of this candidate.
+
+
+### Resident Chief and Task-role context — 2026-11-01
+Implemented Task-role logical identity, binding-checked SDK resume across rework, retained cwd ownership/cleanup and current candidate inputs. Added original-store Chief topic-memory read/write/replace and same-thread scoped retrieval rounds, plus immutable context archives instead of re-sending unbounded history. Native DSH keeps its original parts/steward/compaction; SDK uses its own runtime compaction. Verification must include real resource-user/runtime continuation and Chief memory before claiming live delivery. Current native workflow carriers remain per execution; their logical Task identity and retrievable facts are retained, not falsely described as SDK backend threads.
+
+Task40 continues with synchronized native CSS/JS loading and a scoped composer
+exported from the original composer module, sharing dictation cleanup and captured
+chat sends. Focused regression evidence is separate from complete UI acceptance;
+rich tool/approval, personal running state and deployed browser acceptance remain open.

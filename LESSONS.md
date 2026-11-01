@@ -503,3 +503,13 @@ Seen 1×. Native math CSS embedded all font formats as data URLs, adding roughly
 1.5 MB while the shared gateway correctly allowed only same-origin fonts. Emit
 byte-preserved same-origin font assets and retain the restrictive CSP; verify the
 CSS budget, asset existence and bounded gateway paths rather than enabling data URLs.
+
+
+### 2026-11-01 — Keep memory, logical Session and execution evidence separate
+Seen 1×. A FlyBot48k role-admission cap precedes the SDK; Codex automatic compaction cannot fix inputs rejected before it starts. A1MiB event-size failure is transport, not model context. Use bounded current facts plus exact retrievable source snapshots, preserve full requirements and role rules, and let each Harness manage its own history. Task rework must not throw away its role thread/cwd; resumption requires matching Project/Task/role/principal/resource/profile/model/persona and confirmed process/lease exit. Never reuse a Developer thread for independent Review or carry a verdict across commits. Chief long-term facts reuse original own-memory topics/journal, with no private/team scope fallback.
+
+### 2026-11-01 — Script readiness does not imply native style readiness
+
+Seen 1×. A slow connection delivered native JS before its stylesheet and mounted
+unstyled controls. Await both fixed same-origin assets, test script-first ordering
+and stylesheet failure, and retain scope fences for late load callbacks.

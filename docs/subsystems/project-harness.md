@@ -1,6 +1,8 @@
 ---
 subsystem: project-harness
 owned_paths:
+  - core/src/host/project-task-sessions.js
+  - core/test/project-task-sessions.test.js
   - core/src/host/project-git-sandbox.js
   - core/test/project-git-sandbox.test.js
   - core/src/host/project-harness.js
@@ -178,3 +180,13 @@ The same resource adapter provisions local/Docker directories. Confirmed SDK exi
 precedes cleanup; changed bindings or cleanup failure retain explicit cleanup debt
 without pretending an exited process still occupies capacity. Fixed dependencies
 are provisioned by the host, rather than asking a read-only Reviewer to install them.
+
+
+## Task-role SDK continuation and scoped context
+`project-task-sessions.js` owns stable Project/Task/role logical IDs and binding checks; state.projectTaskSessions persists backend bindings through ordinary store snapshots. Worker records retain logicalSessionId, bindingKey, continuedFrom or rotationReason. Same binding resumes a thread only after prior worker stop-ack/process-exit and matching released lease. Binding includes Harness/resource/principal/cwd/profile locations/baseURL/model/persona. A changed binding starts a new backend thread under the same logical Session; no cwd or principal migration. Worker/claim/generation/log identities remain distinct. Mandatory current candidate/criteria/context are supplied on every turn; a complete unchanged policy already in the resumed thread is referenced by verified digest instead of duplicated.
+
+Codex exec/SDK retains its own automatic history compaction, with no custom compact threshold or second DSH engine. Native DSH retains original parts/steward behavior. Native per-execution carriers retain Task logical identity and source archives; this does not claim persistent native-carrier reuse across Attempts.
+
+Public SDK Chief can return bounded contextRequests/memoryRequests; host revalidates current delegation and scope, returns bounded results, and continues the same worker/thread before final judgement. At most4 retrieval continuations; original execution deadline remains. Final memoryUpdates go through original own-Bot memory; read-only handoffs cannot write. Full archive files remain private host artifacts; command-enabled SDK roles receive a copy in their own scratch directory, cleaned after confirmed exit.
+
+Conversation carriers for room Developer/Reviewer identities remain noTools/read-only just like Chief; a role label never turns an ordinary conversation into a development execution. Their optional role identity is retained in backend binding checks. Only the resident public Chief may use durable-memory exchange; room agents cannot target its write seam. Regression reproduces the old non-Chief carrier tool flag before the fix.

@@ -76,3 +76,5 @@ keep it to what a reader must act on.
 - [M4 agent and credential scopes](2026-10-31-m4-agent-scopes.md) — owner-authorized implementation, separate review/acceptance.
 
 - [2026-11-01: direct backend recovery before frontend dogfood](2026-11-01-direct-backend-recovery.md).
+
+- [Task-role context and resident Chief memory](2026-11-01-task-role-context.md)

@@ -44,12 +44,16 @@ export function createScopedConversation(api) {
     chat() {
       const selected = binding, captured = generation
       return {
-        async send(text) {
+        async send(text, options) {
           if (disposed || !selected || captured !== generation) throw new Error('Conversation handle is retired')
           if (selected.personalPart) throw new Error('Cannot send to a historical conversation part')
           if (typeof text !== 'string' || !text.trim()) throw new Error('Message is empty')
           const endpoint = selected.personalId ? 'personal-space' : selected.roomId ? 'project-room-message' : 'project-agent-message'
           const payload = selected.personalId ? { operation: 'send', id: selected.personalId, text } : { ...selected, text }
+          if (options?.attachmentIds?.length) {
+            if (!selected.roomId || !Array.isArray(options.attachmentIds) || options.attachmentIds.some(id => typeof id !== 'string')) throw new Error('Attachments require a registered room document')
+            payload.attachmentIds = [...new Set(options.attachmentIds)]
+          }
           await api.call(endpoint, payload)
           if (!disposed && captured === generation) await refresh()
         },
