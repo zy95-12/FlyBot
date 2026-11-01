@@ -40,6 +40,15 @@ exactly human/Project scoped. See [delegation contract](project-delegations.md).
 Repair R6 allows bound Chief coordination actors to read current Project facts
 through the same scoped repository broker and current authority validation.
 
+S4's scheduled Source adapter uses a host-only background read port, bound by an
+unforgeable in-process actor identity to the current Project/principal. It requires
+current configure rights and background principal proof before/after reads, retains
+delegation/Chief binding checks, and selects only Project automation credentials.
+Ordinary JSON flags cannot obtain it; personal reads still require their original
+human/watch authority. Browser-cookie expiry does not disable configured polling.
+Repository identity is captured by value before asynchronous credential selection,
+so a mutable Project cannot retarget an in-flight read to another repository.
+
 ## Development service (S1)
 
 The compact task execution status projection now delegates to the shared development TaskView. Its regression fixture carries actual Project/Task/Attempt/active-claim bindings instead of an unscoped worker status stub. See [service contract](project-development-service.md).

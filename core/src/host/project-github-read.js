@@ -4,11 +4,21 @@ import { resolveGithubIdentity } from './project-github.js'
 const refuse = message => Object.assign(new Error(message), { code: 'bot/forbidden' })
 const bounded = value => typeof value === 'string' ? value.slice(0, 1200) : null
 export function createProjectGithubRead(rt, { identity = resolveGithubIdentity, request = fetch } = {}) {
-  return async function read(body, actor) {
-    const project = rt.requireProjectAccess(actor, String(body.projectId ?? ''))
+  const backgroundActors = new WeakMap()
+  async function validActor(actor, project) {
+    const binding = backgroundActors.get(actor)
+    if (!binding) return rt.validateHumanActor ? rt.validateHumanActor(actor) : rt.validatePlatformActor(actor)
+    if (binding.projectId !== project.id || binding.memberId !== actor.memberId || !rt.projectDelegations?.background) throw refuse('Background Project principal proof is unavailable')
+    rt.requireProjectAccess(actor, project.id, 'configure')
+    await rt.projectDelegations.background(actor.memberId, actor.sessionId)
+    rt.requireProjectAccess(actor, project.id, 'configure')
+    return true
+  }
+  async function read(body, actor) {
+    const project = { ...rt.requireProjectAccess(actor, String(body.projectId ?? '')) }
     if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(project.repository ?? '')) throw refuse('Project repository is unavailable')
     if (body.scope !== undefined && !['personal', 'project'].includes(body.scope)) throw refuse('Unknown GitHub read scope')
-    if (rt.platformIdentityEnabled && !await (rt.validateHumanActor ? rt.validateHumanActor(actor) : rt.validatePlatformActor(actor))) throw refuse('Human platform session was revoked')
+    if ((rt.platformIdentityEnabled || backgroundActors.has(actor)) && !await validActor(actor, project)) throw refuse('Human platform session was revoked')
     const operation = body.operation ?? 'issues'
     const number = body.number
     if (!['issues', 'pulls', 'pull', 'reviews', 'checks', 'thread-events'].includes(operation) || ['pull', 'reviews', 'checks', 'thread-events'].includes(operation) && (!Number.isSafeInteger(number) || number < 1)) throw refuse('Unsupported bounded GitHub read')
@@ -21,9 +31,8 @@ export function createProjectGithubRead(rt, { identity = resolveGithubIdentity, 
     const selected = await identity(settings)
     if (selected.login.toLowerCase() !== settings.login.toLowerCase()) throw refuse('Scoped GitHub read identity mismatch')
     const validate = async () => {
-      if (rt.platformIdentityEnabled && !await (rt.validateHumanActor ? rt.validateHumanActor(actor) : rt.validatePlatformActor(actor))) throw refuse('Human platform session was revoked')
-      rt.requireProjectAccess(actor, project.id)
-      if (rt.readProject?.(project.id)?.repository && rt.readProject(project.id).repository !== project.repository) throw refuse('Project repository changed during the read')
+      if ((rt.platformIdentityEnabled || backgroundActors.has(actor)) && !await validActor(actor, project)) throw refuse('Human platform session was revoked')
+      if (rt.requireProjectAccess(actor, project.id).repository !== project.repository) throw refuse('Project repository changed during the read')
     }
     await validate()
     const get = async suffix => {
@@ -75,5 +84,12 @@ export function createProjectGithubRead(rt, { identity = resolveGithubIdentity, 
     }
     return { repository: project.repository, operation, scope, executorLogin: selected.login, at: Date.now(), limit: 20, pagination: 'bounded-first-page', data }
   }
+  read.background = async (body, actor) => {
+    if (body.scope === 'personal') throw refuse('Background Source reads require Project automation credentials')
+    const project = rt.requireProjectAccess(actor, String(body.projectId ?? ''), 'configure'), scoped = { ...actor }
+    backgroundActors.set(scoped, { projectId: project.id, memberId: actor.memberId })
+    try { return await read({ ...body, scope: 'project' }, scoped) } finally { backgroundActors.delete(scoped) }
+  }
+  return read
 }
 export function install(rt) { rt.projectGithubRead = createProjectGithubRead(rt) }

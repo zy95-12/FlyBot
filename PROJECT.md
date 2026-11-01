@@ -23,6 +23,10 @@ See [Source architecture](docs/subsystems/project-sources.md). Source tests and 
 real UID998 scoped GitHub read are recorded; complete live feedback/handoff
 acceptance remains separate until actually run.
 
+Browser-offline polling uses a host-only current-principal Project read port,
+not a browser-session bypass flag. Repository identity is captured before async
+credential lookup; in-flight changes refuse rather than borrowing another scope.
+
 S1/S2/S3 and the #60 host-seal compatibility repair are deployed together at
 e20262ed, with4384 full checks and actual three-account authorization probes.
 Original frontend Task40/PR48 resumed through Chief and sealed a new candidate;
