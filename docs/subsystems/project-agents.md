@@ -352,3 +352,10 @@ Scoped agent run/watch actions retain their existing authorization and legacy en
 ## Durable effects and outbox (S2)
 
 Personal public writes use a durable outbox when the effect host is installed. State retains immutable-body hashes/references, current human/grant provenance and verified public receipts; text remains a private0600 artifact and cookies/tokens/transient browser actors are not persisted. Background work rechecks current authority and never falls back to automation credentials. See [effect contract](project-effects.md).
+
+
+S6 live recovery also fences SDK-owned Chief delegations before asynchronous worker
+registration. Dormant native DSH turn/end events must not consume the scheduled SDK
+job during that setup window; only its fenced SDK callback may finish it. The
+regression injects that event before a worker ID exists, then requires exactly one
+completion from the actual bound callback. Native-only execution retains its events.

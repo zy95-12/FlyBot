@@ -275,7 +275,7 @@ export function createProjectAgents(rt) {
         await rt.projectResources.markStarted(lease.id, lease.generation, { kind: 'native-turn', handle: delegation.exchangeId, botId: agent.botId, sessionId: agent.sessionId })
       }
       if (visibility === 'public' && (definition.execution?.harness ?? 'flybot') !== 'flybot') {
-        delegation.started = true
+        delegation.started = true; delegation.sdkExecution = true
         await rt.projectHarness.chiefTurn({ agent, delegation, definition: structuredClone(definition), context: agent.lastRequest.context, text: room ? rooms.prompt(room, text) : text,
           onResult: result => chiefReply(agent, delegation, result) })
       } else await rt.deliver({ toId: agent.botId, sessionId: agent.sessionId, role: 'request', audience: 'user', text: room ? rooms.prompt(room, text) : text,
@@ -303,7 +303,7 @@ export function createProjectAgents(rt) {
     }
     delegation.finishChiefJob = finish
     try {
-      if ((definition.execution?.harness ?? 'flybot') !== 'flybot') { delegation.started = true; return await rt.projectHarness.chiefTurn({ agent, delegation, definition, context: snapshot, text: 'Inspect the pinned Project facts and return the bounded Chief judgement.', onResult: finish }) }
+      if ((definition.execution?.harness ?? 'flybot') !== 'flybot') { delegation.started = true; delegation.sdkExecution = true; return await rt.projectHarness.chiefTurn({ agent, delegation, definition, context: snapshot, text: 'Inspect the pinned Project facts and return the bounded Chief judgement.', onResult: finish }) }
       const bot = rt.botOf(agent.botId); bot.instructions = fullPrompt + '\n\n' + snapshot.text; bot.systemPrompt = bot.instructions
       if (definition.execution?.resourceIds?.length) {
         const lease = await rt.projectResources.reserve({ projectId, attemptId: `chief-turn-${delegation.id}`, sessionKey: delegation.id, role: 'chief', harness: 'flybot', resourceIds: definition.execution.resourceIds, maxConcurrent: 1 })
@@ -354,7 +354,7 @@ export function createProjectAgents(rt) {
     await rt.save()
     try {
       if ((definition.execution?.harness ?? 'flybot') !== 'flybot') {
-        delegation.started = true
+        delegation.started = true; delegation.sdkExecution = true
         await rt.projectHarness.chiefTurn({ agent, delegation, definition, context: snapshot, text, onResult: result => chiefReply(agent, delegation, result) })
       } else {
         if (definition.execution?.resourceIds?.length) {
@@ -582,7 +582,7 @@ export function createProjectAgents(rt) {
         if (!persistent && delegation.actor.sessionId && (!session || session.revokedAt)) delegation.revoked = true
       } catch { delegation.revoked = true }
     }
-    if (agent.lastRequest?.workerId) return // SDK Chief results use the fenced host callback, never dormant DSH events.
+    if (delegation?.sdkExecution || agent.lastRequest?.workerId) return // SDK Chief results use the fenced host callback, never dormant DSH events.
     if (event.type === 'user/message' && delegation && !delegation.revoked && event.data?.source?.exchangeId === delegation.exchangeId) { delegation.messageObserved = true; delegation.started = delegation.turnStarted === true }
     if (event.type === 'turn/start' && delegation && !delegation.revoked) { delegation.turnStarted = true; delegation.started = delegation.messageObserved === true; delegation.turn = event.data?.turn; if (agent.lastRequest) agent.lastRequest.phase = 'running' }
     if (event.type === 'tool/call' && delegation?.started && !delegation.revoked) { const live = streams.get(agent.id); if (live) live.tool = clean(event.data?.name, 100) }

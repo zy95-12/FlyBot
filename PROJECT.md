@@ -681,3 +681,10 @@ managed workspaces, first prove SDK/leases released and preserve Git HEAD/index/
 back up their untracked dependency directory outside the worktree, then prepare as
 the service UID. Preserve the original Task/PR and source-admit the current Attempt
 through the Owner API. This operator migration does not edit task state or Git code.
+
+
+S6 live recovery also fences SDK-owned Chief delegations before asynchronous worker
+registration. Dormant native DSH turn/end events must not consume the scheduled SDK
+job during that setup window; only its fenced SDK callback may finish it. The
+regression injects that event before a worker ID exists, then requires exactly one
+completion from the actual bound callback. Native-only execution retains its events.
