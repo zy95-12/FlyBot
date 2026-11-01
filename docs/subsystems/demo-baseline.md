@@ -134,3 +134,7 @@ This API acceptance is separate from browser, Claude and multi-resource acceptan
 is inferred from a Codex-only run. Routine verify remains key-free.
 
 The M6 browser fixture exercises safe-mode proposals before Task publication: the native public Chief creates an unpublished proposal, even the Project owner cannot publish another member’s proposal, and the original member approves through the actual private-agent UI. Repeated approval reuses one Task, whose requester remains the original member. A missing unapproved Task is expected authorization behavior, not a timeout to bypass. Existing role/worktree/browser checks remain required.
+
+## Development service (S1)
+
+S1 extends the existing real-DSH queue probe to call the versioned Project service, compare the same Task view through legacy detail, start through the service facade, and verify revoked membership on the new HTTP endpoint. The transport and role execution are real DSH with the deterministic model, not paid real-model acceptance. See [service contract](project-development-service.md).

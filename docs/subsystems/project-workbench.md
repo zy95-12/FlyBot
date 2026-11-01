@@ -433,3 +433,14 @@ and host authorization fences still apply to every operation. Mounted-workbench 
 cover personal, public, private and room refreshes, retained sends, cursor/focus state,
 Project changes and revocation. DOM identity assertions report booleans so a failure
 cannot recursively print a React/DOM graph and exhaust verification memory.
+
+## Development service compatibility (S1)
+
+S1 adds project-development to the restricted gateway and authenticated HTTP dispatcher. Existing UI assets remain unchanged. The old taskExecution DTO and additive taskViews derive from the service TaskView; stored native Bot existence no longer counts as active execution. Read-only hosts permit only validated query operations, not arbitrary command envelopes. See [service contract](project-development-service.md).
+
+The Task40/S1 integration retains existing scoped UI routes while legacy development
+operations enter the shared application facade. Compact resource summaries and full
+views both pass current native activity to the S1-derived status mapper. Stored Bot
+existence remains insufficient evidence of running work. Frontend retained-root,
+attachment, history and authorization contracts continue unchanged; S1's additive
+TaskView does not expose private conversation state through the compact board.

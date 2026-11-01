@@ -2,8 +2,13 @@
 
 ## Active fork roadmap — 2026-10-31
 
-Current execution order (Owner, 2026-11-01): repair and verify backend directly in
-the foreground session, then resume the existing #40 Task/PR48 through FlyBot.
+Immediate compatibility repair #57 removes the verified prior-invocation workspace
+and Session resumption blocker before continuing service #51–#55. Preserve the
+current frontend Task/Attempt/PR and unknown-exit protections.
+
+Current execution order (Owner update, 2026-11-01): keep the existing frontend
+#40 Task/PR48 autonomous while implementing backend #49–#55 directly in the
+foreground session, in separate issue worktrees and with staged verified rollout.
 Do not use FlyBot to assign backend repairs. R6 recovery covers serialized wake
 bursts, immediate persisted handoff/Chief events, original-requester queue recovery
 and receiving-workspace preparation before inference and host testing. Remaining
@@ -45,6 +50,16 @@ The 30–43 person-day estimate is provisional pending interfaces/frontend desig
 
 User explicitly authorized sequential implementation and a separate PR for every issue,
 including long-term memory, architecture and tests. Merge/deployment is separate.
+
+## Automatic development service sequence
+
+[#49](https://github.com/zy95-12/FlyBot/issues/49) tracks S1 #50 service/TaskView →
+S2 #51 durable Effects/outbox → S3 #52 input/role receipts → S4 #53 external
+Task subscriptions. S5 #54 trusted deployment/authority follows S1 and applies
+throughout; S6 #55 integrated recovery acceptance follows all five. One PR per
+implementation issue; no extra tracking-only PR. S1 PR56 has a deployed initial facade (673c741b); long-history follow-up
+b9cceb02 passed full4333 verification and awaits a safe live checkpoint.
+Independent repository review is not claimed. Original #34–#41 residuals remain.
 
 ## Historical upstream roadmap
 
@@ -312,3 +327,9 @@ Task40 refresh repair retains scoped native roots and updates props instead of
 unmounting on each poll. Bounded mounted-workbench regressions cover focus, selection,
 drafts, sends and teardown for personal/public/private/room views. Continue through
 new candidate verification and Review without borrowing earlier candidate evidence.
+
+Task40/PR48 integrates preserved frontend 0e72dc60 with operator backend b920cae8,
+including S1 and verified workspace/Session exit proofs. Compact board status
+uses the same live-activity evidence as the full S1 view. Integrated focused tests
+pass; exact sealed candidate host verification and independent Review come next.
+Actual shared-service browser/weak-network/screenshot acceptance stays outstanding.

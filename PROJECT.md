@@ -10,11 +10,20 @@ Current stage and priorities: [ROADMAP.md](ROADMAP.md). How decisions are made:
 
 ## Fork Project State — 2026-10-31
 
+### Verified supervisor exit compatibility — 2026-11-02
+
+Foreground repair #57 unifies workspace and logical Task-role resumption for
+host-confirmed SDK exit and prior systemd invocation exit. The latter must match
+the exact released worker/lease, generation, role, resource and process scope.
+Unknown exits remain blocked; no state or lock deletion is a recovery mechanism.
+Task40/PR48 retains its current Attempt and all draft/history records. Verification
+and safe-checkpoint deployment precede Chief resumption; no frontend code is edited.
+
 ### Direct backend recovery — 2026-11-01
 
 The owner requires backend repairs in the foreground Codex session; do not
-dispatch backend development through FlyBot. Existing frontend work is preserved
-and resumes through FlyBot only after backend verification. See the
+dispatch backend development through FlyBot. Existing frontend work is preserved and now continues autonomously while new
+backend service work is developed independently (owner update, 2026-11-01). See the
 [execution decision](decisions/2026-11-01-direct-backend-recovery.md).
 R6 adds coalesced event-driven dispatch, manager-controlled retry of blocked queue
 entries under the original requester, and operator-selected workspace preparation
@@ -76,6 +85,23 @@ See [baseline ownership and tests](docs/subsystems/demo-baseline.md).
   identity/history and per-Attempt temporary Session bindings. M7.2–M7.5 code is on PRs #27–#30: resource leases, SDK Harnesses, Owner setup and
   verified Git handoffs. Authenticated mixed-resource acceptance remains outstanding;
   the later owner-authorized local Codex-only run passed, as recorded below.
+
+### Automatic development service — 2026-11-01
+
+Owner approved [#49–#55](https://github.com/zy95-12/FlyBot/issues/49), sequential
+backend issue/PR delivery alongside existing frontend Task40/PR48. S1 ([PR56](https://github.com/zy95-12/FlyBot/pull/56)) implements
+one versioned service facade, legacy adapters and a shared derived TaskView;
+[contract](docs/subsystems/project-development-service.md),
+[decision](decisions/2026-11-01-development-service.md). Durable Effects, input
+receipts, external subscriptions, trusted deployment boundaries and recovery
+acceptance remain S2–S6. Source checks and staged live rollout are separate;
+healthy frontend work and native schedules must not be interrupted for deployment.
+The initial673c741b service facade was deployed at a proven idle boundary, with
+51 mixed-source UID998 checks and unchanged native UI assets. Live verification
+found the old25-Attempt detail response exceeded8MiB. Follow-up b9cceb02 preserves
+full history with paged summaries/hash-bound context retrieval: full UID1000
+Node24 verify4333 passed,0fail/skip. Its rollout waits for the restored frontend
+Task's next safe checkpoint; current source validation is not final UI acceptance.
 
 ## Historical upstream Project State
 
@@ -530,3 +556,16 @@ source, retaining input, cursor and focus; navigation/revocation still dispose t
 Mounted personal/public/private/room regressions cover retained sends and scope teardown.
 No resource limit was raised. Exact-candidate host verification, independent Review
 and deployed three-account/weak-network/screenshot acceptance remain separate gates.
+
+### Task40 S1 compatibility integration — 2026-11-02
+
+The preserved `0e72dc60` frontend is integrated with trusted operator backend
+`b920cae8` (including S1/34918fb3 and the shared verified-exit-proof repair).
+Legacy delivery/Chief/schedule/delegation requests enter the S1 facade; native
+personal/room/attachment routes and retained-root behavior remain intact. The
+compact board now supplies live native activity to the shared status mapper:
+stored Bot existence alone still cannot establish running execution. The new
+integration regression failed before that adaptation; focused integrated suites
+pass 83/83. Neither parent's prior validation is an integration PASS. Host full
+verification, independent Review and actual deployed three-account/weak-network/
+screenshot acceptance remain required. No deployment, push or PR replacement occurs.

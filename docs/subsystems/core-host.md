@@ -928,3 +928,7 @@ AttachmentStore APIs, then uses an identified native Agent message and flush. It
 not trust browser-supplied existing references. Reads require a reference recorded in
 the selected message or membership-visible group line and recheck current access.
 No raw attachment route, filesystem path or DSH owner cookie is exposed to the browser.
+
+## Development service (S1)
+
+The authenticated channel and shared-mode authorizer register project-development. Read-only replicas validate a query envelope through the service query predicate; command envelopes remain writes. Legacy endpoint shapes stay compatible. See [service contract](project-development-service.md).

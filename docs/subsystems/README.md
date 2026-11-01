@@ -56,3 +56,5 @@ Safe/watch authority and account checks: [project-delegations](project-delegatio
 
 Chief arbitration, inspection configuration and original schedule mapping:
 [project-chief-control](project-chief-control.md).
+
+Automatic development service and unified TaskView: [project-development-service](project-development-service.md).

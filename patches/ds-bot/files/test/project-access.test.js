@@ -202,6 +202,12 @@ test('board summaries retain authorized cards without full audit payloads', asyn
   assert.equal(resources.resourceLeases, undefined)
   assert.equal(resources.taskExecution[0].taskId, 'card')
   assert.equal(rt.state.tasks.card.result, 'large private audit')
+  rt.state.tasks.card.collaboration = { status: 'claimed', claim: { status: 'active', workerId: 'native-test' } }
+  rt.state.bots['native-test'] = { id: 'native-test', projectId: 'p1' }
+  rt.activityView = () => ({ 'native-test': { turn: 1 } })
+  assert.equal((await rt.workbenchEndpoint('project-resources', { projectId: 'p1', view: 'summary' }, bob)).taskExecution[0].phase, 'running')
+  rt.activityView = () => ({})
+  assert.equal((await rt.workbenchEndpoint('project-resources', { projectId: 'p1', view: 'summary' }, bob)).taskExecution[0].phase, 'starting', 'stored Bot existence is not execution evidence')
 })
 
 test('queue recovery reaches live HTTP manager checks and cannot borrow a forged body identity', async t => {
@@ -224,4 +230,25 @@ test('queue recovery reaches live HTTP manager checks and cannot borrow a forged
   assert.equal(allowed.value.queue.recoveries[0].by, 'owner-1')
   await rt.projectScheduler.wake()
   assert.equal(rt.state.projectQueue.q.status, 'waiting')
+})
+
+test('development v1 reaches HTTP authorization, preserves legacy details and refuses forged commands', async t => {
+  const rt = await setup(t)
+  const task = await rt.taskEndpoint('task-create', { botId: 'a', projectId: 'p1', title: 'Service boundary' }, alice)
+  rt.authenticate = async () => bob
+  const query = { version: 'project-development/v1', kind: 'query', name: 'task', projectId: 'p1', payload: { taskId: task.id } }
+  const result = await rt.testHttp('project-development', query)
+  assert.equal(result.ok, true, JSON.stringify(result.error))
+  assert.equal(result.value.result.task.phase, 'published')
+  assert.deepEqual(result.value.result.task.nextActions, [])
+  assert.equal((await rt.projectEndpoint('project-task-detail', { taskId: task.id }, bob)).view.taskId, task.id)
+  const wrongProject = await rt.testHttp('project-development', { ...query, projectId: 'p2' })
+  assert.equal(wrongProject.error.code, 'bot/forbidden')
+  const command = await rt.testHttp('project-development', { ...query, kind: 'command', name: 'chief.inspect', requestId: 'r', payload: { memberId: alice.memberId } })
+  assert.equal(command.error.code, 'bot/forbidden')
+  rt.readOnly = () => 'Read replica'
+  assert.equal((await rt.testHttp('project-development', query)).ok, true)
+  assert.equal((await rt.testHttp('project-development', { ...query, kind: 'command', name: 'task.run', requestId: 'r' })).error.code, 'bot/read-only')
+  rt.state.projects.p1.roles.members = []
+  assert.equal((await rt.testHttp('project-development', query)).error.code, 'bot/forbidden')
 })

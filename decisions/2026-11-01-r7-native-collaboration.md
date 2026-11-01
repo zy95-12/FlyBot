@@ -65,3 +65,9 @@ The refresh continuation preserves the existing scoped native component roots du
 same-route updates rather than rebuilding a parallel input state. Scope/source changes
 still retire components. Bounded identity assertions preserve the regression's meaning
 without recursive DOM failure output; no resource or execution permission is expanded.
+
+2026-11-02 integration combines retained frontend 0e72dc60 and trusted operator
+backend b920cae8, including S1 and the shared confirmed-exit proof repair. Merge
+resolution preserves both scoped route families and routes S1-owned legacy actions
+through the facade. The new integration needs fresh tests and independent Review;
+no earlier candidate verdict, publication or deployed-service evidence is borrowed.

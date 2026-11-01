@@ -299,6 +299,7 @@ export function install(rt) {
       const readOnly = rt.readOnly()
       const flybotRead = endpoint.startsWith('flybot/') && rt.flybotIsRead?.(endpoint.slice('flybot/'.length)) === true
       const projectRead = endpoint === 'project-workflow' && ['state', 'templates'].includes(body.operation ?? 'state')
+        || endpoint === 'project-development' && rt.projectDevelopment.isQuery(body)
       if (readOnly !== undefined && !READS.has(endpoint) && !flybotRead && !projectRead) return fail(readOnly, 'bot/read-only')
       // Actor is resolved once from the member session token; body.actorId / payload.actorId
       // grant nothing and are ignored (#48).
@@ -822,6 +823,7 @@ export function install(rt) {
         case 'project-execution-input':
         case 'project-resource-environment-check':
         case 'projects':
+        case 'project-development':
         case 'project-task-pools':
         case 'project-chief-question':
         case 'project-github-read':

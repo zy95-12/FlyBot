@@ -220,3 +220,13 @@ models hide workers bound to rooms the caller cannot read.
 Chief inspection may explicitly select one existing Task in its authorized Project. The host validates Project configuration authority and Task ownership before using the existing scoped snapshot mechanism. Other-Project/missing Tasks are rejected; unscoped inspection is unchanged. This reduces unrelated facts without dropping policy/knowledge or raising context limits.
 
 Board reads may request `project-detail {view: summary}`. The same Project/member policy runs first; the response contains Project/permissions and card fields only, omitting Task results/claim contexts and Run/Workspace history. Full detail remains unchanged.
+
+## Development service compatibility (S1)
+
+Versioned project-development requests and legacy delivery/queue/Chief/delegation endpoints now enter the shared application facade after authentication. Both retain current Project/action checks; unsupported versions, wrong operation kinds, foreign targets and stale admission preconditions are refused. Task detail adds the same derived view used by the workbench. See [service contract](project-development-service.md).
+
+Task40 room/conversation-stop routes remain in the Project-scoped fallback after the
+S1 facade has selected its owned operations. Shared-mode admission recognizes both
+vocabularies, without opening either in legacy mode or bypassing downstream member/
+action checks. The public development facade retains legacy Chief/schedule/delegation
+handlers; integration does not reinstall earlier direct handlers ahead of it.

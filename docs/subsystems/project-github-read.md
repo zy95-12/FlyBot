@@ -31,3 +31,7 @@ exactly human/Project scoped. See [delegation contract](project-delegations.md).
 
 Repair R6 allows bound Chief coordination actors to read current Project facts
 through the same scoped repository broker and current authority validation.
+
+## Development service (S1)
+
+The compact task execution status projection now delegates to the shared development TaskView. Its regression fixture carries actual Project/Task/Attempt/active-claim bindings instead of an unscoped worker status stub. See [service contract](project-development-service.md).

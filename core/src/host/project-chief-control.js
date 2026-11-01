@@ -225,5 +225,5 @@ export function createProjectChiefControl(rt) {
 }
 export function install(rt) {
   rt.projectChiefControl = createProjectChiefControl(rt)
-  rt.projectScheduledTasks.register('project-chief', { resolve: async (target, actor) => rt.projectAgents.ensurePublic(target.projectId, actor), run: work => rt.projectChiefControl.scheduled(work) })
+  rt.projectScheduledTasks.register('project-chief', { resolve: async (target, actor) => rt.projectAgents.ensurePublic(target.projectId, actor), run: work => rt.projectDevelopment.scheduled(work) })
 }

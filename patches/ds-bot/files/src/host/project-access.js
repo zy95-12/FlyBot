@@ -107,36 +107,18 @@ export function install(rt) {
   rt.projectAccessEndpoint = async (endpoint, body = {}, actor) => {
     if (!rt.sharedProjectMode()) return undefined
     if (!actor?.memberId || !ownEntry(state.members, actor.memberId)) throw refusal('Sign in first')
-    if (endpoint === 'project-chief-configure') return rt.projectChiefControl.configure(body, actor)
-    if (endpoint === 'project-chief-state') return rt.projectChiefControl.view(body.projectId, actor)
-    if (endpoint === 'project-chief-inspect') {
-      rt.requireProjectAccess(actor, body.projectId, 'configure')
-      if (typeof body.requestId !== 'string' || !/^[A-Za-z0-9_-]{1,100}$/.test(body.requestId)) throw refusal('Chief inspection needs a stable requestId')
-      const task = body.taskId === undefined ? null : ownEntry(state.tasks, String(body.taskId))
-      if (body.taskId !== undefined && (!task || task.projectId !== body.projectId)) throw refusal('Inspection Task is unavailable in this Project')
-      return { run: await rt.projectChiefControl.request(body.projectId, 'inspection', { requestId: body.requestId, requestedBy: actor.memberId, ...(task ? { blockedTaskId: task.id } : {}) }) }
-    }
-    if (endpoint === 'project-scheduled-task') return rt.projectScheduledTasks.endpoint(body, actor)
+    const development = await rt.projectDevelopment.endpoint(endpoint, body, actor)
+    if (development !== undefined) return development
     if (endpoint === 'project-rooms' || endpoint.startsWith('project-room-') || endpoint === 'project-agent-stop') return rt.projectAgents.endpoint(endpoint, body, actor)
-    if (endpoint === 'project-agent-mode') return rt.projectDelegations.mode(body, actor)
     if (endpoint === 'project-github-read') return rt.projectGithubRead(body, actor)
     if (endpoint === 'project-chief-question') return rt.projectAgents.chiefQuestion(body, actor)
     if (['project-credential-status', 'project-github-comment'].includes(endpoint)) return rt.projectCredentials.endpoint(endpoint, body, actor)
-    if (['project-agents', 'project-agent-message', 'project-agent-history', 'project-agent-memory-write', 'project-role-memory-write', 'project-agent-definition', 'project-agent-proposal-apply', 'project-knowledge-write'].includes(endpoint)) return rt.projectAgents.endpoint(endpoint, body, actor)
+    if (['project-agents', 'project-agent-message', 'project-agent-history', 'project-agent-memory-write', 'project-role-memory-write', 'project-agent-definition', 'project-knowledge-write'].includes(endpoint)) return rt.projectAgents.endpoint(endpoint, body, actor)
     if (['project-runtime-check', 'project-terminal-open', 'project-terminal-poll', 'project-terminal-input', 'project-terminal-resize', 'project-terminal-close'].includes(endpoint)) return rt.projectRuntimeSetup.endpoint(endpoint, body, actor)
-    if (endpoint === 'project-execution-input') return rt.projectHarness.input(body, actor)
     if (endpoint === 'project-resource-environment-check') {
       rt.requireProjectAccess(actor, body.projectId, 'configure')
       return rt.projectResources.probe(body.projectId, body.resourceId)
     }
-    if (endpoint === 'project-task-pools') {
-      rt.requireProjectAccess(actor, body.projectId)
-      return { pools: rt.projectAgents.deliveryDefinitions(body.projectId).roles.map(role => ({ botId: role.id, role: role.role, tasks: rt.projectPools.available(body.projectId, role.id, actor) })) }
-    }
-    if (endpoint === 'project-task-run') return rt.projectScheduler.request(body, actor)
-    if (endpoint === 'project-queue-cancel') return rt.projectScheduler.cancel(body, actor)
-    if (endpoint === 'project-queue-retry') return rt.projectScheduler.retry(body, actor)
-    if (['project-attempt-stop', 'project-attempt-log', 'project-task-run', 'project-task-detail', 'project-task-accept', 'project-task-reject', 'project-attempt-cleanup', 'project-attempt-publication-retry'].includes(endpoint)) return rt.projectDelivery.endpoint(endpoint, body, actor)
     if (endpoint === 'projects') return { projects: rt.listProjects().filter(project => rt.projectCan(actor, project.id)).map(project => safeProject(project, actor)) }
     if (endpoint === 'project-create') return undefined
     if (endpoint === 'project-join') {

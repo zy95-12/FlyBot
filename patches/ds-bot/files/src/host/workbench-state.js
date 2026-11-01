@@ -1,3 +1,4 @@
+import { taskView } from './project-development-service.js'
 import { ownEntry } from './store.js'
 import { repositoryAllowed, repositoryReadiness } from './project-repository-policy.js'
 const median = values => values.length % 2 ? values[(values.length - 1) / 2] : (values[values.length / 2 - 1] + values[values.length / 2]) / 2
@@ -12,24 +13,11 @@ export function deliveryMetrics(state, projectId, now = Date.now()) {
       meanMs: samples.length ? samples.reduce((sum, value) => sum + value, 0) / samples.length : null, medianMs: samples.length ? median(samples) : null } }
 }
 
-export function taskExecutionStatus(state, task) {
-  const queued = Object.values(state.projectQueue ?? {}).find(row => row.taskId === task.id && row.status === 'waiting')
-  const collaboration = task.collaboration
-  const worker = collaboration?.claim?.workerId
-  const sdk = worker ? state.projectHarnessWorkers?.[worker] : null
-  const activeNative = worker ? state.bots?.[worker] : null
-  const attempt = state.projectAttempts?.[task.deliveryAttemptId]
-  let phase = task.status === 'accepted' ? 'accepted' : task.status === 'cancelled' ? 'cancelled' : 'published'
-  if (['accepted', 'cancelled'].includes(task.status)) return { taskId: task.id, publication: 'published', phase, botId: collaboration?.botId ?? null, reason: null }
-  if (queued) phase = 'queued'
-  else if (['arbitration', 'chief-working'].includes(collaboration?.status)) phase = 'awaiting-chief'
-  else if (collaboration?.status === 'blocked') phase = 'blocked'
-  else if (collaboration?.status === 'queued') phase = 'queued'
-  else if (collaboration?.status === 'claimed') phase = sdk?.status === 'running' || activeNative ? 'running' : sdk?.status === 'waiting-input' ? 'awaiting-input' : 'starting'
-  else if (attempt?.status === 'waiting-acceptance') phase = 'awaiting-acceptance'
-  else if (['failed', 'interrupted'].includes(attempt?.status)) phase = 'failed'
-  else if (attempt?.status === 'running') phase = 'running'
-  return { taskId: task.id, publication: 'published', phase, botId: collaboration?.botId ?? null, reason: collaboration?.block?.reason ?? queued?.reason ?? null }
+export function taskExecutionStatus(state, task, options) {
+  const view = taskView(state, task, options)
+  // Keep the original compact DTO while all new readers share the full service view.
+  return { taskId: view.taskId, publication: view.publication, phase: view.phase,
+    botId: view.botId, reason: view.reason }
 }
 
 export function install(rt) {
@@ -46,10 +34,11 @@ export function install(rt) {
     const id = String(body.projectId ?? '')
     const project = rt.requireProjectAccess(actor, id)
     const repository = await repositoryReadiness(rt, project)
+    const activity = rt.activityView?.() ?? {}
     if (body.view === 'summary') return {
       projectId: id, quota: project.quota ?? { maxConcurrent: 2 }, activeSlots: rt.projectScheduler.slots(id), repository,
       queue: Object.values(rt.state.projectQueue ?? {}).filter(row => row.projectId === id && ['waiting', 'blocked'].includes(row.status)).map(({ id, taskId, status, reason }) => ({ id, taskId, status, reason })),
-      taskExecution: Object.values(rt.state.tasks).filter(task => task.projectId === id).map(task => taskExecutionStatus(rt.state, task)),
+      taskExecution: Object.values(rt.state.tasks).filter(task => task.projectId === id).map(task => taskExecutionStatus(rt.state, task, { activity })),
       metrics: deliveryMetrics(rt.state, id),
     }
     const workers = Object.values(rt.state.bots).filter(bot => bot.projectId === id && bot.ephemeral).map(bot => ({ id: bot.id, role: bot.role, attemptId: bot.attemptId ?? null, workspaceId: bot.workspaceId ?? null, createdAt: bot.createdAt }))
@@ -66,7 +55,8 @@ export function install(rt) {
       executionResources: rt.projectResources?.list(id, actor) ?? [],
       resourceLeases: Object.values(rt.state.projectResourceLeases ?? {}).filter(row => row.projectId === id).map(({ worker: _worker, ...row }) => structuredClone(row)),
       chief: rt.projectChiefControl?.view(id, actor) ?? null,
-      taskExecution: Object.values(rt.state.tasks).filter(task => task.projectId === id).map(task => taskExecutionStatus(rt.state, task)),
+      taskExecution: Object.values(rt.state.tasks).filter(task => task.projectId === id).map(task => taskExecutionStatus(rt.state, task, { activity })),
+      taskViews: Object.values(rt.state.tasks).filter(task => task.projectId === id).map(task => rt.projectDevelopment.view(task, actor)),
       repository, host, metrics: deliveryMetrics(rt.state, id), platformInstance: rt.platformInstance ? await rt.platformInstance(actor).catch(() => null) : null }
   }
 }
