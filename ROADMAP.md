@@ -169,3 +169,7 @@ R7 real Dev→Tester→Reviewer handoff reached a host-verified candidate and pa
 Chromium fixture. Reviewer truthfully returned INC for sandbox temporary writes.
 R6 repairs host-bound scratch allocation, explicit permissions and exit-gated cleanup;
 retry independent Review at the same candidate after environment preparation.
+
+R6 restart recovery now distinguishes a fully released, tested Chief-wait checkpoint
+from active or unknown execution, so environment upgrades can retry Review at the
+same candidate without manufacturing a new implementation Attempt.

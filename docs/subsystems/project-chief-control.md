@@ -108,3 +108,7 @@ Real Reviewer environmental INC must preserve the tested candidate and route for
 permitted verification after host provisioning, rather than discard implementation
 or manufacture a review approval. Complete fixture browser results remain separate
 from actual deployed shared-service acceptance.
+
+An already tested, fully released Chief-wait checkpoint can survive host restart
+with an audit entry. Active execution or any unknown worker/lease remains interrupted;
+this exception permits no automatic approval or fabricated progress.

@@ -66,3 +66,7 @@ Real Reviewer temporary-fixture failures require an explicit worker-owned scratc
 grant and host-prepared dependencies while the review checkout remains read-only.
 Use the existing resource and confirmed-exit lifecycle for provisioning/cleanup;
 retry the same candidate and preserve prior INC evidence.
+
+Preserve fully released, tested Chief-wait checkpoints across controlled backend
+updates, with explicit restart audit and unchanged candidate/test evidence. This
+exception excludes active claims, unknown exits, native workers and cancellation.

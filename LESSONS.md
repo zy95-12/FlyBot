@@ -338,3 +338,8 @@ success with an explicit scratch path, while source writes still failed. Bind a
 unique host-created directory per command worker, set TMPDIR/npm cache to it and
 clean only after confirmed exit. Prepare fixed dependencies outside the sandbox;
 never turn source writable or waive independent checks to compensate for provisioning.
+
+An idle tested pool waiting for Chief is not interrupted execution. Preserve that
+checkpoint only with completed Chief judgement, released Chief lease and every
+registered delivery worker/lease released, no native worker and no cancellation.
+Unknown occupancy or an active claim must retain conservative interruption.

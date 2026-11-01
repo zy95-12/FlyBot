@@ -610,3 +610,32 @@ test('a transferred unsealed implementation is a labelled draft reference, not a
   assert.equal(attempt.evidence.implementation, undefined)
   assert.notEqual(readFileSync(join(attempt.workspaces.tester.path, 'code.mjs'), 'utf8'), readFileSync(join(path, 'code.mjs'), 'utf8'))
 })
+
+test('restart preserves a tested pool checkpoint waiting for Chief only when every execution is released', async t => {
+  for (const variant of ['quiescent', 'unknown-lease', 'unknown-worker', 'active-claim']) {
+    const f = await setup(t, undefined, { pool: true }); f.rt.projectPools.connect({ validate: () => ({ ok: true }) }); await f.start('checkpoint-' + variant)
+    const a = f.attempt(), task = f.rt.state.tasks[f.task.id]
+    const roles = f.rt.projectAgents.deliveryDefinitions('p1').roles
+    await f.rt.projectDelivery.preparePoolRole(task, { id: 'dev', attemptId: a.id, generation: 1 }, roles.find(r => r.role === 'developer'))
+    writeFileSync(join(a.workspaces.developer.path, 'code.mjs'), 'export const add = (a,b) => a+b;\n')
+    await f.rt.projectDelivery.completePoolRole({ task, claim: { attemptId: a.id }, role: 'developer', outputs: {} })
+    await f.rt.projectDelivery.preparePoolRole(task, { id: 'test', attemptId: a.id, generation: 2 }, roles.find(r => r.role === 'tester'))
+    await f.rt.projectDelivery.completePoolRole({ task, claim: { attemptId: a.id }, role: 'tester', outputs: {} })
+    task.collaboration.status = 'blocked'
+    task.collaboration.claim = { botId: 'p1:chief', status: variant === 'active-claim' ? 'active' : 'waiting-human', workerId: 'chief-worker', chiefRunId: 'chief-run' }
+    f.rt.state.projectExecutions['chief-run'] = { status: 'done' }
+    f.rt.state.projectHarnessWorkers = { 'chief-worker': { status: 'released', leaseId: 'chief-lease' }, dev: { attemptId: a.id, status: variant === 'unknown-worker' ? 'unreachable' : 'released' } }
+    f.rt.state.projectResourceLeases = { 'chief-lease': { status: 'released' }, lease: { attemptId: a.id, status: variant === 'unknown-lease' ? 'unreachable' : 'released' } }
+    const sha = a.candidateSha, tests = structuredClone(a.evidence.tests)
+    const delivery = createProjectDelivery(f.rt)
+    assert.equal(delivery.recover(), true)
+    assert.equal(delivery.recover(), false)
+    if (variant === 'quiescent') {
+      assert.equal(a.status, 'running')
+      assert.equal(a.restartCheckpoints[0].kind, 'quiescent-chief-wait')
+      assert.equal(a.candidateSha, sha)
+      assert.deepEqual(a.evidence.tests, tests)
+      assert.equal(task.collaboration.claim.status, 'waiting-human')
+    } else assert.equal(a.status, 'interrupted')
+  }
+})

@@ -266,3 +266,13 @@ unverified workspace reference only on the same resource; a clean recipient
 checkout is not evidence that implementation is absent. Cross-resource drafts
 require sealing before they can be verified. Developer handoff requests sealing
 without asserting tests passed.
+
+## Quiescent Chief checkpoints
+
+On restart, a running pool Attempt with exact-SHA passing host tests may retain its
+candidate and evidence while blocked on Chief/human input. This requires a completed
+Chief Run, a waiting-human Chief claim, released Chief worker/lease, all recorded
+delivery workers and leases released, no native worker and no cancellation. The host
+records `quiescent-chief-wait` in restartCheckpoints. It does not execute, accept or
+create a new candidate. Active/unknown execution still becomes interrupted. Normal
+current-authority, generation, candidate and evidence checks apply before retry.

@@ -423,6 +423,20 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     let changed = false
     for (const attempt of Object.values(attempts())) {
       if (!ongoing.has(attempt.status)) continue
+      const c = taskOf(attempt.taskId)?.collaboration, claim = c?.claim
+      const chief = state.projectHarnessWorkers?.[claim?.workerId]
+      const leases = Object.values(state.projectResourceLeases ?? {}).filter(row => row.attemptId === attempt.id)
+      const workers = Object.values(state.projectHarnessWorkers ?? {}).filter(row => row.attemptId === attempt.id)
+      const native = Object.values(state.bots ?? {}).some(row => row.ephemeral && row.attemptId === attempt.id)
+      // A completed, tested pool waiting for human/Chief input is a durable
+      // checkpoint, not an in-flight command interrupted by this restart.
+      const tested = attempt.candidateSha && attempt.evidence.tests?.passed === true && attempt.evidence.tests.sha === attempt.candidateSha
+      const waiting = c?.status === 'blocked' && claim?.status === 'waiting-human' && claim.botId === `${attempt.projectId}:chief` && state.projectExecutions?.[claim.chiefRunId]?.status === 'done'
+      const released = chief?.status === 'released' && state.projectResourceLeases?.[chief.leaseId]?.status === 'released' && !native && leases.every(row => row.status === 'released') && workers.every(row => row.status === 'released')
+      if (attempt.protocol === 'project-handoff/v1' && attempt.status === 'running' && !attempt.cancelRequested && tested && waiting && released) {
+        (attempt.restartCheckpoints ??= []).push({ kind: 'quiescent-chief-wait', chiefRunId: claim.chiefRunId, candidateSha: attempt.candidateSha, at: Date.now() })
+        changed = true; continue
+      }
       attempt.status = 'interrupted'
       attempt.failure = { message: 'Host restarted before delivery completed; start a new Attempt', at: Date.now() }
       rt.taskDeliveryState?.(attempt.taskId, attempt.id, 'failed', attempt.failure.message)

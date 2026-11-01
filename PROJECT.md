@@ -301,3 +301,8 @@ Chromium/backend clicks. Independent Review was blocked by read-only temporary
 fixtures; command workers now bind a unique scratch directory and offline npm cache,
 without granting review-source writes. Cleanup follows confirmed SDK exit. Actual
 deployed three-account acceptance and independent approval remain separate.
+
+A tested pool checkpoint waiting for Chief/human input survives host restart only
+with a completed Chief Run and all registered SDK workers/leases confirmed released.
+It retains the candidate and test receipt; active claims or unknown exits still
+interrupt delivery. A checkpoint audit records the restart without inventing progress.
