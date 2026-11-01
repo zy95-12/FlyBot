@@ -534,3 +534,11 @@ Seen 1×. Treating every part selection as historical left the current Session r
 Canonicalize current-part selections and deep links to the live Bot route; older parts
 stay immutable. Native attachment-only messages also need recorded reference projection,
 not text-only filtering or arbitrary object-ID reads.
+
+### 2026-11-01 — Keep native input roots mounted across refresh
+
+Seen 1×. Rebuilding a page every poll lost browser focus, cursor and component state
+even when the draft text was restored. Update scoped native roots in place and retain
+their ancestors; replace them on scope/source changes. Test mounted identity with a
+boolean comparison: printing unequal React/DOM graphs can exhaust memory before the
+failure is reported. Keep diagnostics bounded; do not raise execution resource limits.

@@ -18,6 +18,84 @@
     };
   }
 
+  // src/client/workbench/native-islands.js
+  function createNativeIslands(root, load, onError) {
+    const active = /* @__PURE__ */ new Map();
+    let desired = /* @__PURE__ */ new Map(), disposed = false;
+    const keys = (node) => node.nodeType === 1 ? [node.dataset.nativeIsland, ...[...node.querySelectorAll("[data-native-island]")].map((child) => child.dataset.nativeIsland)].filter(Boolean) : [];
+    const release = (record) => {
+      record.retired = true;
+      const handle = record.handle;
+      record.handle = record.options = record.identity = null;
+      handle?.();
+    };
+    function reconcile(previous, next, retained) {
+      const direct = next.nodeType === 1 && retained.get(next.dataset.nativeIsland);
+      if (direct) return direct.node;
+      if (previous.nodeType !== 1 || next.nodeType !== 1 || previous.tagName !== next.tagName || !keys(next).some((key) => retained.has(key))) return next;
+      const oldChildren = [...previous.childNodes];
+      const children = [...next.childNodes].map((child) => {
+        const key = keys(child).find((value) => retained.has(value));
+        const old = key && oldChildren.find((candidate) => keys(candidate).includes(key));
+        return old ? reconcile(old, child, retained) : child;
+      });
+      for (const attribute of [...previous.attributes]) if (!next.hasAttribute(attribute.name)) previous.removeAttribute(attribute.name);
+      for (const attribute of [...next.attributes]) previous.setAttribute(attribute.name, attribute.value);
+      for (const child of oldChildren) if (!children.includes(child)) child.remove();
+      children.forEach((child, index) => {
+        if (previous.childNodes[index] !== child) previous.insertBefore(child, previous.childNodes[index] ?? null);
+      });
+      return previous;
+    }
+    return {
+      begin() {
+        desired = /* @__PURE__ */ new Map();
+      },
+      register(node, key, identity, mount, options) {
+        node.dataset.nativeIsland = key;
+        desired.set(key, { node, key, identity, mount, options });
+      },
+      commit(shell) {
+        const retained = /* @__PURE__ */ new Map();
+        for (const [key, record] of active) {
+          const next = desired.get(key);
+          if (next && next.identity === record.identity && record.node.isConnected) {
+            retained.set(key, record);
+            record.options = next.options;
+          } else {
+            release(record);
+            active.delete(key);
+          }
+        }
+        const previous = root.firstElementChild;
+        const result = previous ? reconcile(previous, shell, retained) : shell;
+        if (previous !== result) root.replaceChildren(result);
+        for (const [key, spec] of desired) {
+          const existing = retained.get(key);
+          if (existing) {
+            existing.handle?.update?.(existing.options);
+            continue;
+          }
+          const record = { ...spec, retired: false };
+          active.set(key, record);
+          void load().then(() => {
+            if (disposed || record.retired || active.get(key) !== record || !record.node.isConnected) return;
+            record.node.replaceChildren();
+            record.handle = record.mount(record.node, record.options);
+          }).catch((error) => {
+            if (!disposed && !record.retired && active.get(key) === record) onError(error, record.node);
+          });
+        }
+      },
+      dispose() {
+        disposed = true;
+        for (const record of active.values()) release(record);
+        active.clear();
+        desired.clear();
+      }
+    };
+  }
+
   // src/client/workbench/native-assets.js
   function nativeAssetLoader(doc, win) {
     let loading;
@@ -186,8 +264,7 @@
     const doc = root.ownerDocument, win = doc.defaultView;
     let bootstrap, mode, selected = "", tab = "board", taskId = "", personalPart = "", detail, resources, agents, members, history, taskDetail, workflowState;
     let loading, epoch = 0, controller, error = "", notice = "", timer, disposed = false, busy = false;
-    let personal, personalMemory, nativeUnmount, nativeListUnmount, nativeComposerUnmount;
-    let nativeControlUnmounts = [];
+    let personal, personalMemory;
     let conversationSource = createScopedConversation(api);
     function clearConversation() {
       conversationSource.dispose();
@@ -625,94 +702,71 @@ ${result.text}`;
       return node;
     }
     const loadNative = nativeAssetLoader(doc, win);
+    const nativeIslands = createNativeIslands(root, loadNative, (failure, node) => {
+      node.replaceChildren(el("p", failure.message, "error"));
+    });
+    const nativeKey = (kind) => `${bootstrap?.self.memberId ?? ""}:${selected}:${tab}:${taskId}:${personalPart}:${kind}`;
     function mountPersonalList(target) {
-      const captured = epoch, roster = personal;
-      void loadNative().then(() => {
-        if (disposed || captured !== epoch || !target.isConnected || roster !== personal) return;
-        nativeListUnmount = win.FlyBotNativeConversation.mountNativeChatList(target, {
-          ...roster,
-          selectedId: taskId,
-          openSession: (id) => {
-            win.location.hash = `/personal/${encodeURIComponent(id)}`;
-          },
-          openDetails: (id) => {
-            for (const row of root.querySelectorAll("[data-persona-id]")) if (row.dataset.personaId === id) {
-              row.open = true;
-              row.scrollIntoView?.({ block: "nearest" });
-            }
+      nativeIslands.register(target, nativeKey("list"), conversationSource, (node, options) => win.FlyBotNativeConversation.mountNativeChatList(node, options), {
+        ...personal,
+        selectedId: taskId,
+        openSession: (id) => {
+          win.location.hash = `/personal/${encodeURIComponent(id)}`;
+        },
+        openDetails: (id) => {
+          for (const row of root.querySelectorAll("[data-persona-id]")) if (row.dataset.personaId === id) {
+            row.open = true;
+            row.scrollIntoView?.({ block: "nearest" });
           }
-        });
-      }).catch((error2) => {
-        if (!disposed && captured === epoch && target.isConnected) target.replaceChildren(el("p", error2.message, "error"));
+        }
       });
     }
     function mountConversation(transcript, bots) {
-      const source = conversationSource;
-      const mount = () => {
-        if (disposed || source !== conversationSource || !transcript.isConnected) return;
-        const native = win.FlyBotNativeConversation;
-        if (!native) return;
-        transcript.replaceChildren();
-        const target = el("div");
-        transcript.append(target);
-        nativeUnmount = native.mountNativeConversation(target, {
-          source,
-          bots,
-          openBot: (id) => {
-            if (tab === "personal" && personal?.bots.some((bot) => bot.id === id)) win.location.hash = `/personal/${encodeURIComponent(id)}`;
-          },
-          onQuote: (text) => {
-            const input = root.querySelector("textarea[name=text]");
-            if (input) {
-              input.value = `> ${text.replace(/\n/g, "\n> ")}
+      transcript.append(el("p", "Loading original conversation components…"));
+      nativeIslands.register(transcript, nativeKey("conversation"), conversationSource, (node, options) => win.FlyBotNativeConversation.mountNativeConversation(node, options), {
+        source: conversationSource,
+        bots,
+        openBot: (id) => {
+          if (tab === "personal" && personal?.bots.some((bot) => bot.id === id)) win.location.hash = `/personal/${encodeURIComponent(id)}`;
+        },
+        onQuote: (text) => {
+          const input = root.querySelector("textarea[name=text]");
+          if (input) {
+            input.value = `> ${text.replace(/\n/g, "\n> ")}
 
 ` + input.value;
-              input.dispatchEvent(new win.Event("input", { bubbles: true }));
-              input.focus();
-            }
+            input.dispatchEvent(new win.Event("input", { bubbles: true }));
+            input.focus();
           }
-        });
-      };
-      {
-        transcript.append(el("p", "Loading original conversation components…"));
-        void loadNative().then(mount).catch((failure) => {
-          if (source === conversationSource && transcript.isConnected) transcript.replaceChildren(el("p", failure.message, "error"));
-        });
-      }
+        }
+      });
     }
     function mountComposer(container, mentions = [], attachments = []) {
-      const source = conversationSource, captured = epoch, chat = source.chat();
+      const source = conversationSource, chat = source.chat();
       const draftKey = `${bootstrap.self.memberId}:${selected}:${tab}:${taskId}:native-composer`;
-      void loadNative().then(() => {
-        if (disposed || captured !== epoch || source !== conversationSource || !container.isConnected) return;
-        const original = container.querySelector("textarea[name=text]");
-        const initialText = drafts.get(draftKey) ?? original?.value ?? "";
-        container.replaceChildren();
-        nativeComposerUnmount = win.FlyBotNativeConversation.mountNativeComposer(container, { chat, mentions, attachments, initialText, allowImages: tab === "personal", initialImages: drafts.get(draftKey + ":images") ?? [], onImages: (images) => {
+      nativeIslands.register(container, nativeKey("composer"), source, (node, options) => win.FlyBotNativeConversation.mountNativeComposer(node, options), {
+        chat,
+        mentions,
+        attachments,
+        initialText: drafts.get(draftKey) ?? container.querySelector("textarea[name=text]")?.value ?? "",
+        allowImages: tab === "personal",
+        initialImages: drafts.get(draftKey + ":images") ?? [],
+        onImages: (images) => {
           if (source === conversationSource) drafts.set(draftKey + ":images", images);
-        }, onDraft: (text) => {
+        },
+        onDraft: (text) => {
           if (source === conversationSource) drafts.set(draftKey, text);
-        } });
-      }).catch((failure) => {
-        if (!disposed && captured === epoch) {
-          error = failure.message;
         }
       });
     }
     function mountExecutionInput(container, worker) {
-      const captured = epoch, projectId = selected;
-      void loadNative().then(() => {
-        if (disposed || captured !== epoch || selected !== projectId || !container.isConnected) return;
-        container.replaceChildren();
-        nativeControlUnmounts.push(win.FlyBotNativeConversation.mountNativeRuntimeInput(container, {
-          worker,
-          answer: (args) => {
-            if (disposed || captured !== epoch || selected !== projectId) return Promise.reject(new Error("Execution control is retired"));
-            return scoped("project-execution-input", { workerId: worker.id, generation: worker.generation, ...args });
-          }
-        }));
-      }).catch((failure) => {
-        if (!disposed && captured === epoch) error = failure.message;
+      const source = conversationSource, projectId = selected;
+      nativeIslands.register(container, nativeKey(`execution:${worker.id}:${worker.generation}:${worker.pending?.id ?? "message"}`), conversationSource, (node, options) => win.FlyBotNativeConversation.mountNativeRuntimeInput(node, options), {
+        worker,
+        answer: (args) => {
+          if (disposed || source !== conversationSource || selected !== projectId) return Promise.reject(new Error("Execution control is retired"));
+          return scoped("project-execution-input", { workerId: worker.id, generation: worker.generation, ...args });
+        }
       });
     }
     function agentsPanel() {
@@ -850,15 +904,7 @@ ${result.text}`;
       const terminalInputValue = doc.getElementById("runtime-terminal-input")?.value ?? "";
       if (disposed) return;
       const active = doc.activeElement, focus = active?.id, start2 = active?.selectionStart, end = active?.selectionEnd;
-      for (const unmount of nativeControlUnmounts) unmount();
-      nativeControlUnmounts = [];
-      nativeComposerUnmount?.();
-      nativeComposerUnmount = void 0;
-      nativeUnmount?.();
-      nativeUnmount = void 0;
-      nativeListUnmount?.();
-      nativeListUnmount = void 0;
-      root.replaceChildren();
+      nativeIslands.begin();
       const shell = el("div", null, "shell"), sidebar = el("aside"), main = el("main");
       sidebar.append(el("h1", "✦ FlyBot"), el("small", "SHARED PROJECT WORKSPACE"));
       if (!bootstrap) {
@@ -1011,7 +1057,7 @@ ${result.text}`;
         main.append(pane);
       }
       shell.append(sidebar, main);
-      root.append(shell);
+      nativeIslands.commit(shell);
       if (focus) {
         const target = doc.getElementById(focus);
         if (target) {
@@ -1041,11 +1087,7 @@ ${result.text}`;
     void start();
     return { refresh, dispose() {
       clearConversation();
-      for (const unmount of nativeControlUnmounts) unmount();
-      nativeControlUnmounts = [];
-      nativeComposerUnmount?.();
-      nativeUnmount?.();
-      nativeListUnmount?.();
+      nativeIslands.dispose();
       void closeTerminal();
       disposed = true;
       ++epoch;

@@ -60,3 +60,8 @@ limits bound uploads/downloads rather than exposing raw DSH upload endpoints. Hu
 messages reuse original PersonMessage; current-part links return to the live route.
 This is implementation under existing scope, with independent and deployed acceptance
 still pending, not a permission expansion or completion decision.
+
+The refresh continuation preserves the existing scoped native component roots during
+same-route updates rather than rebuilding a parallel input state. Scope/source changes
+still retire components. Bounded identity assertions preserve the regression's meaning
+without recursive DOM failure output; no resource or execution permission is expanded.

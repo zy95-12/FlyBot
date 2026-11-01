@@ -521,3 +521,12 @@ The new human/attachment render test fails against the base bundle and passes on
 working build. Boundary tests cover foreign IDs, batch validation, historical reads,
 revocation during admission and late download callbacks. Final host verification,
 independent Review and real-service screenshots/weak-network acceptance remain open.
+
+Review return at `bde2cf7c` reproduced native composer remount/focus loss on same-route
+refresh. The mounted regression now uses bounded boolean DOM-identity diagnostics
+(the former object diff exhausted memory before reporting failure) and reproduces
+red at that source. Native roots now update in place within the same scoped route and
+source, retaining input, cursor and focus; navigation/revocation still dispose them.
+Mounted personal/public/private/room regressions cover retained sends and scope teardown.
+No resource limit was raised. Exact-candidate host verification, independent Review
+and deployed three-account/weak-network/screenshot acceptance remain separate gates.

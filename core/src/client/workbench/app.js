@@ -1,3 +1,4 @@
+import { createNativeIslands } from './native-islands.js'
 import { nativeAssetLoader } from './native-assets.js'
 import { createScopedConversation } from './native-source.js'
 // The shared entry uses only Project-scoped APIs. Never bootstrap from the owner roster.
@@ -5,8 +6,7 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
   const doc = root.ownerDocument, win = doc.defaultView
   let bootstrap, mode, selected = '', tab = 'board', taskId = '', personalPart = '', detail, resources, agents, members, history, taskDetail, workflowState
   let loading, epoch = 0, controller, error = '', notice = '', timer, disposed = false, busy = false
-  let personal, personalMemory, nativeUnmount, nativeListUnmount, nativeComposerUnmount
-  let nativeControlUnmounts = []
+  let personal, personalMemory
   let conversationSource = createScopedConversation(api)
   function clearConversation() { conversationSource.dispose(); conversationSource = createScopedConversation(api) }
   async function readConversation(binding) {
@@ -291,60 +291,44 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
     return node
   }
   const loadNative = nativeAssetLoader(doc, win)
+  const nativeIslands = createNativeIslands(root, loadNative, (failure, node) => { node.replaceChildren(el('p', failure.message, 'error')) })
+  const nativeKey = kind => `${bootstrap?.self.memberId ?? ''}:${selected}:${tab}:${taskId}:${personalPart}:${kind}`
   function mountPersonalList(target) {
-    const captured = epoch, roster = personal
-    void loadNative().then(() => {
-      if (disposed || captured !== epoch || !target.isConnected || roster !== personal) return
-      nativeListUnmount = win.FlyBotNativeConversation.mountNativeChatList(target, {
-        ...roster, selectedId: taskId,
-        openSession: id => { win.location.hash = `/personal/${encodeURIComponent(id)}` },
-        openDetails: id => { for (const row of root.querySelectorAll('[data-persona-id]')) if (row.dataset.personaId === id) { row.open = true; row.scrollIntoView?.({ block: 'nearest' }) } },
-      })
-    }).catch(error => { if (!disposed && captured === epoch && target.isConnected) target.replaceChildren(el('p', error.message, 'error')) })
+    nativeIslands.register(target, nativeKey('list'), conversationSource, (node, options) => win.FlyBotNativeConversation.mountNativeChatList(node, options), {
+      ...personal, selectedId: taskId,
+      openSession: id => { win.location.hash = `/personal/${encodeURIComponent(id)}` },
+      openDetails: id => { for (const row of root.querySelectorAll('[data-persona-id]')) if (row.dataset.personaId === id) { row.open = true; row.scrollIntoView?.({ block: 'nearest' }) } },
+    })
   }
   function mountConversation(transcript, bots) {
-    const source = conversationSource
-    const mount = () => {
-      if (disposed || source !== conversationSource || !transcript.isConnected) return
-      const native = win.FlyBotNativeConversation
-      if (!native) return
-      transcript.replaceChildren()
-      const target = el('div'); transcript.append(target)
-      nativeUnmount = native.mountNativeConversation(target, { source, bots,
-        openBot: id => { if (tab === 'personal' && personal?.bots.some(bot => bot.id === id)) win.location.hash = `/personal/${encodeURIComponent(id)}` },
-        onQuote: text => {
-          const input = root.querySelector('textarea[name=text]')
-          if (input) { input.value = `> ${text.replace(/\n/g, '\n> ')}\n\n` + input.value; input.dispatchEvent(new win.Event('input', { bubbles: true })); input.focus() }
-        },
-      })
-    }
-    {
-      transcript.append(el('p', 'Loading original conversation components…'))
-      void loadNative().then(mount).catch(failure => { if (source === conversationSource && transcript.isConnected) transcript.replaceChildren(el('p', failure.message, 'error')) })
-    }
+    transcript.append(el('p', 'Loading original conversation components…'))
+    nativeIslands.register(transcript, nativeKey('conversation'), conversationSource, (node, options) => win.FlyBotNativeConversation.mountNativeConversation(node, options), {
+      source: conversationSource, bots,
+      openBot: id => { if (tab === 'personal' && personal?.bots.some(bot => bot.id === id)) win.location.hash = `/personal/${encodeURIComponent(id)}` },
+      onQuote: text => {
+        const input = root.querySelector('textarea[name=text]')
+        if (input) { input.value = `> ${text.replace(/\n/g, '\n> ')}\n\n` + input.value; input.dispatchEvent(new win.Event('input', { bubbles: true })); input.focus() }
+      },
+    })
   }
   function mountComposer(container, mentions = [], attachments = []) {
-    const source = conversationSource, captured = epoch, chat = source.chat()
+    const source = conversationSource, chat = source.chat()
     const draftKey = `${bootstrap.self.memberId}:${selected}:${tab}:${taskId}:native-composer`
-    void loadNative().then(() => {
-      if (disposed || captured !== epoch || source !== conversationSource || !container.isConnected) return
-      const original = container.querySelector('textarea[name=text]')
-      const initialText = drafts.get(draftKey) ?? original?.value ?? ''
-      container.replaceChildren()
-      nativeComposerUnmount = win.FlyBotNativeConversation.mountNativeComposer(container, { chat, mentions, attachments, initialText, allowImages: tab === 'personal', initialImages: drafts.get(draftKey + ':images') ?? [], onImages: images => { if (source === conversationSource) drafts.set(draftKey + ':images', images) }, onDraft: text => { if (source === conversationSource) drafts.set(draftKey, text) } })
-    }).catch(failure => { if (!disposed && captured === epoch) { error = failure.message } })
+    nativeIslands.register(container, nativeKey('composer'), source, (node, options) => win.FlyBotNativeConversation.mountNativeComposer(node, options), {
+      chat, mentions, attachments, initialText: drafts.get(draftKey) ?? container.querySelector('textarea[name=text]')?.value ?? '',
+      allowImages: tab === 'personal', initialImages: drafts.get(draftKey + ':images') ?? [],
+      onImages: images => { if (source === conversationSource) drafts.set(draftKey + ':images', images) },
+      onDraft: text => { if (source === conversationSource) drafts.set(draftKey, text) },
+    })
   }
   function mountExecutionInput(container, worker) {
-    const captured = epoch, projectId = selected
-    void loadNative().then(() => {
-      if (disposed || captured !== epoch || selected !== projectId || !container.isConnected) return
-      container.replaceChildren()
-      nativeControlUnmounts.push(win.FlyBotNativeConversation.mountNativeRuntimeInput(container, { worker,
-        answer: args => {
-          if (disposed || captured !== epoch || selected !== projectId) return Promise.reject(new Error('Execution control is retired'))
-          return scoped('project-execution-input', { workerId: worker.id, generation: worker.generation, ...args })
-        } }))
-    }).catch(failure => { if (!disposed && captured === epoch) error = failure.message })
+    const source = conversationSource, projectId = selected
+    nativeIslands.register(container, nativeKey(`execution:${worker.id}:${worker.generation}:${worker.pending?.id ?? 'message'}`), conversationSource, (node, options) => win.FlyBotNativeConversation.mountNativeRuntimeInput(node, options), {
+      worker, answer: args => {
+        if (disposed || source !== conversationSource || selected !== projectId) return Promise.reject(new Error('Execution control is retired'))
+        return scoped('project-execution-input', { workerId: worker.id, generation: worker.generation, ...args })
+      },
+    })
   }
   function agentsPanel() {
     const privateView = tab === 'private', visibility = privateView ? 'private' : 'public'
@@ -466,9 +450,7 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
     const terminalInputValue = doc.getElementById('runtime-terminal-input')?.value ?? ''
     if (disposed) return
     const active = doc.activeElement, focus = active?.id, start = active?.selectionStart, end = active?.selectionEnd
-    for (const unmount of nativeControlUnmounts) unmount(); nativeControlUnmounts = []
-    nativeComposerUnmount?.(); nativeComposerUnmount = undefined; nativeUnmount?.(); nativeUnmount = undefined; nativeListUnmount?.(); nativeListUnmount = undefined
-    root.replaceChildren()
+    nativeIslands.begin()
     const shell = el('div', null, 'shell'), sidebar = el('aside'), main = el('main')
     sidebar.append(el('h1', '✦ FlyBot'), el('small', 'SHARED PROJECT WORKSPACE'))
     if (!bootstrap) {
@@ -542,7 +524,7 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
       }
       pane.append(button('Close and recheck configuration', () => act(closeTerminal))); main.append(pane)
     }
-    shell.append(sidebar, main); root.append(shell)
+    shell.append(sidebar, main); nativeIslands.commit(shell)
     if (focus) { const target = doc.getElementById(focus); if (target) { target.focus(); if (typeof start === 'number' && target.setSelectionRange && !['number', 'email'].includes(target.type)) target.setSelectionRange(start, end) } }
   }
   async function start() {
@@ -553,5 +535,5 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
   }
   win.addEventListener('hashchange', changeRoute)
   render(); void start()
-  return { refresh, dispose() { clearConversation(); for (const unmount of nativeControlUnmounts) unmount(); nativeControlUnmounts = []; nativeComposerUnmount?.(); nativeUnmount?.(); nativeListUnmount?.(); void closeTerminal(); disposed = true; ++epoch; controller?.abort(); win.clearInterval(timer); win.removeEventListener('hashchange', changeRoute); root.replaceChildren(); drafts.clear() } }
+  return { refresh, dispose() { clearConversation(); nativeIslands.dispose(); void closeTerminal(); disposed = true; ++epoch; controller?.abort(); win.clearInterval(timer); win.removeEventListener('hashchange', changeRoute); root.replaceChildren(); drafts.clear() } }
 }

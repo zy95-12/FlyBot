@@ -464,3 +464,10 @@ Attachment cards use original file-size formatting and the captured conversation
 handle. The composer selects native files/images, retains selection across polling,
 limits bytes before upload and clears selection only after accepted sends. Selecting
 the current part restores the canonical live route instead of leaving it read-only.
+
+Task40 native mounts expose update/unmount handles. A scoped native-root registry
+reconciles their ancestor containers without detaching the roots during data refresh.
+Changed scope/source retires them; pending lazy mounts cannot attach after retirement.
+Ordinary form nodes remain freshly constructed so handler closures reference the
+correct controls. This retains real component state rather than reconstructing a
+textarea and restoring only its value after every poll.

@@ -356,3 +356,57 @@ test('selecting or deep-linking the current personal part restores the live conv
   assert.equal(dom.window.location.hash, '#/personal/chief')
   assert.equal(calls.filter(row => row.endpoint === 'personal-space' && row.payload.operation === 'read').at(-1).payload.partId, undefined)
 })
+
+test('same-route refresh retains the mounted native composer, focus, selection and current scope', async t => {
+  let revoked = false
+  const { dom, root, app } = fixture(t, (endpoint, payload) => {
+    if (endpoint === 'personal-space' && payload.operation === 'list') return { bots: [{ id: 'chief', name: 'Original Chief', sessionId: 'current', parts: [] }], rooms: [], mainBotIds: ['chief'] }
+    if (endpoint === 'personal-space') { if (revoked) return Promise.reject(new Error('Access revoked')); return { messages: [{ id: 'reply', text: 'A reply' }] } }
+  })
+  await installNative(dom)
+  dom.window.location.hash = '/personal/chief'
+  for (let retry = 0; retry < 100 && !root.querySelector('.bt-scoped-composer textarea'); retry++) await tick()
+  const input = root.querySelector('.bt-scoped-composer textarea')
+  assert.ok(input)
+  Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, 'value').set.call(input, 'Keep typing')
+  input.dispatchEvent(new dom.window.Event('input', { bubbles: true })); await tick()
+  input.focus(); input.setSelectionRange(2, 7)
+  await app.refresh(); await tick(); await tick()
+  assert.equal(root.querySelector('.bt-scoped-composer textarea') === input, true, 'polling must update the existing native root')
+  assert.equal(dom.window.document.activeElement === input, true, 'composer must keep focus')
+  assert.equal(input.value, 'Keep typing')
+  assert.equal(input.selectionStart, 2); assert.equal(input.selectionEnd, 7)
+  revoked = true; await app.refresh(); await tick()
+  assert.equal(input.isConnected, false, 'revocation must still dispose the retained composer')
+  assert.equal(root.querySelector('.bt-scoped-composer'), null)
+})
+
+for (const view of ['bots', 'private', 'rooms/engineering']) test(`refresh retains native ${view} input and sends through the current scoped handle`, async t => {
+  const { dom, root, calls, app } = fixture(t, endpoint => {
+    if (endpoint === 'project-agent-history') return { messages: [] }
+    if (endpoint === 'project-room-read') return { id: 'engineering', name: 'Engineering', roles: ['chief'], memberIds: [], messages: [], attachments: [], sessions: [] }
+  })
+  await installNative(dom)
+  dom.window.location.hash = `/projects/a/${view}`
+  for (let retry = 0; retry < 100 && !root.querySelector('.bt-scoped-composer textarea'); retry++) await tick()
+  const input = root.querySelector('.bt-scoped-composer textarea')
+  assert.equal(Boolean(input), true, 'native input must mount')
+  input.focus()
+  Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, 'value').set.call(input, '@chief Continue this discussion')
+  input.dispatchEvent(new dom.window.Event('input', { bubbles: true })); await tick()
+  input.setSelectionRange(3, 9)
+  await app.refresh(); await tick(); await tick()
+  assert.equal(root.querySelector('.bt-scoped-composer textarea') === input, true, 'refresh retains native input identity')
+  assert.equal(dom.window.document.activeElement === input, true, 'refresh retains focus')
+  assert.equal(input.selectionStart, 3); assert.equal(input.selectionEnd, 9)
+  input.form.dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true })); await tick(); await tick()
+  const endpoint = view.startsWith('rooms') ? 'project-room-message' : 'project-agent-message'
+  const sent = calls.find(row => row.endpoint === endpoint)
+  assert.equal(Boolean(sent), true, 'retained composer still sends')
+  assert.equal(sent.payload.projectId, 'a')
+  assert.equal(sent.payload.text, '@chief Continue this discussion')
+  if (view.startsWith('rooms')) assert.equal(sent.payload.roomId, 'engineering')
+  else assert.equal(sent.payload.visibility, view === 'private' ? 'private' : 'public')
+  dom.window.location.hash = '/projects/b/board'; await tick(); await tick()
+  assert.equal(input.isConnected, false, 'changing Project disposes the retained input')
+})

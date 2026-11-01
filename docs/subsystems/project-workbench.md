@@ -416,3 +416,20 @@ and revalidates after awaits. Historical parts may read their own recorded attac
 but cannot send. Downloads are bounded to 512 KiB. Only verified raster images are
 previewed; generic files download as octet-stream. Late reads/file-selection callbacks
 cannot repopulate a retired view, and upload drafts are keyed by human and conversation.
+
+### Native refresh lifecycle
+
+Same-route data refreshes retain native conversation, composer, sidebar and runtime
+input roots in place. Native mount handles expose update alongside unmount, allowing
+fresh scoped props without resetting React state, microphone/file-selection lifetimes,
+text selection or browser focus. The DOM reconciler preserves only native roots and
+their event-free ancestor containers; ordinary forms are replaced with their own event
+closures. No focused native ancestor is detached to build the next page.
+
+Retention requires the same account/Project/route/part key and conversation-source
+identity. Navigation, logout, access failure, changed worker generation/request and
+source replacement retire the relevant roots and pending asset-load callbacks. Source
+and host authorization fences still apply to every operation. Mounted-workbench tests
+cover personal, public, private and room refreshes, retained sends, cursor/focus state,
+Project changes and revocation. DOM identity assertions report booleans so a failure
+cannot recursively print a React/DOM graph and exhaust verification memory.

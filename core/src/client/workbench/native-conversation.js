@@ -56,31 +56,37 @@ function Conversation({ source, roster, openBot, onQuote }) {
       reply({ ...session.live, speaker: session.role }, `live:${session.role}`, true)))
 }
 
-export function mountNativeConversation(node, { source, bots = [], openBot, onQuote }) {
+function mountRoot(node, options, render) {
   const root = createRoot(node)
-  // Use only explicit member-visible identities. Never consult the global roster.
-  const scopedBots = bots.map(({ id, name, role }) => ({ id, name, role }))
-  const roster = { roomsById: {}, exchangeTurns: {}, remoteTypedTurns: {}, bots: scopedBots, byId: Object.fromEntries(scopedBots.map(bot => [bot.id, bot])) }
-  root.render(h(Conversation, { source, roster, openBot, onQuote }))
-  return () => root.unmount()
+  const update = next => root.render(render(next))
+  update(options)
+  const unmount = () => root.unmount()
+  unmount.update = update
+  return unmount
+}
+
+export function mountNativeConversation(node, options) {
+  return mountRoot(node, options, ({ source, bots = [], openBot, onQuote }) => {
+    // Only explicit member-visible identities enter the original components.
+    const scopedBots = bots.map(({ id, name, role }) => ({ id, name, role }))
+    const roster = { roomsById: {}, exchangeTurns: {}, remoteTypedTurns: {}, bots: scopedBots, byId: Object.fromEntries(scopedBots.map(bot => [bot.id, bot])) }
+    return h(Conversation, { source, roster, openBot, onQuote })
+  })
 }
 export const nativeConversationCss = SHELL_CSS + CONVERSATION_CSS + SIDEBAR_CSS + MEMBER_CSS
 
-export function mountNativeChatList(node, { bots = [], rooms = [], mainBotIds = [], selectedId, openSession, openDetails }) {
-  const root = createRoot(node)
-  bots = bots.map(bot => ({ ...bot, sessionId: bot.sessionId ?? bot.id }))
-  const roster = { bots, rooms, mainBotIds, mainBotId: mainBotIds[0],
-    byId: Object.fromEntries(bots.map(bot => [bot.id, bot])),
-    roomsById: Object.fromEntries(rooms.map(room => [room.id, room])),
-    exchangeTurns: {}, remoteTypedTurns: {}, questions: {} }
-  root.render(h(ScopedChatList, { roster, selectedId, openSession, openDetails }))
-  return () => root.unmount()
+export function mountNativeChatList(node, options) {
+  return mountRoot(node, options, ({ bots = [], rooms = [], mainBotIds = [], selectedId, openSession, openDetails }) => {
+    bots = bots.map(bot => ({ ...bot, sessionId: bot.sessionId ?? bot.id }))
+    const roster = { bots, rooms, mainBotIds, mainBotId: mainBotIds[0],
+      byId: Object.fromEntries(bots.map(bot => [bot.id, bot])), roomsById: Object.fromEntries(rooms.map(room => [room.id, room])),
+      exchangeTurns: {}, remoteTypedTurns: {}, questions: {} }
+    return h(ScopedChatList, { roster, selectedId, openSession, openDetails })
+  })
 }
 
 export function mountNativeComposer(node, options) {
-  const root = createRoot(node)
-  root.render(h(ScopedComposer, options))
-  return () => root.unmount()
+  return mountRoot(node, options, props => h(ScopedComposer, props))
 }
 
 function RuntimeInput({ worker, answer }) {
@@ -95,9 +101,7 @@ function RuntimeInput({ worker, answer }) {
 }
 
 export function mountNativeRuntimeInput(node, options) {
-  const root = createRoot(node)
-  root.render(h(RuntimeInput, options))
-  return () => root.unmount()
+  return mountRoot(node, options, props => h(RuntimeInput, props))
 }
 
 function ScopedAttachments({ files, read }) {

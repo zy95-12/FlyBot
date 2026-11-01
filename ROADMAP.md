@@ -307,3 +307,8 @@ paragraphs with original person bubbles. Native file/image sends and scoped hist
 attachment reads are implemented through public DSH APIs with explicit shared-entry
 byte limits. Proceed through host verification/independent Review; operator deployed
 three-account, weak-network and screenshot evidence remains separately required.
+
+Task40 refresh repair retains scoped native roots and updates props instead of
+unmounting on each poll. Bounded mounted-workbench regressions cover focus, selection,
+drafts, sends and teardown for personal/public/private/room views. Continue through
+new candidate verification and Review without borrowing earlier candidate evidence.
