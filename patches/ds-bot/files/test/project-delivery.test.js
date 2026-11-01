@@ -1297,3 +1297,16 @@ test('failed/no-op admission saves cannot authorize an integration or invalidate
   const accepted=await integrationCall(f,'command','attempt.integration-bind',payload)
   assert.equal(f.rt.projectEffects.intentCommitted(accepted.result.admission.effect),true)
 })
+
+test('approved object availability alone cannot replace a real merge or reuse an admission for different content', async t => {
+  const f=await additionalIntegrationFixture(t,{merge:false})
+  const state=(await integrationCall(f,'query','attempt.integration-state',{})).result
+  const payload={inputs:[{ref:f.ref,sha:f.source}],generation:state.generation,expectedWorkspace:state.snapshot}
+  await integrationCall(f,'command','attempt.integration-bind',payload)
+  const before=indexBytes(f)
+  await assert.rejects(integrationCall(f,'command','attempt.integration-bind',{...payload,generation:state.generation+1}),/requestId was reused/)
+  await assert.rejects(f.rt.projectDelivery.completePoolRole({task:f.task,claim:{attemptId:f.attempt.id},role:'developer',outputs:{}}),/merge every pinned integration/)
+  assert.equal(indexBytes(f),before)
+  assert.equal(git(f.path,['rev-parse','HEAD']),f.seed)
+  assert.equal(f.attempt.candidateSha,undefined)
+})
