@@ -368,3 +368,8 @@ including S1 and verified workspace/Session exit proofs. Compact board status
 uses the same live-activity evidence as the full S1 view. Integrated focused tests
 pass; exact sealed candidate host verification and independent Review come next.
 Actual shared-service browser/weak-network/screenshot acceptance stays outstanding.
+
+
+Issue60 follow-up restores the completed-Chief deferral checkpoint discovered by
+real S4 frontend recovery. Keep all exit/lease guards and the current unsealed
+Attempt; recovery uses supported admission after a verified service checkpoint.

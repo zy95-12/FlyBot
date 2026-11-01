@@ -666,3 +666,9 @@ integration regression failed before that adaptation; focused integrated suites
 pass 83/83. Neither parent's prior validation is an integration PASS. Host full
 verification, independent Review and actual deployed three-account/weak-network/
 screenshot acceptance remain required. No deployment, push or PR replacement occurs.
+
+
+Issue60 live follow-up: a completed arbitration deferral now leaves its own Chief
+claim waiting-human instead of active. Actual released SDK/lease proof remains
+required before source admission. This fixes the observed current-Attempt operator
+checkpoint without changing Task history, source trust or workspace ownership.
