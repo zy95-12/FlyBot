@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, mkdir, writeFile, readFile, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createProjectResources } from '../src/host/project-resources.js'
-import { createProjectHarness } from '../src/host/project-harness.js'
+import { createProjectHarness, handoffFrame } from '../src/host/project-harness.js'
 
 async function fixture(t) {
   const root = await mkdtemp(join(tmpdir(), 'flybot-harness-contract-'))
@@ -92,4 +92,28 @@ test('missing SDK bridge is an environment failure with no inference or leaked r
   rt.config.projectResources.r.runtimeDir = join(rt.home, 'missing-runtime')
   await assert.rejects(harness.spawn({ executionProjectId: 'p', executionWorkDir: cwd, prompt: 'Must not be dispatched' }), /runtime exited before/)
   assert.equal(rt.projectResources.occupied('r'), 0)
+})
+
+test('a raw JSON handoff gains only its missing framing, preserving the actual model decision', () => {
+  const value = { action: 'arbitrate', reason: 'No sealed candidate is available', outputs: { tests: 'Not run' } }
+  assert.equal(handoffFrame(JSON.stringify(value), ['handoff']), 'OUTPUT handoff: ' + JSON.stringify(value))
+  assert.equal(handoffFrame('OUTPUT handoff: ' + JSON.stringify(value), ['handoff']), 'OUTPUT handoff: ' + JSON.stringify(value))
+  assert.equal(handoffFrame(JSON.stringify(value), ['tests']), JSON.stringify(value))
+  for (const text of ['Please decide for me', '{}', '{"action":"close","reason":"done"}', 'null']) assert.equal(handoffFrame(text, ['handoff']), text)
+})
+
+
+test('command workers bind distinct scratch directories and clean them only after confirmed exit', async t => {
+  const { rt, harness, cwd } = await fixture(t)
+  rt.projectDelivery.sessionFor().role = 'reviewer'
+  const id = await harness.spawn({ executionProjectId: 'p', executionWorkDir: cwd, prompt: 'Review candidate' })
+  const row = rt.state.projectHarnessWorkers[id]
+  assert.equal((await stat(row.scratchDirectory)).isDirectory(), true)
+  assert.equal((await stat(row.scratchDirectory)).mode & 0o777, 0o700)
+  assert.notEqual(row.scratchDirectory, cwd)
+  assert.ok(row.scratchDirectory.endsWith('.flybot-scratch-' + id))
+  await harness.release(id)
+  assert.ok(row.scratchCleanedAt)
+  await assert.rejects(stat(row.scratchDirectory), { code: 'ENOENT' })
+  assert.equal(row.releaseProof.kind, 'sdk-stop-ack-and-process-exit')
 })

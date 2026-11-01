@@ -38,7 +38,7 @@ async function setup(t, testCommand = [process.execPath, '--test', 'code.test.mj
   const publisher = { publish: async attempt => {
     const pr = { number: published.length + 1, sha: attempt.candidateSha, url: 'https://example.invalid/pr/1', repository: 'example/demo' }
     published.push(pr); return pr
-  }, read: async pr => ({ sha: pr.sha, state: 'open' }) }
+  }, read: async pr => ({ sha: pr.sha, state: 'open', baseRef: 'main', baseSha: git(repository, ['rev-parse', 'main']) }) }
   rt.projectDelivery = createProjectDelivery(rt, { publisher })
   let workflow
   if (sdkContract) { ctx.flybot = rt.flybot; workflow = applyWorkflow(ctx, { persist: false }).service }
@@ -275,7 +275,8 @@ test('temporary role context freezes memory, repository instructions and session
   await fixture.start('session-first')
   const first = fixture.attempt()
   const descriptor = first.roleSessions.developer
-  assert.match(descriptor.context.text, /Repository rule: verify negative inputs/)
+  assert.match(roleExecutionPrompt('Work', descriptor), /Repository rule: verify negative inputs/)
+  assert.match(descriptor.context.text, /complete-policy-reference/)
   assert.match(descriptor.context.text, /Preserve input precision/)
   assert.match(descriptor.context.text, /add\(2,3\) must equal 5/)
   assert.equal(descriptor.attemptId, first.id)
@@ -565,4 +566,285 @@ test('Chief recovery before any sealed candidate pins a fresh Attempt to the cur
   assert.equal(previous.baseSha, base)
   assert.equal(f.rt.state.projectAttempts[id].taskId, f.task.id)
   assert.equal(previous.status, 'interrupted')
+})
+
+test('Chief route resumes interrupted unsealed code only with confirmed worker release and retains failure history', async t => {
+  const f = await setup(t, undefined, { pool: true }); await f.start('resume-unsealed')
+  const previous = f.attempt(), path = join(f.directory, 'unsealed-worktree')
+  git(f.repository, ['worktree', 'add', '--detach', path, previous.baseSha])
+  writeFileSync(join(path, 'code.mjs'), 'export const add = (a,b) => a+b;\n')
+  previous.workspaces.developer = { id: 'resume-w', kind: 'worktree', status: 'allocated', repository: f.repository, path }
+  previous.status = 'interrupted'; previous.failure = { message: 'Restart while awaiting host preparation' }
+  const oldRunId = previous.runId; f.rt.state.projectExecutions[oldRunId].status = 'failed'
+  f.rt.state.projectHarnessWorkers = { stopped: { id: 'stopped', attemptId: previous.id, status: 'released' } }
+  f.rt.state.projectResourceLeases = { lease: { id: 'lease', attemptId: previous.id, status: 'released' } }
+  const id = await f.rt.projectDelivery.reworkPool({ task: f.rt.state.tasks[f.task.id], claim: { id: 'resume-claim', attemptId: previous.id, botId: 'p1:chief' }, reason: 'Git index capability repaired', force: false, decisionId: 'chief-resume' })
+  assert.equal(id, previous.id); assert.equal(previous.status, 'running')
+  assert.equal(readFileSync(join(path, 'code.mjs'), 'utf8'), 'export const add = (a,b) => a+b;\n')
+  assert.equal(previous.resumptions[0].failure.message, 'Restart while awaiting host preparation')
+  assert.equal(previous.resumptions[0].decisionId, 'chief-resume')
+  assert.notEqual(previous.runId, oldRunId); assert.equal(f.rt.state.projectExecutions[oldRunId].status, 'failed')
+  assert.equal(previous.failure, undefined)
+  previous.status = 'interrupted'; f.rt.state.projectResourceLeases.lease.status = 'unreachable'
+  f.rt.state.projectResourceLeases.lease.worker = { kind: 'sdk', handle: 'unknown-worker' }
+  f.rt.state.projectHarnessWorkers.stopped.status = 'unreachable'
+  const next = await f.rt.projectDelivery.reworkPool({ task: f.rt.state.tasks[f.task.id], claim: { id: 'unknown-exit', attemptId: previous.id, botId: 'p1:chief' }, reason: 'Unknown worker requires isolation', force: false })
+  assert.notEqual(next, previous.id, 'Unknown capacity never permits reuse of the old working directory')
+  assert.equal(f.rt.state.projectResourceLeases.lease.status, 'unreachable')
+})
+
+test('a transferred unsealed implementation is a labelled draft reference, not a missing or accepted candidate', async t => {
+  const f = await setup(t, undefined, { pool: true })
+  f.rt.projectPools.connect({ validate: () => ({ ok: true }) })
+  await f.start('draft-reference')
+  const attempt = f.attempt(), task = f.rt.state.tasks[f.task.id]
+  const defs = f.rt.projectAgents.deliveryDefinitions('p1').roles
+  const dev = defs.find(row => row.role === 'developer'), tester = defs.find(row => row.role === 'tester')
+  await f.rt.projectDelivery.preparePoolRole(task, { id: 'draft-dev', attemptId: attempt.id, generation: 1 }, dev)
+  const path = attempt.workspaces.developer.path
+  writeFileSync(join(path, 'code.mjs'), 'export const add = (a,b) => a+b;\n')
+  await f.rt.projectDelivery.preparePoolRole(task, { id: 'draft-test', attemptId: attempt.id, generation: 2 }, tester)
+  const facts = JSON.parse(attempt.roleSessions.tester.context.text.split('<untrusted-role-context>\n')[1].split('\n</untrusted-role-context>')[0]).projectFacts
+  assert.equal(facts.candidateSha, null)
+  assert.equal(facts.workingDraft.kind, 'unverified-workspace-reference')
+  assert.equal(facts.workingDraft.path, path)
+  assert.equal(attempt.evidence.implementation, undefined)
+  assert.notEqual(readFileSync(join(attempt.workspaces.tester.path, 'code.mjs'), 'utf8'), readFileSync(join(path, 'code.mjs'), 'utf8'))
+})
+
+test('restart preserves a tested pool checkpoint waiting for Chief only when every execution is released', async t => {
+  for (const variant of ['quiescent', 'unknown-lease', 'unknown-worker', 'active-claim']) {
+    const f = await setup(t, undefined, { pool: true }); f.rt.projectPools.connect({ validate: () => ({ ok: true }) }); await f.start('checkpoint-' + variant)
+    const a = f.attempt(), task = f.rt.state.tasks[f.task.id]
+    const roles = f.rt.projectAgents.deliveryDefinitions('p1').roles
+    await f.rt.projectDelivery.preparePoolRole(task, { id: 'dev', attemptId: a.id, generation: 1 }, roles.find(r => r.role === 'developer'))
+    writeFileSync(join(a.workspaces.developer.path, 'code.mjs'), 'export const add = (a,b) => a+b;\n')
+    await f.rt.projectDelivery.completePoolRole({ task, claim: { attemptId: a.id }, role: 'developer', outputs: {} })
+    await f.rt.projectDelivery.preparePoolRole(task, { id: 'test', attemptId: a.id, generation: 2 }, roles.find(r => r.role === 'tester'))
+    await f.rt.projectDelivery.completePoolRole({ task, claim: { attemptId: a.id }, role: 'tester', outputs: {} })
+    task.collaboration.status = 'blocked'
+    task.collaboration.claim = { botId: 'p1:chief', status: variant === 'active-claim' ? 'active' : 'waiting-human', workerId: 'chief-worker', chiefRunId: 'chief-run' }
+    f.rt.state.projectExecutions['chief-run'] = { status: 'done' }
+    f.rt.state.projectHarnessWorkers = { 'chief-worker': { status: 'released', leaseId: 'chief-lease' }, dev: { attemptId: a.id, status: variant === 'unknown-worker' ? 'unreachable' : 'released' } }
+    f.rt.state.projectResourceLeases = { 'chief-lease': { status: 'released' }, lease: { attemptId: a.id, status: variant === 'unknown-lease' ? 'unreachable' : 'released' } }
+    const sha = a.candidateSha, tests = structuredClone(a.evidence.tests)
+    const delivery = createProjectDelivery(f.rt)
+    assert.equal(delivery.recover(), true)
+    assert.equal(delivery.recover(), false)
+    if (variant === 'quiescent') {
+      assert.equal(a.status, 'running')
+      assert.equal(a.restartCheckpoints[0].kind, 'quiescent-chief-wait')
+      assert.equal(a.candidateSha, sha)
+      assert.deepEqual(a.evidence.tests, tests)
+      assert.equal(task.collaboration.claim.status, 'waiting-human')
+    } else assert.equal(a.status, 'interrupted')
+  }
+})
+
+test('published pool rework retains its PR binding and seals a descendant of the retained candidate', async t => {
+  const f = await setup(t, undefined, { pool: true })
+  f.rt.projectPools.connect({ validate: () => ({ ok: true }) })
+  await f.start('published-rework')
+  const task = f.rt.state.tasks[f.task.id], first = f.attempt()
+  const developer = f.rt.projectAgents.deliveryDefinitions('p1').roles.find(row => row.role === 'developer')
+  await f.rt.projectDelivery.preparePoolRole(task, { id: 'first-dev', attemptId: first.id, generation: 1 }, developer)
+  writeFileSync(join(first.workspaces.developer.path, 'code.mjs'), 'export const add = (a,b) => a+b;\n')
+  await f.rt.projectDelivery.completePoolRole({ task, claim: { attemptId: first.id }, role: 'developer', outputs: {} })
+  const original = first.candidateSha
+  first.pr = { number: 48, repository: 'example/demo', sha: original, url: 'https://example.invalid/pr/48' }
+  first.status = 'waiting-acceptance'
+  first.pr.sha = 'f'.repeat(40)
+  await assert.rejects(f.rt.projectDelivery.reworkPool({ task, claim: { id: 'bad-return', attemptId: first.id, botId: 'p1:chief' }, reason: 'Reject inconsistent prior evidence' }), /binding is inconsistent/)
+  assert.equal(first.status, 'waiting-acceptance')
+  assert.equal(Object.keys(f.rt.state.projectAttempts).length, 1)
+  first.pr.sha = original
+  const id = await f.rt.projectDelivery.reworkPool({ task, claim: { id: 'chief-return', attemptId: first.id, botId: 'p1:chief' }, reason: 'Maintain the existing PR after its base advanced' })
+  const next = f.rt.state.projectAttempts[id]
+  assert.deepEqual(next.publicationBinding, { number: 48, repository: 'example/demo', branch: first.branch, previousSha: original, upstreamSha: first.baseSha, upstreamRef: 'main' })
+  await f.rt.projectDelivery.preparePoolRole(task, { id: 'next-dev', attemptId: id, generation: 2 }, developer)
+  writeFileSync(join(next.workspaces.developer.path, 'code.mjs'), 'export const add = (a,b) => Number(a)+Number(b); // intermediate\n')
+  git(next.workspaces.developer.path, ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@localhost', 'commit', '-am', 'Private intermediate work'])
+  writeFileSync(join(next.workspaces.developer.path, 'code.mjs'), 'export const add = (a,b) => Number(a)+Number(b);\n')
+  await f.rt.projectDelivery.completePoolRole({ task, claim: { attemptId: id }, role: 'developer', outputs: {} })
+  assert.equal(git(next.workspaces.developer.path, ['rev-parse', next.candidateSha + '^']), original)
+  assert.equal(first.candidateSha, original)
+  assert.equal(first.pr.number, 48)
+  assert.notEqual(next.branch, first.branch, 'independent worktrees retain distinct local branches')
+  assert.equal(Object.keys(f.rt.state.tasks).length, 1)
+})
+
+
+test('human retry of a published delivery preserves its PR and rejects inconsistent bindings before admission', async t => {
+  const f = await setup(t)
+  await f.start('first-publication'); await complete(f)
+  const first = f.attempt(), sha = first.candidateSha
+  await f.rt.projectEndpoint('project-task-reject', { attemptId: first.id, reason: 'Add a regression' }, alice)
+  const retry = await f.start('human-retry')
+  assert.deepEqual(retry.attempt.publicationBinding, { number: first.pr.number, repository: first.pr.repository, branch: first.branch, previousSha: sha, upstreamSha: first.baseSha, upstreamRef: 'main' })
+  assert.equal(git(retry.attempt.workspaces.developer.path, ['rev-parse', 'HEAD']), sha)
+  f.rt.projectDelivery.runReported({ id: retry.attempt.runId, taskId: f.task.id, attemptId: retry.attempt.id, projectId: 'p1', status: 'failed' })
+  f.attempt().publicationBinding.repository = 'other/repo'
+  const count = Object.keys(f.rt.state.projectAttempts).length
+  await assert.rejects(f.start('inconsistent-retry'), /binding is inconsistent/)
+  assert.equal(Object.keys(f.rt.state.projectAttempts).length, count)
+})
+
+test('published rework pins the actual target and seals both published and resolved upstream histories', async t => {
+  for (const committed of [false, true]) await t.test(committed ? 'committed merge' : 'resolved merge index', async t => {
+  const f = await setup(t, undefined, { pool: true })
+  f.rt.projectPools.connect({ validate: () => ({ ok: true }) }); await f.start('upstream-rework')
+  const task = f.rt.state.tasks[f.task.id], first = f.attempt()
+  const developer = f.rt.projectAgents.deliveryDefinitions('p1').roles.find(row => row.role === 'developer')
+  await f.rt.projectDelivery.preparePoolRole(task, { id: 'dev-before', attemptId: first.id, generation: 1 }, developer)
+  writeFileSync(join(first.workspaces.developer.path, 'code.mjs'), 'export const add = (a,b) => a+b;\n')
+  await f.rt.projectDelivery.completePoolRole({ task, claim: { attemptId: first.id }, role: 'developer', outputs: {} })
+  const seed = first.candidateSha
+  writeFileSync(join(f.repository, 'code.mjs'), 'export const add = (a,b) => a-b;\nexport const contract = () => "backend-v2";\n')
+  writeFileSync(join(f.repository, 'code.test.mjs'), 'import assert from "node:assert/strict"; import {add,contract} from "./code.mjs"; assert.equal(add(2,3),5); assert.equal(contract(),"backend-v2");\n')
+  git(f.repository, ['add', '.']); git(f.repository, ['commit', '-m', 'Advance trusted upstream backend'])
+  const upstream = git(f.repository, ['rev-parse', 'HEAD'])
+  f.publisher.read = async pr => ({ sha: pr.sha, state: 'open', baseRef: 'main', baseSha: upstream })
+  first.pr = { number: 48, repository: 'example/demo', sha: seed }; first.status = 'waiting-acceptance'
+  const currentRead = f.publisher.read
+  for (const remote of [{ sha: seed, state: 'closed', baseRef: 'main', baseSha: upstream }, { sha: seed, state: 'open', baseRef: 'main', baseSha: '0'.repeat(40) }]) {
+    f.publisher.read = async () => remote
+    await assert.rejects(f.rt.projectDelivery.reworkPool({ task, claim: { id: 'unavailable-target', attemptId: first.id, botId: 'p1:chief' }, reason: 'Reject stale or unprovisioned upstream before allocation' }), /target is stale|not provisioned/)
+    assert.equal(first.status, 'waiting-acceptance')
+    assert.equal(Object.keys(f.rt.state.projectAttempts).length, 1)
+  }
+  f.publisher.read = currentRead
+  const id = await f.rt.projectDelivery.reworkPool({ task, claim: { id: 'upstream-return', attemptId: first.id, botId: 'p1:chief' }, reason: 'Integrate current backend without losing published history' })
+  const next = f.rt.state.projectAttempts[id]
+  assert.equal(next.publicationBinding.upstreamSha, upstream)
+  await f.rt.projectDelivery.preparePoolRole(task, { id: 'dev-after', attemptId: id, generation: 2 }, developer)
+  const path = next.workspaces.developer.path
+  await assert.rejects(f.rt.projectDelivery.completePoolRole({ task, claim: { attemptId: id }, role: 'developer', outputs: {} }), /merge the pinned upstream/)
+  assert.equal(git(path, ['rev-parse', 'HEAD']), seed)
+  const mergePath = git(path, ['rev-parse', '--git-path', 'MERGE_HEAD'])
+  writeFileSync(mergePath, first.baseSha + '\n')
+  await assert.rejects(f.rt.projectDelivery.completePoolRole({ task, claim: { attemptId: id }, role: 'developer', outputs: {} }), /merge the pinned upstream/)
+  rmSync(mergePath)
+  assert.throws(() => git(path, ['merge', '--no-commit', '--no-ff', upstream]), /Command failed/)
+  await assert.rejects(f.rt.projectDelivery.completePoolRole({ task, claim: { attemptId: id }, role: 'developer', outputs: {} }), /unresolved/)
+  writeFileSync(join(path, 'code.mjs'), 'export const add = (a,b) => a+b;\nexport const contract = () => "backend-v2";\n')
+  git(path, ['add', '.'])
+  if (committed) git(path, ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@localhost', 'commit', '-m', 'Resolved merge before host sealing'])
+  await f.rt.projectDelivery.completePoolRole({ task, claim: { attemptId: id }, role: 'developer', outputs: {} })
+  assert.deepEqual(git(path, ['show', '-s', '--format=%P', next.candidateSha]).split(' '), [seed, upstream])
+  assert.equal(first.candidateSha, seed)
+  assert.equal(next.evidence.upstreamIntegration.sha, upstream)
+  const tester = f.rt.projectAgents.deliveryDefinitions('p1').roles.find(row => row.role === 'tester')
+  await f.rt.projectDelivery.preparePoolRole(task, { id: 'test-after', attemptId: id, generation: 3 }, tester)
+  await f.rt.projectDelivery.completePoolRole({ task, claim: { attemptId: id }, role: 'tester', outputs: {} })
+  assert.equal(next.evidence.tests.passed, true)
+  })
+})
+
+test('context admission checkpoints require host rejection and no external execution', async t => {
+  for (const variant of ['safe','session','worker','bound','started','receipt','chief','cancel']) {
+    const f=await setup(t,undefined,{pool:true}); f.rt.projectPools.connect({validate:()=>({ok:true})}); await f.start('admission-'+variant)
+    const a=f.attempt(),task=f.rt.state.tasks[f.task.id]
+    const execution={id:'failed-admission',status:'failed',attemptId:a.id,taskId:task.id,failure:'Execution admission failed: Role context exceeds 48000 characters'}
+    task.collaboration.status='blocked'
+    task.collaboration.history=[{attemptId:a.id,to:'p1:developer',status:'rejected',execution}]
+    task.collaboration.claim={botId:'p1:chief',status:'waiting-human',workerId:'chief',chiefRunId:'chief-run'}
+    f.rt.state.projectExecutions['chief-run']={status:'done'}
+    f.rt.state.projectHarnessWorkers={chief:{status:'released',leaseId:'chief-lease',releaseProof:{kind:'sdk-stop-ack-and-process-exit'}}}
+    f.rt.state.projectResourceLeases={'chief-lease':{status:'released'},reserved:{id:'reserved',attemptId:a.id,status:'reserved'}}
+    if(variant==='session')a.roleSessions={developer:{id:'prepared'}}
+    if(variant==='worker')f.rt.state.projectHarnessWorkers.dev={attemptId:a.id,status:'released'}
+    if(variant==='bound')f.rt.state.projectResourceLeases.reserved.worker={kind:'sdk',handle:'unknown'}
+    if(variant==='started')f.rt.state.projectResourceLeases.reserved.startedAt=1
+    if(variant==='receipt')task.collaboration.history=[]
+    if(variant==='chief')f.rt.state.projectHarnessWorkers.chief.releaseProof={kind:'assertion'}
+    if(variant==='cancel')a.cancelRequested=true
+    const before=structuredClone(task)
+    createProjectDelivery(f.rt).recover()
+    assert.equal(a.status,variant==='safe'?'running':'interrupted',variant)
+    if(variant==='safe'){
+      assert.equal(a.restartCheckpoints[0].kind,'quiescent-preparation-admission')
+      assert.deepEqual(task,before)
+      assert.equal(f.rt.state.projectResourceLeases.reserved.status,'reserved','delivery does not release live resources')
+      await f.rt.projectResources.release('reserved',undefined)
+      assert.equal(f.rt.state.projectResourceLeases.reserved.releaseProof.kind,'unbound-reservation-release')
+    }
+  }
+})
+
+test('failed context admission preserves an existing unsealed developer workspace',async t=>{
+  const f=await setup(t,undefined,{pool:true}); f.rt.projectPools.connect({validate:()=>({ok:true})}); await f.start('context-retry')
+  const a=f.attempt(),task=f.rt.state.tasks[f.task.id],dev=f.rt.projectAgents.deliveryDefinitions('p1').roles.find(r=>r.role==='developer')
+  await f.rt.projectDelivery.preparePoolRole(task,{id:'first',attemptId:a.id,generation:1},dev)
+  const path=a.workspaces.developer.path
+  writeFileSync(join(path,'code.mjs'),'export const preserved = true;\n')
+  a.seedSha=a.baseSha
+  f.rt.state.projectKnowledge={p1:[{id:'large',text:'x'.repeat(49000)}]}
+  await assert.rejects(f.rt.projectDelivery.preparePoolRole(task,{id:'second',attemptId:a.id,generation:2},dev),/exceeds/)
+  assert.equal(readFileSync(join(path,'code.mjs'),'utf8'),'export const preserved = true;\n')
+  assert.equal(a.preparationFailures.at(-1).releasedBeforeExternalStart,false)
+  assert.equal(a.roleSessions.developer.poolClaimId,'first')
+})
+
+test('context failure releases an actual unbound reservation before registering any SDK Session',async t=>{
+  const f=await setup(t,undefined,{pool:true});f.rt.projectPools.connect({validate:()=>({ok:true})})
+  f.rt.config.projectResources={one:{type:'local',root:f.directory,capacity:1,allowedProjectOwnerIds:['owner-1'],harnesses:['codex'],profiles:{'owner-1':{codex:{home:join(f.directory,'sdk-home'),configDir:join(f.directory,'sdk-config'),model:'fixture/model'}}}}}
+  f.rt.state.projectResourceHealth={one:{status:'ready',at:Date.now()}};f.rt.state.projectHarnessHealth={'p1:one:codex':{status:'ready'}}
+  await f.rt.projectEndpoint('project-agent-definition',{projectId:'p1',role:'developer',execution:{harness:'codex',resourceIds:['one']}},alice)
+  await f.start('unbound-context-failure')
+  const a=f.attempt(),task=f.rt.state.tasks[f.task.id],dev=f.rt.projectAgents.deliveryDefinitions('p1').roles.find(r=>r.role==='developer')
+  f.rt.state.projectKnowledge={p1:[{id:'large',text:'x'.repeat(49000)}]}
+  await assert.rejects(f.rt.projectDelivery.preparePoolRole(task,{id:'rejected',attemptId:a.id,generation:1},dev),/exceeds/)
+  const lease=Object.values(f.rt.state.projectResourceLeases).find(x=>x.attemptId===a.id)
+  assert.equal(lease.status,'released')
+  assert.equal(lease.releaseProof.kind,'unbound-reservation-release')
+  assert.equal(a.preparationFailures.at(-1).releasedBeforeExternalStart,true)
+  assert.deepEqual(a.roleSessions,{})
+  assert.equal(Object.values(f.rt.state.projectHarnessWorkers??{}).filter(x=>x.attemptId===a.id).length,0)
+  assert.equal(a.workspaces.developer.status,'allocated')
+})
+
+test('unstarted bound delivery refreshes a verified descendant target without replacing its draft or Attempt',async t=>{
+  for(const variant of ['safe','reserved','unknown','worker','session','history','execution','candidate','cancel','native','unproven-release','released-bound','stale-state','unrelated','missing','moved-head','moved-ref']){
+    const f=await setup(t,undefined,{pool:true});f.rt.projectScheduler.wake=()=>{} // Keep deliberate lease snapshots stable during admission checks.
+    f.rt.projectPools.connect({validate:()=>({ok:true})});await f.start('target-refresh-'+variant)
+    const a=f.attempt(),task=f.rt.state.tasks[f.task.id],dev=f.rt.projectAgents.deliveryDefinitions('p1').roles.find(r=>r.role==='developer'),base=a.baseSha
+    a.seedSha=base;a.publicationBinding={number:48,repository:'example/demo',branch:'original-delivery',previousSha:base,upstreamSha:base,upstreamRef:'main'}
+    f.rt.state.projectKnowledge={p1:[{id:'oversize',text:'x'.repeat(49000)}]}
+    await assert.rejects(f.rt.projectDelivery.preparePoolRole(task,{id:'before',attemptId:a.id,generation:1},dev),/exceeds/)
+    f.rt.state.projectKnowledge={p1:[]}
+    const path=a.workspaces.developer.path;writeFileSync(join(path,'code.mjs'),'export const preservedDraft = true;\n')
+    writeFileSync(join(f.repository,'backend.mjs'),'export const backend = 2;\n');git(f.repository,['add','backend.mjs']);git(f.repository,['commit','-m','Advance trusted target'])
+    const target=git(f.repository,['rev-parse','HEAD']),old=structuredClone(a.publicationBinding)
+    if(['reserved','unknown'].includes(variant))f.rt.state.projectResourceLeases={held:{attemptId:a.id,status:variant==='reserved'?'reserved':'unreachable'}}
+    if(variant==='worker')f.rt.state.projectHarnessWorkers={old:{attemptId:a.id,status:'released'}}
+    if(variant==='session')a.roleSessions.developer={id:'external-session'}
+    if(variant==='history')a.roleSessionHistory=[{id:'past-session'}]
+    if(variant==='execution')a.evidence.execution={developer:{id:'recorded'}}
+    if(variant==='candidate')a.candidateSha=base
+    if(variant==='cancel')a.cancelRequested=true
+    if(variant==='native')f.rt.state.bots.live={ephemeral:true,attemptId:a.id}
+    if(variant==='unproven-release')f.rt.state.projectResourceLeases={held:{attemptId:a.id,status:'released'}}
+    if(variant==='released-bound')f.rt.state.projectResourceLeases={held:{attemptId:a.id,status:'released',releaseProof:{kind:'unbound-reservation-release'},worker:{kind:'sdk',handle:'missing'}}}
+    if(variant==='stale-state')f.publisher.read=async()=>{a.status='interrupted';return{sha:base,state:'open',baseRef:'main',baseSha:target}}
+    if(variant==='unrelated'){
+      const unrelated=git(f.repository,['commit-tree',git(f.repository,['rev-parse','HEAD^{tree}']),'-m','Unrelated target'])
+      f.publisher.read=async()=>({sha:base,state:'open',baseRef:'main',baseSha:unrelated})
+    }
+    if(variant==='missing')f.publisher.read=async()=>({sha:base,state:'open',baseRef:'main',baseSha:'1'.repeat(40)})
+    if(variant==='moved-head')f.publisher.read=async()=>({sha:target,state:'open',baseRef:'main',baseSha:target})
+    if(variant==='moved-ref')f.publisher.read=async()=>({sha:base,state:'open',baseRef:'other',baseSha:target})
+    const prepare=()=>f.rt.projectDelivery.preparePoolRole(task,{id:'after',attemptId:a.id,generation:2},dev)
+    if(variant==='safe'){
+      await prepare();assert.equal(a.publicationBinding.upstreamSha,target);assert.equal(a.publicationBindingHistory.length,1)
+      assert.deepEqual(a.publicationBindingHistory[0].previous,old);assert.deepEqual(a.publicationBindingHistory[0].current,a.publicationBinding)
+      assert.equal(a.publicationBindingHistory[0].claimId,'after');assert.equal(a.publicationBindingHistory[0].generation,2)
+      assert.equal(a.seedSha,base);assert.equal(a.baseSha,base);assert.equal(a.id,task.deliveryAttemptId)
+      assert.match(a.roleSessions.developer.context.text,new RegExp(target));assert.equal(Object.values(f.rt.state.projectAttempts).length,1)
+    }else{
+      await assert.rejects(prepare(),/recorded or unknown execution|descendant|not provisioned|stale or unavailable/,variant)
+      assert.deepEqual(a.publicationBinding,old);assert.equal(a.publicationBindingHistory,undefined)
+    }
+    assert.equal(readFileSync(join(path,'code.mjs'),'utf8'),'export const preservedDraft = true;\n')
+    assert.equal(git(path,['rev-parse','HEAD']),base)
+  }
 })

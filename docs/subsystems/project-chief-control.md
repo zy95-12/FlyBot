@@ -91,3 +91,24 @@ live long-running worker. No lease is released solely on a model judgement.
 Snapshots expose bind-before-external-start registration proof: an Attempt with
 no lease, worker, Session, Workspace or claim worker handle never allocated execution.
 Any such record makes allocation recorded/unknown; missing PID is never this proof.
+
+Chief distinguishes route/resume from explicit return/rework and receives actual
+SDK stop-ack/process-exit proof. A matching historical released SDK record is
+trusted host exit evidence, unlike a terminal Task or absent PID.
+
+Snapshots name Attempt status and the actual claim Bot. A Chief request for human
+clarification ends its own active claim as waiting-human, preserving the question.
+
+Chief routing checks handoff admission before fencing current execution or preparing
+a successor Run. An audited intervention begins a new bounded autonomous routing
+epoch without resetting global usage or history. Preparation failures after fencing
+record an explicit blocked state linked to the decision instead of remaining stopping.
+
+Real Reviewer environmental INC must preserve the tested candidate and route for
+permitted verification after host provisioning, rather than discard implementation
+or manufacture a review approval. Complete fixture browser results remain separate
+from actual deployed shared-service acceptance.
+
+An already tested, fully released Chief-wait checkpoint can survive host restart
+with an audit entry. Active execution or any unknown worker/lease remains interrupted;
+this exception permits no automatic approval or fabricated progress.

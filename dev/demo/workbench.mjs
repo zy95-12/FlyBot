@@ -54,7 +54,15 @@ export async function checkWorkbench({ credentials, port, cookie, saved, waitFor
     await click(bob, 'Public Bots'); await visible(bob, 'Public Chief')
     await bob.getByLabel('Message', { exact: true }).fill('Create a shared Task from this public request. Fix addition and test add(2,3).')
     await click(bob, 'Send')
-    const task = await waitFor(() => Object.values(saved().tasks).find(task => task.title === 'A public Chief Task'), 'Chief creates Task from browser request')
+    const proposal = await waitFor(() => Object.values(saved().projectAgentProposals ?? {}).find(row => row.projectId === projectId && row.memberId === bobMember && row.fields.title === 'A public Chief Task'), 'Chief proposes Task in safe mode')
+    assert.equal(Object.values(saved().tasks).filter(row => row.projectId === projectId).length, 0, 'Safe mode must not publish a Task before human approval')
+    assert.equal((await api(alice, 'project-agent-proposal-apply', { proposalId: proposal.id })).ok, false, 'Even the Project owner cannot publish another member’s proposal')
+    await click(bob, 'My Project agent'); await visible(bob, 'Unpublished proposal')
+    await click(bob, 'Publish as shared Task')
+    const task = await waitFor(() => Object.values(saved().tasks).find(row => row.projectId === projectId && row.title === 'A public Chief Task'), 'Chief proposal becomes a shared Task after browser approval')
+    const repeated = await api(bob, 'project-agent-proposal-apply', { proposalId: proposal.id })
+    assert.equal(repeated.ok, true); assert.equal(repeated.value.already, true); assert.equal(repeated.value.task.id, task.id)
+    assert.equal(Object.values(saved().tasks).filter(row => row.projectId === projectId).length, 1, 'Repeated proposal publication cannot duplicate Tasks')
     assert.equal(task.requesterId, bobMember)
     await click(bob, 'Task board'); await visible(bob, task.title)
     await click(alice, 'Task board'); await visible(alice, task.title)
@@ -128,7 +136,7 @@ export async function checkWorkbench({ credentials, port, cookie, saved, waitFor
     assert.equal(await alice.evaluate(() => sessionStorage.getItem('flybot.member')), null)
     assert.deepEqual(errors, [])
     return { milestone: 'M6', platform: 'unchanged control-plane', runtime: 'actual DSH + Chromium + restricted gateway', model: 'deterministic mock',
-      checks: ['Owner role Harness and checked resource configuration through UI', 'actual private resource PTY through browser', 'Member terminal access refused', 'closed browser terminal confirms release without raw audit', 'unconfigured SDK remains unavailable after bounded probe', 'two platform logins through browser', 'Project creation and one-use join through UI', 'private Project notes isolated', 'public Chief tool creates shared Task', 'real Developer/Tester/Reviewer worktrees', 'independent test evidence at matching commit', 'missing credential refuses publication/acceptance', 'refresh preserves one Attempt', 'browser retry preserves history', '390px layout', 'owner cookie absent in both browsers', 'raw Harness API denied', 'revocation clears stale page', 'logout clears member credential'],
+      checks: ['safe mode waits for human Task publication', 'another member cannot publish the proposal', 'repeated proposal publication creates one Task', 'Owner role Harness and checked resource configuration through UI', 'actual private resource PTY through browser', 'Member terminal access refused', 'closed browser terminal confirms release without raw audit', 'unconfigured SDK remains unavailable after bounded probe', 'two platform logins through browser', 'Project creation and one-use join through UI', 'private Project notes isolated', 'public Chief tool creates shared Task', 'real Developer/Tester/Reviewer worktrees', 'independent test evidence at matching commit', 'missing credential refuses publication/acceptance', 'refresh preserves one Attempt', 'browser retry preserves history', '390px layout', 'owner cookie absent in both browsers', 'raw Harness API denied', 'revocation clears stale page', 'logout clears member credential'],
       notRun: ['real model', 'real GitHub publication in this browser run', 'production deployment'] }
   } catch (failure) {
     let message = String(failure.message ?? 'Browser acceptance failed')

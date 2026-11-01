@@ -90,3 +90,19 @@ results against failed receipts are stale, not idempotent successful decisions.
 
 A successful new handoff clears stale active block/question fields and archives
 them on its receipt, preserving audit without reporting repaired work as blocked.
+
+Chief route to Dev may resume a running pre-candidate Attempt in its existing
+workspace after a preparation fix. Explicit return, interrupted Attempts and
+candidate-backed rework create a new Attempt, retaining prior evidence.
+
+Route forwards explicit resume intent; delivery validates release proof before
+reusing an interrupted unsealed workspace. Explicit return still requests rework.
+
+## Audited intervention and routing budgets
+
+Autonomous per-edge repetitions are counted since the last admitted Chief intervention.
+Only the privileged Chief routing path starts a new epoch; normal role decisions
+cannot request one. Historical receipts and global token/time/step usage remain.
+Chief routes still satisfy evidence, current authority, quotas and worker-exit gates.
+Admission is preflighted before fencing a claim or creating/resuming an Attempt.
+A later preparation/authority failure records a blocked state with its decision ID.

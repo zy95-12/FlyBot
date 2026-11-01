@@ -292,3 +292,56 @@ actual browser and operator shared-service acceptance remain pending.
 
 
 Rework of the c9f9b5d candidate fixes the browser fixture through the real runtime save boundary and checks every rooms-page bootstrap endpoint for all three human roles before opening sockets. The current full-run log also exposed an invalid two-paragraph changelog fragment; the existing validator reproduces it and passes after consolidation. Chromium and deployed-service acceptance remain pending independent execution.
+R7 dogfood also exposed sandbox Git-index and host-test boundary failures. Scoped
+Codex writable roots support canonical generation; Chief route may resume a
+running pre-candidate Attempt without discarding uncommitted work. Explicit
+return or interrupted/candidate-backed work still creates a fresh Attempt. SDK
+release records carry actual stop-ack/process-exit proof, not terminal Task inference.
+
+The original DSH 1800-second schedule actually fired at 2026-10-31T21:54:39.260Z
+after browser logout and multiple backend restarts; exactly one actual Codex
+Chief Run completed. This proves the persistent 30-minute wake, not just a
+shortened-clock fixture. Remaining shared delivery/browser acceptance is separate.
+
+A real SDK sandbox/strace probe identified Unix pipe syscall denial as the remaining
+Node/Git subprocess blocker. Command roles use a named filesystem profile and the
+limited network proxy with no allowed destinations; Chief remains tool-free. Actual
+probe children succeed while outbound requests and outside-workspace writes fail.
+
+Chief recovery found a lifetime edge-budget refusal after several real environment
+repairs. Audited Chief intervention now begins a fresh bounded autonomous routing
+epoch while preserving full history and global quotas. Admission is checked before
+claim fencing or Attempt preparation; later preparation failure is explicitly blocked.
+
+Actual R7 candidate `56d14be` passed host full verification and complete deterministic
+Chromium/backend clicks. Independent Review was blocked by read-only temporary
+fixtures; command workers now bind a unique scratch directory and offline npm cache,
+without granting review-source writes. Cleanup follows confirmed SDK exit. Actual
+deployed three-account acceptance and independent approval remain separate.
+
+A tested pool checkpoint waiting for Chief/human input survives host restart only
+with a completed Chief Run and all registered SDK workers/leases confirmed released.
+It retains the candidate and test receipt; active claims or unknown exits still
+interrupt delivery. A checkpoint audit records the restart without inventing progress.
+
+Published delivery rework now carries the host's existing PR binding through Chief
+returns and human retries. Sealing keeps the old published candidate as an ancestor;
+publication rechecks the original PR/head and fast-forwards its branch, refusing
+concurrent/closed/mismatched artifacts rather than creating another PR. Actual
+PR48 remains unchanged until verified backend deployment and Chief-directed rework.
+
+Published rework now pins the actual GitHub target ref through the host broker.
+A resolved merge seals with both the old candidate and trusted upstream parents;
+roles receive that pinned input and publication rejects target movement or lost
+ancestry. Merged content still requires real host tests and independent Review.
+
+Role admission now replaces verified duplicate repository previews with complete-policy references, preserving full rules and all shared knowledge under the existing context cap. Preparation failures release unbound reservations and retain drafts; narrow host-proven rejected-admission checkpoints preserve the same Attempt across restart.
+
+Unstarted bound delivery now revalidates the live PR target before Developer allocation and audits a descendant-only target refresh on the same Attempt, preserving the original PR, candidate seed and unsealed draft. Active, unknown or previously recorded execution cannot silently retarget.
+
+Recurring M6 browser timeout reproduced at166: the native Chief correctly generated a safe-mode proposal, while the old fixture waited for an unapproved Task. Acceptance now verifies no early Task, cross-user rejection, explicit requester UI approval and idempotent publication before existing delivery checks; production authorization is unchanged.
+
+R7 P0 maintenance now resolves the pinned `e3ff1d26` upstream into the original
+`56d14be` candidate, retaining both collaboration and backend repairs. This is an
+unsealed integration draft until host tests and independent Review; Owner visual
+feedback remains outstanding and no overall completion is claimed.

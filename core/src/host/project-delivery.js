@@ -52,6 +52,35 @@ export function createProjectDelivery(rt, { publisher } = {}) {
   const projectOf = id => rt.projects.repository.get(id, { includeDeleted: true })
   const settingsOf = project => repositorySettings(rt, project)
   const publisherOf = project => publisher ?? githubPublisher(settingsOf(project).github)
+  async function publicationOf(previous, project) {
+    if (!previous) return undefined
+    const binding = previous.pr ? { number: previous.pr.number, repository: previous.pr.repository, branch: previous.publicationBinding?.branch ?? previous.branch, previousSha: previous.candidateSha } : structuredClone(previous.publicationBinding)
+    if (binding && (binding.repository !== project.repository || !Number.isSafeInteger(binding.number) || binding.number < 1 || typeof binding.branch !== 'string' || !binding.branch || !/^[a-f0-9]{40}$/.test(binding.previousSha) || previous.pr && previous.pr.sha !== previous.candidateSha)) throw reject('Existing delivery PR binding is inconsistent; reconcile before rework')
+    if (binding) {
+      const remote = await publisherOf(project).read(previous.pr ?? { number: binding.number, repository: binding.repository, sha: binding.previousSha }, { includeBase: true })
+      if (remote.state !== 'open' || remote.sha !== binding.previousSha || remote.baseRef !== (project.defaultBranch ?? 'main') || !/^[a-f0-9]{40}$/.test(remote.baseSha ?? '')) throw reject('Existing PR target is stale or unavailable; reconcile before rework')
+      try { await git(settingsOf(project).path, ['cat-file', '-e', `${remote.baseSha}^{commit}`]) }
+      catch { throw reject('Pinned PR upstream commit is not provisioned; ask the operator to fetch verified source') }
+      Object.assign(binding, { upstreamSha: remote.baseSha, upstreamRef: remote.baseRef })
+    }
+    return binding
+  }
+  async function refreshUnstartedPublication(attempt, project, claim) {
+    if (!attempt.publicationBinding) return
+    const previous = structuredClone(attempt.publicationBinding)
+    const current = await publicationOf(attempt, project)
+    if (attempt.status !== 'running' || taskOf(attempt.taskId)?.deliveryAttemptId !== attempt.id || JSON.stringify(attempt.publicationBinding) !== JSON.stringify(previous)) throw reject('PR upstream refresh snapshot is stale or unavailable')
+    if (current.upstreamSha === previous.upstreamSha && current.upstreamRef === previous.upstreamRef) return
+    const leases = Object.values(state.projectResourceLeases ?? {}).filter(row => row.attemptId === attempt.id)
+    const recorded = attempt.cancelRequested || attempt.candidateSha || Object.keys(attempt.roleSessions ?? {}).length || attempt.roleSessionHistory?.length || Object.keys(attempt.evidence ?? {}).length || Object.values(state.projectHarnessWorkers ?? {}).some(row => row.attemptId === attempt.id) || Object.values(state.bots).some(row => row.ephemeral && row.attemptId === attempt.id) || leases.some(row => row.status !== 'released' || row.worker || row.processScope || row.startedAt || row.releaseProof?.kind !== 'unbound-reservation-release')
+    if (recorded) throw reject('Cannot refresh PR upstream after recorded or unknown execution; reconcile before retry')
+    if (current.upstreamRef !== previous.upstreamRef || !/^[a-f0-9]{40}$/.test(previous.upstreamSha ?? '')) throw reject('Existing PR upstream is not a verified descendant target')
+    try { await git(settingsOf(project).path, ['merge-base', '--is-ancestor', previous.upstreamSha, current.upstreamSha]) }
+    catch { throw reject('Existing PR upstream is not a verified descendant target') }
+    ;(attempt.publicationBindingHistory ??= []).push({ kind: 'pre-execution-upstream-revalidation', previous, current: structuredClone(current), claimId: claim.id, generation: claim.generation, at: Date.now() })
+    attempt.publicationBinding = current
+    await rt.save()
+  }
   const current = taskId => Object.values(attempts()).reverse().find(attempt => attempt.taskId === taskId)
   const view = attempt => structuredClone(attempt)
   async function fail(attempt, error, status = 'failed') {
@@ -108,12 +137,13 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     if (task.status === 'accepted' || task.status === 'cancelled') throw reject('Terminal Task cannot start a delivery')
     const settings = await preflightRepository(rt, project)
     const previous = current(task.id)
+    const publicationBinding = await publicationOf(previous, project)
     const feedback = previous?.failure ? { previousAttemptId: previous.id, kind: previous.returned ? 'human-return' : 'execution-failure', reason: previous.failure.message, candidateSha: previous.candidateSha ?? null } : null
     const at = Date.now()
     const attempt = { id: `attempt-${randomUUID()}`, projectId: project.id, taskId: task.id, requestKey,
       workflowVersion: DELIVERY_VERSION, status: 'preparing', initiatedBy: actor.memberId, executionOwnerId: project.ownerUserId,
       requirement: { title: task.title, criteria: task.criteria ?? '', note: task.note ?? '', repository: project.repository },
-      ...(feedback ? { feedback } : {}), workspaces: {}, evidence: {}, createdAt: at, updatedAt: at }
+      ...(feedback ? { feedback } : {}), ...(publicationBinding ? { publicationBinding, seedSha: previous.candidateSha ?? publicationBinding.previousSha, baseSha: previous.baseSha } : {}), workspaces: {}, evidence: {}, createdAt: at, updatedAt: at }
     setEntry(attempts(), attempt.id, attempt)
     task.deliveryAttemptId = attempt.id
     await rt.save() // Reserve idempotency and ownership before any filesystem effects.
@@ -123,7 +153,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
       if (config.projectDispatch !== 'workflow') {
         attempt.protocol = 'project-handoff/v1'
         attempt.workflowVersion = 'project-delivery/pools-v1'
-        attempt.baseSha = await git(settings.path, ['rev-parse', 'HEAD'])
+        attempt.baseSha ??= await git(settings.path, ['rev-parse', 'HEAD'])
         attempt.roleSessions = {}; attempt.rolePolicies = {}; attempt.resourceLeases = {}
         attempt.runId = `pool-run-${randomUUID()}`
         attempt.status = 'running'
@@ -138,6 +168,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
         if (lease.harness === 'flybot' && resource.type !== 'local') throw reject('Native Harness requires a registered local resource')
       }
       await allocate(attempt, project, settings)
+      if (attempt.seedSha) await workspaceGit(attempt.workspaces.developer, ['reset', '--hard', attempt.seedSha])
       if (attempt.cancelRequested) throw reject('Delivery was stopped')
       const model = settings.model ?? config.projectModel ?? await rt.defaultModel?.()
       if (typeof model !== 'string' || !model) throw reject('A served delivery model must be provisioned')
@@ -199,10 +230,25 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     checkDevelopmentEvidence(attempt.rolePolicies?.developer, names)
     const roots = settings.allowedPaths
     if (!Array.isArray(roots) || !roots.length || roots.some(value => typeof value !== 'string' || value.startsWith('/') || value.includes('..')) || names.some(name => !roots.some(prefix => name === prefix || name.startsWith(prefix.endsWith('/') ? prefix : `${prefix}/`)))) throw reject('Code changes exceed the provisioned repository paths')
-    await workspaceGit(workspace, ['reset', '--soft', attempt.baseSha]) // Seal one final commit; do not transfer intermediate worker history.
-    if (await workspaceGit(workspace, ['status', '--porcelain'])) {
+    const parent = attempt.seedSha ?? attempt.baseSha, upstream = attempt.publicationBinding?.upstreamSha
+    const ancestor = async (a, b) => { try { await workspaceGit(workspace, ['merge-base', '--is-ancestor', a, b]); return true } catch (error) { if (error.code === 1) return false; throw error } }
+    if (upstream && !await ancestor(upstream, parent)) {
+      const head = await workspaceGit(workspace, ['rev-parse', 'HEAD'])
+      const mergeHead = await workspaceGit(workspace, ['rev-parse', '--verify', 'MERGE_HEAD']).catch(() => null)
+      if (!await ancestor(parent, head) || mergeHead !== upstream && !await ancestor(upstream, head)) throw reject('Developer must merge the pinned upstream before sealing published rework')
+      if (await workspaceGit(workspace, ['ls-files', '--unmerged'])) throw reject('Trusted upstream integration has unresolved paths')
+      // Collapse private worker history while retaining both trusted public inputs.
       await workspaceGit(workspace, ['add', '--all', '--', '.'])
-      await workspaceGit(workspace, ['commit', '-m', `Implement Task ${attempt.taskId}`])
+      const tree = await workspaceGit(workspace, ['write-tree'])
+      const commit = await workspaceGit(workspace, ['commit-tree', tree, '-p', parent, '-p', upstream, '-m', `Implement Task ${attempt.taskId}`])
+      await workspaceGit(workspace, ['reset', '--hard', commit])
+      attempt.evidence.upstreamIntegration = { sha: upstream, previousCandidate: parent, ref: attempt.publicationBinding.upstreamRef, method: mergeHead === upstream ? 'resolved-merge-head' : 'merged-ancestry', at: Date.now() }
+    } else {
+      await workspaceGit(workspace, ['reset', '--soft', parent]) // Do not transfer unpublished worker history.
+      if (await workspaceGit(workspace, ['status', '--porcelain'])) {
+        await workspaceGit(workspace, ['add', '--all', '--', '.'])
+        await workspaceGit(workspace, ['commit', '-m', `Implement Task ${attempt.taskId}`])
+      }
     }
     attempt.candidateSha = await workspaceGit(workspace, ['rev-parse', 'HEAD'])
     if (attempt.candidateSha === attempt.baseSha) throw reject('Developer produced no code change')
@@ -423,6 +469,26 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     let changed = false
     for (const attempt of Object.values(attempts())) {
       if (!ongoing.has(attempt.status)) continue
+      const c = taskOf(attempt.taskId)?.collaboration, claim = c?.claim
+      const chief = state.projectHarnessWorkers?.[claim?.workerId]
+      const leases = Object.values(state.projectResourceLeases ?? {}).filter(row => row.attemptId === attempt.id)
+      const workers = Object.values(state.projectHarnessWorkers ?? {}).filter(row => row.attemptId === attempt.id)
+      const native = Object.values(state.bots ?? {}).some(row => row.ephemeral && row.attemptId === attempt.id)
+      // A completed, tested pool waiting for human/Chief input is a durable
+      // checkpoint, not an in-flight command interrupted by this restart.
+      const tested = attempt.candidateSha && attempt.evidence.tests?.passed === true && attempt.evidence.tests.sha === attempt.candidateSha
+      const waiting = c?.status === 'blocked' && claim?.status === 'waiting-human' && claim.botId === `${attempt.projectId}:chief` && state.projectExecutions?.[claim.chiefRunId]?.status === 'done'
+      const released = chief?.status === 'released' && state.projectResourceLeases?.[chief.leaseId]?.status === 'released' && !native && leases.every(row => row.status === 'released') && workers.every(row => row.status === 'released')
+      const admission = c?.history?.find(row => row.attemptId === attempt.id && row.to === `${attempt.projectId}:developer` && row.status === 'rejected' && row.execution?.status === 'failed' && row.execution.attemptId === attempt.id && row.execution.taskId === attempt.taskId && !row.execution.workerId && row.execution.failure?.startsWith('Execution admission failed: Role context exceeds '))
+      const neverStarted = !attempt.candidateSha && !Object.keys(attempt.roleSessions ?? {}).length && !(attempt.roleSessionHistory?.length) && !Object.keys(attempt.evidence?.execution ?? {}).length && !workers.length && !native && leases.length > 0 && leases.every(row => ['reserved', 'released'].includes(row.status) && !row.worker && !row.processScope && !row.startedAt) && Object.values(attempt.workspaces ?? {}).every(row => row.status === 'allocated')
+      if (attempt.protocol === 'project-handoff/v1' && attempt.status === 'running' && !attempt.cancelRequested && waiting && chief?.status === 'released' && chief.releaseProof?.kind === 'sdk-stop-ack-and-process-exit' && state.projectResourceLeases?.[chief.leaseId]?.status === 'released' && admission && neverStarted) {
+        (attempt.restartCheckpoints ??= []).push({ kind: 'quiescent-preparation-admission', chiefRunId: claim.chiefRunId, admissionClaimId: admission.execution.id, leaseIds: leases.map(row => row.id), proof: 'registered-before-external-start: no role Session, worker, native Bot or bound lease', at: Date.now() })
+        changed = true; continue
+      }
+      if (attempt.protocol === 'project-handoff/v1' && attempt.status === 'running' && !attempt.cancelRequested && tested && waiting && released) {
+        (attempt.restartCheckpoints ??= []).push({ kind: 'quiescent-chief-wait', chiefRunId: claim.chiefRunId, candidateSha: attempt.candidateSha, at: Date.now() })
+        changed = true; continue
+      }
       attempt.status = 'interrupted'
       attempt.failure = { message: 'Host restarted before delivery completed; start a new Attempt', at: Date.now() }
       rt.taskDeliveryState?.(attempt.taskId, attempt.id, 'failed', attempt.failure.message)
@@ -447,20 +513,31 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     if (!attempt || attempt.taskId !== task.id || attempt.protocol !== 'project-handoff/v1' || attempt.status !== 'running') throw reject('Pool Attempt is unavailable')
     const role = definition.role, project = projectOf(task.projectId)
     const settings = await preflightRepository(rt, project)
+    if (role === 'developer') await refreshUnstartedPublication(attempt, project, claim)
     const policy = await repositoryRolePolicy(project.id, attempt.baseSha, role)
     const sessionId = `role-session-${randomUUID()}`
     const execution = definition.execution
     const lease = execution.resourceIds?.length ? await rt.projectResources.reserve({ projectId: project.id, attemptId: attempt.id, role, sessionKey: sessionId, ...execution }) : null
     if (lease) attempt.resourceLeases[role] = lease
+    const freshWorkspace = !attempt.workspaces[role]
     await allocate(attempt, project, settings, [role])
     const workspace = attempt.workspaces[role]
     if (lease) workspace.resourceLease = lease
-    if (attempt.seedSha && role === 'developer' && !attempt.candidateSha) await workspaceGit(workspace, ['reset', '--hard', attempt.seedSha])
+    if (attempt.seedSha && role === 'developer' && !attempt.candidateSha && freshWorkspace) await workspaceGit(workspace, ['reset', '--hard', attempt.seedSha])
     if (attempt.candidateSha) {
       if (workspace.kind === 'resource-clone') await resourceWorkspaces.checkout(workspace, attempt)
       else await workspaceGit(workspace, ['reset', '--hard', attempt.candidateSha])
     }
-    const context = roleContext({ policy, projectId: project.id, role, revision: attempt.agentDefinitions.revision, definition, memory: definition.memory, knowledge: ownEntry(state.projectKnowledge ?? {}, project.id) ?? [], requirement: attempt.requirement, feedback: attempt.feedback, projectFacts: { handoff: task.collaboration?.history.at(-1) ? { purpose: task.collaboration.history.at(-1).purpose, reason: task.collaboration.history.at(-1).reason } : null, candidateSha: attempt.candidateSha ?? null, tests: attempt.evidence.tests ? { sha: attempt.evidence.tests.sha, passed: attempt.evidence.tests.passed, sha256: attempt.evidence.tests.sha256, command: attempt.evidence.tests.command } : null, review: attempt.evidence.review ? { sha: attempt.evidence.review.sha, verdict: attempt.evidence.review.verdict, summary: attempt.evidence.review.summary } : null }, repository: await repositoryContext(project.id, attempt.baseSha) })
+    let context
+    try {
+      context = roleContext({ policy, projectId: project.id, role, revision: attempt.agentDefinitions.revision, definition, memory: definition.memory, knowledge: ownEntry(state.projectKnowledge ?? {}, project.id) ?? [], requirement: attempt.requirement, feedback: attempt.feedback, projectFacts: { publicationBinding: attempt.publicationBinding ?? null, integrationInstruction: attempt.publicationBinding ? 'Merge the pinned upstreamSha into the published candidate using --no-commit, resolve and stage conflicts before handoff. Host sealing retains both trusted inputs; never fabricate parents or discard backend changes.' : null, workingDraft: !attempt.candidateSha && attempt.workspaces.developer ? { kind: 'unverified-workspace-reference', resourceId: attempt.workspaces.developer.resourceId, path: attempt.workspaces.developer.resourceId === workspace.resourceId ? attempt.workspaces.developer.path : null, note: 'Unsealed source, not candidate or verification evidence. Cross-resource drafts require a sealed artifact before verification.' } : null, handoff: task.collaboration?.history.at(-1) ? { purpose: task.collaboration.history.at(-1).purpose, reason: task.collaboration.history.at(-1).reason } : null, candidateSha: attempt.candidateSha ?? null, tests: attempt.evidence.tests ? { sha: attempt.evidence.tests.sha, passed: attempt.evidence.tests.passed, sha256: attempt.evidence.tests.sha256, command: attempt.evidence.tests.command } : null, review: attempt.evidence.review ? { sha: attempt.evidence.review.sha, verdict: attempt.evidence.review.verdict, summary: attempt.evidence.review.summary } : null }, repository: await repositoryContext(project.id, attempt.baseSha) })
+    } catch (error) {
+      const unbound = lease && !lease.worker && !Object.values(state.projectHarnessWorkers ?? {}).some(row => row.leaseId === lease.id) && !Object.values(attempt.roleSessions ?? {}).some(row => row.id === sessionId)
+      if (unbound) await rt.projectResources.release(lease.id, lease.generation)
+      ;(attempt.preparationFailures ??= []).push({ role, sessionId, leaseId: lease?.id ?? null, message: String(error.message), releasedBeforeExternalStart: Boolean(unbound), at: Date.now() })
+      await rt.save()
+      throw error
+    }
     attempt.rolePolicies[role] = policy
     const session = { id: sessionId, projectId: project.id, taskId: task.id, attemptId: attempt.id, role, execution: cloneExecution(execution), policy, context, generation: claim.generation, poolClaimId: claim.id, status: 'prepared', ...(lease ? { resourceLease: lease } : {}) }
     if (attempt.roleSessions[role]) {
@@ -471,7 +548,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     rt.taskDeliveryState?.(task.id, attempt.id, 'working', `${definition.name} claimed the Task`)
     rt.bindProject({ kind: 'run', id: attempt.runId, projectId: project.id, taskId: task.id, attemptId: attempt.id, status: 'running' })
     await rt.save()
-    const prompt = `The host already allocated this registered worktree at the pinned base SHA. Do not switch to main, create another worktree, publish a PR, change credentials or edit outside this worktree. The host seals and publishes the candidate. Permitted repository paths: ${JSON.stringify(settings.allowedPaths)}. Configured verification argv: ${JSON.stringify(settings.testCommand)}. Read your assigned Task and role policy. Choose to work, return or transfer based on the actual requirements. You may go directly to another logical Bot without Chief approval. Only Chief can judge overall completion. Never close the Task yourself.\nLogical Bots: ${JSON.stringify(rt.projectAgents.deliveryDefinitions(project.id).roles.map(row => ({ id: row.id, role: row.role })))}\nFinish with OUTPUT handoff: a single-line JSON object {"action":"handoff|return|transfer|complete|arbitrate","to":"logical Bot id when handing off or returning","reason":"specific reason","outputs":{}}. For completed developer work include outputs.implementation, tester work outputs.tests; review outputs.review must be a JSON string with the exact commit, verdict and summary. Use transfer to route without claiming your role work is complete. Choose the next Bot based on evidence; no fixed order is required. Missing evidence or uncertainty should request Chief judgement.\nTask kind: ${task.collaboration.kind}`
+    const prompt = `The host already allocated this registered worktree at the pinned base SHA. Do not switch to main, create another worktree, publish a PR, change credentials or edit outside this worktree. The host seals and publishes the candidate. Permitted repository paths: ${JSON.stringify(settings.allowedPaths)}. Configured verification argv: ${JSON.stringify(settings.testCommand)}. The host runs the configured verification outside your SDK sandbox when a Tester returns a handoff/complete decision with outputs.tests. As Tester, outputs.tests may truthfully request that host run and distinguish local Not run checks; the host applies your downstream handoff only if the actual command passes. An arbitrate/transfer decision does not request completed-role verification. If sandbox restrictions block loopback or private host logs, record Not run honestly and request that testing handoff rather than claiming success or repeatedly writing inaccessible paths. Read your assigned Task and role policy. Choose to work, return or transfer based on the actual requirements. You may go directly to another logical Bot without Chief approval. Only Chief can judge overall completion. Never close the Task yourself.\nLogical Bots: ${JSON.stringify(rt.projectAgents.deliveryDefinitions(project.id).roles.map(row => ({ id: row.id, role: row.role })))}\nFinish with OUTPUT handoff: a single-line JSON object {"action":"handoff|return|transfer|complete|arbitrate","to":"logical Bot id when handing off or returning","reason":"specific reason","outputs":{}}. For completed developer work include outputs.implementation, tester work outputs.tests; review outputs.review must be a JSON string with the exact commit, verdict and summary. Use transfer to route without claiming your role work is complete; transfer does not seal Developer changes. A Developer handoff with outputs.implementation requests host candidate sealing, even when full host tests have not yet run. Receivers must distinguish the referenced unverified working draft from their clean pinned checkout. Choose the next Bot based on evidence; no fixed order is required. Missing evidence or uncertainty should request Chief judgement.\nTask kind: ${task.collaboration.kind}`
     return { nodeId: role, name: definition.name, role: definition.name, prompt, model: definition.model || settings.model, tools: [], executionProjectId: project.id, executionWorkDir: workspace.path }
   }
   async function completePoolRole({ task, claim, role, outputs }) {
@@ -522,14 +599,30 @@ export function createProjectDelivery(rt, { publisher } = {}) {
       attempt.acceptedViaChief = decision.id; if (task.result) task.result.summary = `Chief confirmed: ${decision.reason}`; task.completedBy = { kind: 'chief', authorizedBy: actor.memberId, decisionId: decision.id, runId: actor.chiefJobId }; await rt.save(); return accepted
     } catch (error) { attempt.chiefDecision = prior; throw error }
   }
-  async function reworkPool({ task, claim, reason, force = false }) {
+  async function reworkPool({ task, claim, reason, force = false, decisionId }) {
     const previous = ownEntry(attempts(), claim.attemptId)
     if (!previous) throw reject('Chief rework has no original Attempt')
-    if (!force && !previous.candidateSha) return previous.id
+    if (!force && !previous.candidateSha && previous.status === 'running') return previous.id
+    if (!force && !previous.candidateSha && previous.status === 'interrupted' && !previous.cancelRequested && previous.workspaces.developer?.status === 'allocated') {
+      const leases = Object.values(state.projectResourceLeases ?? {}).filter(row => row.attemptId === previous.id)
+      const workers = Object.values(state.projectHarnessWorkers ?? {}).filter(row => row.attemptId === previous.id)
+      const native = Object.values(state.bots ?? {}).filter(row => row.ephemeral && row.attemptId === previous.id)
+      const knownExited = leases.every(row => row.status === 'released') && workers.every(row => row.status === 'released') && !native.length
+      if (knownExited && await workspaceGit(previous.workspaces.developer, ['status', '--porcelain'])) {
+        const previousRunId = previous.runId
+        previous.runId = `pool-run-${randomUUID()}`
+        previous.resumptions ??= []
+        previous.resumptions.push({ kind: 'pre-candidate-preparation', previousRunId, runId: previous.runId, previousStatus: previous.status, failure: structuredClone(previous.failure ?? null), decisionId: decisionId ?? null, reason, at: Date.now(), leaseIds: leases.map(row => row.id), workerIds: workers.map(row => row.id) })
+        previous.status = 'running'; previous.updatedAt = Date.now(); delete previous.failure
+        rt.bindProject({ kind: 'run', id: previous.runId, projectId: task.projectId, taskId: task.id, attemptId: previous.id, status: 'queued' })
+        await rt.save(); return previous.id
+      }
+    }
+    const publicationBinding = await publicationOf(previous, projectOf(task.projectId))
     const id = `attempt-${randomUUID()}`
     if (['running', 'waiting-acceptance'].includes(previous.status)) previous.status = 'returned'
     previous.returned = { at: Date.now(), by: claim.botId, reason }
-    const next = { id, protocol: previous.protocol, projectId: previous.projectId, taskId: task.id, requestKey: hash(`${task.projectId}\n${task.id}\n${claim.id}`), workflowVersion: previous.workflowVersion, status: 'running', initiatedBy: previous.initiatedBy, executionOwnerId: previous.executionOwnerId, baseSha: force && !previous.candidateSha ? await git(settingsOf(projectOf(task.projectId)).path, ['rev-parse', 'HEAD']) : previous.baseSha, seedSha: previous.candidateSha, requirement: structuredClone(previous.requirement), feedback: { previousAttemptId: previous.id, kind: 'bot-return', reason, candidateSha: previous.candidateSha }, agentDefinitions: rt.projectAgents.deliveryDefinitions(task.projectId), roleSessions: {}, rolePolicies: {}, resourceLeases: {}, workspaces: {}, evidence: {}, createdAt: Date.now(), updatedAt: Date.now(), runId: `pool-run-${randomUUID()}` }
+    const next = { id, protocol: previous.protocol, projectId: previous.projectId, taskId: task.id, requestKey: hash(`${task.projectId}\n${task.id}\n${claim.id}`), workflowVersion: previous.workflowVersion, status: 'running', initiatedBy: previous.initiatedBy, executionOwnerId: previous.executionOwnerId, baseSha: !previous.candidateSha && (force || previous.status === 'interrupted') ? await git(settingsOf(projectOf(task.projectId)).path, ['rev-parse', 'HEAD']) : previous.baseSha, seedSha: previous.candidateSha, ...(publicationBinding ? { publicationBinding } : {}), requirement: structuredClone(previous.requirement), feedback: { previousAttemptId: previous.id, kind: 'bot-return', reason, candidateSha: previous.candidateSha }, agentDefinitions: rt.projectAgents.deliveryDefinitions(task.projectId), roleSessions: {}, rolePolicies: {}, resourceLeases: {}, workspaces: {}, evidence: {}, createdAt: Date.now(), updatedAt: Date.now(), runId: `pool-run-${randomUUID()}` }
     previous.supersededBy = id
     setEntry(attempts(), id, next); task.deliveryAttemptId = id
     rt.bindProject({ kind: 'run', id: previous.runId, projectId: task.projectId, taskId: task.id, attemptId: previous.id, status: 'failed' })

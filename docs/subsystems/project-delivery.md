@@ -5,6 +5,7 @@ owned_paths:
   - core/src/host/project-delivery-template.js
   - core/src/host/project-github.js
   - core/test/project-delivery.test.js
+  - core/test/project-github-publish.test.js
 ---
 
 # Project code delivery (fork M3)
@@ -243,3 +244,88 @@ Receiving role context includes current handoff and bounded candidate/test/revie
 facts. Before any sealed candidate exists, an explicit Chief rework pins the new
 Attempt to current repaired repository HEAD; the original base/evidence remain
 immutable. Candidate-backed rework keeps its original base and seeds that candidate.
+
+Host prompts distinguish SDK-local checks from the configured host verification:
+blocked loopback/private log paths are Not run, and a testing handoff requests the
+actual host command. Pre-candidate resume preserves uncommitted implementation.
+
+Across restart, Chief route may resume an interrupted pre-candidate workspace
+with changes after all bound workers/leases are released and no native worker
+remains. Cancellation forbids resume. Resumptions retain old status, failure and
+Chief decision; unknown occupancy creates isolated work rather than reusing it.
+
+Interrupted preparation resume creates a new Run, retains the failed Run and
+archives the prior Attempt failure on its resumption record; active failure state
+clears only after the host validates safe workspace reuse.
+
+Tester handoff/complete with outputs.tests requests actual host verification.
+Local sandbox checks may be Not run; downstream admission still requires the real
+registered command to pass. Arbitrate/transfer does not claim completed tests.
+
+Transfer does not seal Developer changes. A receiving role gets an explicitly
+unverified workspace reference only on the same resource; a clean recipient
+checkout is not evidence that implementation is absent. Cross-resource drafts
+require sealing before they can be verified. Developer handoff requests sealing
+without asserting tests passed.
+
+## Quiescent Chief checkpoints
+
+On restart, a running pool Attempt with exact-SHA passing host tests may retain its
+candidate and evidence while blocked on Chief/human input. This requires a completed
+Chief Run, a waiting-human Chief claim, released Chief worker/lease, all recorded
+delivery workers and leases released, no native worker and no cancellation. The host
+records `quiescent-chief-wait` in restartCheckpoints. It does not execute, accept or
+create a new candidate. Active/unknown execution still becomes interrupted. Normal
+current-authority, generation, candidate and evidence checks apply before retry.
+
+## Published delivery rework
+
+A Chief return or human retry after publication retains a host-derived
+publicationBinding: repository, PR number, its existing remote branch and the
+previous published SHA. Separate worktrees keep distinct local Attempt branches.
+Candidate sealing collapses only unpublished worker commits onto seedSha, retaining
+the prior candidate as an ancestor instead of resetting all history to baseSha.
+Path/evidence policy still compares the complete change against the original base.
+
+Before advancing an existing PR, the publisher rechecks its repository, number,
+open state, branch and expected head. It verifies candidate ancestry, uses only a
+normal fast-forward push to the bound branch, then reads back the same PR/head.
+Stale/closed/mismatched records, lost ancestry or concurrent remote commits stop
+publication; there is no fallback PR creation and no force push. A response-loss
+retry may reuse an already matching candidate head. Initial publication retains
+the existing new-branch behavior. This is same-Task continuation, not permission
+to attach another Task or take over another contributor's PR.
+
+Regression coverage uses actual Git repositories and a local bare remote with a
+mocked GitHub API/credential resolver; no live GitHub publication is claimed by
+those tests. Existing live Attempts/evidence are not migrated or manually edited.
+Actual PR48 conflict rework still needs Chief routing and fresh candidate tests/
+independent Review after the repaired backend is verified and deployed.
+
+### Trusted upstream integration
+
+For an already published Task, admission/rework reads the existing PR and resolves
+its actual target branch through the GitHub ref API, not the potentially cached
+PR base.sha. Before allocating or changing the old Attempt, the host verifies the
+open expected head, configured target and availability of that exact commit in the
+registered repository. It records upstreamSha/upstreamRef on the PR binding. No
+client or model argument selects those parents.
+
+When upstream is not already an ancestor of seedSha, Developer must merge the
+pinned upstream into the retained candidate and resolve/stage conflicts. Host
+sealing requires either a matching MERGE_HEAD with no unresolved index entries or
+a committed merge containing both trusted inputs. It creates one candidate with
+seed and pinned upstream as parents, dropping unpublished intermediate commits.
+The role context includes that required merge input; host tests and independent
+Review must still verify actual merged content, not just graph reachability.
+
+Publication checks both ancestors and resolves the live target again before and
+after push. A moved target, missing object, wrong merge head or unresolved index
+blocks delivery with no replacement PR. Existing candidates/receipts are not
+migrated or overwritten. The implementation is tested with local Git conflict
+resolution and a real service-credential read; actual Codex maintenance/publication
+still requires verified integrated deployment and a Chief decision.
+
+Before external execution, failed role-context admission releases only a proven unbound reservation through the resource lifecycle and records preparation failure. Existing developer drafts are never reset on preparation retry. Restart preserves a narrow rejected-admission checkpoint only with the host rejection receipt, completed Chief exit proof, no role Session/history/execution/native worker, and exclusively unbound reservations; unknown execution still interrupts. Resource reconciliation retains responsibility for release.
+
+Before Developer allocation, bound rework revalidates the original PR head, target ref and provisioned target object through the selected host broker. A moved descendant target can refresh on the same Attempt only before any candidate, role Session/history, execution record or native/SDK worker and after every registered lease is released. Ref changes, unrelated or unavailable objects and recorded/unknown execution refuse admission. The host records both old/new bindings with claim/generation; seed, base, workspace and published candidate lineage stay intact. Publisher still rechecks target movement before and after publication.

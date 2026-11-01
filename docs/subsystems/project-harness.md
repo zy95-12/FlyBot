@@ -1,6 +1,8 @@
 ---
 subsystem: project-harness
 owned_paths:
+  - core/src/host/project-git-sandbox.js
+  - core/test/project-git-sandbox.test.js
   - core/src/host/project-harness.js
   - core/src/host/project-harness-turn.js
   - core/src/host/project-harness-worker.mjs
@@ -55,8 +57,8 @@ Saved worker evidence names Project/Task/Attempt/role/Harness/version/resource/p
 lease generation, cwd, backend Session/thread and event log. Input continuation resumes
 that backend Session in the same bound cwd. New Attempts create fresh workers/threads.
 
-Codex uses streamed events, read-only/workspace-write sandbox by role, network/search
-disabled and approvalPolicy=never. The exec SDK does not provide an interactive approval
+Codex uses streamed events, read-only/workspace-write sandbox by role, external command network and web search
+denied and approvalPolicy=never. The exec SDK does not provide an interactive approval
 callback; denied actions must fail or be explained through a same-thread message. It does
 not silently grant full host permissions. Claude uses explicit tools, settingSources=[]
 and its permission callback. Permission requests appear as waiting-input and require a
@@ -145,3 +147,34 @@ Chief. They reuse the existing no-tools, read-only conversation adapter and live
 delegation. SDK worker metadata records the actual selected model and room binding;
 scoped resource projections omit other members' restricted-room workers. Host-parsed
 SDK replies share the native transcript read model; partial SDK JSON is not displayed.
+Local Codex developers receive host-derived writable roots for their registered
+Git worktree directory and common object store, so staging new canonical files
+works without access to shared refs/config. Reviewer/Tester/Chief get no extra
+writable roots; outbound access remains denied. The pinned SDK supports
+additionalDirectories (`--add-dir`); see [sandbox boundaries](https://learn.chatgpt.com/docs/sandboxing).
+Actual SDK stop acknowledgement plus process exit is persisted as release proof.
+
+CLI 0.166 raw network denial breaks Node/libuv Unix pipe lifecycle. Command roles
+therefore use a named profile extending :workspace or :read-only, with scratch
+write access and scoped Git roots only for Dev. The network proxy is mandatory,
+limited, and has an empty allowlist; local binding and arbitrary Unix socket
+destinations remain disabled. Legacy sandbox/network flags are omitted so they
+cannot override the named policy. Chief retains no-tools/read-only/raw-deny mode.
+See the [permission profile reference](https://learn.chatgpt.com/docs/config-file/config-reference).
+Real sandbox probes cover successful child processes, denied proxy/direct outbound
+requests and EROFS outside the workspace. These are distinct from model acceptance.
+
+SDK handoff ports also accept an entire valid JSON decision with the OUTPUT
+framing omitted. The host preserves the raw hash and decision, adds only framing,
+and applies the same admission/authority checks; arbitrary prose is never a decision.
+
+## Temporary verification files
+
+Command workers receive a unique host-created `.flybot-scratch-<worker-id>` directory
+inside the selected resource root. TMPDIR and the offline npm cache point there;
+the named Codex filesystem profile grants that exact path even for read-only roles.
+Source/Git write grants remain Developer-only. Chief has no scratch/tool grant.
+The same resource adapter provisions local/Docker directories. Confirmed SDK exit
+precedes cleanup; changed bindings or cleanup failure retain explicit cleanup debt
+without pretending an exited process still occupies capacity. Fixed dependencies
+are provisioned by the host, rather than asking a read-only Reviewer to install them.

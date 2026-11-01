@@ -120,7 +120,7 @@ export function createProjectResources(rt) {
     const worker = lease.worker
     const confirmed = !worker || worker.kind === 'native' && !ownEntry(state.bots ?? {}, worker.botId) || confirmation?.handle === worker.handle && confirmation?.exited === true
     lease.status = confirmed ? 'released' : 'stopping'
-    if (confirmed) lease.releasedAt = Date.now()
+    if (confirmed) { lease.releasedAt = Date.now(); lease.releaseProof ??= confirmation?.proof ?? { kind: worker ? 'host-confirmed-worker-exit' : 'unbound-reservation-release', at: lease.releasedAt } }
     await rt.save()
     if (confirmed) rt.projectScheduler?.wake()
   }

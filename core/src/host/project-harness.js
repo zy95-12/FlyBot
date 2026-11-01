@@ -6,10 +6,19 @@ import { isAbsolute, join, resolve, relative, dirname } from 'node:path'
 import { createInterface } from 'node:readline'
 import { verifyRolePolicy, roleExecutionPrompt } from './project-role-policy.js'
 import { fileDigest } from './project-resource-workspaces.js'
+import { gitWritableRoots } from './project-git-sandbox.js'
 import { ownEntry, setEntry } from './store.js'
 const refuse = message => Object.assign(new Error(message), { code: 'bot/harness' })
 const sha = text => createHash('sha256').update(text).digest('hex')
 const VERSIONS = { codex: '0.166.0', 'claude-agent': '0.3.316' }
+export function handoffFrame(text, outputs) {
+  if (typeof text !== 'string' || outputs?.length !== 1 || outputs[0] !== 'handoff' || /(?:^|\n)OUTPUT handoff:/.test(text)) return text
+  try {
+    const value = JSON.parse(text.trim().replace(/^```(?:json)?\s*|\s*```$/g, ''))
+    if (!value || Array.isArray(value) || !['handoff', 'return', 'transfer', 'complete', 'arbitrate'].includes(value.action) || typeof value.reason !== 'string' || !value.reason.trim()) return text
+    return 'OUTPUT handoff: ' + JSON.stringify(value)
+  } catch { return text }
+}
 export function createProjectHarness(rt) {
   const workers = () => (rt.state.projectHarnessWorkers ??= {})
   const active = new Map(), listeners = new Set()
@@ -63,11 +72,17 @@ export function createProjectHarness(rt) {
     const workerPath = selected.resource.runtimeDir ? join(selected.resource.runtimeDir, 'src/host/project-harness-worker.mjs') : resolve(import.meta.dirname, 'project-harness-worker.mjs')
     if (relative(selected.resource.root, workspace.path).startsWith('..')) throw refuse('SDK Workspace is outside the selected resource')
     const id = `sdk-worker-${randomUUID()}`
+    // Verification may write fixtures, but never the sealed review checkout.
+    const scratchDirectory = chief ? null : join(selected.resource.root, `.flybot-scratch-${id}`)
+    if (scratchDirectory) {
+      await rt.projectResources.command(session.projectId, session.resourceLease.resourceId, { cwd: selected.resource.root, argv: ['node', '-e', 'require("node:fs").mkdirSync(process.argv[1], { mode: 0o700 })', scratchDirectory] })
+      Object.assign(selected.env, { TMPDIR: scratchDirectory, npm_config_cache: join(scratchDirectory, 'npm-cache'), npm_config_update_notifier: 'false', npm_config_offline: 'true' })
+    }
     const conversation = chief ? ownEntry(rt.state.projectAgents ?? {}, chief.agentId) : null
     const row = { id, ...(conversation?.roomId ? { roomId: conversation.roomId } : {}), model: session.execution.model ?? selected.selected.model ?? null, chiefRunId: chief?.runId ?? null, visibility: conversation?.visibility ?? 'project', ...(conversation?.visibility === 'private' ? { memberId: conversation.memberId } : {}), projectId: session.projectId, taskId: session.taskId, attemptId: session.attemptId, role: session.role, sessionKey: session.id,
       resourceId: session.resourceLease.resourceId, leaseId: session.resourceLease.id, generation: session.resourceLease.generation,
       harness: session.execution.harness, sdkVersion: null, expectedSdkVersion: VERSIONS[session.execution.harness], principalId: selected.principalId,
-      cwd: workspace.path, status: 'prepared', createdAt: Date.now(), eventCount: 0 }
+      cwd: workspace.path, scratchDirectory, status: 'prepared', createdAt: Date.now(), eventCount: 0 }
     setEntry(workers(), id, row)
     if (chief) await rt.projectResources.markStarted(row.leaseId, row.generation, { kind: 'sdk', handle: id })
     else await rt.projectDelivery.bindSession(workspace, { id, sessionId: id, kind: 'sdk' })
@@ -122,6 +137,9 @@ export function createProjectHarness(rt) {
         if (event.type === 'completed') {
           rt.projectResources.setting(row.projectId, row.resourceId)
           if (row.backendSessionId && row.backendSessionId !== event.sessionId) throw refuse('SDK result names another Session')
+          const rawText = event.text
+          event.text = handoffFrame(rawText, control.outputs)
+          if (event.text !== rawText) { row.rawResultHash = sha(rawText); row.outputFraming = 'json-handoff/v1' }
           row.backendSessionId = event.sessionId; session.backendSessionId = event.sessionId; row.usage = event.usage; row.resultHash = sha(event.text)
           if (control.outputs.every(name => new RegExp(`(?:^|\\n)OUTPUT ${name}:`).test(event.text))) {
             row.status = 'completed'
@@ -176,8 +194,10 @@ export function createProjectHarness(rt) {
     control.outputs = (step.outputs ?? []).map(port => port.name)
     const prompt = `${roleExecutionPrompt(control.prompt, control.session)}\n\nTask ${step.taskId}: ${step.brief}\nInputs: ${JSON.stringify(step.inputs ?? {})}\nFinish with OUTPUT <name>: <value> for ${control.outputs.join(', ')}.`
     row.status = 'running'
+    const workspace = rt.state.projectAttempts?.[row.attemptId]?.workspaces?.[row.role]
+    const writableRoots = row.role === 'developer' && row.harness === 'codex' && rt.projectResources.setting(row.projectId, row.resourceId).type === 'local' && workspace?.path === row.cwd ? await gitWritableRoots({ cwd: row.cwd, repository: workspace.repository, developer: true }) : []
     control.process.stdin.write(JSON.stringify({ type: 'start', settings: { harness: row.harness, cwd: row.cwd, sessionId: control.resumeSessionId, noTools: row.role === 'chief', model: control.profile.model, env: control.env,
-      ...(control.profile.baseUrl ? { baseUrl: control.profile.baseUrl } : {}), readOnly: row.role !== 'developer', maxBudgetUsd: control.profile.maxBudgetUsd ?? 1 }, prompt }) + '\n')
+      ...(control.profile.baseUrl ? { baseUrl: control.profile.baseUrl } : {}), readOnly: row.role !== 'developer', writableRoots, scratchDirectory: row.scratchDirectory, maxBudgetUsd: control.profile.maxBudgetUsd ?? 1 }, prompt }) + '\n')
     control.timer = setTimeout(() => { row.status = 'failed'; failAsync(row, 'SDK execution timeout') }, Math.max(1000, Math.min(rt.config.projectExecutionTimeoutMs ?? 120_000, 7_200_000)))
     control.timer.unref?.()
     await rt.save()
@@ -195,9 +215,18 @@ export function createProjectHarness(rt) {
     const stopped = await Promise.race([control.exit.then(() => true), new Promise(resolve => { timer = setTimeout(() => resolve(false), 6000) })])
     clearTimeout(timer)
     if (!stopped || !control.stoppedConfirmed && !control.spawnFailed) { row.status = 'unreachable'; await rt.save(); throw refuse('SDK worker has not confirmed exit; capacity retained') }
-    row.status = 'released'; row.releasedAt = Date.now(); active.delete(id)
-    await rt.projectResources.release(row.leaseId, row.generation, { handle: id, exited: true })
+    row.status = 'released'; row.releasedAt = Date.now(); row.releaseProof = { kind: control.spawnFailed ? 'sdk-worker-spawn-failed' : 'sdk-stop-ack-and-process-exit', workerId: id, generation: row.generation, at: row.releasedAt }; active.delete(id)
+    await rt.projectResources.release(row.leaseId, row.generation, { handle: id, exited: true, proof: row.releaseProof })
     await rt.projectDelivery.releaseSession(id)
+    if (row.scratchDirectory) {
+      try {
+        rt.projectResources.requireBinding(row.projectId, rt.state.projectResourceLeases[row.leaseId])
+        const resource = rt.projectResources.setting(row.projectId, row.resourceId)
+        if (row.scratchDirectory !== join(resource.root, `.flybot-scratch-${row.id}`)) throw refuse('Scratch binding changed')
+        await rt.projectResources.command(row.projectId, row.resourceId, { cwd: resource.root, argv: ['node', '-e', 'const fs=require("node:fs"),p=process.argv[1];if(fs.existsSync(p)){const s=fs.lstatSync(p);if(!s.isDirectory()||s.isSymbolicLink())throw Error("Scratch binding changed");fs.rmSync(p,{recursive:true})}', row.scratchDirectory] })
+        row.scratchCleanedAt = Date.now()
+      } catch { row.scratchCleanupPending = true } // Preserve cleanup debt without inventing an active worker after confirmed exit.
+    }
     await rt.save()
     return true
   }

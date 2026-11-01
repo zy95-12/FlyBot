@@ -107,9 +107,10 @@ export function createProjectChiefControl(rt) {
       const claim = task.collaboration?.claim, worker = rt.state.projectHarnessWorkers?.[claim?.workerId]
       return { taskId: task.id, title: task.title, criteria: task.criteria ?? '', projectTaskKind: task.projectTaskKind ?? 'code', status: task.status,
         allocationProof: allocationProof(rt.state, task),
-        execution: claim ? { status: claim.status, startedAt: claim.createdAt, elapsedMs: Date.now() - claim.createdAt, workerStatus: worker?.status ?? null, lastEventAt: worker?.lastEventAt ?? null } : null,
+        execution: claim ? { botId: claim.botId, status: claim.status, startedAt: claim.createdAt, elapsedMs: Date.now() - claim.createdAt, workerStatus: worker?.status ?? null, lastEventAt: worker?.lastEventAt ?? null } : null,
         handoff: task.collaboration?.history.at(-1) ? { id: task.collaboration.history.at(-1).id, purpose: task.collaboration.history.at(-1).purpose, reason: task.collaboration.history.at(-1).reason } : null,
-        block: task.collaboration?.block ?? null, resources: Object.values(rt.state.projectResourceLeases ?? {}).filter(lease => rt.state.projectAttempts?.[lease.attemptId]?.taskId === task.id).map(lease => ({ role: lease.role, status: lease.status, attemptId: lease.attemptId, workerId: lease.worker?.handle ?? null, releasedAt: lease.releasedAt ?? null, releaseProof: lease.releaseProof?.kind ?? null })),
+        block: task.collaboration?.block ?? null, resources: Object.values(rt.state.projectResourceLeases ?? {}).filter(lease => rt.state.projectAttempts?.[lease.attemptId]?.taskId === task.id).map(lease => ({ role: lease.role, status: lease.status, attemptId: lease.attemptId, workerId: lease.worker?.handle ?? null, releasedAt: lease.releasedAt ?? null, releaseProof: lease.releaseProof?.kind ?? (lease.status === 'released' && rt.state.projectHarnessWorkers?.[lease.worker?.handle]?.status === 'released' && rt.state.projectHarnessWorkers[lease.worker.handle].leaseId === lease.id && rt.state.projectHarnessWorkers[lease.worker.handle].generation === lease.generation ? 'persisted-sdk-confirmed-release' : null) })),
+        attemptStatus: attempt?.status ?? null,
         generation: task.collaboration?.generation ?? 0, destination: task.collaboration?.botId ?? null, attemptId: attempt?.id ?? null, candidateSha: attempt?.candidateSha ?? null,
         evidence: { implementation: attempt?.evidence.implementation ? { sha: attempt.evidence.implementation.sha, paths: attempt.evidence.implementation.paths } : null,
           tests: attempt?.evidence.tests ? { sha: attempt.evidence.tests.sha, passed: attempt.evidence.tests.passed, sha256: attempt.evidence.tests.sha256, command: attempt.evidence.tests.command } : null,
@@ -132,6 +133,7 @@ export function createProjectChiefControl(rt) {
       task.chiefObservations = { fingerprint: saved.inspection.fingerprint, handoffCount: task.collaboration?.history.length ?? 0, lastDecisionId: audit.id, at: Date.now() }
     } else if (decision.action === 'needs-human') {
       if (task.collaboration) { task.collaboration.status = 'blocked'; task.collaboration.block = { reason, chiefDecisionId: audit.id, at: Date.now() } }
+      if (task.collaboration?.claim?.chiefRunId === run.id) task.collaboration.claim.status = 'waiting-human'
       task.chiefQuestion = { decisionId: audit.id, reason, at: Date.now() }
     } else if (decision.action === 'close') {
       if (!Array.isArray(decision.criteria) || !decision.criteria.length || decision.criteria.some(row => row?.passed !== true || typeof row.criterion !== 'string' || !row.criterion.trim() || typeof row.evidence !== 'string' || !row.evidence.trim())) throw refuse('Chief closure needs explicit acceptance-criteria evidence')
@@ -140,7 +142,7 @@ export function createProjectChiefControl(rt) {
     } else {
       const target = decision.action === 'request-tests' ? `${run.projectId}:tester` : decision.targetBotId
       if (typeof target !== 'string') throw refuse('Chief routing needs an explicit logical Bot')
-      await rt.projectPools.chiefRoute({ taskId: task.id, targetBotId: target, expectedGeneration: saved.generation, reason, decisionId: audit.id }, actor)
+      await rt.projectPools.chiefRoute({ taskId: task.id, targetBotId: target, expectedGeneration: saved.generation, reason, decisionId: audit.id, rework: decision.action === 'return' }, actor)
     }
     audit.status = 'applied'; audit.finishedAt = Date.now(); await rt.save()
     return audit
@@ -200,7 +202,7 @@ export function createProjectChiefControl(rt) {
           run.processScope = await captureProcessScope()
           if (run.taskId) await rt.projectPools.chiefClaim(run.taskId, actor)
           job.snapshot = snapshot(run); run.snapshotSha256 = digest(job.snapshot); await rt.save()
-          const prompt = `You are the resident Project Chief, performing ${run.purpose}. Return ONLY JSON {"summary":"actual assessment","decisions":[{"taskId":"...","action":"close|route|return|request-tests|needs-human|continue","targetBotId":"logical Bot when routing","reason":"specific judgement","criteria":[{"criterion":"acceptance item","passed":true,"evidence":"actual acceptance evidence"}]}]}. A conversation/turn completion is not Task completion. Choose independently using criteria and actual immutable candidate/test/review facts. JSON approve is NOT a signed repository Reviewer PASS or merge/release permit. Do not close missing or stale evidence. Host allocationProof.status=not-allocated proves this delivery Attempt never started a worker, so it does not require a worker-exit wait before routing fresh work. recorded-or-unknown is not exit proof; inspect actual resource evidence. Use needs-human when requirements/authority are unclear. Normal downstream handoffs do not need your approval. ${run.source?.prompt ?? policy.inspection.prompt}`
+          const prompt = `You are the resident Project Chief, performing ${run.purpose}. Return ONLY JSON {"summary":"actual assessment","decisions":[{"taskId":"...","action":"close|route|return|request-tests|needs-human|continue","targetBotId":"logical Bot when routing","reason":"specific judgement","criteria":[{"criterion":"acceptance item","passed":true,"evidence":"actual acceptance evidence"}]}]}. A conversation/turn completion is not Task completion. Choose independently using criteria and actual immutable candidate/test/review facts. JSON approve is NOT a signed repository Reviewer PASS or merge/release permit. Do not close missing or stale evidence. Host allocationProof.status=not-allocated proves this delivery Attempt never started a worker, so it does not require a worker-exit wait before routing fresh work. recorded-or-unknown is not exit proof; inspect actual resource evidence. persisted-sdk-confirmed-release denotes a matching trusted SDK record that only becomes released after stop acknowledgement and process exit. Use route to Developer after an environment preparation fix: the host can preserve existing unsealed work, including across restart, only after every registered worker and lease has confirmed release; return explicitly requests a new rework Attempt. Use needs-human when requirements/authority are unclear. Normal downstream handoffs do not need your approval. ${run.source?.prompt ?? policy.inspection.prompt}`
           const workerId = await rt.projectAgents.startChiefJob({ projectId: run.projectId, actor, runId: run.id, prompt, projectFacts: { tasks: job.snapshot }, onResult: result => completed(job, result) })
           run.workerId = workerId; await rt.save()
         } catch (error) { await completed(job, { ok: false, text: String(error.message) }) }

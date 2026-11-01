@@ -142,3 +142,32 @@ not ready to publish or accept until patch generation and required checks pass, 
 criterion 7 explicitly remains pending operator evidence. The capability inventory also
 states bounded text-only documents, no partial SDK JSON rendering, operator-only global
 tree management and deferred cross-instance Social; no broader restoration is implied.
+
+## P0 same-PR integration — 2026-11-01
+
+This execution starts at published candidate `56d14be1221f5d8b3ce9a83f4087abf55b664db2`.
+It merges host-pinned upstream `e3ff1d26f28e7c414541f73df5598752d79ca216`
+with `git merge --no-commit --no-ff`. Five additive documentation conflicts were
+resolved preserving both sides; the automatic Harness source merge retains room
+metadata and upstream sandbox/scratch/release changes. MERGE_HEAD remains the
+trusted upstream and all resolutions are staged for host sealing. No worker commit,
+new PR, credential change or publication was performed.
+
+Ran on this unsealed merged tree:
+
+- Configured verifier `--prepare-only`: passed.
+- Client and workbench builds: passed.
+- Patch generate, check and canonical: passed after staging conflict resolutions.
+- `git diff --cached --check`: passed.
+- `PATH=/usr/local/lib/flybot-shared:$PATH TZ=UTC npm run verify`: incomplete.
+  Lint, build checks and patch checks passed; core tests progressed through test
+  1030 without a reported `not ok` before the tool reported sandbox denial of
+  private/loopback network access. This is neither a complete core-suite PASS nor
+  full verification. No new defect-test red/green is claimed for this integration;
+  inherited regression results are not borrowed as current results.
+
+Not run/completed here: full configured host verification, smoke/Chromium, real
+model/shared-service acceptance, independent Review and same-PR publication.
+Tester must request the host configured verifier on the sealed candidate. Earlier
+logs above remain historical. Owner's polished-demo UI feedback remains outstanding;
+this P0 integration does not establish overall #40 completion or visual acceptance.

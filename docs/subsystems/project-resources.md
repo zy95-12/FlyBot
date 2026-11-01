@@ -122,3 +122,7 @@ Chief jobs count against resource capacity while avoiding delivery quota deadloc
 Live dogfood regression: supervisor inspection yields to release callbacks.
 Reconciliation rechecks terminal status afterward and cannot resurrect a confirmed
 released lease. Current owned controllers avoid unnecessary supervisor I/O.
+
+Confirmed releases record their evidence kind. SDK releases carry bound worker
+and generation proof from stop acknowledgement plus process exit; unknown releases
+still retain capacity. Historical matching SDK released records remain host facts.

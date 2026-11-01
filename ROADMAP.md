@@ -170,3 +170,37 @@ evidence; full host verification and actual deployed three-role acceptance remai
 
 
 R7 rework adds socket-free complete workbench bootstrap/agent initialization checks and repairs the release-fragment format found in the current full verification log. This does not establish Chromium or deployed-service acceptance; Tester must run the configured host gate and the operator must rerun browser clicks.
+R6 actual persistent 30-minute wake and restart-preserved cadence passed on source
+59635b2. Shared issue #40 code delivery is still exercising SDK Git permissions
+and handoff preparation; final role-chain/browser acceptance remains incomplete.
+
+R6 real recovery exposed an exhausted lifetime Chief→Dev edge and partial routing
+mutation. Regression coverage now checks bounded epochs after audited intervention,
+unchanged admission on refusal, preserved quotas and recoverable preparation failure.
+R7 remains unsealed until actual Developer completion and downstream evidence.
+
+R7 real Dev→Tester→Reviewer handoff reached a host-verified candidate and passing
+Chromium fixture. Reviewer truthfully returned INC for sandbox temporary writes.
+R6 repairs host-bound scratch allocation, explicit permissions and exit-gated cleanup;
+retry independent Review at the same candidate after environment preparation.
+
+R6 restart recovery now distinguishes a fully released, tested Chief-wait checkpoint
+from active or unknown execution, so environment upgrades can retry Review at the
+same candidate without manufacturing a new implementation Attempt.
+
+Current same-PR maintenance blocker: fix host publication continuation in R6 PR47,
+validate against a real local Git remote and mocked forge, then deploy only after
+current checks. Chief may then judge PR48 conflict rework on the same Task/PR.
+The #41 Task remains execution-blocked until its registered baseline includes R6+R7;
+no duplicate PR or runtime-policy change substitutes for that prerequisite.
+
+The remaining upstream-sealing blocker now has real Git red/green coverage: retain
+both published and trusted target ancestry after resolved conflicts, not just the
+old seed. Verify this backend head, integrate/deploy it without altering live
+Attempts, then let Chief decide same-PR48 maintenance. #41 remains baseline-held.
+
+Context admission repair is source-tested on the existing PR47 branch. Deploy only after exact-head verification and actual-state recovery proof; then reconcile the reserved lease and let Chief judge routing the same Attempt. This does not select the #41 execution baseline or waive failed M6 CI.
+
+The same-Attempt target-refresh host repair needs exact-head verification and integration/deployment before Chief routes the existing #40 Task. Owner UI feedback remains unaccepted work on #40/PR48: match the original polished demo and native FlyBot interactions using real API state; functional browser checks alone do not establish visual acceptance.
+
+P0 now includes the reproduced M6 fixture/contract mismatch: complete actual safe-mode approval in browser and preserve negative authorization/duplicate checks, then assess current-head CI. Target refresh166 is integrated/deployed independently; UI remains unaccepted and P1 efficiency work remains queued until its real path is executed.

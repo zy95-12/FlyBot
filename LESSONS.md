@@ -313,3 +313,77 @@ when adding a native stream observer rather than removing the observer to satisf
 ### 2026-11-01 — Bootstrap the full browser fixture before launching Chromium
 
 Seen 2×. A rooms-only channel preflight missed lazy Project agent creation calling a nonexistent runtime index method. Use the actual save boundary to refresh indexes and exercise every rooms-page bootstrap endpoint for each human role before sockets. Keep one changelog entry per fragment; read the current complete verification log rather than attributing a new failure to the prior run.
+### 2026-11-01 — SDK worktree writes need the registered Git index (Seen 1×)
+
+Real Dev produced source/tests but sandboxed Git could not stage new canonical
+files: a local worktree stores its index outside cwd. Select only that registered
+worktree Git directory and the repository object store as Codex writable roots.
+Shared refs/config and network remain outside the grant. Loopback/private host
+verification remains a host testing operation; report sandbox Not run honestly.
+
+A service restart also marked a paused, unsealed Attempt interrupted after Dev had
+exited. Preserve the existing code on Chief route only when every recorded lease
+and worker is released, no native worker remains, cancellation was not requested
+and the registered workspace contains changes. Record a resumption with the old
+failure and Chief decision. Unknown exits never permit working-directory reuse.
+
+### 2026-11-01 — deny external network without breaking local process IPC (Seen 1×)
+
+Actual CLI sandbox probes and strace showed Node spawnSync returning EPERM even
+when Git exited 0: raw network denial also denied Unix setsockopt/shutdown/getsockname
+used by libuv pipes. Node 22 and 24 both reproduced. A named constrained filesystem
+profile plus the enabled limited proxy with an empty outbound allowlist restored
+Node/Git children; actual proxy requests were 403 blocked-by-allowlist, direct DNS
+failed and outside-workspace writes remained EROFS. Never call a Git grant alone
+a proven remedy, or switch to unrestricted filesystem/network access.
+
+Actual Tester correctly saw no candidate in its clean receiving checkout, but the
+unfinished Developer source still existed elsewhere. Pass a labelled draft
+reference with transfers; never equate clean recipient cwd with no implementation.
+A valid raw JSON decision lacking only OUTPUT framing must not leave an idle SDK
+Session waiting indefinitely; preserve its raw evidence and validate its meaning.
+
+### 2026-11-01 — Chief recovery must be admitted before changing execution (Seen 1×)
+
+Real Chief recovery prepared a new Run before a lifetime handoff counter refused it,
+leaving the Task stopping and its Attempt running. Check routing admission before
+fencing or rework. Audited Chief intervention starts a new bounded autonomous epoch,
+retaining lifetime history and global quotas; it cannot bypass evidence or authority.
+Failures after fencing need an explicit block and decision ID, never indefinite stopping.
+
+### 2026-11-01 — read-only verification still needs writable temporary fixtures (Seen 1×)
+
+Actual Reviewer twice returned INC: its source stayed read-only but temporary
+fixtures failed EROFS. A real CLI probe reproduced failure with the :tmp alias and
+success with an explicit scratch path, while source writes still failed. Bind a
+unique host-created directory per command worker, set TMPDIR/npm cache to it and
+clean only after confirmed exit. Prepare fixed dependencies outside the sandbox;
+never turn source writable or waive independent checks to compensate for provisioning.
+
+An idle tested pool waiting for Chief is not interrupted execution. Preserve that
+checkpoint only with completed Chief judgement, released Chief lease and every
+registered delivery worker/lease released, no native worker and no cancellation.
+Unknown occupancy or an active claim must retain conservative interruption.
+
+### 2026-11-01 — Attempt branches are not delivery PR identity (Seen 1×)
+
+Actual PR48 maintenance was blocked because rework creates a fresh Attempt branch
+and publication only searched that branch. Carry the host-verified PR binding across
+rework/retry; validate it before mutation and again before/after publication. Keep
+published candidates in Git ancestry while collapsing unpublished worker commits.
+A normal fast-forward push must refuse concurrent contributors' commits. Never
+create a replacement PR after a stale/closed binding or rewrite history to get green.
+
+### 2026-11-01 — Preserve trusted upstream ancestry when sealing rework (Seen 1×)
+
+The correct integration tree still conflicted after squash onto only the old
+candidate. Resolve the actual PR target ref through the host credential broker,
+pin it before rework, require resolved merge evidence and retain both public
+parents while dropping private worker commits. Recheck target movement before
+and after publication; a model-supplied parent or green test alone is insufficient.
+
+Measure each context component before blaming public knowledge: full repository rules may already be separately injected. Remove only hash/commit-verified duplicate previews, retain all original rule text and audit facts, and release unbound reservations on preparation failure before any SDK starts. Preparation retries must preserve unsealed drafts.
+
+A backend repair can advance the stacked PR target while an unstarted rework Attempt still pins the previous target. Re-read actual refs through the host broker before allocation; refresh only a verified descendant on a proven pre-execution boundary, audit both inputs, retain draft/seed/history, and keep later publication movement checks strict.
+
+When browser acceptance stalls waiting for a side effect, inspect host proposals and authorization state before blaming model transport or retrying. A safe-mode proposal requires explicit human publication; align the real browser scenario with that contract and retain no-early-effect, cross-user and duplicate-publication assertions.
