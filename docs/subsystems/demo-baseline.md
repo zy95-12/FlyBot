@@ -138,3 +138,21 @@ The M6 browser fixture exercises safe-mode proposals before Task publication: th
 ## Development service (S1)
 
 S1 extends the existing real-DSH queue probe to call the versioned Project service, compare the same Task view through legacy detail, start through the service facade, and verify revoked membership on the new HTTP endpoint. The transport and role execution are real DSH with the deterministic model, not paid real-model acceptance. See [service contract](project-development-service.md).
+
+## Native workbench navigation (Task40)
+
+`workbench.mjs` follows the Project workbench's separation of conversation and
+configuration: Public Bots opens the public Chief conversation, while Settings
+contains the Developer role form. After the private resource terminal closes and
+its release is confirmed, the browser probe opens Settings before selecting the
+role's execution Harness, SDK model and resource. It then checks the saved role
+definition and the explicit unavailable result of an unconfigured SDK probe.
+Changing this navigation does not grant a conversation configuration authority.
+
+The fixture still uses separate Alice/Bob browser contexts through the restricted
+gateway, with the Harness owner cookie retained server-side. Its existing private
+notes, safe proposal publication, Task retry/history, narrow-screen, raw-API denial
+and revocation assertions remain required. This two-account deterministic-model
+probe does not establish full native personal/group interaction coverage or the
+operator's deployed three-account, real-model and weak-network acceptance. The
+native adapter and component contract lives in [Project workbench](project-workbench.md).
