@@ -266,3 +266,13 @@ to the next role so a hash-only Chief return does not require manual log hunting
 Keep independent full logs, redaction, same-Task/SHA checks and bounded excerpts.
 
 #40 continuation integrates pinned backend 45b499bf without discarding the candidate CSS/logout slice. Popup layering verification follows the extracted canonical stylesheet. Native composer/tool/approval parity and actual three-account/weak-network screenshots remain open; host verification and independent review are still required.
+
+
+Task #40 rework: the inherited candidate failed the fragment validator because
+`40.fixed.md` contained multiple paragraphs. Keep one entry per fragment. The
+native conversation script now uses production React configuration and full
+minification, guarded by a 4.6 MB script budget (previous asset: 5.37 MB). This
+is a bounded reduction, not completed weak-network acceptance: embedded math
+fonts/CSS and the full native composer, tools, approval, stop/continue and
+personal/group interaction integration still require work. Operator deployment,
+three-account browser checks and actual screenshots remain pending.

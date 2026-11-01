@@ -89,3 +89,10 @@ test('same-origin native stylesheet includes the original mark and conversation 
   const app = await readFile(join(import.meta.dirname, '../src/client/workbench/app.js'), 'utf8')
   assert.doesNotMatch(app, /el\('style', native\.nativeConversationCss\)/)
 })
+
+
+test('native conversation asset uses a production build within the initial script budget', async () => {
+  const bundle = await readFile(join(import.meta.dirname, '../workbench-native.js'))
+  assert.ok(bundle.byteLength < 4600000, `Native script exceeds 4.6 MB: ${bundle.byteLength}`)
+  assert.equal(bundle.includes(Buffer.from('react.development.js')), false)
+})

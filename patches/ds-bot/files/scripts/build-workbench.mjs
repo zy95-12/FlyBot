@@ -7,7 +7,7 @@ const root = resolve(import.meta.dirname, '..')
 const result = await build({ absWorkingDir: root, entryPoints: ['src/client/workbench/entry.js'], bundle: true, format: 'iife', platform: 'browser', target: 'es2022', charset: 'utf8', outfile: 'workbench.js', write: false })
 // Parser dependencies contain intentional replacement-character literals. Escape
 // Unicode in this generated bundle so the repository byte-damage scan stays useful.
-const native = await build({ absWorkingDir: root, entryPoints: ['src/client/workbench/native-conversation.js'], bundle: true, format: 'iife', globalName: 'FlyBotNativeConversation', platform: 'browser', target: 'es2022', charset: 'ascii', supported: { 'template-literal': false }, minifyWhitespace: true, outfile: 'workbench-native.js', write: false, loader: { '.woff': 'dataurl', '.woff2': 'dataurl', '.ttf': 'dataurl' } })
+const native = await build({ absWorkingDir: root, entryPoints: ['src/client/workbench/native-conversation.js'], bundle: true, format: 'iife', globalName: 'FlyBotNativeConversation', platform: 'browser', target: 'es2022', charset: 'ascii', supported: { 'template-literal': false }, minify: true, define: { 'process.env.NODE_ENV': '"production"' }, outfile: 'workbench-native.js', write: false, loader: { '.woff': 'dataurl', '.woff2': 'dataurl', '.ttf': 'dataurl' } })
 const cssPath = resolve(root, 'workbench-native.css')
 const css = native.outputFiles.find(file => file.path === cssPath)
 css.contents = Buffer.from(SHELL_CSS + CONVERSATION_CSS + SIDEBAR_CSS + css.text)

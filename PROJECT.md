@@ -436,3 +436,13 @@ its own current or inherited candidate; unavailable private logs are not a model
 debugging prerequisite. Complete host logs remain retained and cannot mint PASS.
 
 #40 verification repair: the popup layering regression now follows the canonical extracted sidebar stylesheet, preserving its z-index assertions and checking the native sidebar re-export. Local red/green evidence is 11/12 → 12/12; this does not complete native composer or deployed three-account/weak-network acceptance.
+
+
+Task #40 rework: the inherited candidate failed the fragment validator because
+`40.fixed.md` contained multiple paragraphs. Keep one entry per fragment. The
+native conversation script now uses production React configuration and full
+minification, guarded by a 4.6 MB script budget (previous asset: 5.37 MB). This
+is a bounded reduction, not completed weak-network acceptance: embedded math
+fonts/CSS and the full native composer, tools, approval, stop/continue and
+personal/group interaction integration still require work. Operator deployment,
+three-account browser checks and actual screenshots remain pending.

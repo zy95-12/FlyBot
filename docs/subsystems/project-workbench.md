@@ -316,3 +316,13 @@ authorization discard late pages. Project conversation refresh semantics are unc
 The workbench native stylesheet includes canonical shell, conversation and sidebar rules as a same-origin asset. Conversation mounting inserts no inline stylesheet. Sign out bypasses the action busy lock, increments the scope epoch, aborts current reads, disposes conversation roots and clears local credentials/state before awaiting remote revocation. Late action results cannot restore the former view. Local component checks do not establish deployed browser acceptance or complete native composer integration.
 
 The popup layering regression reads `sidebar-styles.js`, the canonical extracted rules, and checks that the native sidebar re-exports them. Extraction must preserve the existing dialog/panel stacking assertions; the test is not a deployed visual acceptance claim.
+
+
+Task #40 rework: the inherited candidate failed the fragment validator because
+`40.fixed.md` contained multiple paragraphs. Keep one entry per fragment. The
+native conversation script now uses production React configuration and full
+minification, guarded by a 4.6 MB script budget (previous asset: 5.37 MB). This
+is a bounded reduction, not completed weak-network acceptance: embedded math
+fonts/CSS and the full native composer, tools, approval, stop/continue and
+personal/group interaction integration still require work. Operator deployment,
+three-account browser checks and actual screenshots remain pending.

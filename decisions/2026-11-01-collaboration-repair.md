@@ -113,3 +113,13 @@ is not full native shell parity or Owner visual acceptance; remaining native
 composer/tool/approval integration and browser evidence stay on the same Task.
 
 #40 CSS/logout continuation retains the existing CSP and native canonical styles through a generated same-origin asset. Immediate local logout fences pending actions while remote revocation settles. This implements an authorized frontend slice, not a new permission or a claim of full UI acceptance.
+
+
+Task #40 rework: the inherited candidate failed the fragment validator because
+`40.fixed.md` contained multiple paragraphs. Keep one entry per fragment. The
+native conversation script now uses production React configuration and full
+minification, guarded by a 4.6 MB script budget (previous asset: 5.37 MB). This
+is a bounded reduction, not completed weak-network acceptance: embedded math
+fonts/CSS and the full native composer, tools, approval, stop/continue and
+personal/group interaction integration still require work. Operator deployment,
+three-account browser checks and actual screenshots remain pending.

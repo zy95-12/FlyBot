@@ -486,3 +486,13 @@ retain full originals and never confuse diagnostic text with verification PASS.
 ### 2026-11-01 — Extracted styles keep their behavioral assertions
 
 Seen 1×. Moving sidebar CSS to a shared same-origin module left the layering regression reading its former file and reporting NaN. Follow the canonical stylesheet and verify its consumer import; retain the z-index boundary assertion rather than weakening it.
+
+
+Task #40 rework: the inherited candidate failed the fragment validator because
+`40.fixed.md` contained multiple paragraphs. Keep one entry per fragment. The
+native conversation script now uses production React configuration and full
+minification, guarded by a 4.6 MB script budget (previous asset: 5.37 MB). This
+is a bounded reduction, not completed weak-network acceptance: embedded math
+fonts/CSS and the full native composer, tools, approval, stop/continue and
+personal/group interaction integration still require work. Operator deployment,
+three-account browser checks and actual screenshots remain pending.
