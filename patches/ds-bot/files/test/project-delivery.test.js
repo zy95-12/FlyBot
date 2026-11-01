@@ -864,6 +864,45 @@ test('independent host tests prepare dependencies after cleaning their exact can
   assert.equal((await import('node:fs')).existsSync(join(path, 'node_modules/stale')), false)
 })
 
+test('bound-resource preparation executes before SDK registration and failure retains unknown occupancy', async t => {
+  const f = await setup(t, undefined, { pool: true })
+  f.rt.projectPools.connect({ validate: () => ({ ok: true }) })
+  f.rt.projectScheduler.wake = () => {}
+  f.rt.config.projectResources = { one: { type: 'local', root: f.directory, capacity: 1, allowedProjectOwnerIds: ['owner-1'], harnesses: ['codex'], profiles: { 'owner-1': { codex: { home: join(f.directory, 'sdk-home'), configDir: join(f.directory, 'sdk-config'), model: 'fixture/model' } } } } }
+  f.rt.state.projectResourceHealth = { one: { status: 'ready', at: Date.now() } }
+  f.rt.state.projectHarnessHealth = { 'p1:one:codex': { status: 'ready' } }
+  await f.rt.projectEndpoint('project-agent-definition', { projectId: 'p1', role: 'developer', execution: { harness: 'codex', resourceIds: ['one'] } }, alice)
+  const settings = f.rt.config.projectRepositories['example/demo']
+  settings.workspacePrepareCommand = [process.execPath, '-e', "if(!require('fs').existsSync('code.mjs'))process.exit(31)"]
+  await f.start('resource-preparation')
+  const a = f.attempt(), task = f.rt.state.tasks[f.task.id]
+  const dev = f.rt.projectAgents.deliveryDefinitions('p1').roles.find(row => row.role === 'developer')
+  await f.rt.projectDelivery.preparePoolRole(task, { id: 'prepared-resource', attemptId: a.id, generation: 1 }, dev)
+  assert.equal(a.workspacePreparations.at(-1).resourceId, 'one')
+  const original = structuredClone(a.roleSessions.developer)
+  const first = a.resourceLeases.developer
+  await f.rt.projectResources.release(first.id, first.generation)
+  const preparationCommand = settings.workspacePrepareCommand
+  settings.workspacePrepareCommand = [process.execPath, '-e', 'process.exit(37)']
+  await assert.rejects(f.rt.projectDelivery.preparePoolRole(task, { id: 'resource-command-failed', attemptId: a.id, generation: 2 }, dev), error => error.code === 37)
+  assert.equal(f.rt.state.projectResourceLeases[a.resourceLeases.developer.id].status, 'released')
+  assert.equal(a.preparationFailures.at(-1).releasedBeforeExternalStart, true)
+  settings.workspacePrepareCommand = preparationCommand
+  const command = f.rt.projectResources.command
+  f.rt.projectResources.command = async (...args) => {
+    const lease = a.resourceLeases.developer
+    await f.rt.projectResources.markStarted(lease.id, lease.generation, { kind: 'sdk', handle: 'unknown-worker' })
+    await command(...args)
+    throw new Error('Connection lost after external registration')
+  }
+  await assert.rejects(f.rt.projectDelivery.preparePoolRole(task, { id: 'unknown-preparation', attemptId: a.id, generation: 2 }, dev), /Connection lost/)
+  const held = f.rt.state.projectResourceLeases[a.resourceLeases.developer.id]
+  assert.equal(held.status, 'running')
+  assert.equal(held.worker.handle, 'unknown-worker')
+  assert.equal(a.preparationFailures.at(-1).releasedBeforeExternalStart, false)
+  assert.deepEqual(a.roleSessions.developer, original)
+})
+
 test('unstarted bound delivery refreshes a verified descendant target without replacing its draft or Attempt',async t=>{
   for(const variant of ['safe','reserved','unknown','worker','session','history','execution','candidate','cancel','native','unproven-release','released-bound','stale-state','unrelated','missing','moved-head','moved-ref']){
     const f=await setup(t,undefined,{pool:true});f.rt.projectScheduler.wake=()=>{} // Keep deliberate lease snapshots stable during admission checks.

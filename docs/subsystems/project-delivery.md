@@ -21,7 +21,7 @@ explicit human acceptance. A node reply cannot mark a Task accepted.
 Pool receivers may use optional operator `workspacePrepareCommand: [node,
 /operator/prepare-worktree.mjs]`. It is a fixed nonempty argv, not a shell string
 or a Project/Task body field. The host runs it with the registered checkout as
-cwd, on that workspace's bound resource, with a 30-second/1-MiB limit, before
+cwd, on that workspace's bound resource, with a 30-second limit and bounded output, before
 creating its role Session. Independent host testing runs preparation again after
 its candidate reset/clean. No command means existing behavior; metadata preflight
 never executes preparation. Commands must provision ignored dependencies without
