@@ -20,7 +20,7 @@ export function backendBindingKey({ harness, resourceId, principalId, cwd, model
 // Both lifecycle proofs are produced by the host, never by role output. A prior
 // service exit must be tied to the exact lease the supervisor reconciled.
 export function confirmedWorkerExit(state, worker) {
-  if (worker?.status !== 'released') return false
+  if (worker?.status !== 'released' || !Number.isSafeInteger(worker.generation) || worker.generation < 1) return false
   const proof = worker.releaseProof
   if (proof?.kind === 'sdk-stop-ack-and-process-exit') return proof.generation === worker.generation
   if (proof?.kind !== 'systemd-prior-invocation-exited' || !/^[a-f0-9]{32}$/.test(proof.previousInvocationId ?? '')) return false

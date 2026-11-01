@@ -65,8 +65,10 @@ test('supervisor-confirmed prior invocation permits same Task-role resumption wi
 
 test('exit proof guards reject missing workers, unconfirmed generations and unbound supervisor claims', () => {
   assert.equal(confirmedWorkerExit({}, null), false)
-  assert.equal(confirmedWorkerExit({}, {status:'released'}), false)
+  assert.equal(confirmedWorkerExit({}, {status:'released',generation:2}), false)
+  assert.equal(confirmedWorkerExit({}, {status:'released',releaseProof:{kind:'sdk-stop-ack-and-process-exit'}}), false)
+  assert.equal(confirmedWorkerExit({}, {status:'released',generation:0}), false)
   assert.equal(confirmedWorkerExit({}, {status:'released',generation:2,releaseProof:{kind:'sdk-stop-ack-and-process-exit',generation:1}}), false)
   assert.equal(confirmedWorkerExit({}, {status:'released',generation:2,releaseProof:{kind:'systemd-prior-invocation-exited'}}), false)
-  assert.equal(confirmedWorkerExit({}, {status:'released',leaseId:'absent',releaseProof:{kind:'systemd-prior-invocation-exited',previousInvocationId:'a'.repeat(32)}}), false)
+  assert.equal(confirmedWorkerExit({}, {status:'released',generation:2,leaseId:'absent',releaseProof:{kind:'systemd-prior-invocation-exited',previousInvocationId:'a'.repeat(32)}}), false)
 })
