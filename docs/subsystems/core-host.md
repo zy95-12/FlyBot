@@ -897,3 +897,7 @@ APIs in the concrete channel dispatcher, with Project rights checked downstream.
 
 ## Project Chief memory adapter
 `memory.js` exposes botMemoryRecall/botMemoryRemember for an already host-bound own Bot. They reuse original topic validation, entry/file limits, secret scan, replace handling, serialized writes and journal. Caller-supplied scope/Bot IDs are ignored; Project adapter derives the resident public Chief. Memory index is supplied per request and topic details are retrieved on demand; files survive SDK process release and host restart. The original DSH parts/steward implementation is unchanged.
+
+## Development service (S1)
+
+The authenticated channel and shared-mode authorizer register project-development. Read-only replicas validate a query envelope through the service query predicate; command envelopes remain writes. Legacy endpoint shapes stay compatible. See [service contract](project-development-service.md).
