@@ -503,3 +503,11 @@ original handlers, exposing only public question fields rather than replyTo/orig
 Group member-stop tests use actual native membership and reject another owner's Bot.
 Final local interaction checks, build/patch/lint results and outstanding host/browser
 validation are reported at handoff; no candidate recommendation closes this Task.
+
+Task40 host verification at `33e482d6` reported four failures in install, secrets
+and usage suites. All four reproduced locally (28/32). The personal stream observer
+was also installed in legacy mode, shifting the established listener order used by
+those protocol tests. Register it only for explicit shared-workbench mode; keep its
+purpose/Session guards. The new mode-boundary regression fails without that fix;
+affected suites plus personal-workbench coverage now pass 38/38. Final host full
+verification and independent Review remain required; no deployed acceptance is claimed.

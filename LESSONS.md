@@ -520,3 +520,10 @@ Seen 1×. Reusing a renderer without questions, approvals or live controls leave
 behavior unavailable. Reuse the original cards with captured handles, match approval
 and question IDs to the current owned Session, revalidate after awaits, and exclude
 hidden exchange/tool data. A group seat cannot grant control of another owner's Bot.
+
+### 2026-11-01 — Optional workbench observers must preserve legacy registration
+
+Seen 1×. An always-installed pass-through stream listener shifted the legacy fixed
+installation protocol and listener selections used by secrets/usage tests. Install
+workbench-only observation only in explicitly configured shared mode and test both
+modes, rather than weakening existing assertions or changing token accounting.

@@ -296,3 +296,8 @@ stop/continue, own-chat streaming, bounded tool output and original group member
 controls. SDK execution input reuses original approval/composer components. Proceed to
 exact-candidate host tests and independent Review; only operator evidence can satisfy
 actual deployed three-account/weak-network and visual acceptance.
+
+Task40 host-return repair preserves legacy listener registration while retaining the
+explicit shared native stream observer. Reproduced all four reported failures and
+added a fail-without-fix mode-boundary regression. Continue through host tests/Review
+and operator acceptance on the same Task/PR48.

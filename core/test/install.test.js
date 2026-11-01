@@ -229,3 +229,16 @@ test('config.browser turns Bot browsers off even in the Desktop profile', (t) =>
   t.after(stop)
   assert.ok(!ctx.calls.includes('tool read_browser'))
 })
+
+test('personal stream observation is installed only for the explicit shared workbench', async t => {
+  const legacy = start()
+  const shared = start(undefined, { config: { projectWorkbench: true } })
+  t.after(legacy.stop)
+  t.after(shared.stop)
+  const baseline = legacy.ctx.listeners.get('llm/stream')
+  const scoped = shared.ctx.listeners.get('llm/stream')
+  assert.equal(scoped.length, baseline.length + 1, 'legacy profiles must not acquire the personal projection listener')
+  const next = (async function* () {})()
+  assert.equal(scoped.at(-1)({ sessionId: 'unknown', purpose: 'compaction' }, () => next), next, 'unrelated model purposes pass through unchanged')
+  assert.equal(scoped.at(-1)({ sessionId: 'unknown' }, () => next), next, 'unknown Sessions are not observed')
+})

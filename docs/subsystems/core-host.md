@@ -917,3 +917,8 @@ question ID fence for scoped callers. The channel's native personal stream hook 
 current-turn checks and excludes hidden exchanges; only the authorized personal read
 returns its redacted buffer. Workbench personal tool projection never returns raw
 arguments/non-text content or a result without its visible call.
+
+The native personal stream observer is registered only when shared-workbench mode
+is explicitly enabled at installation. Legacy profiles retain their existing listener
+count and order. The shared observer still passes non-conversation purposes and
+unknown Sessions through unchanged; this does not alter secrets or usage accounting.

@@ -30,7 +30,9 @@ export function errorCode(error) {
 export function install(rt) {
   const { ctx, state } = rt
   const personalStreams = createPersonalStreams(rt)
-  ctx.on('llm/stream', (options, next) => rt.sharedProjectMode() && options.purpose === undefined ? personalStreams.stream(options.sessionId, next) : next())
+  // The personal projection belongs to the explicitly configured shared entry.
+  // Legacy profiles keep their existing stream pipeline and registration order.
+  if (rt.sharedProjectMode()) ctx.on('llm/stream', (options, next) => options.purpose === undefined ? personalStreams.stream(options.sessionId, next) : next())
 
   // The DSH interface language of the last browser that asked for the team.
   let uiLocale
