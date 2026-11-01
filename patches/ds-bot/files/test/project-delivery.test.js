@@ -38,7 +38,7 @@ async function setup(t, testCommand = [process.execPath, '--test', 'code.test.mj
   const publisher = { publish: async attempt => {
     const pr = { number: published.length + 1, sha: attempt.candidateSha, url: 'https://example.invalid/pr/1', repository: 'example/demo' }
     published.push(pr); return pr
-  }, read: async pr => ({ sha: pr.sha, state: 'open' }) }
+  }, read: async pr => ({ sha: pr.sha, state: 'open', baseRef: 'main', baseSha: git(repository, ['rev-parse', 'main']) }) }
   rt.projectDelivery = createProjectDelivery(rt, { publisher })
   let workflow
   if (sdkContract) { ctx.flybot = rt.flybot; workflow = applyWorkflow(ctx, { persist: false }).service }
@@ -659,7 +659,7 @@ test('published pool rework retains its PR binding and seals a descendant of the
   first.pr.sha = original
   const id = await f.rt.projectDelivery.reworkPool({ task, claim: { id: 'chief-return', attemptId: first.id, botId: 'p1:chief' }, reason: 'Maintain the existing PR after its base advanced' })
   const next = f.rt.state.projectAttempts[id]
-  assert.deepEqual(next.publicationBinding, { number: 48, repository: 'example/demo', branch: first.branch, previousSha: original })
+  assert.deepEqual(next.publicationBinding, { number: 48, repository: 'example/demo', branch: first.branch, previousSha: original, upstreamSha: first.baseSha, upstreamRef: 'main' })
   await f.rt.projectDelivery.preparePoolRole(task, { id: 'next-dev', attemptId: id, generation: 2 }, developer)
   writeFileSync(join(next.workspaces.developer.path, 'code.mjs'), 'export const add = (a,b) => Number(a)+Number(b); // intermediate\n')
   git(next.workspaces.developer.path, ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@localhost', 'commit', '-am', 'Private intermediate work'])
@@ -679,11 +679,62 @@ test('human retry of a published delivery preserves its PR and rejects inconsist
   const first = f.attempt(), sha = first.candidateSha
   await f.rt.projectEndpoint('project-task-reject', { attemptId: first.id, reason: 'Add a regression' }, alice)
   const retry = await f.start('human-retry')
-  assert.deepEqual(retry.attempt.publicationBinding, { number: first.pr.number, repository: first.pr.repository, branch: first.branch, previousSha: sha })
+  assert.deepEqual(retry.attempt.publicationBinding, { number: first.pr.number, repository: first.pr.repository, branch: first.branch, previousSha: sha, upstreamSha: first.baseSha, upstreamRef: 'main' })
   assert.equal(git(retry.attempt.workspaces.developer.path, ['rev-parse', 'HEAD']), sha)
   f.rt.projectDelivery.runReported({ id: retry.attempt.runId, taskId: f.task.id, attemptId: retry.attempt.id, projectId: 'p1', status: 'failed' })
   f.attempt().publicationBinding.repository = 'other/repo'
   const count = Object.keys(f.rt.state.projectAttempts).length
   await assert.rejects(f.start('inconsistent-retry'), /binding is inconsistent/)
   assert.equal(Object.keys(f.rt.state.projectAttempts).length, count)
+})
+
+test('published rework pins the actual target and seals both published and resolved upstream histories', async t => {
+  for (const committed of [false, true]) await t.test(committed ? 'committed merge' : 'resolved merge index', async t => {
+  const f = await setup(t, undefined, { pool: true })
+  f.rt.projectPools.connect({ validate: () => ({ ok: true }) }); await f.start('upstream-rework')
+  const task = f.rt.state.tasks[f.task.id], first = f.attempt()
+  const developer = f.rt.projectAgents.deliveryDefinitions('p1').roles.find(row => row.role === 'developer')
+  await f.rt.projectDelivery.preparePoolRole(task, { id: 'dev-before', attemptId: first.id, generation: 1 }, developer)
+  writeFileSync(join(first.workspaces.developer.path, 'code.mjs'), 'export const add = (a,b) => a+b;\n')
+  await f.rt.projectDelivery.completePoolRole({ task, claim: { attemptId: first.id }, role: 'developer', outputs: {} })
+  const seed = first.candidateSha
+  writeFileSync(join(f.repository, 'code.mjs'), 'export const add = (a,b) => a-b;\nexport const contract = () => "backend-v2";\n')
+  writeFileSync(join(f.repository, 'code.test.mjs'), 'import assert from "node:assert/strict"; import {add,contract} from "./code.mjs"; assert.equal(add(2,3),5); assert.equal(contract(),"backend-v2");\n')
+  git(f.repository, ['add', '.']); git(f.repository, ['commit', '-m', 'Advance trusted upstream backend'])
+  const upstream = git(f.repository, ['rev-parse', 'HEAD'])
+  f.publisher.read = async pr => ({ sha: pr.sha, state: 'open', baseRef: 'main', baseSha: upstream })
+  first.pr = { number: 48, repository: 'example/demo', sha: seed }; first.status = 'waiting-acceptance'
+  const currentRead = f.publisher.read
+  for (const remote of [{ sha: seed, state: 'closed', baseRef: 'main', baseSha: upstream }, { sha: seed, state: 'open', baseRef: 'main', baseSha: '0'.repeat(40) }]) {
+    f.publisher.read = async () => remote
+    await assert.rejects(f.rt.projectDelivery.reworkPool({ task, claim: { id: 'unavailable-target', attemptId: first.id, botId: 'p1:chief' }, reason: 'Reject stale or unprovisioned upstream before allocation' }), /target is stale|not provisioned/)
+    assert.equal(first.status, 'waiting-acceptance')
+    assert.equal(Object.keys(f.rt.state.projectAttempts).length, 1)
+  }
+  f.publisher.read = currentRead
+  const id = await f.rt.projectDelivery.reworkPool({ task, claim: { id: 'upstream-return', attemptId: first.id, botId: 'p1:chief' }, reason: 'Integrate current backend without losing published history' })
+  const next = f.rt.state.projectAttempts[id]
+  assert.equal(next.publicationBinding.upstreamSha, upstream)
+  await f.rt.projectDelivery.preparePoolRole(task, { id: 'dev-after', attemptId: id, generation: 2 }, developer)
+  const path = next.workspaces.developer.path
+  await assert.rejects(f.rt.projectDelivery.completePoolRole({ task, claim: { attemptId: id }, role: 'developer', outputs: {} }), /merge the pinned upstream/)
+  assert.equal(git(path, ['rev-parse', 'HEAD']), seed)
+  const mergePath = git(path, ['rev-parse', '--git-path', 'MERGE_HEAD'])
+  writeFileSync(mergePath, first.baseSha + '\n')
+  await assert.rejects(f.rt.projectDelivery.completePoolRole({ task, claim: { attemptId: id }, role: 'developer', outputs: {} }), /merge the pinned upstream/)
+  rmSync(mergePath)
+  assert.throws(() => git(path, ['merge', '--no-commit', '--no-ff', upstream]), /Command failed/)
+  await assert.rejects(f.rt.projectDelivery.completePoolRole({ task, claim: { attemptId: id }, role: 'developer', outputs: {} }), /unresolved/)
+  writeFileSync(join(path, 'code.mjs'), 'export const add = (a,b) => a+b;\nexport const contract = () => "backend-v2";\n')
+  git(path, ['add', '.'])
+  if (committed) git(path, ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@localhost', 'commit', '-m', 'Resolved merge before host sealing'])
+  await f.rt.projectDelivery.completePoolRole({ task, claim: { attemptId: id }, role: 'developer', outputs: {} })
+  assert.deepEqual(git(path, ['show', '-s', '--format=%P', next.candidateSha]).split(' '), [seed, upstream])
+  assert.equal(first.candidateSha, seed)
+  assert.equal(next.evidence.upstreamIntegration.sha, upstream)
+  const tester = f.rt.projectAgents.deliveryDefinitions('p1').roles.find(row => row.role === 'tester')
+  await f.rt.projectDelivery.preparePoolRole(task, { id: 'test-after', attemptId: id, generation: 3 }, tester)
+  await f.rt.projectDelivery.completePoolRole({ task, claim: { attemptId: id }, role: 'tester', outputs: {} })
+  assert.equal(next.evidence.tests.passed, true)
+  })
 })

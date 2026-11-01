@@ -14,15 +14,16 @@ function fixture(t) {
   git(path, 'init', '--bare', remote); git(path, 'push', remote, `${previous}:refs/heads/existing`)
   writeFileSync(join(path, 'code.txt'), 'second'); git(path, 'commit', '-am', 'Rework candidate')
   const candidate = git(path, 'rev-parse', 'HEAD')
-  const attempt = { candidateSha: candidate, branch: 'new-attempt', taskId: 'same-task', requirement: { title: 'Repair', criteria: 'Keep one PR' }, workspaces: { developer: { path } }, publicationBinding: { number: 48, repository: 'example/demo', branch: 'existing', previousSha: previous } }
+  const attempt = { candidateSha: candidate, branch: 'new-attempt', taskId: 'same-task', requirement: { title: 'Repair', criteria: 'Keep one PR' }, workspaces: { developer: { path } }, publicationBinding: { number: 48, repository: 'example/demo', branch: 'existing', previousSha: previous, upstreamSha: previous, upstreamRef: 'main' } }
   const calls = []; let pushes = 0, creates = 0
-  let override = {}, postPushOverride = {}, beforePush = () => {}
+  let override = {}, postPushOverride = {}, beforePush = () => {}, upstream = previous
   const request = async (url, options = {}) => {
     calls.push({ url, method: options.method ?? 'GET' })
     if (url.endsWith('/user')) return Response.json({ login: 'automation' })
     if (options.method === 'POST') { creates++; return Response.json({ number: 99, head: { sha: candidate }, html_url: 'https://example.invalid/pr/99' }) }
+    if (url.includes('/git/ref/heads/')) return Response.json({ object: { type: 'commit', sha: upstream } })
     if (url.includes('/pulls?')) return Response.json([])
-    return Response.json({ number: 48, state: 'open', draft: true, head: { ref: 'existing', repo: { full_name: 'example/demo' }, sha: git(path, '--git-dir', remote, 'rev-parse', 'existing') }, html_url: 'https://example.invalid/pr/48', ...(pushes ? postPushOverride : override) })
+    return Response.json({ number: 48, state: 'open', draft: true, base: { ref: 'main', sha: 'f'.repeat(40), repo: { full_name: 'example/demo' } }, head: { ref: 'existing', repo: { full_name: 'example/demo' }, sha: git(path, '--git-dir', remote, 'rev-parse', 'existing') }, html_url: 'https://example.invalid/pr/48', ...(pushes ? postPushOverride : override) })
   }
   const run = async (command, args, options) => {
     if (command === 'gh') return { stdout: 'fixture-token' }
@@ -31,7 +32,7 @@ function fixture(t) {
   }
   const publisher = githubPublisher({ credential: 'gh-cli', configDir: '/fixture/explicit-gh', login: 'automation' }, { request, run })
   t.after(() => rmSync(path, { recursive: true, force: true }))
-  return { publisher, attempt, previous, candidate, remote, path, calls, counters: () => ({ pushes, creates }), override(value) { override = value }, postPushOverride(value) { postPushOverride = value }, beforePush(value) { beforePush = value } }
+  return { publisher, attempt, previous, candidate, remote, path, calls, counters: () => ({ pushes, creates }), override(value) { override = value }, postPushOverride(value) { postPushOverride = value }, beforePush(value) { beforePush = value }, upstream(value) { upstream = value } }
 }
 
 test('published rework advances the same PR branch and retains the old candidate without creating a PR', async t => {
@@ -97,4 +98,32 @@ test('PR reads use the same explicitly selected identity and actual recorded hea
   const read = await f.publisher.read({ repository: 'example/demo', number: 48 })
   assert.equal(read.sha, f.previous); assert.equal(read.state, 'open')
   assert.deepEqual(f.counters(), { pushes: 0, creates: 0 })
+})
+
+
+test('trusted upstream uses the live target ref and rejects advanced, malformed or missing targets before push', async t => {
+  const f = fixture(t)
+  const read = await f.publisher.read({ repository: 'example/demo', number: 48 }, { includeBase: true })
+  assert.equal(read.baseSha, f.previous, 'cached PR base.sha must not replace the live ref')
+  assert.equal(read.baseRef, 'main')
+  for (const target of [f.candidate, 'invalid']) {
+    f.upstream(target)
+    await assert.rejects(f.publisher.publish(f.attempt, { repository: 'example/demo' }), /upstream changed|upstream is unavailable/)
+    assert.equal(f.counters().pushes, 0)
+  }
+  f.upstream(f.previous); f.override({ base: undefined })
+  await assert.rejects(f.publisher.publish(f.attempt, { repository: 'example/demo' }), /upstream is unavailable/)
+  assert.equal(f.counters().creates, 0)
+})
+
+test('same-PR continuation requires trusted upstream ancestry and rechecks target movement after push', async t => {
+  const f = fixture(t)
+  const sibling = git(f.path, 'commit-tree', f.candidate + '^{tree}', '-p', f.previous, '-m', 'Advanced upstream')
+  f.upstream(sibling); f.attempt.publicationBinding.upstreamSha = sibling
+  await assert.rejects(f.publisher.publish(f.attempt, { repository: 'example/demo' }), /trusted upstream/)
+  assert.deepEqual(f.counters(), { pushes: 0, creates: 0 })
+  f.upstream(f.previous); f.attempt.publicationBinding.upstreamSha = f.previous
+  f.beforePush(() => f.upstream(f.candidate))
+  await assert.rejects(f.publisher.publish(f.attempt, { repository: 'example/demo' }), /upstream changed during publication/)
+  assert.deepEqual(f.counters(), { pushes: 1, creates: 0 })
 })

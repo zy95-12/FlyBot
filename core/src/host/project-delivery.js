@@ -52,10 +52,17 @@ export function createProjectDelivery(rt, { publisher } = {}) {
   const projectOf = id => rt.projects.repository.get(id, { includeDeleted: true })
   const settingsOf = project => repositorySettings(rt, project)
   const publisherOf = project => publisher ?? githubPublisher(settingsOf(project).github)
-  function publicationOf(previous, project) {
+  async function publicationOf(previous, project) {
     if (!previous) return undefined
     const binding = previous.pr ? { number: previous.pr.number, repository: previous.pr.repository, branch: previous.publicationBinding?.branch ?? previous.branch, previousSha: previous.candidateSha } : structuredClone(previous.publicationBinding)
     if (binding && (binding.repository !== project.repository || !Number.isSafeInteger(binding.number) || binding.number < 1 || typeof binding.branch !== 'string' || !binding.branch || !/^[a-f0-9]{40}$/.test(binding.previousSha) || previous.pr && previous.pr.sha !== previous.candidateSha)) throw reject('Existing delivery PR binding is inconsistent; reconcile before rework')
+    if (binding) {
+      const remote = await publisherOf(project).read(previous.pr ?? { number: binding.number, repository: binding.repository, sha: binding.previousSha }, { includeBase: true })
+      if (remote.state !== 'open' || remote.sha !== binding.previousSha || remote.baseRef !== (project.defaultBranch ?? 'main') || !/^[a-f0-9]{40}$/.test(remote.baseSha ?? '')) throw reject('Existing PR target is stale or unavailable; reconcile before rework')
+      try { await git(settingsOf(project).path, ['cat-file', '-e', `${remote.baseSha}^{commit}`]) }
+      catch { throw reject('Pinned PR upstream commit is not provisioned; ask the operator to fetch verified source') }
+      Object.assign(binding, { upstreamSha: remote.baseSha, upstreamRef: remote.baseRef })
+    }
     return binding
   }
   const current = taskId => Object.values(attempts()).reverse().find(attempt => attempt.taskId === taskId)
@@ -114,7 +121,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     if (task.status === 'accepted' || task.status === 'cancelled') throw reject('Terminal Task cannot start a delivery')
     const settings = await preflightRepository(rt, project)
     const previous = current(task.id)
-    const publicationBinding = publicationOf(previous, project)
+    const publicationBinding = await publicationOf(previous, project)
     const feedback = previous?.failure ? { previousAttemptId: previous.id, kind: previous.returned ? 'human-return' : 'execution-failure', reason: previous.failure.message, candidateSha: previous.candidateSha ?? null } : null
     const at = Date.now()
     const attempt = { id: `attempt-${randomUUID()}`, projectId: project.id, taskId: task.id, requestKey,
@@ -207,10 +214,25 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     checkDevelopmentEvidence(attempt.rolePolicies?.developer, names)
     const roots = settings.allowedPaths
     if (!Array.isArray(roots) || !roots.length || roots.some(value => typeof value !== 'string' || value.startsWith('/') || value.includes('..')) || names.some(name => !roots.some(prefix => name === prefix || name.startsWith(prefix.endsWith('/') ? prefix : `${prefix}/`)))) throw reject('Code changes exceed the provisioned repository paths')
-    await workspaceGit(workspace, ['reset', '--soft', attempt.seedSha ?? attempt.baseSha]) // Seal one final commit; do not transfer intermediate worker history.
-    if (await workspaceGit(workspace, ['status', '--porcelain'])) {
+    const parent = attempt.seedSha ?? attempt.baseSha, upstream = attempt.publicationBinding?.upstreamSha
+    const ancestor = async (a, b) => { try { await workspaceGit(workspace, ['merge-base', '--is-ancestor', a, b]); return true } catch (error) { if (error.code === 1) return false; throw error } }
+    if (upstream && !await ancestor(upstream, parent)) {
+      const head = await workspaceGit(workspace, ['rev-parse', 'HEAD'])
+      const mergeHead = await workspaceGit(workspace, ['rev-parse', '--verify', 'MERGE_HEAD']).catch(() => null)
+      if (!await ancestor(parent, head) || mergeHead !== upstream && !await ancestor(upstream, head)) throw reject('Developer must merge the pinned upstream before sealing published rework')
+      if (await workspaceGit(workspace, ['ls-files', '--unmerged'])) throw reject('Trusted upstream integration has unresolved paths')
+      // Collapse private worker history while retaining both trusted public inputs.
       await workspaceGit(workspace, ['add', '--all', '--', '.'])
-      await workspaceGit(workspace, ['commit', '-m', `Implement Task ${attempt.taskId}`])
+      const tree = await workspaceGit(workspace, ['write-tree'])
+      const commit = await workspaceGit(workspace, ['commit-tree', tree, '-p', parent, '-p', upstream, '-m', `Implement Task ${attempt.taskId}`])
+      await workspaceGit(workspace, ['reset', '--hard', commit])
+      attempt.evidence.upstreamIntegration = { sha: upstream, previousCandidate: parent, ref: attempt.publicationBinding.upstreamRef, method: mergeHead === upstream ? 'resolved-merge-head' : 'merged-ancestry', at: Date.now() }
+    } else {
+      await workspaceGit(workspace, ['reset', '--soft', parent]) // Do not transfer unpublished worker history.
+      if (await workspaceGit(workspace, ['status', '--porcelain'])) {
+        await workspaceGit(workspace, ['add', '--all', '--', '.'])
+        await workspaceGit(workspace, ['commit', '-m', `Implement Task ${attempt.taskId}`])
+      }
     }
     attempt.candidateSha = await workspaceGit(workspace, ['rev-parse', 'HEAD'])
     if (attempt.candidateSha === attempt.baseSha) throw reject('Developer produced no code change')
@@ -482,7 +504,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
       if (workspace.kind === 'resource-clone') await resourceWorkspaces.checkout(workspace, attempt)
       else await workspaceGit(workspace, ['reset', '--hard', attempt.candidateSha])
     }
-    const context = roleContext({ policy, projectId: project.id, role, revision: attempt.agentDefinitions.revision, definition, memory: definition.memory, knowledge: ownEntry(state.projectKnowledge ?? {}, project.id) ?? [], requirement: attempt.requirement, feedback: attempt.feedback, projectFacts: { workingDraft: !attempt.candidateSha && attempt.workspaces.developer ? { kind: 'unverified-workspace-reference', resourceId: attempt.workspaces.developer.resourceId, path: attempt.workspaces.developer.resourceId === workspace.resourceId ? attempt.workspaces.developer.path : null, note: 'Unsealed source, not candidate or verification evidence. Cross-resource drafts require a sealed artifact before verification.' } : null, handoff: task.collaboration?.history.at(-1) ? { purpose: task.collaboration.history.at(-1).purpose, reason: task.collaboration.history.at(-1).reason } : null, candidateSha: attempt.candidateSha ?? null, tests: attempt.evidence.tests ? { sha: attempt.evidence.tests.sha, passed: attempt.evidence.tests.passed, sha256: attempt.evidence.tests.sha256, command: attempt.evidence.tests.command } : null, review: attempt.evidence.review ? { sha: attempt.evidence.review.sha, verdict: attempt.evidence.review.verdict, summary: attempt.evidence.review.summary } : null }, repository: await repositoryContext(project.id, attempt.baseSha) })
+    const context = roleContext({ policy, projectId: project.id, role, revision: attempt.agentDefinitions.revision, definition, memory: definition.memory, knowledge: ownEntry(state.projectKnowledge ?? {}, project.id) ?? [], requirement: attempt.requirement, feedback: attempt.feedback, projectFacts: { publicationBinding: attempt.publicationBinding ?? null, integrationInstruction: attempt.publicationBinding ? 'Merge the pinned upstreamSha into the published candidate using --no-commit, resolve and stage conflicts before handoff. Host sealing retains both trusted inputs; never fabricate parents or discard backend changes.' : null, workingDraft: !attempt.candidateSha && attempt.workspaces.developer ? { kind: 'unverified-workspace-reference', resourceId: attempt.workspaces.developer.resourceId, path: attempt.workspaces.developer.resourceId === workspace.resourceId ? attempt.workspaces.developer.path : null, note: 'Unsealed source, not candidate or verification evidence. Cross-resource drafts require a sealed artifact before verification.' } : null, handoff: task.collaboration?.history.at(-1) ? { purpose: task.collaboration.history.at(-1).purpose, reason: task.collaboration.history.at(-1).reason } : null, candidateSha: attempt.candidateSha ?? null, tests: attempt.evidence.tests ? { sha: attempt.evidence.tests.sha, passed: attempt.evidence.tests.passed, sha256: attempt.evidence.tests.sha256, command: attempt.evidence.tests.command } : null, review: attempt.evidence.review ? { sha: attempt.evidence.review.sha, verdict: attempt.evidence.review.verdict, summary: attempt.evidence.review.summary } : null }, repository: await repositoryContext(project.id, attempt.baseSha) })
     attempt.rolePolicies[role] = policy
     const session = { id: sessionId, projectId: project.id, taskId: task.id, attemptId: attempt.id, role, execution: cloneExecution(execution), policy, context, generation: claim.generation, poolClaimId: claim.id, status: 'prepared', ...(lease ? { resourceLease: lease } : {}) }
     if (attempt.roleSessions[role]) {
@@ -563,7 +585,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
         await rt.save(); return previous.id
       }
     }
-    const publicationBinding = publicationOf(previous, projectOf(task.projectId))
+    const publicationBinding = await publicationOf(previous, projectOf(task.projectId))
     const id = `attempt-${randomUUID()}`
     if (['running', 'waiting-acceptance'].includes(previous.status)) previous.status = 'returned'
     previous.returned = { at: Date.now(), by: claim.botId, reason }

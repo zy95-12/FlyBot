@@ -301,3 +301,27 @@ mocked GitHub API/credential resolver; no live GitHub publication is claimed by
 those tests. Existing live Attempts/evidence are not migrated or manually edited.
 Actual PR48 conflict rework still needs Chief routing and fresh candidate tests/
 independent Review after the repaired backend is verified and deployed.
+
+### Trusted upstream integration
+
+For an already published Task, admission/rework reads the existing PR and resolves
+its actual target branch through the GitHub ref API, not the potentially cached
+PR base.sha. Before allocating or changing the old Attempt, the host verifies the
+open expected head, configured target and availability of that exact commit in the
+registered repository. It records upstreamSha/upstreamRef on the PR binding. No
+client or model argument selects those parents.
+
+When upstream is not already an ancestor of seedSha, Developer must merge the
+pinned upstream into the retained candidate and resolve/stage conflicts. Host
+sealing requires either a matching MERGE_HEAD with no unresolved index entries or
+a committed merge containing both trusted inputs. It creates one candidate with
+seed and pinned upstream as parents, dropping unpublished intermediate commits.
+The role context includes that required merge input; host tests and independent
+Review must still verify actual merged content, not just graph reachability.
+
+Publication checks both ancestors and resolves the live target again before and
+after push. A moved target, missing object, wrong merge head or unresolved index
+blocks delivery with no replacement PR. Existing candidates/receipts are not
+migrated or overwritten. The implementation is tested with local Git conflict
+resolution and a real service-credential read; actual Codex maintenance/publication
+still requires verified integrated deployment and a Chief decision.

@@ -179,3 +179,8 @@ validate against a real local Git remote and mocked forge, then deploy only afte
 current checks. Chief may then judge PR48 conflict rework on the same Task/PR.
 The #41 Task remains execution-blocked until its registered baseline includes R6+R7;
 no duplicate PR or runtime-policy change substitutes for that prerequisite.
+
+The remaining upstream-sealing blocker now has real Git red/green coverage: retain
+both published and trusted target ancestry after resolved conflicts, not just the
+old seed. Verify this backend head, integrate/deploy it without altering live
+Attempts, then let Chief decide same-PR48 maintenance. #41 remains baseline-held.

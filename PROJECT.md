@@ -312,3 +312,8 @@ returns and human retries. Sealing keeps the old published candidate as an ances
 publication rechecks the original PR/head and fast-forwards its branch, refusing
 concurrent/closed/mismatched artifacts rather than creating another PR. Actual
 PR48 remains unchanged until verified backend deployment and Chief-directed rework.
+
+Published rework now pins the actual GitHub target ref through the host broker.
+A resolved merge seals with both the old candidate and trusted upstream parents;
+roles receive that pinned input and publication rejects target movement or lost
+ancestry. Merged content still requires real host tests and independent Review.

@@ -76,3 +76,9 @@ repair in R6 preserves the same Task's PR binding and published candidate ancest
 across successor Attempts; independent worktree branch names are not remote PR
 identity. Verified fast-forward continuation does not grant merge authority,
 force-push rights, a new baseline or permission to attach unrelated Tasks.
+
+Existing PR maintenance must retain both published candidate history and trusted
+upstream integration. Host-derived target refs, registered commit availability,
+resolved Git merge evidence and dual-ancestor publication gates implement this
+without granting model authority to choose parents or bypass Test/Review. No
+runtime-policy, model/resource, control-plane or merge authority changes follow.

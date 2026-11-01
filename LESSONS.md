@@ -352,3 +352,11 @@ rework/retry; validate it before mutation and again before/after publication. Ke
 published candidates in Git ancestry while collapsing unpublished worker commits.
 A normal fast-forward push must refuse concurrent contributors' commits. Never
 create a replacement PR after a stale/closed binding or rewrite history to get green.
+
+### 2026-11-01 — Preserve trusted upstream ancestry when sealing rework (Seen 1×)
+
+The correct integration tree still conflicted after squash onto only the old
+candidate. Resolve the actual PR target ref through the host credential broker,
+pin it before rework, require resolved merge evidence and retain both public
+parents while dropping private worker commits. Recheck target movement before
+and after publication; a model-supplied parent or green test alone is insufficient.
