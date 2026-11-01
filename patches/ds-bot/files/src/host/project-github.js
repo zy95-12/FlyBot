@@ -22,10 +22,10 @@ export async function resolveGithubIdentity(settings = {}, { run = exec, request
   return { token, login: user.login }
 }
 
-export function githubPublisher(settings = {}) {
+export function githubPublisher(settings = {}, { run = exec, request = fetch } = {}) {
   async function api(repository, path, token, body) {
     if (!repositoryName.test(repository)) throw new Error('Invalid Project repository')
-    const response = await fetch(`https://api.github.com/repos/${repository}${path}`, {
+    const response = await request(`https://api.github.com/repos/${repository}${path}`, {
       method: body ? 'POST' : 'GET', redirect: 'error', signal: AbortSignal.timeout(30_000),
       headers: { authorization: `Bearer ${token}`, accept: 'application/vnd.github+json', 'content-type': 'application/json', 'x-github-api-version': '2022-11-28' },
       ...(body ? { body: JSON.stringify(body) } : {}),
@@ -35,29 +35,40 @@ export function githubPublisher(settings = {}) {
   }
   return {
     async publish(attempt, project) {
-      const identity = await resolveGithubIdentity(settings)
+      const identity = await resolveGithubIdentity(settings, { run, request })
       const token = identity.token
       const repository = project.repository
       if (!repositoryName.test(repository)) throw new Error('Invalid Project repository')
+      const binding = attempt.publicationBinding
+      if (binding) {
+        if (binding.repository !== repository || !Number.isSafeInteger(binding.number) || binding.number < 1 || typeof binding.branch !== 'string' || !/^[a-f0-9]{40}$/.test(binding.previousSha)) throw new Error('Existing delivery PR binding is invalid')
+        const bound = await api(repository, `/pulls/${binding.number}`, token)
+        if (bound.state !== 'open' || bound.number !== binding.number || bound.head?.repo?.full_name !== repository || bound.head?.ref !== binding.branch || ![binding.previousSha, attempt.candidateSha].includes(bound.head?.sha)) throw new Error('Existing delivery PR changed; reconcile before publication')
+        // Keep prior candidates reachable; never overwrite unrelated or rebased history.
+        try { await run('git', ['merge-base', '--is-ancestor', binding.previousSha, attempt.candidateSha], { cwd: attempt.publicationRepository ?? attempt.workspaces.developer.path, timeout: 10_000, maxBuffer: 8192 }) }
+        catch { throw new Error('Rework candidate does not retain the previous published candidate') }
+      }
+      const publicationBranch = binding?.branch ?? attempt.branch
       const authorization = Buffer.from(`x-access-token:${token}`).toString('base64')
       // A fixed URL avoids inheriting a model-edited remote; the credential is environment-only.
       try {
-        await exec('git', ['-c', 'core.hooksPath=/dev/null', 'push', `https://github.com/${repository}.git`, `${attempt.candidateSha}:refs/heads/${attempt.branch}`], {
+        await run('git', ['-c', 'core.hooksPath=/dev/null', 'push', `https://github.com/${repository}.git`, `${attempt.candidateSha}:refs/heads/${publicationBranch}`], {
           cwd: attempt.publicationRepository ?? attempt.workspaces.developer.path, timeout: 120_000, maxBuffer: 64 * 1024,
           env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_CONFIG_COUNT: '2',
             GIT_CONFIG_KEY_0: 'http.https://github.com/.extraheader', GIT_CONFIG_VALUE_0: '',
             GIT_CONFIG_KEY_1: 'http.https://github.com/.extraheader', GIT_CONFIG_VALUE_1: `AUTHORIZATION: basic ${authorization}` },
         })
       } catch { throw new Error('Project branch could not be pushed') }
-      const existing = await api(repository, `/pulls?state=open&head=${encodeURIComponent(repository.split('/')[0] + ':' + attempt.branch)}`, token)
-      const pr = existing[0] ?? await api(repository, '/pulls', token, { title: attempt.requirement.title.slice(0, 120), head: attempt.branch,
+      const existing = binding ? [] : await api(repository, `/pulls?state=open&head=${encodeURIComponent(repository.split('/')[0] + ':' + publicationBranch)}`, token)
+      const pr = binding ? await api(repository, `/pulls/${binding.number}`, token) : existing[0] ?? await api(repository, '/pulls', token, { title: attempt.requirement.title.slice(0, 120), head: attempt.branch,
         base: project.defaultBranch ?? 'main', draft: true,
         body: `Project delivery artifact.\n\nTask: ${attempt.taskId}\nAttempt: ${attempt.id}\nCommit: ${attempt.candidateSha}\nTests: passed at this commit\nReview: approved at this commit\n\n${attempt.requirement.criteria ?? ''}\n\nGenerated for human acceptance; no automatic merge.` })
+      if (binding && (pr.number !== binding.number || pr.state !== 'open' || pr.head?.ref !== publicationBranch || pr.head?.repo?.full_name !== repository)) throw new Error('Existing delivery PR changed during publication')
       if (pr.head?.sha !== attempt.candidateSha) throw new Error('PR head does not match the tested candidate')
       return { number: pr.number, url: pr.html_url, sha: pr.head.sha, repository, executorLogin: identity.login, credentialScope: 'project-automation' }
     },
     async read(pr) {
-      const identity = await resolveGithubIdentity(settings)
+      const identity = await resolveGithubIdentity(settings, { run, request })
       const token = identity.token
       const data = await api(pr.repository, `/pulls/${pr.number}`, token)
       return { sha: data.head?.sha, state: data.state, url: data.html_url }

@@ -5,6 +5,7 @@ owned_paths:
   - core/src/host/project-delivery-template.js
   - core/src/host/project-github.js
   - core/test/project-delivery.test.js
+  - core/test/project-github-publish.test.js
 ---
 
 # Project code delivery (fork M3)
@@ -276,3 +277,27 @@ delivery workers and leases released, no native worker and no cancellation. The 
 records `quiescent-chief-wait` in restartCheckpoints. It does not execute, accept or
 create a new candidate. Active/unknown execution still becomes interrupted. Normal
 current-authority, generation, candidate and evidence checks apply before retry.
+
+## Published delivery rework
+
+A Chief return or human retry after publication retains a host-derived
+publicationBinding: repository, PR number, its existing remote branch and the
+previous published SHA. Separate worktrees keep distinct local Attempt branches.
+Candidate sealing collapses only unpublished worker commits onto seedSha, retaining
+the prior candidate as an ancestor instead of resetting all history to baseSha.
+Path/evidence policy still compares the complete change against the original base.
+
+Before advancing an existing PR, the publisher rechecks its repository, number,
+open state, branch and expected head. It verifies candidate ancestry, uses only a
+normal fast-forward push to the bound branch, then reads back the same PR/head.
+Stale/closed/mismatched records, lost ancestry or concurrent remote commits stop
+publication; there is no fallback PR creation and no force push. A response-loss
+retry may reuse an already matching candidate head. Initial publication retains
+the existing new-branch behavior. This is same-Task continuation, not permission
+to attach another Task or take over another contributor's PR.
+
+Regression coverage uses actual Git repositories and a local bare remote with a
+mocked GitHub API/credential resolver; no live GitHub publication is claimed by
+those tests. Existing live Attempts/evidence are not migrated or manually edited.
+Actual PR48 conflict rework still needs Chief routing and fresh candidate tests/
+independent Review after the repaired backend is verified and deployed.

@@ -639,3 +639,51 @@ test('restart preserves a tested pool checkpoint waiting for Chief only when eve
     } else assert.equal(a.status, 'interrupted')
   }
 })
+
+test('published pool rework retains its PR binding and seals a descendant of the retained candidate', async t => {
+  const f = await setup(t, undefined, { pool: true })
+  f.rt.projectPools.connect({ validate: () => ({ ok: true }) })
+  await f.start('published-rework')
+  const task = f.rt.state.tasks[f.task.id], first = f.attempt()
+  const developer = f.rt.projectAgents.deliveryDefinitions('p1').roles.find(row => row.role === 'developer')
+  await f.rt.projectDelivery.preparePoolRole(task, { id: 'first-dev', attemptId: first.id, generation: 1 }, developer)
+  writeFileSync(join(first.workspaces.developer.path, 'code.mjs'), 'export const add = (a,b) => a+b;\n')
+  await f.rt.projectDelivery.completePoolRole({ task, claim: { attemptId: first.id }, role: 'developer', outputs: {} })
+  const original = first.candidateSha
+  first.pr = { number: 48, repository: 'example/demo', sha: original, url: 'https://example.invalid/pr/48' }
+  first.status = 'waiting-acceptance'
+  first.pr.sha = 'f'.repeat(40)
+  await assert.rejects(f.rt.projectDelivery.reworkPool({ task, claim: { id: 'bad-return', attemptId: first.id, botId: 'p1:chief' }, reason: 'Reject inconsistent prior evidence' }), /binding is inconsistent/)
+  assert.equal(first.status, 'waiting-acceptance')
+  assert.equal(Object.keys(f.rt.state.projectAttempts).length, 1)
+  first.pr.sha = original
+  const id = await f.rt.projectDelivery.reworkPool({ task, claim: { id: 'chief-return', attemptId: first.id, botId: 'p1:chief' }, reason: 'Maintain the existing PR after its base advanced' })
+  const next = f.rt.state.projectAttempts[id]
+  assert.deepEqual(next.publicationBinding, { number: 48, repository: 'example/demo', branch: first.branch, previousSha: original })
+  await f.rt.projectDelivery.preparePoolRole(task, { id: 'next-dev', attemptId: id, generation: 2 }, developer)
+  writeFileSync(join(next.workspaces.developer.path, 'code.mjs'), 'export const add = (a,b) => Number(a)+Number(b); // intermediate\n')
+  git(next.workspaces.developer.path, ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@localhost', 'commit', '-am', 'Private intermediate work'])
+  writeFileSync(join(next.workspaces.developer.path, 'code.mjs'), 'export const add = (a,b) => Number(a)+Number(b);\n')
+  await f.rt.projectDelivery.completePoolRole({ task, claim: { attemptId: id }, role: 'developer', outputs: {} })
+  assert.equal(git(next.workspaces.developer.path, ['rev-parse', next.candidateSha + '^']), original)
+  assert.equal(first.candidateSha, original)
+  assert.equal(first.pr.number, 48)
+  assert.notEqual(next.branch, first.branch, 'independent worktrees retain distinct local branches')
+  assert.equal(Object.keys(f.rt.state.tasks).length, 1)
+})
+
+
+test('human retry of a published delivery preserves its PR and rejects inconsistent bindings before admission', async t => {
+  const f = await setup(t)
+  await f.start('first-publication'); await complete(f)
+  const first = f.attempt(), sha = first.candidateSha
+  await f.rt.projectEndpoint('project-task-reject', { attemptId: first.id, reason: 'Add a regression' }, alice)
+  const retry = await f.start('human-retry')
+  assert.deepEqual(retry.attempt.publicationBinding, { number: first.pr.number, repository: first.pr.repository, branch: first.branch, previousSha: sha })
+  assert.equal(git(retry.attempt.workspaces.developer.path, ['rev-parse', 'HEAD']), sha)
+  f.rt.projectDelivery.runReported({ id: retry.attempt.runId, taskId: f.task.id, attemptId: retry.attempt.id, projectId: 'p1', status: 'failed' })
+  f.attempt().publicationBinding.repository = 'other/repo'
+  const count = Object.keys(f.rt.state.projectAttempts).length
+  await assert.rejects(f.start('inconsistent-retry'), /binding is inconsistent/)
+  assert.equal(Object.keys(f.rt.state.projectAttempts).length, count)
+})

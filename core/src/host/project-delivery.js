@@ -52,6 +52,12 @@ export function createProjectDelivery(rt, { publisher } = {}) {
   const projectOf = id => rt.projects.repository.get(id, { includeDeleted: true })
   const settingsOf = project => repositorySettings(rt, project)
   const publisherOf = project => publisher ?? githubPublisher(settingsOf(project).github)
+  function publicationOf(previous, project) {
+    if (!previous) return undefined
+    const binding = previous.pr ? { number: previous.pr.number, repository: previous.pr.repository, branch: previous.publicationBinding?.branch ?? previous.branch, previousSha: previous.candidateSha } : structuredClone(previous.publicationBinding)
+    if (binding && (binding.repository !== project.repository || !Number.isSafeInteger(binding.number) || binding.number < 1 || typeof binding.branch !== 'string' || !binding.branch || !/^[a-f0-9]{40}$/.test(binding.previousSha) || previous.pr && previous.pr.sha !== previous.candidateSha)) throw reject('Existing delivery PR binding is inconsistent; reconcile before rework')
+    return binding
+  }
   const current = taskId => Object.values(attempts()).reverse().find(attempt => attempt.taskId === taskId)
   const view = attempt => structuredClone(attempt)
   async function fail(attempt, error, status = 'failed') {
@@ -108,12 +114,13 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     if (task.status === 'accepted' || task.status === 'cancelled') throw reject('Terminal Task cannot start a delivery')
     const settings = await preflightRepository(rt, project)
     const previous = current(task.id)
+    const publicationBinding = publicationOf(previous, project)
     const feedback = previous?.failure ? { previousAttemptId: previous.id, kind: previous.returned ? 'human-return' : 'execution-failure', reason: previous.failure.message, candidateSha: previous.candidateSha ?? null } : null
     const at = Date.now()
     const attempt = { id: `attempt-${randomUUID()}`, projectId: project.id, taskId: task.id, requestKey,
       workflowVersion: DELIVERY_VERSION, status: 'preparing', initiatedBy: actor.memberId, executionOwnerId: project.ownerUserId,
       requirement: { title: task.title, criteria: task.criteria ?? '', note: task.note ?? '', repository: project.repository },
-      ...(feedback ? { feedback } : {}), workspaces: {}, evidence: {}, createdAt: at, updatedAt: at }
+      ...(feedback ? { feedback } : {}), ...(publicationBinding ? { publicationBinding, seedSha: previous.candidateSha ?? publicationBinding.previousSha, baseSha: previous.baseSha } : {}), workspaces: {}, evidence: {}, createdAt: at, updatedAt: at }
     setEntry(attempts(), attempt.id, attempt)
     task.deliveryAttemptId = attempt.id
     await rt.save() // Reserve idempotency and ownership before any filesystem effects.
@@ -123,7 +130,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
       if (config.projectDispatch !== 'workflow') {
         attempt.protocol = 'project-handoff/v1'
         attempt.workflowVersion = 'project-delivery/pools-v1'
-        attempt.baseSha = await git(settings.path, ['rev-parse', 'HEAD'])
+        attempt.baseSha ??= await git(settings.path, ['rev-parse', 'HEAD'])
         attempt.roleSessions = {}; attempt.rolePolicies = {}; attempt.resourceLeases = {}
         attempt.runId = `pool-run-${randomUUID()}`
         attempt.status = 'running'
@@ -138,6 +145,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
         if (lease.harness === 'flybot' && resource.type !== 'local') throw reject('Native Harness requires a registered local resource')
       }
       await allocate(attempt, project, settings)
+      if (attempt.seedSha) await workspaceGit(attempt.workspaces.developer, ['reset', '--hard', attempt.seedSha])
       if (attempt.cancelRequested) throw reject('Delivery was stopped')
       const model = settings.model ?? config.projectModel ?? await rt.defaultModel?.()
       if (typeof model !== 'string' || !model) throw reject('A served delivery model must be provisioned')
@@ -199,7 +207,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     checkDevelopmentEvidence(attempt.rolePolicies?.developer, names)
     const roots = settings.allowedPaths
     if (!Array.isArray(roots) || !roots.length || roots.some(value => typeof value !== 'string' || value.startsWith('/') || value.includes('..')) || names.some(name => !roots.some(prefix => name === prefix || name.startsWith(prefix.endsWith('/') ? prefix : `${prefix}/`)))) throw reject('Code changes exceed the provisioned repository paths')
-    await workspaceGit(workspace, ['reset', '--soft', attempt.baseSha]) // Seal one final commit; do not transfer intermediate worker history.
+    await workspaceGit(workspace, ['reset', '--soft', attempt.seedSha ?? attempt.baseSha]) // Seal one final commit; do not transfer intermediate worker history.
     if (await workspaceGit(workspace, ['status', '--porcelain'])) {
       await workspaceGit(workspace, ['add', '--all', '--', '.'])
       await workspaceGit(workspace, ['commit', '-m', `Implement Task ${attempt.taskId}`])
@@ -555,10 +563,11 @@ export function createProjectDelivery(rt, { publisher } = {}) {
         await rt.save(); return previous.id
       }
     }
+    const publicationBinding = publicationOf(previous, projectOf(task.projectId))
     const id = `attempt-${randomUUID()}`
     if (['running', 'waiting-acceptance'].includes(previous.status)) previous.status = 'returned'
     previous.returned = { at: Date.now(), by: claim.botId, reason }
-    const next = { id, protocol: previous.protocol, projectId: previous.projectId, taskId: task.id, requestKey: hash(`${task.projectId}\n${task.id}\n${claim.id}`), workflowVersion: previous.workflowVersion, status: 'running', initiatedBy: previous.initiatedBy, executionOwnerId: previous.executionOwnerId, baseSha: !previous.candidateSha && (force || previous.status === 'interrupted') ? await git(settingsOf(projectOf(task.projectId)).path, ['rev-parse', 'HEAD']) : previous.baseSha, seedSha: previous.candidateSha, requirement: structuredClone(previous.requirement), feedback: { previousAttemptId: previous.id, kind: 'bot-return', reason, candidateSha: previous.candidateSha }, agentDefinitions: rt.projectAgents.deliveryDefinitions(task.projectId), roleSessions: {}, rolePolicies: {}, resourceLeases: {}, workspaces: {}, evidence: {}, createdAt: Date.now(), updatedAt: Date.now(), runId: `pool-run-${randomUUID()}` }
+    const next = { id, protocol: previous.protocol, projectId: previous.projectId, taskId: task.id, requestKey: hash(`${task.projectId}\n${task.id}\n${claim.id}`), workflowVersion: previous.workflowVersion, status: 'running', initiatedBy: previous.initiatedBy, executionOwnerId: previous.executionOwnerId, baseSha: !previous.candidateSha && (force || previous.status === 'interrupted') ? await git(settingsOf(projectOf(task.projectId)).path, ['rev-parse', 'HEAD']) : previous.baseSha, seedSha: previous.candidateSha, ...(publicationBinding ? { publicationBinding } : {}), requirement: structuredClone(previous.requirement), feedback: { previousAttemptId: previous.id, kind: 'bot-return', reason, candidateSha: previous.candidateSha }, agentDefinitions: rt.projectAgents.deliveryDefinitions(task.projectId), roleSessions: {}, rolePolicies: {}, resourceLeases: {}, workspaces: {}, evidence: {}, createdAt: Date.now(), updatedAt: Date.now(), runId: `pool-run-${randomUUID()}` }
     previous.supersededBy = id
     setEntry(attempts(), id, next); task.deliveryAttemptId = id
     rt.bindProject({ kind: 'run', id: previous.runId, projectId: task.projectId, taskId: task.id, attemptId: previous.id, status: 'failed' })

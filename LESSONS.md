@@ -343,3 +343,12 @@ An idle tested pool waiting for Chief is not interrupted execution. Preserve tha
 checkpoint only with completed Chief judgement, released Chief lease and every
 registered delivery worker/lease released, no native worker and no cancellation.
 Unknown occupancy or an active claim must retain conservative interruption.
+
+### 2026-11-01 — Attempt branches are not delivery PR identity (Seen 1×)
+
+Actual PR48 maintenance was blocked because rework creates a fresh Attempt branch
+and publication only searched that branch. Carry the host-verified PR binding across
+rework/retry; validate it before mutation and again before/after publication. Keep
+published candidates in Git ancestry while collapsing unpublished worker commits.
+A normal fast-forward push must refuse concurrent contributors' commits. Never
+create a replacement PR after a stale/closed binding or rewrite history to get green.

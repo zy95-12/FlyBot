@@ -306,3 +306,9 @@ A tested pool checkpoint waiting for Chief/human input survives host restart onl
 with a completed Chief Run and all registered SDK workers/leases confirmed released.
 It retains the candidate and test receipt; active claims or unknown exits still
 interrupt delivery. A checkpoint audit records the restart without inventing progress.
+
+Published delivery rework now carries the host's existing PR binding through Chief
+returns and human retries. Sealing keeps the old published candidate as an ancestor;
+publication rechecks the original PR/head and fast-forwards its branch, refusing
+concurrent/closed/mismatched artifacts rather than creating another PR. Actual
+PR48 remains unchanged until verified backend deployment and Chief-directed rework.

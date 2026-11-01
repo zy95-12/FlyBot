@@ -70,3 +70,9 @@ retry the same candidate and preserve prior INC evidence.
 Preserve fully released, tested Chief-wait checkpoints across controlled backend
 updates, with explicit restart audit and unchanged candidate/test evidence. This
 exception excludes active claims, unknown exits, native workers and cancellation.
+
+Existing owner scope requires one PR per issue through rework. The host delivery
+repair in R6 preserves the same Task's PR binding and published candidate ancestry
+across successor Attempts; independent worktree branch names are not remote PR
+identity. Verified fast-forward continuation does not grant merge authority,
+force-push rights, a new baseline or permission to attach unrelated Tasks.

@@ -173,3 +173,9 @@ retry independent Review at the same candidate after environment preparation.
 R6 restart recovery now distinguishes a fully released, tested Chief-wait checkpoint
 from active or unknown execution, so environment upgrades can retry Review at the
 same candidate without manufacturing a new implementation Attempt.
+
+Current same-PR maintenance blocker: fix host publication continuation in R6 PR47,
+validate against a real local Git remote and mocked forge, then deploy only after
+current checks. Chief may then judge PR48 conflict rework on the same Task/PR.
+The #41 Task remains execution-blocked until its registered baseline includes R6+R7;
+no duplicate PR or runtime-policy change substitutes for that prerequisite.
