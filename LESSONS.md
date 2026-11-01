@@ -13,6 +13,16 @@ Dated, short lessons from real FlyBot work. Agents read this **before coding**. 
 
 ## Open lessons
 
+### 2026-11-02 — Additional approved merge inputs need a host contract
+
+Seen 1×. A published upstream already in the old candidate does not imply there
+is no other MERGE_HEAD. SDK shared refs must stay restricted. Explicitly admit
+operator-provisioned ref/SHA inputs under manager authority and durable save proof,
+then let the host seal the resolved tree with trusted parents using Git's supported
+reset lifecycle. Reject unknown/moved/conflicted input before index/branch writes;
+a wrapper printf exit0 is not proof the nested git commit succeeded.
+
+
 ### 2026-11-02 — Prepared inbox is not an injected SDK turn
 
 Seen 1× (queue regression). A safe-turn remaining count included batches already

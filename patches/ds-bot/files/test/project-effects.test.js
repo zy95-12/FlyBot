@@ -160,3 +160,21 @@ test('a rename acknowledgement survives a later journal error while unknown prot
   assert.equal(JSON.stringify(state), before)
   assert.deepEqual(g.seen, [])
 })
+
+test('intent commit proof survives receipt revisions but cannot authorize a replacement or future protocol', async () => {
+  const f=fixture(),token=f.effects.stage(f.spec)
+  assert.equal(f.effects.intentCommitted(token),false)
+  assert.equal(f.effects.intentCommitted(null),false)
+  await f.effects.persist(token)
+  assert.equal(f.effects.intentCommitted(token),true)
+  f.rt.state.projectEffects[token.id].revision++
+  assert.equal(f.effects.list('p',{memberId:'owner'})[0].committed,false)
+  assert.equal(f.effects.intentCommitted(token),true,'Durable unchanged intent is distinct from an unsaved receipt revision')
+  const next=f.effects.stage({...f.spec,payload:{value:2},replace:true})
+  assert.equal(f.effects.intentCommitted(token),false)
+  assert.equal(f.effects.intentCommitted(next),false)
+  await f.effects.persist(next)
+  assert.equal(f.effects.intentCommitted(next),true)
+  f.rt.state.projectEffects[next.id].version='project-effect/v999'
+  assert.equal(f.effects.intentCommitted(next),false)
+})

@@ -142,3 +142,10 @@ adapter delivery, SDK observation and declared reading/validated handling. Busy 
 feedback waits for the same worker/thread's safe turn; Chief closure commits its
 input receipt with acceptance. No additional workflow, frontend, clock or platform
 service is introduced.
+
+
+Issue60 extends the same service/delivery boundary with explicit approved operator
+integration inputs. Current manager authority, released execution proof, exact
+workspace/generation snapshot and Effect-backed admission fence which parents the
+host may retain. Sealing preserves the resolved staged tree and trusted ancestry;
+it does not grant SDK shared-ref access, replace a PR or substitute for verification.

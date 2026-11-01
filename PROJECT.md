@@ -10,6 +10,21 @@ Current stage and priorities: [ROADMAP.md](ROADMAP.md). How decisions are made:
 
 ## Fork Project State — 2026-10-31
 
+### Approved integration sealing — issue60, 2026-11-02
+
+S3/PR61 is verified (4374 tests and exact-source real Codex inbox→Chief-pool
+acceptance), pending compatible rollout with S2. The autonomous frontend exposed a
+separate host preparation gap: an approved operator merge remained staged while
+SDK shared-ref writes were correctly denied; host sealing only recognized the
+published upstream and attempted a soft reset during that extra merge.
+
+The foreground repair adds manager-only, durable source admission with exact
+operator ref/SHA, workspace snapshot and generation fences. Host sealing retains
+the staged tree and trusted parents without opening refs to SDKs or claiming test/
+Review evidence. Failed/no-op saves cannot authorize a parent. The original
+Task40/PR48/Attempt and merge draft stay intact; resume through Chief after verified
+service deployment. No backend Bot Task or control-plane/sandbox/credential change.
+
 ### Durable Task inputs — S3 / issue52, 2026-11-02
 
 The service now distinguishes persisted input, durable role inbox, adapter delivery,

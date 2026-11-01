@@ -14,6 +14,7 @@ const operations = Object.freeze({
   'task.run': 'project-task-run', 'task.detail': 'project-task-detail',
   'task.accept': 'project-task-accept', 'task.reject': 'project-task-reject',
   'attempt.stop': 'project-attempt-stop', 'attempt.cleanup': 'project-attempt-cleanup',
+  'attempt.integration-state': 'project-attempt-integration-state', 'attempt.integration-bind': 'project-attempt-integration-bind',
   'attempt.publication-retry': 'project-attempt-publication-retry', 'attempt.log': 'project-attempt-log',
   'queue.cancel': 'project-queue-cancel', 'queue.retry': 'project-queue-retry',
   'chief.inspect': 'project-chief-inspect', 'chief.configure': 'project-chief-configure', 'chief.state': 'project-chief-state',
@@ -22,7 +23,7 @@ const operations = Object.freeze({
   'inputs': 'project-task-inputs', 'input.publish': 'project-task-input',
   'pools': 'project-task-pools', 'effect.retry': 'project-effect-retry', 'comment.publish': 'project-github-comment',
 })
-const queries = new Set(['tasks', 'task', 'task.detail', 'inputs', 'effects', 'attempt.context', 'attempt.log', 'chief.state', 'pools'])
+const queries = new Set(['tasks', 'task', 'task.detail', 'inputs', 'effects', 'attempt.context', 'attempt.integration-state', 'attempt.log', 'chief.state', 'pools'])
 const legacy = new Set(Object.values(operations))
 const readEndpoints = new Set([...queries].map(name => operations[name]).filter(Boolean))
 export const developmentQuery = body => record(body) && body.version === DEVELOPMENT_PROTOCOL && body.kind === 'query' && queries.has(body.name)

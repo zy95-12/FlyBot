@@ -2,9 +2,12 @@
 
 ## Active fork roadmap — 2026-10-31
 
+Immediate #60 foreground repair completes approved extra-merge host sealing before
+S2/S3 batch rollout and current frontend Attempt resumption. Keep the existing
+index/MERGE_HEAD, shared-ref restriction, Task/PR and independent candidate gates.
+
 Service #49 implementation order: S1/#50 (PR56, deployed), S2/#51 (PR58, verified,
-awaiting compatible batch rollout), S3/#52 (durable Task inbox and safe turns under
-verification), then source subscriptions/#53, trusted execution boundary/#54 and
+awaiting compatible batch rollout), S3/#52 (PR61,4374 checks and real Codex receipt/pool acceptance verified), then source subscriptions/#53, trusted execution boundary/#54 and
 integrated fault/recovery acceptance/#55. #57/PR59 compatibility repair is deployed;
 original Chief resumed actual frontend Dev without changing Task40/PR48 ownership.
 Each stage keeps memory, architecture and regression evidence with its own PR.

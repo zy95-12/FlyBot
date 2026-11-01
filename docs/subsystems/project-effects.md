@@ -123,3 +123,13 @@ No control-plane, credential, merge/release or per-Bot sandbox changes are inclu
 S3 input.notify persists with admitted Task feedback and input.inbox proves its exact claim/snapshot batch reached the store before adapter dispatch. Notification waits for configured Chief recovery only when already blocked/arbitrating; it never interrupts a healthy worker or implies a model read. See [inputs](project-inputs.md).
 
 S3 notification can resume a safe SDK message-wait or queue inspection behind a current Chief. It never answers a permission prompt. Effect staging failure rolls back a newly introduced input even before a token exists.
+
+
+## Durable integration admission (#60)
+
+integration.admit records a manager's exact source approval atomically with its
+Attempt pins and generation. intentCommitted(token) acknowledges a known persisted
+generation, independently of a newer unsaved receipt revision. It cannot authorize
+an uncommitted replacement, unknown protocol or absent token. Delivery requires
+this proof before using pins; a successful/no-op save alone is not enough. This
+metadata-only adapter does not launch code or imply a merge/verification result.
