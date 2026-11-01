@@ -1227,6 +1227,25 @@ test('integration admission denies member, foreign source, stale snapshot and un
   assert.equal(git(f.path,['rev-parse','HEAD']),f.seed)
 })
 
+test('integration admission separates released historical Chief turns from current or unconfirmed occupancy', async t => {
+  const f=await additionalIntegrationFixture(t)
+  const worker={id:'old-chief',projectId:'p1',chiefRunId:'old-run',attemptId:'old-turn',status:'released',generation:1}
+  f.rt.state.projectHarnessWorkers={historical:worker}
+  const saved=(await integrationCall(f,'query','attempt.integration-state',{})).result
+  assert.equal(saved.attemptId,f.attempt.id)
+  worker.status='unreachable'
+  await assert.rejects(integrationCall(f,'query','attempt.integration-state',{}),/confirmed execution exit/)
+  worker.status='released'
+  f.task.collaboration.claim={id:'current-chief',chiefRunId:'old-run',status:'waiting-human'}
+  await assert.rejects(integrationCall(f,'query','attempt.integration-state',{}),/confirmed execution exit/)
+  worker.releaseProof={kind:'sdk-stop-ack-and-process-exit',generation:1}
+  await integrationCall(f,'query','attempt.integration-state',{})
+  delete f.task.collaboration.claim
+  delete worker.releaseProof
+  await integrationCall(f,'command','attempt.integration-bind',{inputs:[{ref:f.ref,sha:f.source}],generation:saved.generation,expectedWorkspace:saved.snapshot})
+  assert.equal(f.attempt.integrationInputs[0].sha,f.source)
+})
+
 test('unapproved and moved integration parents are refused before index or branch writes', async t => {
   const f=await additionalIntegrationFixture(t),before=indexBytes(f)
   await assert.rejects(f.rt.projectDelivery.completePoolRole({task:f.task,claim:{attemptId:f.attempt.id},role:'developer',outputs:{}}),/not a pinned upstream or approved/)

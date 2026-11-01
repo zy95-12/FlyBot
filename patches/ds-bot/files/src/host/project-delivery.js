@@ -321,7 +321,11 @@ export function createProjectDelivery(rt, { publisher } = {}) {
   }
   function integrationReleased(attempt) {
     const chief = row => row?.kind === 'chief-control' && row.projectId === attempt.projectId
-    if (taskOf(attempt.taskId)?.collaboration?.claim?.status === 'active' || Object.values(state.projectExecutions ?? {}).some(row => chief(row) && row.status === 'running') || Object.values(state.projectResourceLeases ?? {}).some(row => (row.attemptId === attempt.id || chief(state.projectExecutions?.[row.attemptId])) && row.status !== 'released') || Object.values(state.projectHarnessWorkers ?? {}).some(row => (row.attemptId === attempt.id || row.projectId === attempt.projectId && row.chiefRunId) && !confirmedWorkerExit(state, row)) || Object.values(state.bots ?? {}).some(row => row.ephemeral && row.attemptId === attempt.id)) throw reject('Integration input is waiting for confirmed execution exit')
+    const claim = taskOf(attempt.taskId)?.collaboration?.claim
+    // Old released Chief turns never owned this workspace. The current Chief
+    // claim and any unreleased Project Chief still require exact exit proof.
+    const currentWorker = row => row.attemptId === attempt.id || row.projectId === attempt.projectId && row.chiefRunId && (row.status !== 'released' || row.chiefRunId === claim?.chiefRunId)
+    if (claim?.status === 'active' || Object.values(state.projectExecutions ?? {}).some(row => chief(row) && row.status === 'running') || Object.values(state.projectResourceLeases ?? {}).some(row => (row.attemptId === attempt.id || chief(state.projectExecutions?.[row.attemptId])) && row.status !== 'released') || Object.values(state.projectHarnessWorkers ?? {}).some(row => currentWorker(row) && !confirmedWorkerExit(state, row)) || Object.values(state.bots ?? {}).some(row => row.ephemeral && row.attemptId === attempt.id)) throw reject('Integration input is waiting for confirmed execution exit')
   }
   async function integrationSnapshot(attempt) {
     const workspace = attempt.workspaces.developer

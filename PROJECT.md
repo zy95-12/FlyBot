@@ -25,6 +25,12 @@ Review evidence. Failed/no-op saves cannot authorize a parent. The original
 Task40/PR48/Attempt and merge draft stay intact; resume through Chief after verified
 service deployment. No backend Bot Task or control-plane/sandbox/credential change.
 
+The first compatible S2/S3/60 rollout passed three-account live reads, but source
+admission exposed over-broad historical Chief occupancy. Admission now requires
+exit proof for the current Chief claim, every unreleased Project Chief and this
+Attempt's workers, without treating unrelated released historical Chief turns as
+workspace owners. Their old records remain intact; unknown current exits still block.
+
 ### Durable Task inputs — S3 / issue52, 2026-11-02
 
 The service now distinguishes persisted input, durable role inbox, adapter delivery,

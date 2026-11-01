@@ -420,6 +420,12 @@ S3 bumps new delivery contracts to v6/pools-v3; historical definitions/Attempts 
 
 ## Explicit operator integration parents (#60)
 
+Occupancy is scoped to this Attempt and the current Chief claim. Every unreleased
+Project Chief still blocks; a current released Chief needs confirmed exit. A
+released historical Chief turn that never owned this workspace does not block
+admission solely because its old record predates exit-proof recording. Historical
+records stay untouched; unknown exits belonging to this Attempt still block.
+
 attempt.integrationInputs stores immutable versioned Project-repository/ref/SHA
 pins with manager admission/audit records. Active/unknown leases/workers and native
 carriers block admission; workspace snapshot CAS protects the existing staged

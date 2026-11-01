@@ -473,5 +473,15 @@ from the same Task/candidate into rework. Redact before truncating long lines;
 retain full originals and never confuse diagnostic text with verification PASS.
 
 
+### 2026-11-02 — Occupancy guards must bind to the current owner
+
+Seen 1× during live operator-source admission. Seven released historical Chief
+turns predated exit-proof recording and never owned the current workspace. A
+Project-wide scan treated them as current occupancy and blocked recovery forever.
+Require proof for this Attempt, the current Chief claim and all unreleased Chief
+workers; retain unknown-current refusal and every historical record. Regression
+tests must mix legacy released history with active, unreachable and current-claim
+workers, rather than only using an empty history fixture.
+
 ### 2026-11-01 — Keep memory, logical Session and execution evidence separate
 Seen 1×. A FlyBot48k role-admission cap precedes the SDK; Codex automatic compaction cannot fix inputs rejected before it starts. A1MiB event-size failure is transport, not model context. Use bounded current facts plus exact retrievable source snapshots, preserve full requirements and role rules, and let each Harness manage its own history. Task rework must not throw away its role thread/cwd; resumption requires matching Project/Task/role/principal/resource/profile/model/persona and confirmed process/lease exit. Never reuse a Developer thread for independent Review or carry a verdict across commits. Chief long-term facts reuse original own-memory topics/journal, with no private/team scope fallback.

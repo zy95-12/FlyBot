@@ -5,6 +5,9 @@
 Immediate #60 foreground repair completes approved extra-merge host sealing before
 S2/S3 batch rollout and current frontend Attempt resumption. Keep the existing
 index/MERGE_HEAD, shared-ref restriction, Task/PR and independent candidate gates.
+The first batch is deployed; live source admission found a historical-Chief
+scope regression. PR62 includes its real-state reproduction and focused guard
+repair before resuming the original frontend Attempt. No full frontend acceptance yet.
 
 Service #49 implementation order: S1/#50 (PR56, deployed), S2/#51 (PR58, verified,
 awaiting compatible batch rollout), S3/#52 (PR61,4374 checks and real Codex receipt/pool acceptance verified), then source subscriptions/#53, trusted execution boundary/#54 and
