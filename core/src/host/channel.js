@@ -709,6 +709,7 @@ export function install(rt) {
         case 'project-task-reject':
         case 'project-attempt-log':
         case 'project-attempt-cleanup':
+        case 'project-attempt-publication-retry':
         case 'project-members':
         case 'project-invite':
         case 'project-join':
