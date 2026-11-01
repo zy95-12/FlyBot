@@ -329,3 +329,12 @@ leaving the Task stopping and its Attempt running. Check routing admission befor
 fencing or rework. Audited Chief intervention starts a new bounded autonomous epoch,
 retaining lifetime history and global quotas; it cannot bypass evidence or authority.
 Failures after fencing need an explicit block and decision ID, never indefinite stopping.
+
+### 2026-11-01 — read-only verification still needs writable temporary fixtures (Seen 1×)
+
+Actual Reviewer twice returned INC: its source stayed read-only but temporary
+fixtures failed EROFS. A real CLI probe reproduced failure with the :tmp alias and
+success with an explicit scratch path, while source writes still failed. Bind a
+unique host-created directory per command worker, set TMPDIR/npm cache to it and
+clean only after confirmed exit. Prepare fixed dependencies outside the sandbox;
+never turn source writable or waive independent checks to compensate for provisioning.

@@ -162,3 +162,14 @@ requests and EROFS outside the workspace. These are distinct from model acceptan
 SDK handoff ports also accept an entire valid JSON decision with the OUTPUT
 framing omitted. The host preserves the raw hash and decision, adds only framing,
 and applies the same admission/authority checks; arbitrary prose is never a decision.
+
+## Temporary verification files
+
+Command workers receive a unique host-created `.flybot-scratch-<worker-id>` directory
+inside the selected resource root. TMPDIR and the offline npm cache point there;
+the named Codex filesystem profile grants that exact path even for read-only roles.
+Source/Git write grants remain Developer-only. Chief has no scratch/tool grant.
+The same resource adapter provisions local/Docker directories. Confirmed SDK exit
+precedes cleanup; changed bindings or cleanup failure retain explicit cleanup debt
+without pretending an exited process still occupies capacity. Fixed dependencies
+are provisioned by the host, rather than asking a read-only Reviewer to install them.

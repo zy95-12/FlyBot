@@ -164,3 +164,8 @@ R6 real recovery exposed an exhausted lifetime Chief→Dev edge and partial rout
 mutation. Regression coverage now checks bounded epochs after audited intervention,
 unchanged admission on refusal, preserved quotas and recoverable preparation failure.
 R7 remains unsealed until actual Developer completion and downstream evidence.
+
+R7 real Dev→Tester→Reviewer handoff reached a host-verified candidate and passing
+Chromium fixture. Reviewer truthfully returned INC for sandbox temporary writes.
+R6 repairs host-bound scratch allocation, explicit permissions and exit-gated cleanup;
+retry independent Review at the same candidate after environment preparation.

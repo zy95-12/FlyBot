@@ -61,3 +61,8 @@ Actual Chief recovery exhausted a lifetime Chief→Dev edge budget despite a new
 verified environment repair. Apply the loop budget between audited Chief interventions,
 keep global quotas and history, and preflight routing before changing execution state.
 This permits explicit Chief recovery without granting ordinary workers a budget bypass.
+
+Real Reviewer temporary-fixture failures require an explicit worker-owned scratch
+grant and host-prepared dependencies while the review checkout remains read-only.
+Use the existing resource and confirmed-exit lifecycle for provisioning/cleanup;
+retry the same candidate and preserve prior INC evidence.

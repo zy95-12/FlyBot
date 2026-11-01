@@ -92,3 +92,13 @@ test('Codex process IPC policy cannot be overridden into external access or writ
   assert.match(observed[0].configOverrides.at(-1), /":tmp"="write"/)
   assert.equal(observed[1].sandboxMode, undefined, 'Legacy flags cannot override the named constrained profile')
 })
+
+test('read-only Codex verification grants only the host-bound scratch directory for temporary files', async () => {
+  const observed = [], scratchDirectory = '/registered/resource/.flybot-scratch-unique'
+  await runHarnessTurn({ ...request, readOnly: true, scratchDirectory, env: { ...request.env, TMPDIR: scratchDirectory } }, { emit() {}, loadCodex: codex([{ type: 'thread.started', thread_id: 'scratch' }, { type: 'turn.completed' }], options => observed.push(options)) })
+  const raw = observed[0].configOverrides.at(-1)
+  assert.ok(raw.includes(JSON.stringify(scratchDirectory) + '="write"'))
+  assert.equal(observed[0].config.permissions['flybot-role'].extends, ':read-only')
+  assert.deepEqual(observed[1].additionalDirectories, [])
+  assert.equal(observed[0].env.TMPDIR, scratchDirectory)
+})

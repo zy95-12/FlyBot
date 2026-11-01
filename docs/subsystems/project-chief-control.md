@@ -103,3 +103,8 @@ Chief routing checks handoff admission before fencing current execution or prepa
 a successor Run. An audited intervention begins a new bounded autonomous routing
 epoch without resetting global usage or history. Preparation failures after fencing
 record an explicit blocked state linked to the decision instead of remaining stopping.
+
+Real Reviewer environmental INC must preserve the tested candidate and route for
+permitted verification after host provisioning, rather than discard implementation
+or manufacture a review approval. Complete fixture browser results remain separate
+from actual deployed shared-service acceptance.

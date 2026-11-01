@@ -295,3 +295,9 @@ Chief recovery found a lifetime edge-budget refusal after several real environme
 repairs. Audited Chief intervention now begins a fresh bounded autonomous routing
 epoch while preserving full history and global quotas. Admission is checked before
 claim fencing or Attempt preparation; later preparation failure is explicitly blocked.
+
+Actual R7 candidate `56d14be` passed host full verification and complete deterministic
+Chromium/backend clicks. Independent Review was blocked by read-only temporary
+fixtures; command workers now bind a unique scratch directory and offline npm cache,
+without granting review-source writes. Cleanup follows confirmed SDK exit. Actual
+deployed three-account acceptance and independent approval remain separate.

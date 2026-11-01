@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, mkdir, writeFile, readFile, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createProjectResources } from '../src/host/project-resources.js'
@@ -100,4 +100,20 @@ test('a raw JSON handoff gains only its missing framing, preserving the actual m
   assert.equal(handoffFrame('OUTPUT handoff: ' + JSON.stringify(value), ['handoff']), 'OUTPUT handoff: ' + JSON.stringify(value))
   assert.equal(handoffFrame(JSON.stringify(value), ['tests']), JSON.stringify(value))
   for (const text of ['Please decide for me', '{}', '{"action":"close","reason":"done"}', 'null']) assert.equal(handoffFrame(text, ['handoff']), text)
+})
+
+
+test('command workers bind distinct scratch directories and clean them only after confirmed exit', async t => {
+  const { rt, harness, cwd } = await fixture(t)
+  rt.projectDelivery.sessionFor().role = 'reviewer'
+  const id = await harness.spawn({ executionProjectId: 'p', executionWorkDir: cwd, prompt: 'Review candidate' })
+  const row = rt.state.projectHarnessWorkers[id]
+  assert.equal((await stat(row.scratchDirectory)).isDirectory(), true)
+  assert.equal((await stat(row.scratchDirectory)).mode & 0o777, 0o700)
+  assert.notEqual(row.scratchDirectory, cwd)
+  assert.ok(row.scratchDirectory.endsWith('.flybot-scratch-' + id))
+  await harness.release(id)
+  assert.ok(row.scratchCleanedAt)
+  await assert.rejects(stat(row.scratchDirectory), { code: 'ENOENT' })
+  assert.equal(row.releaseProof.kind, 'sdk-stop-ack-and-process-exit')
 })

@@ -14,7 +14,7 @@ export async function runHarnessTurn(request, { emit, permission, signal, loadCo
     // proxy keeps an empty outbound allowlist while allowing local process IPC.
     const roots = !request.readOnly && !request.noTools ? request.writableRoots ?? [] : []
     const processPolicy = request.noTools ? {} : { default_permissions: 'flybot-role', features: { ...connectorPolicy, network_proxy: true },
-      permissions: { 'flybot-role': { extends: request.readOnly ? ':read-only' : ':workspace', filesystem: { ':tmp': 'write', ...Object.fromEntries(roots.map(path => [path, 'write'])) },
+      permissions: { 'flybot-role': { extends: request.readOnly ? ':read-only' : ':workspace', filesystem: { ':tmp': 'write', ...(request.scratchDirectory ? { [request.scratchDirectory]: 'write' } : {}), ...Object.fromEntries(roots.map(path => [path, 'write'])) },
         network: { enabled: true, mode: 'limited', domains: {}, unix_sockets: {}, allow_local_binding: false, allow_upstream_proxy: false, dangerously_allow_non_loopback_proxy: false, dangerously_allow_all_unix_sockets: false } } } }
     const inlineToml = value => value && typeof value === 'object' ? '{' + Object.entries(value).map(([key, child]) => `${JSON.stringify(key)}=${inlineToml(child)}`).join(',') + '}' : JSON.stringify(value)
     const rawPolicy = request.noTools ? [] : ['permissions.flybot-role=' + inlineToml(processPolicy.permissions['flybot-role'])]
