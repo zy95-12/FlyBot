@@ -52,7 +52,7 @@ jobs:
           node scripts/ds-bot-patches.mjs check
           node scripts/ds-bot-patches.mjs canonical
           npm run lint:demo && npm run test:demo
-          node --test .github/scripts/fork-ci-result.test.mjs
+          node --test .github/scripts/fork-ci-result.test.mjs .github/scripts/test-workflow.test.mjs
 
       - name: M0 regression and real DSH runtime checks
         if: github.event_name == 'workflow_dispatch' && inputs.extended
@@ -180,7 +180,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Every job passed
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Validate selected suite results
         env:
           TEST: ${{ needs.test.result }}
           PLUGINS: ${{ needs.plugins.result }}

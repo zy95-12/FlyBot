@@ -334,3 +334,5 @@ Owner basic-CI policy is implemented on the existing PR47 local branch: default 
   or overall Task acceptance; see Project delivery architecture and regressions.
 - Chief resource context retains current/uncertain lease details and digests only
   proven released history, preserving original records and the 48k admission limit.
+
+- Fork basic CI checks out source in its tests-ok aggregation job and validates the current basic/extended policy in default workflow tests. The prior missing-script runner failure and stale inherited heavy-job assertions are repaired together, without bypassing failed verification.

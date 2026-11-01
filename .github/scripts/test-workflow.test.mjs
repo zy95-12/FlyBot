@@ -1,4 +1,4 @@
-// test.yml: the shape that a merge queue and the required `tests-ok` check rely on (text checks; no YAML parser needed).
+// Fork test.yml: always-run basic validation, explicit extended jobs and honest tests-ok aggregation.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -23,18 +23,27 @@ test('triggers: pull_request, merge_group (no filters), push only on main, dispa
   assert.ok(triggers.indexOf('paths-ignore') < triggers.indexOf('pull_request:'), 'paths-ignore must stay under push, not pull_request or merge_group')
 })
 
-test('no job is skipped on merge_group: nothing keys on the pull_request event', () => {
+test('basic validation runs on every event; extended jobs are explicitly opt-in', () => {
   assert.doesNotMatch(text, /github\.event\.pull_request/)
   assert.doesNotMatch(text, /event_name\s*[!=]=\s*'pull_request'/)
-  for (const name of ['test', 'plugins', 'package']) assert.doesNotMatch(job(name), /^\s+if:/m, `${name} must run for every event`)
+  assert.doesNotMatch(job('test'), /^ {4}if:/m)
+  for (const name of ['plugins', 'package']) assert.match(job(name), /^ {4}if: github\.event_name == 'workflow_dispatch' && inputs\.extended$/m)
+  assert.match(triggers, /extended:[\s\S]*?default: false/)
+  assert.match(job('test'), /plugins: \$\{\{[^\n]*inputs\.extended[^\n]*'false' \|\| 'true'/)
+  assert.ok(job('test').includes('node --test .github/scripts/fork-ci-result.test.mjs .github/scripts/test-workflow.test.mjs'))
 })
 
-test('tests-ok: always runs and is green only when test, plugins and package are', () => {
+test('tests-ok always runs its checked-out aggregation script with explicit job results', () => {
   const ok = job('tests-ok')
   assert.match(ok, /^ {4}name: tests-ok$/m)
   assert.match(ok, /^ {4}if: always\(\)$/m)
   assert.match(ok, /needs: \[test, plugins, package\]/)
-  assert.match(ok, /\[ "\$TEST" = success \] && \[ "\$PLUGINS" = success \] && \[ "\$PACKAGE" = success \]/)
+  assert.match(ok, /uses: actions\/checkout@[a-f0-9]{40}/)
+  assert.match(ok, /persist-credentials: false/)
+  assert.ok(ok.indexOf('actions/checkout@') < ok.indexOf('node .github/scripts/fork-ci-result.mjs'))
+  for (const [env, source] of [['TEST', 'test'], ['PLUGINS', 'plugins'], ['PACKAGE', 'package']]) assert.ok(ok.includes(`${env}: \$\{\{ needs.${source}.result \}\}`))
+  assert.match(ok, /EXTENDED: \$\{\{ github\.event_name == 'workflow_dispatch' && inputs\.extended \}\}/)
+  assert.match(ok, /node \.github\/scripts\/fork-ci-result\.mjs/)
 })
 
 test('main keeps its run (no cancel), every other ref, queue branches included, cancels', () => {
