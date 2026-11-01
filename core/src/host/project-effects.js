@@ -198,6 +198,7 @@ export function createProjectEffects(rt, { now = Date.now } = {}) {
     return { effectId: row.id, status: row.status }
   }
   return { stage, persist, capture, saved, discardUncommitted, perform, recover, drain, list, retry,
+    intentCommitted(token) { if (!token?.id) return false; const row = current(token); return Boolean(row?.version === EFFECT_PROTOCOL && durable.get(row.id)?.startsWith(`${row.generation}:`)) },
     register(kind, handler, { replace = false } = {}) {
       if (handlers.has(kind) && !replace) throw fail('Effect adapter is already registered')
       if (replace && Object.values(rt.state.projectEffects ?? {}).some(row => row.kind === kind && running.has(row.id))) throw fail('Effect adapter is executing; defer replacement')

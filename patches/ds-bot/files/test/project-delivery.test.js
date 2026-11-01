@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, copyFileSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
@@ -1132,4 +1132,206 @@ test('a returned SDK draft reuses its Task workspace after exact supervisor exit
   assert.equal(workspace.status, 'retained')
   assert.equal(previous.status, 'returned')
   assert.equal(f.rt.state.projectHarnessWorkers['old-worker'].releaseProof, proof)
+})
+
+async function additionalIntegrationFixture(t, { conflict = false, merge = true } = {}) {
+  const f=await setup(t,undefined,{pool:true})
+  f.rt.projectScheduler.wake=()=>Promise.resolve()
+  f.rt.projectPools.connect({validate:()=>({ok:true})})
+  f.rt.config.projectRepositories['example/demo'].allowedPaths.push('backend.mjs')
+  const base=git(f.repository,['rev-parse','HEAD'])
+  git(f.repository,['switch','-c','operator-source'])
+  writeFileSync(join(f.repository,'backend.mjs'),'export const serviceVersion = 1;\n')
+  if(conflict)writeFileSync(join(f.repository,'code.mjs'),'export const add = (a,b) => a*b;\n')
+  git(f.repository,['add','.']);git(f.repository,['commit','-m','Verified backend source'])
+  const source=git(f.repository,['rev-parse','HEAD']),ref='refs/remotes/operator/verified-backend'
+  git(f.repository,['update-ref',ref,source]);git(f.repository,['switch','main'])
+  git(f.repository,['switch','-c','published-ui'])
+  writeFileSync(join(f.repository,'code.mjs'),'export const add = (a,b) => a+b;\n')
+  git(f.repository,['add','code.mjs']);git(f.repository,['commit','-m','Previous frontend candidate'])
+  const seed=git(f.repository,['rev-parse','HEAD']);git(f.repository,['switch','main'])
+  await f.start('additional-source')
+  const attempt=f.attempt(),task=f.rt.state.tasks[f.task.id]
+  attempt.seedSha=seed
+  attempt.publicationBinding={number:7,repository:'example/demo',branch:'published-ui',previousSha:seed,upstreamSha:base,upstreamRef:'main'}
+  const developer=f.rt.projectAgents.deliveryDefinitions('p1').roles.find(row=>row.role==='developer')
+  await f.rt.projectDelivery.preparePoolRole(task,{id:'integration-claim',attemptId:attempt.id,generation:1},developer)
+  const path=attempt.workspaces.developer.path
+  if(merge){if(conflict)assert.throws(()=>git(path,['merge','--no-commit','--no-ff',source]));else git(path,['merge','--no-commit','--no-ff',source])}
+  return {...f,base,source,ref,seed,path,task,attempt,developer}
+}
+
+test('an approved extra merge seals when the published upstream is already an ancestor', async t => {
+  const f=await additionalIntegrationFixture(t)
+  const snapshot=(await integrationCall(f,'query','attempt.integration-state',{})).result
+  await integrationCall(f,'command','attempt.integration-bind',{inputs:[{ref:f.ref,sha:f.source}],generation:snapshot.generation,expectedWorkspace:snapshot.snapshot})
+  const tree=git(f.path,['write-tree'])
+  await f.rt.projectDelivery.completePoolRole({task:f.task,claim:{attemptId:f.attempt.id},role:'developer',outputs:{implementation:'Resolved the approved backend integration'}})
+  const candidate=f.attempt.candidateSha
+  assert.equal(git(f.path,['rev-parse',candidate+'^{tree}']),tree)
+  assert.deepEqual(git(f.path,['rev-list','--parents','-n','1',candidate]).split(' ').slice(1),[f.seed,f.source])
+  assert.equal(git(f.path,['status','--porcelain']),'')
+  assert.throws(()=>git(f.path,['rev-parse','--verify','MERGE_HEAD']))
+  assert.equal(readFileSync(join(f.path,'backend.mjs'),'utf8'),'export const serviceVersion = 1;\n')
+  assert.equal(f.attempt.status,'running')
+  assert.equal(f.attempt.pr,undefined)
+})
+
+const integrationCall = (f, kind, name, payload, actor = alice, requestId = 'approve-backend') => f.rt.projectEndpoint('project-development', { version: 'project-development/v1', kind, name, projectId: 'p1', ...(kind === 'command' ? { requestId } : {}), payload: { attemptId: f.attempt.id, ...payload } }, actor)
+const indexBytes = f => createHash('sha256').update(readFileSync(git(f.path,['rev-parse','--git-path','index']))).digest('hex')
+
+test('manager explicitly pins integration input through service snapshot without changing index or approving delivery', async t => {
+  const f=await additionalIntegrationFixture(t),before=indexBytes(f)
+  const snapshot=(await integrationCall(f,'query','attempt.integration-state',{})).result
+  const payload={inputs:[{ref:f.ref,sha:f.source}],generation:snapshot.generation,expectedWorkspace:snapshot.snapshot}
+  const approved=await integrationCall(f,'command','attempt.integration-bind',payload)
+  assert.equal(approved.result.already,false)
+  assert.equal(approved.result.admission.generation,snapshot.generation+1)
+  assert.equal(indexBytes(f),before)
+  assert.equal(git(f.path,['rev-parse','MERGE_HEAD']),f.source)
+  const reordered={...payload,expectedWorkspace:Object.fromEntries(Object.entries(payload.expectedWorkspace).reverse())}
+  assert.equal((await integrationCall(f,'command','attempt.integration-bind',reordered)).result.already,true)
+  assert.equal(f.attempt.integrationAdmissions.length,1)
+  assert.equal(f.attempt.candidateSha,undefined)
+  const node=await f.rt.projectDelivery.preparePoolRole(f.task,{id:'resumed-integration',attemptId:f.attempt.id,generation:99},f.developer)
+  assert.match(node.prompt,/do not git commit/)
+  const text=f.attempt.roleSessions.developer.context.text
+  assert.ok(text.includes(f.source))
+  assert.equal(git(f.path,['rev-parse','MERGE_HEAD']),f.source)
+  await f.rt.projectDelivery.completePoolRole({task:f.task,claim:{attemptId:f.attempt.id},role:'developer',outputs:{implementation:'Ready for host sealing'}})
+  assert.ok(f.attempt.candidateSha)
+  assert.equal(f.attempt.evidence.approvedIntegrations.mergeHead,f.source)
+  await assert.rejects(integrationCall(f,'command','attempt.integration-bind',payload,alice,'new-after-sealing'),/unsealed/)
+})
+
+test('integration admission denies member, foreign source, stale snapshot and unknown execution without mutation', async t => {
+  const f=await additionalIntegrationFixture(t),before=indexBytes(f)
+  const snapshot=(await integrationCall(f,'query','attempt.integration-state',{})).result
+  const payload={inputs:[{ref:f.ref,sha:f.source}],generation:snapshot.generation,expectedWorkspace:snapshot.snapshot}
+  await assert.rejects(integrationCall(f,'command','attempt.integration-bind',payload,bob),/access denied/)
+  await assert.rejects(integrationCall(f,'command','attempt.integration-bind',{...payload,inputs:[{ref:'refs/heads/operator-source',sha:f.source}]}),/operator source/)
+  await assert.rejects(integrationCall(f,'command','attempt.integration-bind',{...payload,generation:snapshot.generation+1}),/generation/)
+  await assert.rejects(integrationCall(f,'command','attempt.integration-bind',{...payload,expectedWorkspace:{...snapshot.snapshot,indexSha256:'0'.repeat(64)}}),/workspace changed/)
+  f.rt.state.projectExecutions['pending-chief']={id:'pending-chief',kind:'chief-control',projectId:'p1',status:'running'}
+  await assert.rejects(integrationCall(f,'command','attempt.integration-bind',payload),/confirmed execution exit/)
+  delete f.rt.state.projectExecutions['pending-chief']
+  f.task.collaboration.claim={id:'not-yet-spawned',status:'active',generation:f.task.collaboration.generation,botId:'p1:developer'}
+  await assert.rejects(integrationCall(f,'command','attempt.integration-bind',payload),/confirmed execution exit/)
+  delete f.task.collaboration.claim
+  f.rt.state.projectHarnessWorkers={unknown:{id:'unknown',attemptId:f.attempt.id,status:'released',generation:1}}
+  await assert.rejects(integrationCall(f,'command','attempt.integration-bind',payload),/confirmed execution exit/)
+  f.rt.state.projectHarnessWorkers.unknown.status='running'
+  await assert.rejects(integrationCall(f,'command','attempt.integration-bind',payload),/confirmed execution exit/)
+  assert.equal(indexBytes(f),before)
+  assert.equal(f.attempt.integrationInputs,undefined)
+  assert.equal(git(f.path,['rev-parse','HEAD']),f.seed)
+})
+
+test('integration admission separates released historical Chief turns from current or unconfirmed occupancy', async t => {
+  const f=await additionalIntegrationFixture(t)
+  const worker={id:'old-chief',projectId:'p1',chiefRunId:'old-run',attemptId:'old-turn',status:'released',generation:1}
+  f.rt.state.projectHarnessWorkers={historical:worker}
+  const saved=(await integrationCall(f,'query','attempt.integration-state',{})).result
+  assert.equal(saved.attemptId,f.attempt.id)
+  worker.status='unreachable'
+  await assert.rejects(integrationCall(f,'query','attempt.integration-state',{}),/confirmed execution exit/)
+  worker.status='released'
+  f.task.collaboration.claim={id:'current-chief',chiefRunId:'old-run',status:'waiting-human'}
+  await assert.rejects(integrationCall(f,'query','attempt.integration-state',{}),/confirmed execution exit/)
+  worker.releaseProof={kind:'sdk-stop-ack-and-process-exit',generation:1}
+  await integrationCall(f,'query','attempt.integration-state',{})
+  delete f.task.collaboration.claim
+  delete worker.releaseProof
+  await integrationCall(f,'command','attempt.integration-bind',{inputs:[{ref:f.ref,sha:f.source}],generation:saved.generation,expectedWorkspace:saved.snapshot})
+  assert.equal(f.attempt.integrationInputs[0].sha,f.source)
+})
+
+test('unapproved and moved integration parents are refused before index or branch writes', async t => {
+  const f=await additionalIntegrationFixture(t),before=indexBytes(f)
+  await assert.rejects(f.rt.projectDelivery.completePoolRole({task:f.task,claim:{attemptId:f.attempt.id},role:'developer',outputs:{}}),/not a pinned upstream or approved/)
+  assert.equal(indexBytes(f),before)
+  f.attempt.integrationInputs=[{version:'project-integration-input/v1',repository:'example/demo',ref:f.ref,sha:f.source}]
+  await assert.rejects(f.rt.projectDelivery.completePoolRole({task:f.task,claim:{attemptId:f.attempt.id},role:'developer',outputs:{}}),/no confirmed durable intent/)
+  delete f.attempt.integrationInputs
+  const snapshot=(await integrationCall(f,'query','attempt.integration-state',{})).result
+  await integrationCall(f,'command','attempt.integration-bind',{inputs:[{ref:f.ref,sha:f.source}],generation:snapshot.generation,expectedWorkspace:snapshot.snapshot})
+  git(f.repository,['update-ref',f.ref,f.base])
+  await assert.rejects(f.rt.projectDelivery.completePoolRole({task:f.task,claim:{attemptId:f.attempt.id},role:'developer',outputs:{}}),/source ref moved/)
+  assert.equal(indexBytes(f),before)
+  assert.equal(git(f.path,['rev-parse','HEAD']),f.seed)
+  assert.equal(git(f.path,['rev-parse','MERGE_HEAD']),f.source)
+})
+
+test('conflicted approved merges remain untouched by admission or sealing', async t => {
+  const f=await additionalIntegrationFixture(t,{conflict:true,merge:false})
+  const initial=(await integrationCall(f,'query','attempt.integration-state',{})).result
+  await integrationCall(f,'command','attempt.integration-bind',{inputs:[{ref:f.ref,sha:f.source}],generation:initial.generation,expectedWorkspace:initial.snapshot})
+  assert.throws(()=>git(f.path,['merge','--no-commit','--no-ff',f.source]))
+  const before=indexBytes(f),snapshot=(await integrationCall(f,'query','attempt.integration-state',{})).result
+  await assert.rejects(integrationCall(f,'command','attempt.integration-bind',{inputs:[{ref:f.ref,sha:f.source}],generation:snapshot.generation,expectedWorkspace:snapshot.snapshot},alice,'conflicted-admission'),/unresolved paths/)
+  await assert.rejects(f.rt.projectDelivery.completePoolRole({task:f.task,claim:{attemptId:f.attempt.id},role:'developer',outputs:{}}),/unresolved paths/)
+  assert.equal(indexBytes(f),before)
+  assert.equal(git(f.path,['rev-parse','HEAD']),f.seed)
+  assert.equal(git(f.path,['rev-parse','MERGE_HEAD']),f.source)
+})
+
+test('an approved operator object reaches a resource clone through the existing verified bundle adapter', async t => {
+  const f=await setup(t,undefined,{pool:true})
+  f.rt.projectScheduler.wake=()=>Promise.resolve();f.rt.projectPools.connect({validate:()=>({ok:true})})
+  f.rt.config.projectRepositories['example/demo'].allowedPaths.push('backend.mjs')
+  const base=git(f.repository,['rev-parse','HEAD'])
+  writeFileSync(join(f.repository,'backend.mjs'),'export const serviceVersion = 1;\n')
+  git(f.repository,['add','backend.mjs']);git(f.repository,['commit','-m','Verified operator source'])
+  const sha=git(f.repository,['rev-parse','HEAD']),ref='refs/remotes/operator/remote-source'
+  git(f.repository,['update-ref',ref,sha]);git(f.repository,['reset','--hard',base])
+  const remote=join(f.directory,'emulated-resource');mkdirSync(remote)
+  f.rt.config.projectResources={remote:{type:'docker',root:remote,container:'fixture',user:'1000:1000',capacity:1,allowedProjectOwnerIds:['owner-1'],harnesses:['codex']}}
+  f.rt.state.projectResourceHealth={remote:{status:'ready'}};f.rt.state.projectHarnessHealth={'p1:remote:codex':{status:'ready'}}
+  // Local transport emulation exercises real Git/bundle hashes, not Docker isolation.
+  f.rt.projectResources.command=async(_p,_r,{argv,cwd})=>({stdout:execFileSync(argv[0],argv.slice(1),{cwd,encoding:'utf8',stdio:['ignore','pipe','pipe']})})
+  f.rt.projectResources.uploadFile=async(_p,_r,source,target)=>copyFileSync(source,target)
+  await f.rt.projectEndpoint('project-agent-definition',{projectId:'p1',role:'developer',execution:{harness:'codex',resourceIds:['remote']}},alice)
+  await f.start('remote-integration')
+  const attempt=f.attempt(),task=f.rt.state.tasks[f.task.id]
+  const query=await f.rt.projectEndpoint('project-development',{version:'project-development/v1',kind:'query',name:'attempt.integration-state',projectId:'p1',payload:{attemptId:attempt.id}},alice)
+  await f.rt.projectEndpoint('project-development',{version:'project-development/v1',kind:'command',name:'attempt.integration-bind',projectId:'p1',requestId:'remote-source',payload:{attemptId:attempt.id,inputs:[{ref,sha}],generation:query.result.generation,expectedWorkspace:null}},alice)
+  const developer=f.rt.projectAgents.deliveryDefinitions('p1').roles.find(row=>row.role==='developer')
+  await f.rt.projectDelivery.preparePoolRole(task,{id:'remote-claim',attemptId:attempt.id,generation:9},developer)
+  const workspace=attempt.workspaces.developer
+  assert.equal(workspace.kind,'resource-clone')
+  assert.equal(git(workspace.path,['cat-file','-t',sha]),'commit')
+  assert.ok(workspace.transfers.some(row=>row.commit===sha&&row.sha256.length===64))
+  assert.equal(attempt.candidateSha,undefined,'Provisioning an approved object does not seal or approve a candidate')
+  assert.equal(git(workspace.path,['rev-parse','HEAD']),base)
+})
+
+test('failed/no-op admission saves cannot authorize an integration or invalidate its previous generation', async t => {
+  const f=await additionalIntegrationFixture(t),before=indexBytes(f)
+  const snapshot=(await integrationCall(f,'query','attempt.integration-state',{})).result
+  const payload={inputs:[{ref:f.ref,sha:f.source}],generation:snapshot.generation,expectedWorkspace:snapshot.snapshot},save=f.rt.save
+  f.rt.save=async()=>{}
+  await assert.rejects(integrationCall(f,'command','attempt.integration-bind',payload),/commit was not confirmed/)
+  assert.equal(f.attempt.integrationInputs,undefined)
+  assert.equal(f.task.collaboration.generation,snapshot.generation)
+  f.rt.save=async()=>{throw Error('Injected disk failure')}
+  await assert.rejects(integrationCall(f,'command','attempt.integration-bind',payload),/disk failure/)
+  assert.equal(f.attempt.integrationInputs,undefined)
+  assert.equal(f.task.collaboration.generation,snapshot.generation)
+  assert.equal(indexBytes(f),before)
+  f.rt.save=save
+  const accepted=await integrationCall(f,'command','attempt.integration-bind',payload)
+  assert.equal(f.rt.projectEffects.intentCommitted(accepted.result.admission.effect),true)
+})
+
+test('approved object availability alone cannot replace a real merge or reuse an admission for different content', async t => {
+  const f=await additionalIntegrationFixture(t,{merge:false})
+  const state=(await integrationCall(f,'query','attempt.integration-state',{})).result
+  const payload={inputs:[{ref:f.ref,sha:f.source}],generation:state.generation,expectedWorkspace:state.snapshot}
+  await integrationCall(f,'command','attempt.integration-bind',payload)
+  const before=indexBytes(f)
+  await assert.rejects(integrationCall(f,'command','attempt.integration-bind',{...payload,generation:state.generation+1}),/requestId was reused/)
+  await assert.rejects(f.rt.projectDelivery.completePoolRole({task:f.task,claim:{attemptId:f.attempt.id},role:'developer',outputs:{}}),/merge every pinned integration/)
+  assert.equal(indexBytes(f),before)
+  assert.equal(git(f.path,['rev-parse','HEAD']),f.seed)
+  assert.equal(f.attempt.candidateSha,undefined)
 })

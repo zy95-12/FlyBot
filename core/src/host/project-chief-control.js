@@ -117,7 +117,7 @@ export function createProjectChiefControl(rt) {
         execution: claim ? { botId: claim.botId, status: claim.status, startedAt: claim.createdAt, elapsedMs: Date.now() - claim.createdAt, workerStatus: worker?.status ?? null, lastEventAt: worker?.lastEventAt ?? null } : null,
         handoff: task.collaboration?.history.at(-1) ? { id: task.collaboration.history.at(-1).id, purpose: task.collaboration.history.at(-1).purpose, reason: task.collaboration.history.at(-1).reason } : null,
         block: task.collaboration?.block ?? null, ...inspectionResources(rt.state, task),
-        attemptStatus: attempt?.status ?? null,
+        integrationInputs: structuredClone(attempt?.integrationInputs ?? []), attemptStatus: attempt?.status ?? null,
         generation: task.collaboration?.generation ?? 0, destination: task.collaboration?.botId ?? null, attemptId: attempt?.id ?? null, candidateSha: attempt?.candidateSha ?? null,
         evidence: { implementation: attempt?.evidence.implementation ? { sha: attempt.evidence.implementation.sha, paths: attempt.evidence.implementation.paths } : null,
           tests: attempt?.evidence.tests ? { sha: attempt.evidence.tests.sha, passed: attempt.evidence.tests.passed, sha256: attempt.evidence.tests.sha256, command: attempt.evidence.tests.command } : null,
@@ -139,7 +139,11 @@ export function createProjectChiefControl(rt) {
     actor = rt.projectInputs?.chiefActor(actor, task.id, saved, run, decision.inputReceipts) ?? actor
     try {
     if (decision.action === 'continue') {
-      if (run.purpose === 'arbitration' && task.collaboration) { task.collaboration.status = 'blocked'; task.collaboration.block = { reason: `Chief deferred completion: ${reason}`, chiefDecisionId: audit.id, at: Date.now() } }
+      if (run.purpose === 'arbitration' && task.collaboration) {
+        task.collaboration.status = 'blocked'
+        if (task.collaboration.claim?.chiefRunId === run.id) task.collaboration.claim.status = 'waiting-human'
+        task.collaboration.block = { reason: `Chief deferred completion: ${reason}`, chiefDecisionId: audit.id, at: Date.now() }
+      }
       task.chiefObservations = { fingerprint: saved.inspection.fingerprint, handoffCount: task.collaboration?.history.length ?? 0, lastDecisionId: audit.id, at: Date.now() }
     } else if (decision.action === 'needs-human') {
       if (task.collaboration) { task.collaboration.status = 'blocked'; task.collaboration.block = { reason, chiefDecisionId: audit.id, at: Date.now() } }

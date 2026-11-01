@@ -13,6 +13,16 @@ Dated, short lessons from real FlyBot work. Agents read this **before coding**. 
 
 ## Open lessons
 
+### 2026-11-02 — Additional approved merge inputs need a host contract
+
+Seen 1×. A published upstream already in the old candidate does not imply there
+is no other MERGE_HEAD. SDK shared refs must stay restricted. Explicitly admit
+operator-provisioned ref/SHA inputs under manager authority and durable save proof,
+then let the host seal the resolved tree with trusted parents using Git's supported
+reset lifecycle. Reject unknown/moved/conflicted input before index/branch writes;
+a wrapper printf exit0 is not proof the nested git commit succeeded.
+
+
 ### 2026-11-02 — Prepared inbox is not an injected SDK turn
 
 Seen 1× (queue regression). A safe-turn remaining count included batches already
@@ -463,5 +473,24 @@ from the same Task/candidate into rework. Redact before truncating long lines;
 retain full originals and never confuse diagnostic text with verification PASS.
 
 
+### 2026-11-02 — Occupancy guards must bind to the current owner
+
+Seen 1× during live operator-source admission. Seven released historical Chief
+turns predated exit-proof recording and never owned the current workspace. A
+Project-wide scan treated them as current occupancy and blocked recovery forever.
+Require proof for this Attempt, the current Chief claim and all unreleased Chief
+workers; retain unknown-current refusal and every historical record. Regression
+tests must mix legacy released history with active, unreachable and current-claim
+workers, rather than only using an empty history fixture.
+
 ### 2026-11-01 — Keep memory, logical Session and execution evidence separate
 Seen 1×. A FlyBot48k role-admission cap precedes the SDK; Codex automatic compaction cannot fix inputs rejected before it starts. A1MiB event-size failure is transport, not model context. Use bounded current facts plus exact retrievable source snapshots, preserve full requirements and role rules, and let each Harness manage its own history. Task rework must not throw away its role thread/cwd; resumption requires matching Project/Task/role/principal/resource/profile/model/persona and confirmed process/lease exit. Never reuse a Developer thread for independent Review or carry a verdict across commits. Chief long-term facts reuse original own-memory topics/journal, with no private/team scope fallback.
+
+
+### 2026-11-02 — Deferral is responsibility, not a live execution claim
+
+Seen 1× in real Source feedback recovery. Chief completed and released its SDK,
+but arbitration continue left claim active while Task was blocked. Operator source
+admission correctly refused. Mark only that completed Chief claim waiting-human;
+retain actual exit/lease checks and every other claim. A regression reproduces the
+old active label and verifies Task/Attempt/generation and blocked state survive.

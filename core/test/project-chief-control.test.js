@@ -85,6 +85,19 @@ test('an unmanaged restart does not fabricate successful Chief execution or repl
   assert.equal(f.task.status, 'result-ready')
 })
 
+test('completed Chief deferral releases its execution claim while preserving the blocked Task and current Attempt',async()=>{
+  const f=await controlFixture(),attempt=f.task.deliveryAttemptId,generation=f.task.collaboration.generation
+  assert.equal(f.task.collaboration.claim.status,'active')
+  await f.request.onResult(f.result({action:'continue',reason:'Wait for the operator to admit the verified integration source'}))
+  assert.equal(f.rt.state.projectExecutions[f.request.runId].status,'done')
+  assert.equal(f.task.collaboration.status,'blocked')
+  assert.equal(f.task.collaboration.claim.status,'waiting-human')
+  assert.equal(f.task.collaboration.claim.chiefRunId,f.request.runId)
+  assert.equal(f.task.deliveryAttemptId,attempt)
+  assert.equal(f.task.collaboration.generation,generation)
+  assert.equal(f.accepted(),0)
+})
+
 test('host registration proof distinguishes never-allocated recovery from an unknown external worker', () => {
   const task = { deliveryAttemptId: 'a', collaboration: { claim: { status: 'interrupted' } } }
   const state = { projectAttempts: { a: { workspaces: {}, roleSessions: {} } } }

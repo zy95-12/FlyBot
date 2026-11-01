@@ -10,6 +10,27 @@ Current stage and priorities: [ROADMAP.md](ROADMAP.md). How decisions are made:
 
 ## Fork Project State — 2026-10-31
 
+### Approved integration sealing — issue60, 2026-11-02
+
+S3/PR61 is verified (4374 tests and exact-source real Codex inbox→Chief-pool
+acceptance), pending compatible rollout with S2. The autonomous frontend exposed a
+separate host preparation gap: an approved operator merge remained staged while
+SDK shared-ref writes were correctly denied; host sealing only recognized the
+published upstream and attempted a soft reset during that extra merge.
+
+The foreground repair adds manager-only, durable source admission with exact
+operator ref/SHA, workspace snapshot and generation fences. Host sealing retains
+the staged tree and trusted parents without opening refs to SDKs or claiming test/
+Review evidence. Failed/no-op saves cannot authorize a parent. The original
+Task40/PR48/Attempt and merge draft stay intact; resume through Chief after verified
+service deployment. No backend Bot Task or control-plane/sandbox/credential change.
+
+The first compatible S2/S3/60 rollout passed three-account live reads, but source
+admission exposed over-broad historical Chief occupancy. Admission now requires
+exit proof for the current Chief claim, every unreleased Project Chief and this
+Attempt's workers, without treating unrelated released historical Chief turns as
+workspace owners. Their old records remain intact; unknown current exits still block.
+
 ### Durable Task inputs — S3 / issue52, 2026-11-02
 
 The service now distinguishes persisted input, durable role inbox, adapter delivery,
@@ -420,3 +441,9 @@ debugging prerequisite. Complete host logs remain retained and cannot mint PASS.
 
 ### Task-scoped SDK context and resident Chief memory — 2026-11-01
 Owner requires a resident Chief with durable Project memory and one logical Session per Task/role. Codex/Claude own their supported conversation persistence and automatic compaction; FlyBot does not inject a second model-history compactor. SDK role rework reuses a confirmed released Task-role cwd/thread under the same principal/resource/profile/model/persona binding, while preserving separate immutable Attempt/claim/log/test/Review evidence. Changed bindings rotate backend threads with recorded lineage. Chief memory uses the original own-Bot MEMORY.md/topics/journal, never global team or private-user memory. Context admission keeps current bounded facts and hash-bound full source archives for scoped retrieval. Backend changes are foreground work; frontend Task40/PR48 resumes through FlyBot after validation.
+
+
+Issue60 live follow-up: a completed arbitration deferral now leaves its own Chief
+claim waiting-human instead of active. Actual released SDK/lease proof remains
+required before source admission. This fixes the observed current-Attempt operator
+checkpoint without changing Task history, source trust or workspace ownership.
