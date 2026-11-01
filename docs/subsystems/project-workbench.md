@@ -326,3 +326,14 @@ is a bounded reduction, not completed weak-network acceptance: embedded math
 fonts/CSS and the full native composer, tools, approval, stop/continue and
 personal/group interaction integration still require work. Operator deployment,
 three-account browser checks and actual screenshots remain pending.
+
+### Same-origin native math fonts
+
+The native build emits hashed KaTeX font files under `workbench-fonts/` using
+esbuild file loaders. CSS references those same-origin assets, so only fonts
+actually needed by rendered math are fetched; no font bytes inflate initial CSS.
+The package includes this directory. Gateway reads accept only KaTeX filenames
+with build hashes and font extensions, never arbitrary paths or query strings.
+The existing self-only CSP remains unchanged. Generated binary assets are compared
+as bytes in build checks and mirrored by the canonical patch generator. Local
+render checks are separate from loopback host tests and deployed weak-network acceptance.

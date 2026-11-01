@@ -46,7 +46,8 @@
     "workbench.js",
     "workbench.css",
     "workbench-native.js",
-    "workbench-native.css"
+    "workbench-native.css",
+    "workbench-fonts/"
   ],
   "scripts": {
     "build": "node scripts/build-client.mjs && node scripts/build-workbench.mjs",

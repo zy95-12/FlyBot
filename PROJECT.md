@@ -446,3 +446,8 @@ is a bounded reduction, not completed weak-network acceptance: embedded math
 fonts/CSS and the full native composer, tools, approval, stop/continue and
 personal/group interaction integration still require work. Operator deployment,
 three-account browser checks and actual screenshots remain pending.
+
+Task40 continuation moves native math fonts from CSP-blocked inline data URLs to
+individually loaded same-origin build assets. The stylesheet is 217104 bytes; local
+render regressions pass. Full host verification and actual shared-browser evidence
+remain pending; native composer/tool/approval integration remains unfinished.

@@ -96,3 +96,17 @@ test('large assets negotiate gzip without caching private responses', async t =>
   assert.equal(identity.headers.get('content-encoding'), null)
   assert.equal(await identity.text(), asset)
 })
+
+test('gateway serves bounded same-origin math font assets without opening filesystem reads', async t => {
+  const { base, seen } = await fixture(t, Buffer.from([0, 1, 2, 255]))
+  const font = await fetch(`${base}/workbench-fonts/KaTeX_Main-Regular-ABCDEFG2.woff2`)
+  assert.equal(font.status, 200)
+  assert.equal(font.headers.get('content-type'), 'font/woff2')
+  assert.deepEqual(Buffer.from(await font.arrayBuffer()), Buffer.from([0, 1, 2, 255]))
+  assert.equal(font.headers.get('set-cookie'), null)
+  assert.equal(font.headers.get('content-security-policy').includes('data:font'), false)
+  for (const path of ['/workbench-fonts/config.json', '/workbench-fonts/KaTeX_Main-Regular-ABCDEFG2.woff2?file=secret', '/workbench-fonts/%2e%2e%2fpackage.json', '/workbench-fonts/Other-ABCDEFG2.woff2']) {
+    assert.equal((await fetch(`${base}${path}`)).status, 404)
+  }
+  assert.equal(seen.length, 0)
+})

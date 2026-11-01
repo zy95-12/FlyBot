@@ -60,6 +60,10 @@ export function createWorkbenchGateway({ upstreamOrigin, upstreamCookie, publicO
         try { return respond(200, await assets(url.pathname.slice(1)), url.pathname.endsWith('.css') ? 'text/css; charset=utf-8' : 'text/javascript; charset=utf-8') }
         catch { return respond(503, { error: 'Build the Project workbench assets before starting' }) }
       }
+      if (/^\/workbench-fonts\/KaTeX_[A-Za-z0-9_-]+-[A-Z0-9]{8}\.(woff2?|ttf)$/.test(url.pathname)) {
+        try { return respond(200, await assets(url.pathname.slice(1)), url.pathname.endsWith('.woff2') ? 'font/woff2' : url.pathname.endsWith('.woff') ? 'font/woff' : 'font/ttf') }
+        catch { return respond(404, { error: 'Font not found' }) }
+      }
       return respond(404, { error: 'Not found' })
     }
     if (req.method !== 'POST' || url.pathname !== '/api/bot') return respond(404, { error: 'Not found' })

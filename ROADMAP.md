@@ -276,3 +276,8 @@ is a bounded reduction, not completed weak-network acceptance: embedded math
 fonts/CSS and the full native composer, tools, approval, stop/continue and
 personal/group interaction integration still require work. Operator deployment,
 three-account browser checks and actual screenshots remain pending.
+
+Task40 font-loading repair reduces initial native CSS to 217104 bytes and preserves
+self-only CSP. It does not complete rich native interaction or real three-account
+acceptance. Continue composer, tool/approval, stop/continue and weak-network validation
+after independent host checks of this candidate.

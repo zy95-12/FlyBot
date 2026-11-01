@@ -96,3 +96,13 @@ test('native conversation asset uses a production build within the initial scrip
   assert.ok(bundle.byteLength < 4600000, `Native script exceeds 4.6 MB: ${bundle.byteLength}`)
   assert.equal(bundle.includes(Buffer.from('react.development.js')), false)
 })
+
+
+test('native math fonts are lazy same-origin assets rather than CSP-blocked data URLs', async () => {
+  const css = await readFile(join(import.meta.dirname, '../workbench-native.css'), 'utf8')
+  assert.equal(css.includes('data:font/'), false, 'embedded fonts violate the shared CSP')
+  assert.ok(css.length < 250000, `Native stylesheet exceeds 250 KB: ${css.length}`)
+  const fonts = [...css.matchAll(/url\((?:["'])?(\/workbench-fonts\/[^)"']+)/g)]
+  assert.ok(fonts.length > 0, 'math fonts must retain same-origin sources')
+  for (const [, path] of fonts) assert.ok((await readFile(join(import.meta.dirname, '..', path))).length > 0)
+})

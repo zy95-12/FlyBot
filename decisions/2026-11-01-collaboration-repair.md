@@ -123,3 +123,7 @@ is a bounded reduction, not completed weak-network acceptance: embedded math
 fonts/CSS and the full native composer, tools, approval, stop/continue and
 personal/group interaction integration still require work. Operator deployment,
 three-account browser checks and actual screenshots remain pending.
+
+Task40 font continuation keeps the original math renderer and self-only CSP.
+Build-generated same-origin fonts replace embedded data URLs; this is a bounded
+asset-loading repair within the authorized UI scope, not completion or deployment.

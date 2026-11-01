@@ -2875,7 +2875,7 @@ diff --git a/package.json b/package.json
    },
    "files": [
      "index.js",
-@@ -37,14 +37,23 @@
+@@ -37,14 +37,24 @@
      "web-search.js",
      "cordis.patch.yml",
      "README.md",
@@ -2885,7 +2885,8 @@ diff --git a/package.json b/package.json
 +    "workbench.js",
 +    "workbench.css",
 +    "workbench-native.js",
-+    "workbench-native.css"
++    "workbench-native.css",
++    "workbench-fonts/"
    ],
    "scripts": {
 -    "build": "node scripts/build-client.mjs",

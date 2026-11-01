@@ -496,3 +496,10 @@ is a bounded reduction, not completed weak-network acceptance: embedded math
 fonts/CSS and the full native composer, tools, approval, stop/continue and
 personal/group interaction integration still require work. Operator deployment,
 three-account browser checks and actual screenshots remain pending.
+
+### 2026-11-01 — Bundled font data can violate the serving CSP
+
+Seen 1×. Native math CSS embedded all font formats as data URLs, adding roughly
+1.5 MB while the shared gateway correctly allowed only same-origin fonts. Emit
+byte-preserved same-origin font assets and retain the restrictive CSP; verify the
+CSS budget, asset existence and bounded gateway paths rather than enabling data URLs.
