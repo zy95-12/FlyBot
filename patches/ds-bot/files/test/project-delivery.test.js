@@ -1212,9 +1212,12 @@ test('integration admission denies member, foreign source, stale snapshot and un
   await assert.rejects(integrationCall(f,'command','attempt.integration-bind',{...payload,inputs:[{ref:'refs/heads/operator-source',sha:f.source}]}),/operator source/)
   await assert.rejects(integrationCall(f,'command','attempt.integration-bind',{...payload,generation:snapshot.generation+1}),/generation/)
   await assert.rejects(integrationCall(f,'command','attempt.integration-bind',{...payload,expectedWorkspace:{...snapshot.snapshot,indexSha256:'0'.repeat(64)}}),/workspace changed/)
-  f.rt.state.projectExecutions['pending-chief']={id:'pending-chief',kind:'chief-control',projectId:'p1',status:'queued'}
+  f.rt.state.projectExecutions['pending-chief']={id:'pending-chief',kind:'chief-control',projectId:'p1',status:'running'}
   await assert.rejects(integrationCall(f,'command','attempt.integration-bind',payload),/confirmed execution exit/)
   delete f.rt.state.projectExecutions['pending-chief']
+  f.task.collaboration.claim={id:'not-yet-spawned',status:'active',generation:f.task.collaboration.generation,botId:'p1:developer'}
+  await assert.rejects(integrationCall(f,'command','attempt.integration-bind',payload),/confirmed execution exit/)
+  delete f.task.collaboration.claim
   f.rt.state.projectHarnessWorkers={unknown:{id:'unknown',attemptId:f.attempt.id,status:'released',generation:1}}
   await assert.rejects(integrationCall(f,'command','attempt.integration-bind',payload),/confirmed execution exit/)
   f.rt.state.projectHarnessWorkers.unknown.status='running'
@@ -1228,6 +1231,9 @@ test('unapproved and moved integration parents are refused before index or branc
   const f=await additionalIntegrationFixture(t),before=indexBytes(f)
   await assert.rejects(f.rt.projectDelivery.completePoolRole({task:f.task,claim:{attemptId:f.attempt.id},role:'developer',outputs:{}}),/not a pinned upstream or approved/)
   assert.equal(indexBytes(f),before)
+  f.attempt.integrationInputs=[{version:'project-integration-input/v1',repository:'example/demo',ref:f.ref,sha:f.source}]
+  await assert.rejects(f.rt.projectDelivery.completePoolRole({task:f.task,claim:{attemptId:f.attempt.id},role:'developer',outputs:{}}),/no confirmed durable intent/)
+  delete f.attempt.integrationInputs
   const snapshot=(await integrationCall(f,'query','attempt.integration-state',{})).result
   await integrationCall(f,'command','attempt.integration-bind',{inputs:[{ref:f.ref,sha:f.source}],generation:snapshot.generation,expectedWorkspace:snapshot.snapshot})
   git(f.repository,['update-ref',f.ref,f.base])

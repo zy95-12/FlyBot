@@ -321,7 +321,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
   }
   function integrationReleased(attempt) {
     const chief = row => row?.kind === 'chief-control' && row.projectId === attempt.projectId
-    if (Object.values(state.projectExecutions ?? {}).some(row => chief(row) && ['running', 'queued'].includes(row.status)) || Object.values(state.projectResourceLeases ?? {}).some(row => (row.attemptId === attempt.id || chief(state.projectExecutions?.[row.attemptId])) && row.status !== 'released') || Object.values(state.projectHarnessWorkers ?? {}).some(row => (row.attemptId === attempt.id || row.projectId === attempt.projectId && row.chiefRunId) && !confirmedWorkerExit(state, row)) || Object.values(state.bots ?? {}).some(row => row.ephemeral && row.attemptId === attempt.id)) throw reject('Integration input is waiting for confirmed execution exit')
+    if (taskOf(attempt.taskId)?.collaboration?.claim?.status === 'active' || Object.values(state.projectExecutions ?? {}).some(row => chief(row) && row.status === 'running') || Object.values(state.projectResourceLeases ?? {}).some(row => (row.attemptId === attempt.id || chief(state.projectExecutions?.[row.attemptId])) && row.status !== 'released') || Object.values(state.projectHarnessWorkers ?? {}).some(row => (row.attemptId === attempt.id || row.projectId === attempt.projectId && row.chiefRunId) && !confirmedWorkerExit(state, row)) || Object.values(state.bots ?? {}).some(row => row.ephemeral && row.attemptId === attempt.id)) throw reject('Integration input is waiting for confirmed execution exit')
   }
   async function integrationSnapshot(attempt) {
     const workspace = attempt.workspaces.developer
@@ -405,7 +405,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     const parent = attempt.seedSha ?? attempt.baseSha, upstream = attempt.publicationBinding?.upstreamSha
     const approved = await verifyIntegrationInputs(attempt), mergeHead = await mergeHeadOf(workspace)
     const trusted = [...new Set([upstream, ...approved.map(row => row.sha)].filter(Boolean))]
-    if (mergeHead && !trusted.includes(mergeHead)) throw reject('Merge input is not a pinned upstream or approved operator source')
+    if (mergeHead && !trusted.includes(mergeHead)) throw reject('Merge input is not a pinned upstream or approved operator source; merge the pinned upstream or obtain explicit operator-input admission')
     if (await workspaceGit(workspace, ['ls-files', '--unmerged'])) throw reject('Trusted integration has unresolved paths')
     const names = [...(await workspaceGit(workspace, ['diff', '--name-only', attempt.baseSha])).split('\n'), ...(await workspaceGit(workspace, ['ls-files', '--others', '--exclude-standard'])).split('\n')].filter(Boolean)
     if (!names.length) throw reject('Developer produced no code change')
@@ -423,7 +423,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     if (mergeHead || needed.length) {
       const head = await workspaceGit(workspace, ['rev-parse', 'HEAD'])
       if (!await ancestor(parent, head)) throw reject('Integration no longer descends from the trusted previous candidate')
-      for (const sha of needed) if (!await ancestor(sha, head) && !(mergeHead && await ancestor(sha, mergeHead))) throw reject('Developer must merge every pinned integration source before sealing')
+      for (const sha of needed) if (!await ancestor(sha, head) && !(mergeHead && await ancestor(sha, mergeHead))) throw reject(sha === upstream ? 'Developer must merge the pinned upstream before sealing published rework' : 'Developer must merge every pinned integration source before sealing')
       // Use Git's supported reset lifecycle after sealing the exact staged tree;
       // never soft-reset an active merge or grant the SDK shared-ref writes.
       await workspaceGit(workspace, ['add', '--all', '--', '.'])
