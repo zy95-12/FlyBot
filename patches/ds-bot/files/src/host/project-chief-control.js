@@ -139,7 +139,11 @@ export function createProjectChiefControl(rt) {
     actor = rt.projectInputs?.chiefActor(actor, task.id, saved, run, decision.inputReceipts) ?? actor
     try {
     if (decision.action === 'continue') {
-      if (run.purpose === 'arbitration' && task.collaboration) { task.collaboration.status = 'blocked'; task.collaboration.block = { reason: `Chief deferred completion: ${reason}`, chiefDecisionId: audit.id, at: Date.now() } }
+      if (run.purpose === 'arbitration' && task.collaboration) {
+        task.collaboration.status = 'blocked'
+        if (task.collaboration.claim?.chiefRunId === run.id) task.collaboration.claim.status = 'waiting-human'
+        task.collaboration.block = { reason: `Chief deferred completion: ${reason}`, chiefDecisionId: audit.id, at: Date.now() }
+      }
       task.chiefObservations = { fingerprint: saved.inspection.fingerprint, handoffCount: task.collaboration?.history.length ?? 0, lastDecisionId: audit.id, at: Date.now() }
     } else if (decision.action === 'needs-human') {
       if (task.collaboration) { task.collaboration.status = 'blocked'; task.collaboration.block = { reason, chiefDecisionId: audit.id, at: Date.now() } }

@@ -248,3 +248,8 @@ Keep independent full logs, redaction, same-Task/SHA checks and bounded excerpts
 
 ### Resident Chief and Task-role context — 2026-11-01
 Implemented Task-role logical identity, binding-checked SDK resume across rework, retained cwd ownership/cleanup and current candidate inputs. Added original-store Chief topic-memory read/write/replace and same-thread scoped retrieval rounds, plus immutable context archives instead of re-sending unbounded history. Native DSH keeps its original parts/steward/compaction; SDK uses its own runtime compaction. Verification must include real resource-user/runtime continuation and Chief memory before claiming live delivery. Current native workflow carriers remain per execution; their logical Task identity and retrievable facts are retained, not falsely described as SDK backend threads.
+
+
+Issue60 follow-up restores the completed-Chief deferral checkpoint discovered by
+real S4 frontend recovery. Keep all exit/lease guards and the current unsealed
+Attempt; recovery uses supported admission after a verified service checkpoint.

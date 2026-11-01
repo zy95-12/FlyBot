@@ -485,3 +485,12 @@ workers, rather than only using an empty history fixture.
 
 ### 2026-11-01 — Keep memory, logical Session and execution evidence separate
 Seen 1×. A FlyBot48k role-admission cap precedes the SDK; Codex automatic compaction cannot fix inputs rejected before it starts. A1MiB event-size failure is transport, not model context. Use bounded current facts plus exact retrievable source snapshots, preserve full requirements and role rules, and let each Harness manage its own history. Task rework must not throw away its role thread/cwd; resumption requires matching Project/Task/role/principal/resource/profile/model/persona and confirmed process/lease exit. Never reuse a Developer thread for independent Review or carry a verdict across commits. Chief long-term facts reuse original own-memory topics/journal, with no private/team scope fallback.
+
+
+### 2026-11-02 — Deferral is responsibility, not a live execution claim
+
+Seen 1× in real Source feedback recovery. Chief completed and released its SDK,
+but arbitration continue left claim active while Task was blocked. Operator source
+admission correctly refused. Mark only that completed Chief claim waiting-human;
+retain actual exit/lease checks and every other claim. A regression reproduces the
+old active label and verifies Task/Attempt/generation and blocked state survive.
