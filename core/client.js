@@ -12008,11 +12008,15 @@ function ComposerPlus({ sessionId, inputActions, useRoster, actions }) {
     ), document.body) : null
   );
 }
-function ScopedComposer({ chat, mentions = [], initialText = "", attachments = [], initialImages = [], allowImages = false, onImages, onDraft, onError }) {
+function ScopedComposer({ chat, mentions = [], initialText = "", attachments = [], initialImages = [], initialIncluded = [], allowImages = false, onIncluded, onImages, onDraft, onError }) {
   const [text2, setText] = (0, import_react21.useState)(initialText);
   const [sending, setSending] = (0, import_react21.useState)(false);
   const pending = (0, import_react21.useRef)(false);
-  const [included, setIncluded] = (0, import_react21.useState)([]);
+  const [included, setIncluded] = (0, import_react21.useState)(initialIncluded);
+  const updateIncluded = (value) => {
+    setIncluded(value);
+    onIncluded?.(value);
+  };
   const [images, setImages] = (0, import_react21.useState)(initialImages);
   const alive = (0, import_react21.useRef)(true), reading = (0, import_react21.useRef)(false);
   const [readingFiles, setReadingFiles] = (0, import_react21.useState)(false);
@@ -12068,7 +12072,7 @@ function ScopedComposer({ chat, mentions = [], initialText = "", attachments = [
     try {
       await chat.send(text2, images.length ? { images: images.filter((file) => ["image/png", "image/jpeg", "image/webp", "image/gif"].includes(file.mediaType)), files: images.filter((file) => !["image/png", "image/jpeg", "image/webp", "image/gif"].includes(file.mediaType)) } : included.length ? { attachmentIds: included } : void 0);
       update("");
-      setIncluded([]);
+      updateIncluded([]);
       setImages([]);
       onImages?.([]);
     } catch (error) {
@@ -12102,7 +12106,7 @@ function ScopedComposer({ chat, mentions = [], initialText = "", attachments = [
     attachments.length ? (0, import_react21.createElement)("fieldset", null, (0, import_react21.createElement)("legend", null, "Include registered documents"), attachments.map((row) => (0, import_react21.createElement)(
       "label",
       { key: row.id },
-      (0, import_react21.createElement)("input", { type: "checkbox", checked: included.includes(row.id), onChange: (event) => setIncluded((value) => event.target.checked ? [...value, row.id] : value.filter((id) => id !== row.id)) }),
+      (0, import_react21.createElement)("input", { type: "checkbox", checked: included.includes(row.id), onChange: (event) => updateIncluded(event.target.checked ? [...included, row.id] : included.filter((id) => id !== row.id)) }),
       row.name
     ))) : null,
     rows.length ? (0, import_react21.createElement)("div", { role: "listbox", "aria-label": t("Bots") }, rows.map((row) => (0, import_react21.createElement)("button", {

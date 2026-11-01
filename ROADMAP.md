@@ -362,3 +362,6 @@ including S1 and verified workspace/Session exit proofs. Compact board status
 uses the same live-activity evidence as the full S1 view. Integrated focused tests
 pass; exact sealed candidate host verification and independent Review come next.
 Actual shared-service browser/weak-network/screenshot acceptance stays outstanding.
+
+Task40 follow-up fixes registered-document selection during delayed native asset
+loading, with a red/green mounted regression. Broader live acceptance remains pending.

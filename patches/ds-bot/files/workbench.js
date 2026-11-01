@@ -744,7 +744,17 @@ ${result.text}`;
     function mountComposer(container, mentions = [], attachments = []) {
       const source = conversationSource, chat = source.chat();
       const draftKey = `${bootstrap.self.memberId}:${selected}:${tab}:${taskId}:native-composer`;
-      nativeIslands.register(container, nativeKey("composer"), source, (node, options) => win.FlyBotNativeConversation.mountNativeComposer(node, options), {
+      const fallbackKey = `${selected}:${tab}:room-message-${taskId}`;
+      nativeIslands.register(container, nativeKey("composer"), source, (node, options) => win.FlyBotNativeConversation.mountNativeComposer(node, {
+        ...options,
+        initialIncluded: drafts.get(draftKey + ":documents") ?? drafts.get(fallbackKey)?.attachmentIds ?? []
+      }), {
+        onIncluded: (ids) => {
+          if (source === conversationSource) {
+            drafts.set(draftKey + ":documents", ids);
+            drafts.set(fallbackKey, { ...drafts.get(fallbackKey), attachmentIds: ids });
+          }
+        },
         chat,
         mentions,
         attachments,

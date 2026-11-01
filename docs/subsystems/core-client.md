@@ -471,3 +471,9 @@ Changed scope/source retires them; pending lazy mounts cannot attach after retir
 Ordinary form nodes remain freshly constructed so handler closures reference the
 correct controls. This retains real component state rather than reconstructing a
 textarea and restoring only its value after every poll.
+
+ScopedComposer accepts initial registered-document selections and reports selection
+changes to the scoped workbench draft. This transfers fallback selections at lazy
+native mount, retains failed-send drafts and clears successful-send selections.
+Checkbox handlers snapshot the checked value before updating state. No owner-shell
+capability or document authorization changes accompany this UI state contract.

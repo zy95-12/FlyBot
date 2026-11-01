@@ -464,3 +464,11 @@ room, stream and asset adapters; public Chief memory remains excluded from room
 carriers. Installation expectations include both effects startup and the native
 stream observer. Fresh host verification and independent Review are required;
 operator deployment, three-account and weak-network acceptance remain pending.
+
+### Registered-document hydration drafts
+
+Room document selections use the same account/Project/conversation-bound draft
+identity as the native composer. At native mount, read the latest fallback form
+selection rather than the options captured before assets loaded. Native selection
+changes synchronize that draft; failed sends retain it and successful sends clear
+it. Existing scope retirement/logout fences still dispose roots and draft state.

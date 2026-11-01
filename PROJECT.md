@@ -664,3 +664,8 @@ room, stream and asset adapters; public Chief memory remains excluded from room
 carriers. Installation expectations include both effects startup and the native
 stream observer. Fresh host verification and independent Review are required;
 operator deployment, three-account and weak-network acceptance remain pending.
+
+Task40 document-selection rework reproduces loss during fallback-to-native hydration.
+Scoped document drafts now cross that boundary and native refreshes; failure retains
+selection and successful send clears it. New exact-candidate host tests, independent
+Review and operator live/weak-network acceptance remain required.

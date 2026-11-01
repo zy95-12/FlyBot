@@ -314,7 +314,11 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
   function mountComposer(container, mentions = [], attachments = []) {
     const source = conversationSource, chat = source.chat()
     const draftKey = `${bootstrap.self.memberId}:${selected}:${tab}:${taskId}:native-composer`
-    nativeIslands.register(container, nativeKey('composer'), source, (node, options) => win.FlyBotNativeConversation.mountNativeComposer(node, options), {
+    const fallbackKey = `${selected}:${tab}:room-message-${taskId}`
+    nativeIslands.register(container, nativeKey('composer'), source, (node, options) => win.FlyBotNativeConversation.mountNativeComposer(node, {
+      ...options, initialIncluded: drafts.get(draftKey + ':documents') ?? drafts.get(fallbackKey)?.attachmentIds ?? [],
+    }), {
+      onIncluded: ids => { if (source === conversationSource) { drafts.set(draftKey + ':documents', ids); drafts.set(fallbackKey, { ...drafts.get(fallbackKey), attachmentIds: ids }) } },
       chat, mentions, attachments, initialText: drafts.get(draftKey) ?? container.querySelector('textarea[name=text]')?.value ?? '',
       allowImages: tab === 'personal', initialImages: drafts.get(draftKey + ':images') ?? [],
       onImages: images => { if (source === conversationSource) drafts.set(draftKey + ':images', images) },

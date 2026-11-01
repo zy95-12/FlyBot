@@ -410,3 +410,41 @@ for (const view of ['bots', 'private', 'rooms/engineering']) test(`refresh retai
   dom.window.location.hash = '/projects/b/board'; await tick(); await tick()
   assert.equal(input.isConnected, false, 'changing Project disposes the retained input')
 })
+
+test('room document selection persists across mounted workbench refresh', async t => {
+  const { dom, root, calls, app } = fixture(t, endpoint => {
+    if (endpoint === 'project-room-read') return { id: 'engineering', name: 'Engineering', roles: ['chief'], memberIds: [], messages: [], attachments: [{ id: 'doc', name: 'Document' }], sessions: [] }
+  })
+  await installNative(dom)
+  dom.window.location.hash = '/projects/a/rooms/engineering'
+  for (let retry = 0; retry < 100 && !root.querySelector('.bt-scoped-composer input[type=checkbox]'); retry++) await tick()
+  const checkbox = root.querySelector('.bt-scoped-composer input[type=checkbox]')
+  assert.equal(Boolean(checkbox), true)
+  checkbox.click(); await tick(); await tick()
+  assert.equal(checkbox.checked, true)
+  for (let i = 0; i < 3; i++) { await app.refresh(); await tick(); await tick() }
+  assert.equal(root.querySelector('.bt-scoped-composer input[type=checkbox]') === checkbox, true)
+  assert.equal(checkbox.checked, true, 'polling retains selected document')
+  const input = root.querySelector('.bt-scoped-composer textarea')
+  Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, 'value').set.call(input, '@chief read')
+  input.dispatchEvent(new dom.window.Event('input', { bubbles: true })); await tick()
+  input.form.dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true })); await tick(); await tick()
+  assert.deepEqual(calls.find(row => row.endpoint === 'project-room-message')?.payload.attachmentIds, ['doc'])
+})
+
+test('documents selected before native assets finish loading survive hydration', async t => {
+  const { dom, root } = fixture(t, endpoint => {
+    if (endpoint === 'project-room-read') return { id: 'engineering', name: 'Engineering', roles: ['chief'], memberIds: [], messages: [], attachments: [{ id: 'doc', name: 'Document' }], sessions: [] }
+  })
+  dom.window.location.hash = '/projects/a/rooms/engineering'
+  for (let i = 0; i < 40 && !root.querySelector('input[name=attachmentIds]'); i++) await tick()
+  const fallback = root.querySelector('input[name=attachmentIds]')
+  assert.equal(Boolean(fallback), true)
+  fallback.click(); await tick()
+  assert.equal(fallback.checked, true)
+  await installNative(dom)
+  dom.window.document.querySelector('link[href="/workbench-native.css"]').dispatchEvent(new dom.window.Event('load'))
+  dom.window.document.querySelector('script[src="/workbench-native.js"]').dispatchEvent(new dom.window.Event('load'))
+  for (let i = 0; i < 40 && !root.querySelector('.bt-scoped-composer'); i++) await tick()
+  assert.equal(root.querySelector('.bt-scoped-composer input[type=checkbox]')?.checked, true, 'native hydration preserves the visible selected document')
+})

@@ -9019,7 +9019,6 @@ diff --git a/client.js b/client.js
 -    { className: "bt-think" },
 -    (0, import_react6.createElement)("summary", null, t("Thought it through")),
 -    (0, import_react6.createElement)("div", { className: "bt-think-text" }, text)
--  );
 +
 +// src/client/member-styles.js
 +var MEMBER_CSS = `
@@ -9076,6 +9075,38 @@ diff --git a/client.js b/client.js
 +    const approvals = askedIn(room2, work, id, doing);
 +    return { id, approvals, doing, here: doing !== void 0, state: approvals.length > 0 ? "ask" : doing ? "work" : "idle" };
 +  });
++}
++function busyMembers(room2, work, roster) {
++  const busy = memberWork(room2, work).filter((entry) => entry.state !== "idle" && roster.byId[entry.id]);
++  return [...busy.filter((entry) => entry.state === "ask"), ...busy.filter((entry) => entry.state === "work")].map((entry) => ({ ...entry, bot: roster.byId[entry.id] }));
++}
++function splitBusy(busy) {
++  const here = busy.filter((entry) => entry.state === "work" && entry.here);
++  const rows = [...here.filter((entry) => entry.doing.speaking === true), ...here.filter((entry) => entry.doing.speaking !== true)].slice(0, ROWS_MAX);
++  return { rows, rest: busy.filter((entry) => !rows.includes(entry)) };
++}
++function botGroupWork(botId, work, roster) {
++  return Object.entries(work.rooms ?? {}).flatMap(([roomId, entries2]) => {
++    const entry = entries2.find((item) => item.botId === botId);
++    const room2 = roster.roomsById[roomId];
++    return entry && room2 ? [{ room: room2, tool: entry.tool, step: stepIn(work, botId, roomId, entry.tool), since: entry.since }] : [];
++  });
++}
++function summaryText(busy) {
++  const asks = busy.filter((entry) => entry.state === "ask");
++  const workers = busy.filter((entry) => entry.state === "work");
++  const names = asks.slice(0, 2).map((entry) => entry.bot.name);
++  const waiting = asks.length === 0 ? "" : asks.length === 1 ? t("{name} is waiting for your approval", { name: names[0] }) : asks.length === 2 ? t("{first} and {second} are waiting for your approval", { first: names[0], second: names[1] }) : t("{first}, {second} and {count} more are waiting for your approval", { first: names[0], second: names[1], count: asks.length - 2, total: asks.length });
++  const first = workers[0];
++  const doing = first ? `${first.bot.name} · ${workText(first.doing.tool, first.doing.step)}${workers.length > 1 ? ` +${workers.length - 1}` : ""}` : "";
++  return { waiting, doing };
++}
++function Face({ entry, size }) {
++  return (0, import_react12.createElement)(
++    "span",
++    { className: "bt-mw-face", "data-ask": entry.state === "ask" || void 0 },
++    (0, import_react12.createElement)(BotMark, { bot: entry.bot, size, state: entry.state === "ask" ? "alert" : toolState(entry.doing?.tool ?? "") })
+   );
  }
 -function useFileMentions({ node, openFile, fileMentions, useTurnData }) {
 -  const tail = useTurnData?.("turn-tail");
@@ -9086,9 +9117,17 @@ diff --git a/client.js b/client.js
 -    if (typeof fileMentions !== "function" || turn?.status !== "closed" || seq === void 0) return void 0;
 -    return tail?.closing?.finalNode.seq === seq ? fileMentions({ turn, seq, openFile }) : void 0;
 -  }, [fileMentions, openFile, seq, tail, turn]);
-+function busyMembers(room2, work, roster) {
-+  const busy = memberWork(room2, work).filter((entry) => entry.state !== "idle" && roster.byId[entry.id]);
-+  return [...busy.filter((entry) => entry.state === "ask"), ...busy.filter((entry) => entry.state === "work")].map((entry) => ({ ...entry, bot: roster.byId[entry.id] }));
++var elapsedSince = (now, at) => typeof at === "number" && now - at >= 6e4 ? elapsedLabel(now - at) : "";
++function WorkRow({ bot, tool, step, label, at, now, onOpen }) {
++  const text2 = `${label} · ${workText(tool, step)}`;
++  const elapsed = elapsedSince(now, at);
++  return (0, import_react12.createElement)(
++    "button",
++    { type: "button", className: "bt-mw-row", "aria-label": [text2, elapsed].filter(Boolean).join(" · "), onClick: onOpen },
++    (0, import_react12.createElement)(BotMark, { bot, size: 22, state: toolState(tool ?? ""), live: true }),
++    (0, import_react12.createElement)("span", { className: "bt-mw-row-text" }, (0, import_react12.createElement)(Shimmer, null, text2)),
++    elapsed ? (0, import_react12.createElement)("span", { className: "bt-mw-row-time" }, `· ${elapsed}`) : null
++  );
  }
 -function AssistantCell({ node, groupPart, sessionId, openFile, fileMentions, useTurnData, useRoster, useUi, useTurnSteps, useTurnContext, actions }) {
 -  const roster = useRoster((value) => value);
@@ -9123,80 +9162,6 @@ diff --git a/client.js b/client.js
 -    }),
 -    reasoning ? (0, import_react6.createElement)(ThinkingRow, { text: reasoning }) : null,
 -    texts2.length ? (0, import_react6.createElement)(Bubbles, { texts: texts2, roster, selfId, actions, streaming: running, sessionId, msgKey: `${sessionId}:${data.turn}:${node.key ?? data.seq ?? ""}`, useUi, mentions }) : null
--  );
-+function splitBusy(busy) {
-+  const here = busy.filter((entry) => entry.state === "work" && entry.here);
-+  const rows = [...here.filter((entry) => entry.doing.speaking === true), ...here.filter((entry) => entry.doing.speaking !== true)].slice(0, ROWS_MAX);
-+  return { rows, rest: busy.filter((entry) => !rows.includes(entry)) };
- }
--function EventLine({ prefix, bots, joiner = t("and"), onOpen, whole = false }) {
--  if (whole && bots.length === 1) {
--    return (0, import_react6.createElement)(
--      "div",
--      { className: "bt-event" },
--      (0, import_react6.createElement)(
--        "button",
--        { type: "button", className: "bt-event-whole", title: bots[0].name, onClick: () => onOpen?.(bots[0]) },
--        (0, import_react6.createElement)("span", null, prefix),
--        (0, import_react6.createElement)(BotMark, { bot: bots[0], size: 16 }),
--        (0, import_react6.createElement)("span", { className: "bt-event-name" }, bots[0].name)
--      )
--    );
--  }
--  const parts = [];
--  parts.push((0, import_react6.createElement)("span", { key: "p" }, prefix));
--  bots.forEach((bot, index) => {
--    if (index > 0) parts.push((0, import_react6.createElement)("span", { key: `j${index}` }, joiner));
--    parts.push((0, import_react6.createElement)(
--      "button",
--      { key: bot.id ?? index, type: "button", onClick: () => onOpen?.(bot) },
--      (0, import_react6.createElement)(BotMark, { bot, size: 16 }),
--      bot.name
--    ));
-+function botGroupWork(botId, work, roster) {
-+  return Object.entries(work.rooms ?? {}).flatMap(([roomId, entries2]) => {
-+    const entry = entries2.find((item) => item.botId === botId);
-+    const room2 = roster.roomsById[roomId];
-+    return entry && room2 ? [{ room: room2, tool: entry.tool, step: stepIn(work, botId, roomId, entry.tool), since: entry.since }] : [];
-   });
--  return (0, import_react6.createElement)("div", { className: "bt-event" }, parts);
- }
--function GroupMessage({ bot, text, room: room2, roster, actions, msgKey, useUi }) {
--  const lead = (0, import_react6.createElement)(
-+function summaryText(busy) {
-+  const asks = busy.filter((entry) => entry.state === "ask");
-+  const workers = busy.filter((entry) => entry.state === "work");
-+  const names = asks.slice(0, 2).map((entry) => entry.bot.name);
-+  const waiting = asks.length === 0 ? "" : asks.length === 1 ? t("{name} is waiting for your approval", { name: names[0] }) : asks.length === 2 ? t("{first} and {second} are waiting for your approval", { first: names[0], second: names[1] }) : t("{first}, {second} and {count} more are waiting for your approval", { first: names[0], second: names[1], count: asks.length - 2, total: asks.length });
-+  const first = workers[0];
-+  const doing = first ? `${first.bot.name} · ${workText(first.doing.tool, first.doing.step)}${workers.length > 1 ? ` +${workers.length - 1}` : ""}` : "";
-+  return { waiting, doing };
-+}
-+function Face({ entry, size }) {
-+  return (0, import_react12.createElement)(
-+    "span",
-+    { className: "bt-mw-face", "data-ask": entry.state === "ask" || void 0 },
-+    (0, import_react12.createElement)(BotMark, { bot: entry.bot, size, state: entry.state === "ask" ? "alert" : toolState(entry.doing?.tool ?? "") })
-+  );
-+}
-+var elapsedSince = (now, at) => typeof at === "number" && now - at >= 6e4 ? elapsedLabel(now - at) : "";
-+function WorkRow({ bot, tool, step, label, at, now, onOpen }) {
-+  const text2 = `${label} · ${workText(tool, step)}`;
-+  const elapsed = elapsedSince(now, at);
-+  return (0, import_react12.createElement)(
-     "button",
--    { type: "button", className: "bt-lead", "aria-label": t("Open {name}'s chat", { name: bot.name }), onClick: () => actions.openSession(bot.id) },
--    (0, import_react6.createElement)(BotMark, { bot, size: 22 })
-+    { type: "button", className: "bt-mw-row", "aria-label": [text2, elapsed].filter(Boolean).join(" · "), onClick: onOpen },
-+    (0, import_react12.createElement)(BotMark, { bot, size: 22, state: toolState(tool ?? ""), live: true }),
-+    (0, import_react12.createElement)("span", { className: "bt-mw-row-text" }, (0, import_react12.createElement)(Shimmer, null, text2)),
-+    elapsed ? (0, import_react12.createElement)("span", { className: "bt-mw-row-time" }, `· ${elapsed}`) : null
-   );
--  return (0, import_react6.createElement)(
--    "div",
--    { className: "bt-group-msg" },
--    (0, import_react6.createElement)(
-+}
 +function SummaryLine({ busy, now, onOpen }) {
 +  const { waiting, doing } = summaryText(busy);
 +  const elapsed = doing ? elapsedSince(now, busy.find((entry) => entry.state === "work")?.doing.since) : "";
@@ -9205,21 +9170,18 @@ diff --git a/client.js b/client.js
 +    { type: "button", className: "bt-mw-row bt-mw-line", "aria-label": [waiting, doing, elapsed].filter(Boolean).join(" · "), onClick: onOpen },
 +    (0, import_react12.createElement)("span", { className: "bt-mw-stack", "aria-hidden": true }, busy.slice(0, 4).map((entry) => (0, import_react12.createElement)(Face, { key: entry.id, entry, size: 16 }))),
 +    (0, import_react12.createElement)(
-       "span",
--      { className: "bt-group-name", style: { color: inkText(colorOf(bot)) } },
--      bot.name,
--      room2?.admin === bot.id ? (0, import_react6.createElement)("span", { className: "bt-group-role" }, t("Admin")) : null
++      "span",
 +      { className: "bt-mw-row-text" },
 +      waiting ? (0, import_react12.createElement)("span", { className: "bt-mw-ask" }, waiting) : null,
 +      waiting && doing ? " · " : null,
 +      doing ? (0, import_react12.createElement)(Shimmer, null, doing) : null
-     ),
--    (0, import_react6.createElement)(Bubbles, { texts: [text], roster, selfId: bot.id, actions, sessionId: room2?.id, msgKey, useUi, lead })
++    ),
 +    elapsed ? (0, import_react12.createElement)("span", { className: "bt-mw-row-time" }, `· ${elapsed}`) : null
    );
  }
--function GroupEvent({ prefix, room: room2, name, roster, actions }) {
--  return (0, import_react6.createElement)(
+-function EventLine({ prefix, bots, joiner = t("and"), onOpen, whole = false }) {
+-  if (whole && bots.length === 1) {
+-    return (0, import_react6.createElement)(
 +function MemberDock({ sessionId, useRoster, useWork, actions }) {
 +  const roster = useRoster((value) => value);
 +  const work = useWork((value) => value);
@@ -9237,12 +9199,32 @@ diff --git a/client.js b/client.js
 +    const { rows, rest } = splitBusy(busy);
 +    const open = () => actions.showDetails(sessionId);
 +    return (0, import_react12.createElement)(
-+      "div",
+       "div",
+-      { className: "bt-event" },
+-      (0, import_react6.createElement)(
+-        "button",
+-        { type: "button", className: "bt-event-whole", title: bots[0].name, onClick: () => onOpen?.(bots[0]) },
+-        (0, import_react6.createElement)("span", null, prefix),
+-        (0, import_react6.createElement)(BotMark, { bot: bots[0], size: 16 }),
+-        (0, import_react6.createElement)("span", { className: "bt-event-name" }, bots[0].name)
+-      )
 +      { ref, className: "bt-mw-dock-stack" },
 +      rows.map((entry) => (0, import_react12.createElement)(WorkRow, { key: entry.id, bot: entry.bot, tool: entry.doing.tool, step: entry.doing.step, label: entry.bot.name, at: entry.doing.since, now, onOpen: open })),
 +      rest.length > 0 ? (0, import_react12.createElement)(SummaryLine, { busy: rest, now, onOpen: open }) : null
-+    );
-+  }
+     );
+   }
+-  const parts = [];
+-  parts.push((0, import_react6.createElement)("span", { key: "p" }, prefix));
+-  bots.forEach((bot, index) => {
+-    if (index > 0) parts.push((0, import_react6.createElement)("span", { key: `j${index}` }, joiner));
+-    parts.push((0, import_react6.createElement)(
+-      "button",
+-      { key: bot.id ?? index, type: "button", onClick: () => onOpen?.(bot) },
+-      (0, import_react6.createElement)(BotMark, { bot, size: 16 }),
+-      bot.name
+-    ));
+-  });
+-  return (0, import_react6.createElement)("div", { className: "bt-event" }, parts);
 +  return (0, import_react12.createElement)("div", { ref, className: "bt-mw-dock-stack" }, groups.slice(0, ROWS_MAX).map((item) => (0, import_react12.createElement)(WorkRow, {
 +    key: item.room.id,
 +    bot,
@@ -9253,7 +9235,24 @@ diff --git a/client.js b/client.js
 +    now,
 +    onOpen: () => actions.openSession(item.room.id)
 +  })));
-+}
+ }
+-function GroupMessage({ bot, text, room: room2, roster, actions, msgKey, useUi }) {
+-  const lead = (0, import_react6.createElement)(
+-    "button",
+-    { type: "button", className: "bt-lead", "aria-label": t("Open {name}'s chat", { name: bot.name }), onClick: () => actions.openSession(bot.id) },
+-    (0, import_react6.createElement)(BotMark, { bot, size: 22 })
+-  );
+-  return (0, import_react6.createElement)(
+-    "div",
+-    { className: "bt-group-msg" },
+-    (0, import_react6.createElement)(
+-      "span",
+-      { className: "bt-group-name", style: { color: inkText(colorOf(bot)) } },
+-      bot.name,
+-      room2?.admin === bot.id ? (0, import_react6.createElement)("span", { className: "bt-group-role" }, t("Admin")) : null
+-    ),
+-    (0, import_react6.createElement)(Bubbles, { texts: [text], roster, selfId: bot.id, actions, sessionId: room2?.id, msgKey, useUi, lead })
+-  );
 +function useFlowColumn(ref, active, key) {
 +  (0, import_react12.useLayoutEffect)(() => {
 +    const node = ref.current;
@@ -9270,7 +9269,9 @@ diff --git a/client.js b/client.js
 +    for (const target of [flow, flow.parentElement, node.parentElement]) if (target) observer.observe(target);
 +    return () => observer.disconnect();
 +  }, [active, key]);
-+}
+ }
+-function GroupEvent({ prefix, room: room2, name, roster, actions }) {
+-  return (0, import_react6.createElement)(
 +function useNow(active) {
 +  const [now, setNow] = (0, import_react12.useState)(Date.now);
 +  (0, import_react12.useEffect)(() => {
@@ -9871,7 +9872,7 @@ diff --git a/client.js b/client.js
 +      reason,
 +      ...caller === void 0 ? {} : { bot: caller }
 +    });
-+  }
+   }
 +  if (sessions?.byId) {
 +    for (const bot of roster.bots ?? []) {
 +      if (ownBot(roster, bot.id) === void 0 || work.bots?.[bot.id] !== void 0 || waitingAt.has(`${bot.id}|`)) continue;
@@ -9912,7 +9913,7 @@ diff --git a/client.js b/client.js
 +    const questionId = card.task?.inputRequest?.id;
 +    if (text2 === "" || typeof questionId !== "string") return void 0;
 +    return Promise.resolve(actions.answerTaskInput(card.task.id, questionId, text2));
-   }
++  }
 +  if (card?.kind === "task" && card.status === "result") {
 +    if (choice === "accept") return Promise.resolve(actions.acceptTaskResult(card.task.id));
 +    const note = choice !== null && typeof choice === "object" ? String(choice.note ?? "").trim() : "";
@@ -10425,6 +10426,11 @@ diff --git a/client.js b/client.js
 -      return { label: t("Updating memory"), state: "working" };
 -    case "recall":
 -      return { label: t("Checking memory"), state: "searching" };
+-    default:
+-      if (GROUP_PHRASES[name]) return { label: t(GROUP_PHRASES[name]), state: "sending" };
+-      const phrase = TOOL_PHRASES.find(([pattern]) => pattern.test(name))?.[1];
+-      return { label: phrase ? t(phrase) : null, state: toolState(name) };
+-  }
 +function BoardCard({
 +  card,
 +  skin = TASK_SKIN,
@@ -10490,12 +10496,22 @@ diff --git a/client.js b/client.js
 +function shortId(id) {
 +  const hex = String(id ?? "").replace(/^task-/, "");
 +  return `#${hex.slice(-6)}`;
-+}
+ }
+-function workPhrase(tool) {
+-  if (!tool) return t("Thinking about it");
+-  return toolActivity(tool, () => void 0, () => void 0)?.label ?? t("On it");
 +var ARCHIVE_SHOWN = 20;
 +function boardTasksFor(tasks, archive, limit = ARCHIVE_SHOWN) {
 +  const newest = [...archive ?? []].sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0) || (b.createdAt ?? 0) - (a.createdAt ?? 0));
 +  return [...tasks ?? [], ...newest.slice(0, limit)];
-+}
+ }
+-function useLiveNote(actions, sessionId, id, entry) {
+-  const key = entry ? JSON.stringify(entry) : "";
+-  (0, import_react6.useEffect)(() => {
+-    if (!key) return void 0;
+-    actions.noteLive(sessionId, id, JSON.parse(key));
+-    return () => actions.noteLive(sessionId, id, null);
+-  }, [sessionId, id, key]);
 +function boardColumns(tasks) {
 +  const columns = { "not-started": [], "in-progress": [], done: [] };
 +  for (const task of tasks ?? []) {
@@ -10586,25 +10602,10 @@ diff --git a/client.js b/client.js
 +      return t("Cancelled");
 +    case "failed":
 +      return t("Failed");
-     default:
--      if (GROUP_PHRASES[name]) return { label: t(GROUP_PHRASES[name]), state: "sending" };
--      const phrase = TOOL_PHRASES.find(([pattern]) => pattern.test(name))?.[1];
--      return { label: phrase ? t(phrase) : null, state: toolState(name) };
++    default:
 +      return t("Not started");
-   }
++  }
  }
--function workPhrase(tool) {
--  if (!tool) return t("Thinking about it");
--  return toolActivity(tool, () => void 0, () => void 0)?.label ?? t("On it");
--}
--function useLiveNote(actions, sessionId, id, entry) {
--  const key = entry ? JSON.stringify(entry) : "";
--  (0, import_react6.useEffect)(() => {
--    if (!key) return void 0;
--    actions.noteLive(sessionId, id, JSON.parse(key));
--    return () => actions.noteLive(sessionId, id, null);
--  }, [sessionId, id, key]);
--}
 -function GroupReplies({ sessionId, callId, done, content, roster, actions, useUi, useWork }) {
 -  const [live, setLive] = (0, import_react6.useState)({ replies: [], speaking: null });
 -  (0, import_react6.useEffect)(() => {
@@ -11106,7 +11107,6 @@ diff --git a/client.js b/client.js
 -      return done && !call2.isError ? (0, import_react6.createElement)(MemoryEvent, { sessionId, scope: arg("scope"), result: contentText(call2.content), roster, actions, findBot }) : null;
 -    default:
 -      return null;
--  }
 +  };
 +  const name = scopeName(roster, scope);
 +  return (0, import_react15.createElement)(
@@ -11143,22 +11143,7 @@ diff --git a/client.js b/client.js
 +      })
 +    )
 +  );
- }
--function ToolCell({ node, sessionId, useRoster, useUi, useWork, actions }) {
--  const roster = useRoster((value) => value);
--  const root = node.data.root;
--  const turn = node.location?.turn?.turn ?? root.turn;
--  const hidden = isHiddenTurn(roster, sessionId, turn);
--  const findBot = (nameOrId) => roster.byId[nameOrId] ?? roster.bots.find((bot) => bot.name.toLowerCase() === String(nameOrId ?? "").toLowerCase());
--  const calls = hidden ? [] : callTree(root);
--  const drawn = calls.filter((call2) => DRAWN.has(toolName(call2)));
--  const running = root.kind === "tool-result" ? void 0 : calls.findLast((call2) => call2.kind !== "tool-result");
--  const note = running ? toolActivity(toolName(running), toolArgs(running).text, findBot, roster.byId[sessionId]) : null;
--  useLiveNote(actions, sessionId, `tool:${root.callId ?? node.key}`, note);
--  useShownCards(actions, sessionId, drawn.filter((call2) => CARDS.has(toolName(call2)) && call2.callId).map((call2) => call2.callId));
--  if (drawn.length === 0) return null;
--  const env = { sessionId, roster, actions, useUi, useWork, findBot };
--  return (0, import_react6.createElement)(import_react6.Fragment, null, drawn.map((call2, index) => (0, import_react6.createElement)(import_react6.Fragment, { key: call2.callId ?? index }, renderCall(call2, env))));
++}
 +var KANBAN_CSS = `
 +.bt-board-row{min-height:40px;padding:6px 8px;gap:10px}
 +.bt-board-mark{flex:none;width:36px;height:28px;display:inline-flex;align-items:center;justify-content:center;color:var(--bt-ink-2)}
@@ -11228,18 +11213,8 @@ diff --git a/client.js b/client.js
 +function roleText(role) {
 +  if (role === null || role === void 0 || role === "") return "";
 +  return t(ROLE_LABELS[role] ?? String(role));
- }
-
--// src/client/activity-row.js
--var import_react7 = require("react");
--var import_react_dom2 = require("react-dom");
--var PHRASE_HOLD_MS = 800;
--var drawPhrase = (pool) => t(pool[Math.min(pool.length - 1, Math.floor(Math.random() * pool.length))]);
--function elapsedLabel(ms) {
--  const minutes = Math.floor(ms / 6e4);
--  if (minutes < 60) return `${Math.max(1, minutes)}m`;
--  const hours = Math.floor(minutes / 60);
--  return minutes % 60 === 0 ? `${hours}h` : `${hours}h ${minutes % 60}m`;
++}
++
 +// src/client/projects-nav.js
 +var import_react16 = require("react");
 +var import_react_dom3 = require("react-dom");
@@ -11275,8 +11250,65 @@ diff --git a/client.js b/client.js
 +  for (const role of choices) {
 +    if (role === current) continue;
 +    items.push({ role, label: roleText(role), current: false, pick: true });
-+  }
+   }
 +  return items;
+ }
+-function ToolCell({ node, sessionId, useRoster, useUi, useWork, actions }) {
+-  const roster = useRoster((value) => value);
+-  const root = node.data.root;
+-  const turn = node.location?.turn?.turn ?? root.turn;
+-  const hidden = isHiddenTurn(roster, sessionId, turn);
+-  const findBot = (nameOrId) => roster.byId[nameOrId] ?? roster.bots.find((bot) => bot.name.toLowerCase() === String(nameOrId ?? "").toLowerCase());
+-  const calls = hidden ? [] : callTree(root);
+-  const drawn = calls.filter((call2) => DRAWN.has(toolName(call2)));
+-  const running = root.kind === "tool-result" ? void 0 : calls.findLast((call2) => call2.kind !== "tool-result");
+-  const note = running ? toolActivity(toolName(running), toolArgs(running).text, findBot, roster.byId[sessionId]) : null;
+-  useLiveNote(actions, sessionId, `tool:${root.callId ?? node.key}`, note);
+-  useShownCards(actions, sessionId, drawn.filter((call2) => CARDS.has(toolName(call2)) && call2.callId).map((call2) => call2.callId));
+-  if (drawn.length === 0) return null;
+-  const env = { sessionId, roster, actions, useUi, useWork, findBot };
+-  return (0, import_react6.createElement)(import_react6.Fragment, null, drawn.map((call2, index) => (0, import_react6.createElement)(import_react6.Fragment, { key: call2.callId ?? index }, renderCall(call2, env))));
++function roleNote(answer) {
++  if (answer?.changed === true) return t("Role changed.");
++  const reason = typeof answer?.reason === "string" && answer.reason !== "" ? answer.reason : t("refused");
++  return t("Role unchanged: {reason}", { reason });
+ }
+-
+-// src/client/activity-row.js
+-var import_react7 = require("react");
+-var import_react_dom2 = require("react-dom");
+-var PHRASE_HOLD_MS = 800;
+-var drawPhrase = (pool) => t(pool[Math.min(pool.length - 1, Math.floor(Math.random() * pool.length))]);
+-function elapsedLabel(ms) {
+-  const minutes = Math.floor(ms / 6e4);
+-  if (minutes < 60) return `${Math.max(1, minutes)}m`;
+-  const hours = Math.floor(minutes / 60);
+-  return minutes % 60 === 0 ? `${hours}h` : `${hours}h ${minutes % 60}m`;
++function ProjectList({ projects, error, note, onOpen, onRole }) {
++  const rows = projects === null ? (0, import_react16.createElement)("div", { className: "bt-projects-note" }, t("Reading Projects…")) : error !== "" ? (0, import_react16.createElement)("div", { className: "bt-projects-note" }, error) : projects.length === 0 ? (0, import_react16.createElement)("div", { className: "bt-projects-empty" }, t("No Projects yet")) : projects.map((project) => (0, import_react16.createElement)(
++    "button",
++    {
++      key: String(project.id),
++      type: "button",
++      className: "bt-project-entry",
++      "data-project-id": String(project.id),
++      "aria-current": project.current === true ? "true" : void 0,
++      title: roleText(project.role) === "" ? projectName(project) : `${projectName(project)} · ${roleText(project.role)}`,
++      onClick: () => onOpen?.(project.id),
++      onContextMenu: (event) => {
++        event.preventDefault();
++        onRole?.(project, event);
++      }
++    },
++    (0, import_react16.createElement)("span", { className: "bt-project-entry-name" }, projectName(project)),
++    roleText(project.role) === "" ? null : (0, import_react16.createElement)("span", { className: "bt-project-entry-role" }, roleText(project.role))
++  ));
++  return (0, import_react16.createElement)(
++    "div",
++    { className: "bt-projects-list", role: "group", "aria-label": t("Projects") },
++    rows,
++    note === "" || note === void 0 ? null : (0, import_react16.createElement)("div", { className: "bt-projects-note", role: "status" }, note)
++  );
  }
 -function useRunningHost(active) {
 -  const [host, setHost] = (0, import_react7.useState)(null);
@@ -11302,10 +11334,12 @@ diff --git a/client.js b/client.js
 -    };
 -  }, [active]);
 -  return host;
-+function roleNote(answer) {
-+  if (answer?.changed === true) return t("Role changed.");
-+  const reason = typeof answer?.reason === "string" && answer.reason !== "" ? answer.reason : t("refused");
-+  return t("Role unchanged: {reason}", { reason });
++function Chevron() {
++  return (0, import_react16.createElement)(
++    "svg",
++    { width: 12, height: 12, viewBox: "0 0 20 20", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": true },
++    (0, import_react16.createElement)("path", { d: "M7.5 4.5L13 10l-5.5 5.5" })
++  );
  }
 -function useRowEntrances(replacing) {
 -  const check = (0, import_react7.useRef)(replacing);
@@ -11319,7 +11353,20 @@ diff --git a/client.js b/client.js
 -      if (event.target !== event.currentTarget || !/^bt-row/.test(event.animationName)) return;
 -      delete event.currentTarget.dataset.btEnter;
 -      event.currentTarget.removeEventListener("animationend", settle);
--    };
++function ProjectsMark() {
++  return (0, import_react16.createElement)(
++    "svg",
++    { width: 18, height: 18, viewBox: "0 0 20 20", fill: "none", stroke: "currentColor", strokeWidth: 1.6, strokeLinejoin: "round", "aria-hidden": true },
++    (0, import_react16.createElement)("path", { d: "M2.5 5.5h6l1.5 2h7.5v8a1 1 0 0 1-1 1h-13a1 1 0 0 1-1-1z" }),
++    (0, import_react16.createElement)("path", { d: "M2.5 5.5v-1a1 1 0 0 1 1-1h4l1.5 2" })
++  );
++}
++function ProjectRoleMenu({ project, x, y, onPick, onClose }) {
++  const ref = (0, import_react16.useRef)(null);
++  (0, import_react16.useEffect)(() => {
++    const onDown = (event) => {
++      if (!ref.current?.contains(event.target)) onClose();
+     };
 -    const scan = () => {
 -      frame = 0;
 -      const next = document.querySelector("[data-chat-flow]");
@@ -11342,60 +11389,14 @@ diff --git a/client.js b/client.js
 -        const reply = [void 0, "assistant-step", "tool-call"].includes(item.dataset.chatFlowKind);
 -        item.dataset.btEnter = reply && check.current() ? "after-collapse" : "new";
 -        item.addEventListener("animationend", settle);
-+function ProjectList({ projects, error, note, onOpen, onRole }) {
-+  const rows = projects === null ? (0, import_react16.createElement)("div", { className: "bt-projects-note" }, t("Reading Projects…")) : error !== "" ? (0, import_react16.createElement)("div", { className: "bt-projects-note" }, error) : projects.length === 0 ? (0, import_react16.createElement)("div", { className: "bt-projects-empty" }, t("No Projects yet")) : projects.map((project) => (0, import_react16.createElement)(
-+    "button",
-+    {
-+      key: String(project.id),
-+      type: "button",
-+      className: "bt-project-entry",
-+      "data-project-id": String(project.id),
-+      "aria-current": project.current === true ? "true" : void 0,
-+      title: roleText(project.role) === "" ? projectName(project) : `${projectName(project)} · ${roleText(project.role)}`,
-+      onClick: () => onOpen?.(project.id),
-+      onContextMenu: (event) => {
-+        event.preventDefault();
-+        onRole?.(project, event);
-       }
-+    },
-+    (0, import_react16.createElement)("span", { className: "bt-project-entry-name" }, projectName(project)),
-+    roleText(project.role) === "" ? null : (0, import_react16.createElement)("span", { className: "bt-project-entry-role" }, roleText(project.role))
-+  ));
-+  return (0, import_react16.createElement)(
-+    "div",
-+    { className: "bt-projects-list", role: "group", "aria-label": t("Projects") },
-+    rows,
-+    note === "" || note === void 0 ? null : (0, import_react16.createElement)("div", { className: "bt-projects-note", role: "status" }, note)
-+  );
-+}
-+function Chevron() {
-+  return (0, import_react16.createElement)(
-+    "svg",
-+    { width: 12, height: 12, viewBox: "0 0 20 20", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": true },
-+    (0, import_react16.createElement)("path", { d: "M7.5 4.5L13 10l-5.5 5.5" })
-+  );
-+}
-+function ProjectsMark() {
-+  return (0, import_react16.createElement)(
-+    "svg",
-+    { width: 18, height: 18, viewBox: "0 0 20 20", fill: "none", stroke: "currentColor", strokeWidth: 1.6, strokeLinejoin: "round", "aria-hidden": true },
-+    (0, import_react16.createElement)("path", { d: "M2.5 5.5h6l1.5 2h7.5v8a1 1 0 0 1-1 1h-13a1 1 0 0 1-1-1z" }),
-+    (0, import_react16.createElement)("path", { d: "M2.5 5.5v-1a1 1 0 0 1 1-1h4l1.5 2" })
-+  );
-+}
-+function ProjectRoleMenu({ project, x, y, onPick, onClose }) {
-+  const ref = (0, import_react16.useRef)(null);
-+  (0, import_react16.useEffect)(() => {
-+    const onDown = (event) => {
-+      if (!ref.current?.contains(event.target)) onClose();
+-      }
++    const onKey = (event) => {
++      if (event.key === "Escape") onClose();
      };
 -    const observer = new MutationObserver(() => {
 -      if (!frame) frame = requestAnimationFrame(scan);
 -    });
 -    scan();
-+    const onKey = (event) => {
-+      if (event.key === "Escape") onClose();
-+    };
 +    window.addEventListener("mousedown", onDown, true);
 +    window.addEventListener("keydown", onKey, true);
      return () => {
@@ -13639,17 +13640,6 @@ diff --git a/client.js b/client.js
 +        (0, import_react19.createElement)("button", { type: "button", className: "bt-soft bt-soft-sm", "data-action": "project-bind", onClick: () => run("project-bind", { kind, id: text(memberId), projectId: id }, t("Member bound.")) }, t("Bind")),
 +        (0, import_react19.createElement)("button", { type: "button", className: "bt-soft bt-soft-sm", "data-action": "project-unbind", onClick: () => run("project-bind", { kind, id: text(memberId), projectId: null }, t("Member unbound.")) }, t("Unbind"))
 +      )
-+    ),
-+    (0, import_react19.createElement)(
-+      "div",
-+      { className: "bt-project-field" },
-+      (0, import_react19.createElement)("label", null, t("Project Assistant")),
-+      (0, import_react19.createElement)(
-+        "div",
-+        { className: "bt-project-row-actions" },
-+        (0, import_react19.createElement)("label", null, (0, import_react19.createElement)("input", { type: "checkbox", "data-action": "assistant-off", checked: assistantOff, onChange: (event) => setAssistantOff(event.target.checked) }), " ", t("Pause the daily digest")),
-+        (0, import_react19.createElement)("button", { type: "button", className: "bt-soft bt-soft-sm", "data-action": "project-assistant-save", onClick: () => run("project-assistant-owner", { id, settings: { off: assistantOff === true } }, t("Assistant settings saved.")) }, t("Save"))
-+      )
      ),
 -    open && box ? (0, import_react_dom3.createPortal)((0, import_react8.createElement)(
 +    (0, import_react19.createElement)(
@@ -13661,6 +13651,17 @@ diff --git a/client.js b/client.js
 -        index > 0 ? (0, import_react8.createElement)("div", { className: "bt-menu-sep", role: "separator" }) : null,
 -        group.map(([label, Icon, run, hint]) => (0, import_react8.createElement)("button", {
 -          key: label,
++      { className: "bt-project-field" },
++      (0, import_react19.createElement)("label", null, t("Project Assistant")),
++      (0, import_react19.createElement)(
++        "div",
++        { className: "bt-project-row-actions" },
++        (0, import_react19.createElement)("label", null, (0, import_react19.createElement)("input", { type: "checkbox", "data-action": "assistant-off", checked: assistantOff, onChange: (event) => setAssistantOff(event.target.checked) }), " ", t("Pause the daily digest")),
++        (0, import_react19.createElement)("button", { type: "button", className: "bt-soft bt-soft-sm", "data-action": "project-assistant-save", onClick: () => run("project-assistant-owner", { id, settings: { off: assistantOff === true } }, t("Assistant settings saved.")) }, t("Save"))
++      )
++    ),
++    (0, import_react19.createElement)(
++      "div",
 +      { className: "bt-project-field" },
 +      // The host knows two memory kinds; the free text the panel takes is recorded as a decision,
 +      // never as a third kind the host would refuse (#1820).
@@ -13687,8 +13688,17 @@ diff --git a/client.js b/client.js
 -        }, (0, import_react8.createElement)(Icon), (0, import_react8.createElement)("span", { className: "bt-menu-label" }, label), hint ? (0, import_react8.createElement)("span", { className: "bt-menu-hint" }, hint) : null))
 -      ))
 -    ), document.body) : null
--  );
--}
++        }, t("Save memory"))
++      )
++    ),
++    (0, import_react19.createElement)("div", { className: "bt-project-status-line", role: "status" }, status),
++    (0, import_react19.createElement)(
++      "div",
++      { className: "bt-project-row-actions" },
++      (0, import_react19.createElement)("button", { type: "button", className: "bt-soft bt-soft-sm", onClick: () => onClose?.() }, t("Back to board"))
++    )
+   );
+ }
 -function useLandOnMainBot(roster, useSessions, actions) {
 -  const mainView = useSessions((list) => {
 -    const row = Object.values(list.byId).find((session) => (session?.retainedBy?.mainView ?? 0) > 0);
@@ -13717,17 +13727,7 @@ diff --git a/client.js b/client.js
 -  const seated = props.useUi((value) => value.accountSeated === true);
 -  if (seated) return null;
 -  return (0, import_react8.createElement)("span", { className: "bt-foot-account" }, (0, import_react8.createElement)(AccountLauncher, { ...props, seat: false }));
-+        }, t("Save memory"))
-+      )
-+    ),
-+    (0, import_react19.createElement)("div", { className: "bt-project-status-line", role: "status" }, status),
-+    (0, import_react19.createElement)(
-+      "div",
-+      { className: "bt-project-row-actions" },
-+      (0, import_react19.createElement)("button", { type: "button", className: "bt-soft bt-soft-sm", onClick: () => onClose?.() }, t("Back to board"))
-+    )
-+  );
- }
+-}
 -function BotReturn({ wide, useSurface, actions }) {
 -  const mode = useSurface((value) => value.mode);
 -  if (mode !== "agent") return null;
@@ -14493,7 +14493,7 @@ diff --git a/client.js b/client.js
      if (!open) return void 0;
      const onDown = (event) => {
        if (![button.current, menu.current].some((node) => node?.contains(event.target))) setOpen(null);
-@@ -5876,34 +5876,150 @@ function ComposerPlus({ sessionId, inputActions, useRoster, actions }) {
+@@ -5876,34 +5876,154 @@ function ComposerPlus({ sessionId, inputActions, useRoster, actions }) {
      actions.referenceChat(sessionId, inputActions?.captureInsertion?.());
    };
    const canReference = typeof inputActions?.captureInsertion === "function" && actions.canReferenceChat();
@@ -14552,11 +14552,15 @@ diff --git a/client.js b/client.js
 +    ), document.body) : null
 +  );
 +}
-+function ScopedComposer({ chat, mentions = [], initialText = "", attachments = [], initialImages = [], allowImages = false, onImages, onDraft, onError }) {
++function ScopedComposer({ chat, mentions = [], initialText = "", attachments = [], initialImages = [], initialIncluded = [], allowImages = false, onIncluded, onImages, onDraft, onError }) {
 +  const [text2, setText] = (0, import_react21.useState)(initialText);
 +  const [sending, setSending] = (0, import_react21.useState)(false);
 +  const pending = (0, import_react21.useRef)(false);
-+  const [included, setIncluded] = (0, import_react21.useState)([]);
++  const [included, setIncluded] = (0, import_react21.useState)(initialIncluded);
++  const updateIncluded = (value) => {
++    setIncluded(value);
++    onIncluded?.(value);
++  };
 +  const [images, setImages] = (0, import_react21.useState)(initialImages);
 +  const alive = (0, import_react21.useRef)(true), reading = (0, import_react21.useRef)(false);
 +  const [readingFiles, setReadingFiles] = (0, import_react21.useState)(false);
@@ -14612,7 +14616,7 @@ diff --git a/client.js b/client.js
 +    try {
 +      await chat.send(text2, images.length ? { images: images.filter((file) => ["image/png", "image/jpeg", "image/webp", "image/gif"].includes(file.mediaType)), files: images.filter((file) => !["image/png", "image/jpeg", "image/webp", "image/gif"].includes(file.mediaType)) } : included.length ? { attachmentIds: included } : void 0);
 +      update("");
-+      setIncluded([]);
++      updateIncluded([]);
 +      setImages([]);
 +      onImages?.([]);
 +    } catch (error) {
@@ -14646,7 +14650,7 @@ diff --git a/client.js b/client.js
 +    attachments.length ? (0, import_react21.createElement)("fieldset", null, (0, import_react21.createElement)("legend", null, "Include registered documents"), attachments.map((row) => (0, import_react21.createElement)(
 +      "label",
 +      { key: row.id },
-+      (0, import_react21.createElement)("input", { type: "checkbox", checked: included.includes(row.id), onChange: (event) => setIncluded((value) => event.target.checked ? [...value, row.id] : value.filter((id) => id !== row.id)) }),
++      (0, import_react21.createElement)("input", { type: "checkbox", checked: included.includes(row.id), onChange: (event) => updateIncluded(event.target.checked ? [...included, row.id] : included.filter((id) => id !== row.id)) }),
 +      row.name
 +    ))) : null,
 +    rows.length ? (0, import_react21.createElement)("div", { role: "listbox", "aria-label": t("Bots") }, rows.map((row) => (0, import_react21.createElement)("button", {

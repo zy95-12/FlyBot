@@ -239,3 +239,35 @@ test('native composer selects image bytes and sends attachment-only input throug
     assert.equal(sends[0].options.images[0].mediaType, 'image/png')
   } finally { unmount?.(); dom.window.close() }
 })
+
+test('registered document selection survives native updates and clears only after successful send', async () => {
+  const bundle = await readFile(join(import.meta.dirname, '../workbench-native.js'), 'utf8')
+  const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost/', runScripts: 'outside-only', pretendToBeVisual: true })
+  const pause = () => new Promise(resolve => setTimeout(resolve, 50))
+  const sent = []
+  let unmount, fail = true
+  try {
+    dom.window.eval(bundle)
+    const node = dom.window.document.getElementById('root')
+    const options = { initialText: '@chief read', attachments: [{ id: 'doc', name: 'Document' }, { id: 'other', name: 'Other document' }], chat: { async send(text, options) { sent.push({ text, options }); if (fail) throw new Error('Try again') } } }
+    unmount = dom.window.FlyBotNativeConversation.mountNativeComposer(node, options)
+    await pause()
+    node.querySelector('input[type=checkbox]').click(); await pause()
+    assert.equal(node.querySelector('input[type=checkbox]').checked, true, 'selection must survive the controlled React render')
+    node.querySelectorAll('input[type=checkbox]')[1].click(); await pause()
+    assert.equal(node.querySelectorAll('input[type=checkbox]')[1].checked, true, 'subsequent selections survive deferred state updates')
+    for (let i = 0; i < 3; i++) {
+      unmount.update({ ...options, attachments: [{ id: 'doc', name: 'Document' }, { id: 'other', name: 'Other document' }] }); await pause()
+      assert.equal(node.querySelector('input[type=checkbox]').checked, true, 'refresh must retain selected document')
+    }
+    node.querySelector('form').dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true })); await pause()
+    assert.equal(node.querySelector('input[type=checkbox]').checked, true, 'failed send retains selection')
+    fail = false
+    node.querySelector('form').dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true })); await pause()
+    assert.equal(JSON.stringify(sent.map(row => row.options)), JSON.stringify([{ attachmentIds: ['doc', 'other'] }, { attachmentIds: ['doc', 'other'] }]))
+    assert.equal(node.querySelector('input[type=checkbox]').checked, false)
+    unmount(); unmount = null
+    unmount = dom.window.FlyBotNativeConversation.mountNativeComposer(node, options); await pause()
+    assert.equal(node.querySelector('input[type=checkbox]').checked, false, 'a new conversation does not inherit selection')
+  } finally { unmount?.(); dom.window.close() }
+})

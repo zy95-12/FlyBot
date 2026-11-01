@@ -172,11 +172,12 @@ export function ComposerPlus({ sessionId, inputActions, useRoster, actions }) {
 
 // The shared entry supplies a captured, authorized chat handle rather than the
 // owner shell's global actions. Keep dictation and mention routing shared.
-export function ScopedComposer({ chat, mentions = [], initialText = '', attachments = [], initialImages = [], allowImages = false, onImages, onDraft, onError }) {
+export function ScopedComposer({ chat, mentions = [], initialText = '', attachments = [], initialImages = [], initialIncluded = [], allowImages = false, onIncluded, onImages, onDraft, onError }) {
   const [text, setText] = useState(initialText)
   const [sending, setSending] = useState(false)
   const pending = useRef(false)
-  const [included, setIncluded] = useState([])
+  const [included, setIncluded] = useState(initialIncluded)
+  const updateIncluded = value => { setIncluded(value); onIncluded?.(value) }
   const [images, setImages] = useState(initialImages)
   const alive = useRef(true), reading = useRef(false)
   const [readingFiles, setReadingFiles] = useState(false)
@@ -210,7 +211,7 @@ export function ScopedComposer({ chat, mentions = [], initialText = '', attachme
     if (pending.current || reading.current || !text.trim() && !images.length) return
     pending.current = true
     setSending(true); setFailure('')
-    try { await chat.send(text, images.length ? { images: images.filter(file => ['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(file.mediaType)), files: images.filter(file => !['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(file.mediaType)) } : included.length ? { attachmentIds: included } : undefined); update(''); setIncluded([]); setImages([]); onImages?.([]) } catch (error) { setFailure(error.message); onError?.(error) }
+    try { await chat.send(text, images.length ? { images: images.filter(file => ['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(file.mediaType)), files: images.filter(file => !['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(file.mediaType)) } : included.length ? { attachmentIds: included } : undefined); update(''); updateIncluded([]); setImages([]); onImages?.([]) } catch (error) { setFailure(error.message); onError?.(error) }
     finally { pending.current = false; setSending(false) }
   }
   return h('form', { className: 'bt-scoped-composer', onSubmit: send, 'data-composer-card': '' },
@@ -221,7 +222,7 @@ export function ScopedComposer({ chat, mentions = [], initialText = '', attachme
     allowImages ? h('label', null, h(PaperclipIcon), 'Add files', h('input', { type: 'file', multiple: true, disabled: readingFiles || sending, onChange: upload })) : null,
     images.map((image, index) => h('div', { key: index }, image.name, h('button', { type: 'button', onClick: () => { const next = images.filter((_row, i) => i !== index); setImages(next); onImages?.(next) } }, 'Remove'))),
     attachments.length ? h('fieldset', null, h('legend', null, 'Include registered documents'), attachments.map(row => h('label', { key: row.id },
-      h('input', { type: 'checkbox', checked: included.includes(row.id), onChange: event => setIncluded(value => event.target.checked ? [...value, row.id] : value.filter(id => id !== row.id)) }), row.name))) : null,
+      h('input', { type: 'checkbox', checked: included.includes(row.id), onChange: event => updateIncluded(event.target.checked ? [...included, row.id] : included.filter(id => id !== row.id)) }), row.name))) : null,
     rows.length ? h('div', { role: 'listbox', 'aria-label': t('Bots') }, rows.map(row => h('button', {
       key: row.id, type: 'button', role: 'option', onClick: () => { update(text.slice(0, text.length - query.length) + row.name + ' '); input.current?.focus() },
     }, row.name))) : null,

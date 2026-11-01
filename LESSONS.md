@@ -635,3 +635,10 @@ Seen 1×. Integrating S1's shared TaskView left the compact board calling its st
 mapper without live activity, so actual native execution appeared as starting.
 Supply the same activity snapshot to compact and full adapters. Test both an active
 native claim and an idle stored Bot; never infer execution from Bot existence.
+
+### 2026-11-02 — Preserve drafts across native hydration
+
+Seen 1×. A fallback form can accept document selections before the native bundle
+loads. Keeping the later React root mounted does not preserve that earlier state.
+Transfer selections from the scoped fallback draft at mount time; test delayed
+asset loading as well as refresh, failed send and successful clearing.
