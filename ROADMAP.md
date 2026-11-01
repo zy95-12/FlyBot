@@ -54,7 +54,10 @@ S2 #51 durable Effects/outbox → S3 #52 input/role receipts → S4 #53 external
 Task subscriptions. S5 #54 trusted deployment/authority follows S1 and applies
 throughout; S6 #55 integrated recovery acceptance follows all five. One PR per
 implementation issue; no extra tracking-only PR. S1 PR56 has a deployed initial facade (673c741b); long-history follow-up
-b9cceb02 passed full4333 verification and awaits a safe live checkpoint.
+b9cceb02 passed full4333 verification, deployed at a released checkpoint and
+passed three-account scoped HTTP/pagination checks, preserving original UI bytes.
+S2/#51 effect/outbox code and fault regressions are implemented; full verification
+and source-bound rollout follow before S3 inputs/read receipts.
 Independent repository review is not claimed. Original #34–#41 residuals remain.
 
 ## Historical upstream roadmap

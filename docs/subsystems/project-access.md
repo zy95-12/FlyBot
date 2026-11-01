@@ -216,3 +216,7 @@ Chief inspection may explicitly select one existing Task in its authorized Proje
 ## Development service compatibility (S1)
 
 Versioned project-development requests and legacy delivery/queue/Chief/delegation endpoints now enter the shared application facade after authentication. Both retain current Project/action checks; unsupported versions, wrong operation kinds, foreign targets and stale admission preconditions are refused. Task detail adds the same derived view used by the workbench. See [service contract](project-development-service.md).
+
+## Durable effects and outbox (S2)
+
+The versioned service exposes scoped effects status and manager retry. Legacy personal comment writes now enter the same service facade; current Project, own personal credential and safe/watch authority remain mandatory. No generic effect enqueue or raw event authority is exposed to HTTP. See [effect contract](project-effects.md).

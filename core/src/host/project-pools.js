@@ -1,6 +1,7 @@
 // Per-logical-Bot routing on existing Task records. Execution remains a host adapter.
 import { randomUUID, createHash } from 'node:crypto'
 import { ownEntry } from './store.js'
+import { EffectDeferred, EffectCancelled } from './project-effects.js'
 export const POOL_PROTOCOL = 'project-handoff/v1'
 const refuse = message => Object.assign(new Error(message), { code: 'bot/handoff' })
 const clone = value => structuredClone(value)
@@ -18,6 +19,8 @@ export function createProjectPools(rt) {
     if (!target) throw refuse('Target logical Bot is not in this Project')
     return target
   }
+  const dispatchIntent = (task, row) => rt.projectEffects?.stage({ kind: 'pool.dispatch', key: row.id, projectId: task.projectId, taskId: task.id,
+    payload: { handoffId: row.id, botId: row.to, initiatedBy: row.initiatedBy } })
   async function authority(task) {
     const actor = { memberId: task.collaboration.initiatedBy }
     rt.requireProjectAccess(actor, task.projectId, 'task-write', task)
@@ -61,12 +64,24 @@ export function createProjectPools(rt) {
     await authority(task)
     const { fromRole, trustedEvidence } = await checkAdmission(task, { from, to, attemptId, requestId, purpose })
     if (expectedGeneration !== undefined && c.generation !== expectedGeneration) throw refuse('Claim generation changed before handoff admission')
-    const row = { id: `handoff-${randomUUID()}`, version: POOL_PROTOCOL, policyVersion: 'project-role-policy/v1', definitionRevision: definitions(task.projectId).revision, projectId: task.projectId, taskId: task.id, attemptId, initiatedBy: c.initiatedBy, from, to, reason, requestId, purpose, evidence: clone(trustedEvidence), claims: clone(evidence), requirements: { title: task.title, criteria: task.criteria ?? '' }, status: 'pending', generation: ++c.generation, createdAt: Date.now() }
+    const row = { id: `handoff-${randomUUID()}`, version: POOL_PROTOCOL, policyVersion: 'project-role-policy/v1', definitionRevision: definitions(task.projectId).revision, projectId: task.projectId, taskId: task.id, attemptId, initiatedBy: c.initiatedBy, from, to, reason, requestId, purpose, evidence: clone(trustedEvidence), claims: clone(evidence), requirements: { title: task.title, criteria: task.criteria ?? '' }, status: 'pending', generation: c.generation + 1, createdAt: Date.now() }
+    const before = rt.projectEffects ? { collaboration: clone(c), handoff: task.handoff, question: task.chiefQuestion } : null
+    const intent = dispatchIntent(task, row)
+    c.generation = row.generation
     c.history.push(row); c.botId = to; c.status = target.role === 'chief' ? 'arbitration' : 'queued'; c.currentHandoffId = row.id; delete c.claim
     if (c.block) { row.resolvedBlock = clone(c.block); delete c.block }
     if (task.chiefQuestion) { row.resolvedChiefQuestion = clone(task.chiefQuestion); delete task.chiefQuestion }
     task.handoff = { from: fromRole || 'requester', to: target.role, reason, at: row.createdAt }
-    await rt.save()
+    try { if (intent) await rt.projectEffects.persist(intent); else await rt.save() }
+    catch (error) {
+      if (intent && rt.projectEffects.discardUncommitted(intent)) {
+        for (const key of Object.keys(c)) delete c[key]
+        Object.assign(c, before.collaboration)
+        if (before.handoff === undefined) delete task.handoff; else task.handoff = before.handoff
+        if (before.question === undefined) delete task.chiefQuestion; else task.chiefQuestion = before.question
+      }
+      throw error
+    }
     rt.projectScheduler?.wake()
     return clone(row)
   }
@@ -85,9 +100,9 @@ export function createProjectPools(rt) {
     c.attemptId = attempt.id; c.kind = kind
     return offer(task, { from: null, to: target.id, reason: 'Authorized Task execution request', requestId: attempt.id, attemptId: attempt.id })
   }
-  async function claim(taskId, botId) {
+  async function claim(taskId, botId, handoffId) {
     const task = taskOf(taskId), c = task.collaboration
-    if (!c || c.botId !== botId || c.status !== 'queued') return null
+    if (!c || c.botId !== botId || c.status !== 'queued' || handoffId && c.currentHandoffId !== handoffId) return null
     await authority(task); targetOf(task.projectId, botId)
     if (Object.values(rt.state.tasks).some(row => row.collaboration?.claim?.botId === botId && row.collaboration.claim.status === 'active')) return null
     if (adapter.ready && !adapter.ready({ task, definition: targetOf(task.projectId, botId) })) return null
@@ -167,12 +182,12 @@ export function createProjectPools(rt) {
     }
     return true
   }
-  async function pump() {
+  async function pump(taskId, handoffId) {
     if (!adapter || rt.readOnly?.()) return
-    const offered = Object.values(rt.state.tasks).filter(task => task.collaboration?.status === 'queued')
+    const offered = Object.values(rt.state.tasks).filter(task => (!taskId || task.id === taskId) && (!handoffId || task.collaboration?.currentHandoffId === handoffId) && task.collaboration?.status === 'queued')
     for (const task of offered) {
       let token
-      try { token = await serial(() => claim(task.id, task.collaboration.botId)) }
+      try { token = await serial(() => claim(task.id, task.collaboration.botId, handoffId)) }
       catch (error) { rt.warn?.('Bot pool claim refused: %s', error.message); continue }
       if (!token) continue
       try {
@@ -285,9 +300,45 @@ export function createProjectPools(rt) {
       if (!c?.claim || c.claim.status !== 'active') continue
       c.status = 'blocked'; c.claim.status = 'interrupted'; c.block = { reason: 'Host restarted; worker exit and resources must be reconciled before reassigning', at: Date.now() }; ++c.generation; changed = true
     }
+    if (rt.projectEffects) {
+      const count = Object.keys(rt.state.projectEffects ?? {}).length
+      for (const task of Object.values(rt.state.tasks)) {
+        const c = task.collaboration
+        if (!['queued', 'arbitration'].includes(c?.status)) continue
+        const receipt = c.history?.find(row => row.id === c.currentHandoffId)
+        if (receipt?.status === 'pending') dispatchIntent(task, receipt)
+      }
+      if (Object.keys(rt.state.projectEffects ?? {}).length !== count) changed = true
+    }
     return changed
   }
   return { connect(value) { adapter = value; return () => { if (adapter === value) adapter = null } }, admit: (attempt, actor, body) => serial(() => admit(attempt, actor, body)), available, owns,
     claim: (id, botId) => serial(() => claim(id, botId)), decide: (id, token, decision) => serial(() => decide(id, token, decision)), result: row => serial(() => result(row)), pump, recover, revokePrincipal, validateClosure, retryChief: (id, actor) => serial(() => retryChief(id, actor)), chiefClaim: (id, actor) => serial(() => chiefClaim(id, actor)), chiefRoute: (body, actor) => serial(() => chiefRoute(body, actor)) }
 }
-export function install(rt) { rt.projectPools = createProjectPools(rt) }
+export function install(rt) {
+  rt.projectPools = createProjectPools(rt)
+  rt.projectEffects?.register('pool.dispatch', {
+    async validate(effect, context) {
+      const task = ownEntry(rt.state.tasks, effect.taskId), c = task?.collaboration
+      if (!task || task.projectId !== effect.projectId || c?.currentHandoffId !== effect.payload.handoffId || ['accepted', 'cancelled'].includes(task.status) || !['queued', 'arbitration', 'chief-working', 'claimed'].includes(c.status)) throw new EffectCancelled('Task ended, changed handoff or needs Chief recovery')
+      try {
+        await rt.projectDelegations?.background(effect.payload.initiatedBy, c.sourceSessionId)
+        context.assertCurrent()
+        rt.requireProjectAccess({ memberId: effect.payload.initiatedBy }, task.projectId, 'task-write', task)
+        if (task.collaboration.currentHandoffId !== effect.payload.handoffId) throw new EffectCancelled('Handoff changed during authority validation')
+      } catch (error) { throw new EffectCancelled(error instanceof EffectCancelled ? error.message : 'Initiating authority is unavailable or revoked') }
+    },
+    async run(effect) {
+      const task = ownEntry(rt.state.tasks, effect.taskId)
+      if (task.collaboration.currentHandoffId !== effect.payload.handoffId) throw new EffectCancelled('Handoff changed before dispatch')
+      if (task.collaboration.status === 'arbitration') {
+        await rt.projectChiefControl.pump()
+        if (task.collaboration.status === 'arbitration') throw new EffectDeferred('Chief is disabled or busy')
+      } else await rt.projectPools.pump(task.id, effect.payload.handoffId)
+      const c = task.collaboration
+      if (c.currentHandoffId === effect.payload.handoffId && c.status === 'queued') throw new EffectDeferred('Receiving Bot or execution resource is busy')
+      const receipt = c.history.find(row => row.id === effect.payload.handoffId)
+      return { handoffId: effect.payload.handoffId, claimId: receipt?.claimId ?? null, workerId: receipt?.execution?.workerId ?? (c.currentHandoffId === effect.payload.handoffId ? c.claim?.workerId ?? null : null), status: 'dispatch-observed' }
+    },
+  })
+}

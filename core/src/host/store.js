@@ -365,6 +365,7 @@ export function install(rt) {
     if (rt.projectPools?.recover()) migrated = true
     if (rt.projectScheduledTasks?.recover()) migrated = true
     if (rt.projectChiefControl?.recover()) migrated = true
+    if (rt.projectEffects?.recover()) migrated = true
     if (syncDesignatedChief()) migrated = true
     indexSessions()
     return { migrated: migrated || stale.length > 0, stale }
@@ -510,6 +511,7 @@ export function install(rt) {
     queued += 1
     state.revision += 1
     state.exchanges = state.exchanges.slice(-MAX_EXCHANGES)
+    const effectSnapshot = rt.projectEffects?.capture()
     const snapshot = JSON.stringify(state, null, 2)
     const run = writing.then(async () => {
       const temp = `${statePath}.${process.pid}.tmp`
@@ -527,6 +529,7 @@ export function install(rt) {
         await writeFile(temp, snapshot, 'utf8')
         ensureLock()
         await rename(temp, statePath)
+        rt.projectEffects?.saved(effectSnapshot)
         seen = stamp()
         await journal?.record(snapshot)
         rt.capabilitiesStateSaved?.()

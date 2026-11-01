@@ -13,6 +13,7 @@ import { roleContext, contextHash } from './project-role-context.js'
 import { githubPublisher } from './project-github.js'
 import { taskSessionId } from './project-task-sessions.js'
 import { testFailureExcerpt } from './project-test-diagnostics.js'
+import { EffectCancelled, EffectDeferred } from './project-effects.js'
 
 const exec = promisify(execFile)
 const hash = value => createHash('sha256').update(value).digest('hex')
@@ -54,6 +55,39 @@ export function createProjectDelivery(rt, { publisher } = {}) {
   const projectOf = id => rt.projects.repository.get(id, { includeDeleted: true })
   const settingsOf = project => repositorySettings(rt, project)
   const publisherOf = project => publisher ?? githubPublisher(settingsOf(project).github)
+  async function validatePublication(effect, context) {
+      const attempt = ownEntry(attempts(), effect.payload.attemptId), task = taskOf(effect.taskId)
+      if (!attempt || attempt.projectId !== effect.projectId || task?.deliveryAttemptId !== attempt.id || attempt.candidateSha !== effect.payload.candidateSha || ['accepted', 'cancelled'].includes(task.status) || attempt.cancelRequested) throw new EffectCancelled('Publication candidate was stopped, superseded or ended')
+      try {
+        await rt.projectDelegations?.background(effect.payload.initiatedBy, task.collaboration?.sourceSessionId)
+        rt.requireProjectAccess({ memberId: effect.payload.initiatedBy }, effect.projectId, 'task-write', task)
+      } catch { throw new EffectCancelled('Publication initiator no longer has authority') }
+      if (task.title !== attempt.requirement.title || (task.criteria ?? '') !== attempt.requirement.criteria) throw new EffectCancelled('Publication requirements changed')
+      if (!context.inline) {
+        const workers = Object.values(state.projectHarnessWorkers ?? {}).filter(row => row.attemptId === attempt.id)
+        const leases = Object.values(state.projectResourceLeases ?? {}).filter(row => row.attemptId === attempt.id)
+        if (workers.some(row => row.status !== 'released') || leases.some(row => row.status !== 'released') || Object.values(state.bots ?? {}).some(row => row.ephemeral && row.attemptId === attempt.id)) throw new EffectDeferred('Publication recovery waits for confirmed execution exit', { waitingFor: 'worker-exit' })
+      }
+      await verifyCandidate(attempt)
+      const tests = attempt.evidence.tests, review = attempt.evidence.review
+      if (!tests?.passed || tests.sha !== attempt.candidateSha || review?.sha !== attempt.candidateSha || review.verdict !== 'approve' || await fileDigest(tests.log) !== tests.sha256) throw new EffectCancelled('Publication evidence is missing or stale')
+      for (const role of DELIVERY_ROLES) await verifyExecution(attempt, role)
+      context.assertCurrent()
+      if (task.deliveryAttemptId !== attempt.id || attempt.cancelRequested || attempt.candidateSha !== effect.payload.candidateSha) throw new EffectCancelled('Publication changed during validation')
+  }
+  rt.projectEffects?.register('github.publish', {
+    validate: validatePublication,
+    async run(effect, context) {
+      const publish = async () => {
+        if (!context.inline) await validatePublication(effect, context)
+        context.assertCurrent()
+        const attempt = ownEntry(attempts(), effect.payload.attemptId)
+        await publishNow(attempt)
+        return structuredClone(attempt.pr)
+      }
+      return context.inline ? publish() : serialAttempt(effect.payload.attemptId, publish)
+    },
+  }, { replace: true })
   async function failureContext(attempt) {
     let source = attempt
     const seen = new Set()
@@ -89,6 +123,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
   }
   async function publicationOf(previous, project) {
     if (!previous) return undefined
+    if (previous.publicationEffectId && !previous.pr) throw reject('Previous publication is unresolved; reconcile its existing effect before creating rework')
     const binding = previous.pr ? { number: previous.pr.number, repository: previous.pr.repository, branch: previous.publicationBinding?.branch ?? previous.branch, previousSha: previous.candidateSha } : structuredClone(previous.publicationBinding)
     if (binding && (binding.repository !== project.repository || !Number.isSafeInteger(binding.number) || binding.number < 1 || typeof binding.branch !== 'string' || !binding.branch || !/^[a-f0-9]{40}$/.test(binding.previousSha) || previous.pr && previous.pr.sha !== previous.candidateSha)) throw reject('Existing delivery PR binding is inconsistent; reconcile before rework')
     if (binding) {
@@ -356,6 +391,15 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     await publishVerified(attempt)
   }
   async function publishVerified(attempt) {
+    if (!rt.projectEffects) return publishNow(attempt)
+    const task = taskOf(attempt.taskId)
+    const spec = { kind: 'github.publish', key: `${attempt.id}:${attempt.candidateSha}`, projectId: attempt.projectId, taskId: attempt.taskId,
+      payload: { attemptId: attempt.id, candidateSha: attempt.candidateSha, initiatedBy: task.collaboration?.initiatedBy ?? attempt.initiatedBy } }
+    const token = rt.projectEffects.stage(spec)
+    attempt.publicationEffectId = token.id
+    return rt.projectEffects.perform(spec)
+  }
+  async function publishNow(attempt) {
     const pr = await publisherOf(projectOf(attempt.projectId)).publish(attempt, projectOf(attempt.projectId))
     if (pr.sha !== attempt.candidateSha || attempt.publicationBinding && (pr.number !== attempt.publicationBinding.number || pr.repository !== attempt.publicationBinding.repository)) throw reject('Published PR does not match candidate or existing binding')
     if (attempt.cancelRequested) throw reject('Delivery was stopped')

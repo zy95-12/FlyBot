@@ -201,3 +201,7 @@ still executes downstream; raw schedule/state/DSH APIs remain refused.
 ## Development service compatibility (S1)
 
 S1 adds project-development to the restricted gateway and authenticated HTTP dispatcher. Existing UI assets remain unchanged. The old taskExecution DTO and additive taskViews derive from the service TaskView; stored native Bot existence no longer counts as active execution. Read-only hosts permit only validated query operations, not arbitrary command envelopes. See [service contract](project-development-service.md).
+
+## Durable effects and outbox (S2)
+
+The existing coalesced admission dispatcher drains due committed effects instead of directly scanning all role pools. Batches are bounded, resource/role capacities remain authoritative, and waits defer without sleeping a model. TaskView exposes exact-candidate publication recovery and scoped failed effect references; UI assets remain unchanged. See [effect contract](project-effects.md).

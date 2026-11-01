@@ -13,6 +13,15 @@ Dated, short lessons from real FlyBot work. Agents read this **before coding**. 
 
 ## Open lessons
 
+### 2026-11-01 — Awaited save is not proof an intent reached disk
+
+Seen 1× (fault probe). A reading/no-op store save can resolve without committing,
+while a journal error can reject after state rename already committed. Capture
+intent generation/revision with the exact snapshot and acknowledge the rename;
+only committed intents may dispatch. Preserve ambiguous remote receipts for
+reconciliation, and never let an old callback commit a staged replacement.
+
+
 ### 2026-11-01 — Poll summaries, retrieve complete context on demand
 
 Seen 1×. Actual Task40 accumulated25 Attempts and40MiB state; the legacy detail

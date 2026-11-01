@@ -112,3 +112,7 @@ cannot request one. Historical receipts and global token/time/step usage remain.
 Chief routes still satisfy evidence, current authority, quotas and worker-exit gates.
 Admission is preflighted before fencing a claim or creating/resuming an Attempt.
 A later preparation/authority failure records a blocked state with its decision ID.
+
+## Durable effects and outbox (S2)
+
+Each offered handoff saves its exact pool.dispatch intent in the same state snapshot. Failed pre-commit offers roll back; only a committed effect may enter the targeted original pool pump. Restart migrates old queued receipts without changing identity, and preserves interrupted/unknown claims. Dispatch receipts are not model-read or completed-work evidence; S3 adds that contract. See [effect contract](project-effects.md).

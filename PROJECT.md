@@ -91,8 +91,21 @@ The initial673c741b service facade was deployed at a proven idle boundary, with
 51 mixed-source UID998 checks and unchanged native UI assets. Live verification
 found the old25-Attempt detail response exceeded8MiB. Follow-up b9cceb02 preserves
 full history with paged summaries/hash-bound context retrieval: full UID1000
-Node24 verify4333 passed,0fail/skip. Its rollout waits for the restored frontend
-Task's next safe checkpoint; current source validation is not final UI acceptance.
+Node24 verify4333 passed,0fail/skip. It was deployed at a tested, released Chief-wait checkpoint. Owner/Maintainer/Member
+actual HTTP probes passed, including full-context paging and denied foreign/mutating
+requests; the original detail response is now about1.45MiB. Native UI bytes remain
+unchanged; frontend integration and final UI acceptance stay with Task40/PR48.
+
+### Durable service actions — S2/#51
+
+S2 stages handoff dispatch and GitHub PR/comment actions with existing state,
+requires an actual rename acknowledgement before I/O, and retains bounded retry/
+reconciliation receipts across restart. Current principals, claim generations,
+worker exit and candidate-specific tests/review remain authoritative. Private
+comment bodies are immutable artifact references, not public context or tokens.
+[Effect architecture](docs/subsystems/project-effects.md). Source implementation
+and fault-injection checks are in progress; no S2 live deployment, real GitHub
+outbox acceptance or independent repository review is claimed by those checks.
 
 ## Historical upstream Project State
 

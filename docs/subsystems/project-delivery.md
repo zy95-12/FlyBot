@@ -396,3 +396,7 @@ S1 routes legacy human delivery operations through the development service while
 S1 shared detail now pages compact Attempt summaries and offers hash-bound context
 retrieval through the service. The internal delivery records and full evidence remain
 unchanged; the live25-Attempt Task previously exceeded the gateway8MiB cap.
+
+## Durable effects and outbox (S2)
+
+Sealed PR publication now saves a stable github.publish intent before I/O and records its receipt with delivery state. Recovery verifies current source, principal, exact tests/role evidence and confirmed exit, then reconciles the original PR/branch. First publication searches all PR states; closed/changed/ambiguous artifacts cannot cause replacement PRs. Unresolved prior publication blocks blind rework. Task closure remains Chief/human acceptance. See [effect contract](project-effects.md).
