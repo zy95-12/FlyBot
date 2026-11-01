@@ -17,11 +17,23 @@ export function taskSession(state, session) {
 export function backendBindingKey({ harness, resourceId, principalId, cwd, model, profile, definition }) {
   return digest({ harness, resourceId, principalId, cwd, model, home: profile.home, configDir: profile.configDir, baseUrl: profile.baseUrl ?? null, definition })
 }
+// Both lifecycle proofs are produced by the host, never by role output. A prior
+// service exit must be tied to the exact lease the supervisor reconciled.
+export function confirmedWorkerExit(state, worker) {
+  if (worker?.status !== 'released') return false
+  const proof = worker.releaseProof
+  if (proof?.kind === 'sdk-stop-ack-and-process-exit') return proof.generation === worker.generation
+  if (proof?.kind !== 'systemd-prior-invocation-exited' || !/^[a-f0-9]{32}$/.test(proof.previousInvocationId ?? '')) return false
+  const lease = ownEntry(state.projectResourceLeases ?? {}, worker.leaseId)
+  return Boolean(lease?.status === 'released' && lease.projectId === worker.projectId && lease.attemptId === worker.attemptId && lease.role === worker.role && lease.resourceId === worker.resourceId && lease.generation === worker.generation &&
+    lease.worker?.kind === 'sdk' && lease.worker.handle === worker.id && lease.processScope?.kind === 'systemd-control-group' && lease.processScope.killMode === 'control-group' && lease.processScope.invocationId === proof.previousInvocationId &&
+    lease.releaseProof?.kind === proof.kind && lease.releaseProof.previousInvocationId === proof.previousInvocationId)
+}
 export function resumableBinding(state, record, key) {
   const previous = record.bindings.findLast(row => row.key === key)
   if (!previous) return null
   const worker = ownEntry(state.projectHarnessWorkers ?? {}, previous.workerId)
   const lease = worker && ownEntry(state.projectResourceLeases ?? {}, worker.leaseId)
-  if (!worker || worker.projectId !== record.projectId || worker.taskId !== record.taskId || worker.role !== record.role || worker.logicalSessionId !== record.id || worker.bindingKey !== key || worker.status !== 'released' || worker.releaseProof?.kind !== 'sdk-stop-ack-and-process-exit' || worker.releaseProof.generation !== worker.generation || lease?.status !== 'released' || lease.projectId !== record.projectId || lease.resourceId !== worker.resourceId || lease.generation !== worker.generation || worker.backendSessionId !== previous.sessionId) throw new Error('Previous Task Session exit or binding is unconfirmed')
+  if (!worker || worker.projectId !== record.projectId || worker.taskId !== record.taskId || worker.role !== record.role || worker.logicalSessionId !== record.id || worker.bindingKey !== key || !confirmedWorkerExit(state, worker) || lease?.status !== 'released' || lease.projectId !== record.projectId || lease.resourceId !== worker.resourceId || lease.generation !== worker.generation || worker.backendSessionId !== previous.sessionId) throw new Error('Previous Task Session exit or binding is unconfirmed')
   return previous
 }

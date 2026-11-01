@@ -37,3 +37,27 @@ test('resumption requires same-scope backend identity and confirmed worker and l
   }
   assert.throws(()=>resumableBinding({},record,'key'),/unconfirmed/)
 })
+
+
+test('supervisor-confirmed prior invocation permits same Task-role resumption with exact lease proof', () => {
+  const proof={kind:'systemd-prior-invocation-exited',previousInvocationId:'a'.repeat(32),at:123}
+  const record={id:'logical',projectId:'p',taskId:'t',role:'developer',bindings:[{key:'key',workerId:'w',sessionId:'thread'}]}
+  const original={projectHarnessWorkers:{w:{id:'w',projectId:'p',taskId:'t',attemptId:'a',role:'developer',logicalSessionId:'logical',bindingKey:'key',leaseId:'l',resourceId:'r',generation:2,status:'released',backendSessionId:'thread',releaseProof:proof}},projectResourceLeases:{l:{id:'l',projectId:'p',attemptId:'a',role:'developer',resourceId:'r',generation:2,status:'released',worker:{kind:'sdk',handle:'w'},processScope:{kind:'systemd-control-group',killMode:'control-group',invocationId:'a'.repeat(32)},releaseProof:proof}}}
+  assert.equal(resumableBinding(original,record,'key').sessionId,'thread')
+  const mutations=[
+    s=>{s.projectResourceLeases.l.releaseProof=null},
+    s=>{s.projectResourceLeases.l.releaseProof.previousInvocationId='b'.repeat(32)},
+    s=>{s.projectResourceLeases.l.processScope.invocationId='b'.repeat(32)},
+    s=>{s.projectResourceLeases.l.processScope.kind='unmanaged-process'},
+    s=>{s.projectResourceLeases.l.processScope.killMode='process'},
+    s=>{s.projectResourceLeases.l.worker.handle='other'},
+    s=>{s.projectResourceLeases.l.worker.kind='native'},
+    s=>{s.projectResourceLeases.l.attemptId='other'},
+    s=>{s.projectResourceLeases.l.role='reviewer'},
+    s=>{s.projectResourceLeases.l.generation=3},
+    s=>{s.projectResourceLeases.l.status='unreachable'},
+    s=>{s.projectHarnessWorkers.w.releaseProof={...proof,previousInvocationId:''}},
+    s=>{s.projectHarnessWorkers.w.status='unreachable'},
+  ]
+  for(const mutate of mutations){const s=JSON.parse(JSON.stringify(original));mutate(s);assert.throws(()=>resumableBinding(s,record,'key'),/unconfirmed/)}
+})

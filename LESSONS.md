@@ -13,6 +13,15 @@ Dated, short lessons from real FlyBot work. Agents read this **before coding**. 
 
 ## Open lessons
 
+### 2026-11-02 — Consumers must agree on host exit proof kinds
+
+Seen 2×. Resource reconciliation correctly released workers after a prior systemd
+invocation exited, while both workspace reuse and logical Session resumption still
+accepted only SDK stop acknowledgements. Share a proof predicate and bind supervisor
+proof to the exact released lease/generation/scope; never infer exit from status or
+clear a workspace lock to compensate for a mismatched proof vocabulary.
+
+
 ### 2026-11-01 — Poll summaries, retrieve complete context on demand
 
 Seen 1×. Actual Task40 accumulated25 Attempts and40MiB state; the legacy detail

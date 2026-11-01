@@ -2,6 +2,10 @@
 
 ## Active fork roadmap — 2026-10-31
 
+Immediate compatibility repair #57 removes the verified prior-invocation workspace
+and Session resumption blocker before continuing service #51–#55. Preserve the
+current frontend Task/Attempt/PR and unknown-exit protections.
+
 Current execution order (Owner update, 2026-11-01): keep the existing frontend
 #40 Task/PR48 autonomous while implementing backend #49–#55 directly in the
 foreground session, in separate issue worktrees and with staged verified rollout.
