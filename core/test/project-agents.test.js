@@ -36,6 +36,28 @@ async function setup(t) {
 const get = (rt, actor, projectId = 'p1') => rt.projectEndpoint('project-agents', { projectId }, actor)
 const message = (rt, actor, visibility = 'private', text = 'Read my Project context') => rt.projectEndpoint('project-agent-message', { projectId: 'p1', visibility, text, publicationApproved: visibility === 'public' }, actor)
 
+test('knowledge checkpoints require current manager authority and exact same-Project source hashes', async t => {
+  const {rt} = await setup(t)
+  const {contextHash} = await import('../src/host/project-role-context.js')
+  await rt.projectEndpoint('project-knowledge-write', {projectId: 'p1', text: 'Old public fact'}, alice)
+  const old = rt.state.projectKnowledge.p1[0]
+  const supersedes = [{id: old.id, sha256: contextHash(JSON.stringify(old))}]
+  const body = {projectId: 'p1', text: 'Current reviewed summary', supersedes}
+  await assert.rejects(rt.projectEndpoint('project-knowledge-write', body, bob), /access denied/)
+  await assert.rejects(rt.projectEndpoint('project-knowledge-write', {...body, projectId: 'p2'}, alice), /checkpoint/i)
+  await assert.rejects(rt.projectEndpoint('project-knowledge-write', {...body, supersedes: [{...supersedes[0], sha256: 'wrong'}]}, alice), /checkpoint/i)
+  await assert.rejects(rt.projectEndpoint('project-knowledge-write', {...body, supersedes: [...supersedes, ...supersedes]}, alice), /checkpoint/i)
+  for (const invalid of [[], [null], 'all', Array(513).fill(supersedes[0])]) await assert.rejects(rt.projectEndpoint('project-knowledge-write', {...body, supersedes: invalid}, alice), /checkpoint/i)
+  assert.equal(rt.state.projectKnowledge.p1.length, 1)
+  await rt.projectEndpoint('project-knowledge-write', body, alice)
+  assert.deepEqual(rt.state.projectKnowledge.p1[0], old)
+  assert.equal(rt.state.projectKnowledge.p1[1].checkpoint.version, 'project-knowledge-checkpoint/v1')
+  assert.deepEqual(rt.state.projectKnowledge.p1[1].checkpoint.supersedes, supersedes)
+  assert.equal((await get(rt, bob)).knowledge.length, 2, 'Current members retain full public history')
+  await rt.projectEndpoint('project-knowledge-write', {projectId: 'p1', text: 'Member may still append an ordinary fact'}, bob)
+  assert.equal(rt.state.projectKnowledge.p1.length, 3)
+})
+
 test('private agents have stable per-user/project identities and only shared public facts overlap', async t => {
   const { rt } = await setup(t)
   const a = await get(rt, alice)

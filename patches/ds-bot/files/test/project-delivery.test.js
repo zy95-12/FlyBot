@@ -803,6 +803,29 @@ test('context failure releases an actual unbound reservation before registering 
   assert.equal(a.workspaces.developer.status,'allocated')
 })
 
+test('a preparation-only successor retains its inherited sealed seed across another rework', async t => {
+  const f = await setup(t, undefined, { pool: true })
+  f.rt.projectScheduler.wake = () => {}
+  f.rt.projectPools.connect({validate: () => ({ok: true})})
+  await f.start('retain-seed')
+  const first = f.attempt(), task = f.rt.state.tasks[f.task.id]
+  const dev = f.rt.projectAgents.deliveryDefinitions('p1').roles.find(row => row.role === 'developer')
+  await f.rt.projectDelivery.preparePoolRole(task, {id: 'original-dev', attemptId: first.id, generation: 1}, dev)
+  writeFileSync(join(first.workspaces.developer.path, 'code.mjs'), 'export const add = (a,b) => a+b;\n')
+  await f.rt.projectDelivery.completePoolRole({task, claim: {attemptId: first.id}, role: 'developer', outputs: {implementation: 'Fixed'}})
+  const seed = first.candidateSha
+  const nextId = await f.rt.projectDelivery.reworkPool({task, claim: {attemptId: first.id, id: 'return-one', botId: 'chief'}, reason: 'Continue native UI', force: true})
+  const next = f.rt.state.projectAttempts[nextId]
+  assert.equal(next.seedSha, seed)
+  next.status = 'interrupted'
+  const finalId = await f.rt.projectDelivery.reworkPool({task, claim: {attemptId: nextId, id: 'preparation-retry', botId: 'chief'}, reason: 'Context preparation repaired', force: true})
+  const final = f.rt.state.projectAttempts[finalId]
+  assert.equal(final.seedSha, seed)
+  await f.rt.projectDelivery.preparePoolRole(task, {id: 'recovered-dev', attemptId: finalId, generation: 3}, dev)
+  assert.match(readFileSync(join(final.workspaces.developer.path, 'code.mjs'), 'utf8'), /a\+b/)
+  assert.equal(next.status, 'interrupted', 'Original failed preparation history remains')
+})
+
 test('workspace allocation failure releases an actual reservation before any external execution', async t => {
   const f = await setup(t, undefined, { pool: true })
   f.rt.projectPools.connect({ validate: () => ({ ok: true }) })

@@ -419,3 +419,14 @@ control instead of stopping at the latest 100 messages. Loaded pages survive
 polling and stay scoped to the opened identity/part; targeted regressions cover
 navigation and revocation. New candidate host verification and deployed acceptance
 remain separate.
+
+R6 context recovery: managers may publish an exact-source knowledge checkpoint
+through project-knowledge-write with hashed supersedes references. Original facts,
+versions and authors remain readable; role snapshots contain the current summary,
+newer facts and history digests under the unchanged48k cap. Invalid/stale checkpoints
+never hide original records. See Project agents architecture.
+
+Preparation-only retries retain an inherited sealed seed even when no new candidate
+was produced, so restarting after context repair cannot silently discard prior UI.
+
+#40 CSS/logout slice: original shell/conversation/sidebar rules now ship in the same-origin native stylesheet under the existing CSP. Sign out invalidates pending work immediately, including when an action is busy. Focused local tests are distinct from deployed visual acceptance; native composer/tool/approval and full legacy interaction parity remain outstanding.

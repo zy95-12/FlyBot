@@ -252,3 +252,11 @@ candidate screenshots/service acceptance remain explicit remaining work.
 R7 returned-candidate follow-up adds scoped personal-history pagination with
 refresh retention and late-page privacy regressions. Same Task/PR lineage remains;
 this local repair does not establish deployed UI acceptance.
+
+Current frontend recovery blocker: shared operational history exceeded role context
+admission. R6 adds explicit manager-published knowledge checkpoints preserving all
+source records; test and deploy the current projection, publish an authorized concise
+checkpoint, then restore the same086 Attempt through scoped Chief judgement. Original
+PR48/native styles/composer/legacy interactions remain accepted frontend work.
+
+#40 continuation integrates pinned backend b3a1a6ed without discarding native UI changes. Same-origin native CSS and immediate logout isolation are the current verification slice. Native composer/tool/approval/stop integration and real three-account/weak-network screenshots remain required before Chief completion.

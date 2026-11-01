@@ -81,3 +81,11 @@ test('scoped native sidebar preserves original parent relationships and collapse
     assert.ok(node.querySelector('[data-bot-id="child"]'))
   } finally { unmount?.(); dom.window.close() }
 })
+
+test('same-origin native stylesheet includes the original mark and conversation rules under CSP', async () => {
+  const css = await readFile(join(import.meta.dirname, '../workbench-native.css'), 'utf8')
+  assert.ok(/\.bt-mark svg\{width:100%;height:100%/.test(css), 'same-origin CSS must contain native mark dimensions')
+  assert.match(css, /\.bt-bubble/)
+  const app = await readFile(join(import.meta.dirname, '../src/client/workbench/app.js'), 'utf8')
+  assert.doesNotMatch(app, /el\('style', native\.nativeConversationCss\)/)
+})

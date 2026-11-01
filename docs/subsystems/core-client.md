@@ -440,3 +440,7 @@ The scoped workbench mounts the same AssistantCell, BotRow, RoomRow and TreeNode
 components as the native sidebar/conversation. Its personal tree derives only from
 member-visible parent IDs; current-part identity is normalized before selection.
 The lazy bundle is regenerated with the main client when these shared components change.
+
+## Shared native stylesheet
+
+Sidebar rules live in sidebar-styles.js with their motion dependency, re-exported by the original sidebar. The workbench build includes these plus original shell/conversation rules in workbench-native.css; shared CSP does not require inline style injection. Original client build still consumes the same canonical rules.

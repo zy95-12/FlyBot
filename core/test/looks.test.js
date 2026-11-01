@@ -53,7 +53,7 @@ test('the whole Settings dialog is Settings; one Bot opens as Edit Bot or Bot se
   assert.match(text('remote-bot-settings.js'), /tabIndex: -1, ref: dialog, onKeyDown/)
   assert.match(text('remote-bot-settings.js'), /event\.key === 'Escape'\) \{ event\.stopPropagation\(\); close\(\) \}/)
   assert.match(text('remote-bot-settings.js'), /focus\?\.\(\{ preventScroll: true \}\)/)
-  assert.match(text('sidebar.js'), /\.bt-tree-item>\.bt-row-wrap\{flex:1 1 auto;width:auto;min-width:0\}/)
+  assert.match(text('sidebar-styles.js'), /\.bt-tree-item>\.bt-row-wrap\{flex:1 1 auto;width:auto;min-width:0\}/)
   assert.match(text('sidebar.js'), /bt-row-settings/)
   // #421: an own Bot row's gear never leaves the sidebar or the page scrolled sideways.
   assert.match(text('sidebar.js'), /onFocus: event => keepSidebarStill\(event\.currentTarget\)/)

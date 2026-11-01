@@ -311,3 +311,30 @@ Unverified previews remain inline under the unchanged 48,000-character limit;
 knowledge, memory and complete policy rules are preserved.
 
 Board-only `project-agents {view: summary}` returns the current public Chief identity after the same membership checks; it neither creates a private carrier nor returns private notes/proposals or role-policy bodies. Full settings/conversation responses retain their existing ownership scope.
+
+
+## Explicit knowledge checkpoints (R6 context recovery)
+
+`project-knowledge-write {projectId,text,kind,supersedes:[{id,sha256}]}` optionally
+publishes a manager-authored current summary. Ordinary append remains available
+to current Project members; checkpoint publication additionally requires configure
+permission. Each reference must name a distinct existing record in this Project
+with SHA256 of its exact JSON representation. Missing/foreign/changed records,
+malformed references or more than512 entries fail before appending. No record is
+deleted, rewritten or attributed to a different human. The full public history
+remains available in project-agents/context under existing Project authorization;
+private memory is never a checkpoint source. A summary is human-published task
+data, not proof or additional authority.
+
+Role context verifies each checkpoint against earlier source records. Only valid
+explicitly covered entries leave the inline view; checkpoint text and later facts
+remain. The context carries covered-history count/digest/retention source and
+bounded checkpoint reference metadata. Snapshot sources retain every input ID and
+hash. Stale/invalid references retain original records and the existing48,000-char
+limit still rejects overflow. Requirements, memory and full repository policy are
+unchanged. No automatic lossy model summary or privilege widening is introduced.
+
+Regressions cover actual API manager/member/Project boundaries, no side effects on
+refusal, immutable history, invalid/forward/duplicate/tampered refs, subsequent facts
+and both Developer/Chief admission below the unchanged cap. Live publication and
+actual execution recovery are separate acceptance evidence.

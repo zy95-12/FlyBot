@@ -76,6 +76,17 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
     node.onsubmit = event => { event.preventDefault(); const data = new win.FormData(node), values = Object.fromEntries(data); for (const [field, , type] of fields) if (type === 'checkboxes') values[field] = data.getAll(field); void act(async () => { await submit(values); drafts.delete(key) }) }
     return node
   }
+  async function signOut() {
+    // Invalidate every pending read/action before waiting for remote revocation.
+    ++epoch; controller?.abort(); loading = null; clearConversation()
+    const revoke = api.call('auth-revoke')
+    api.setToken(''); void closeTerminal()
+    personal = personalMemory = null; drafts.clear(); notice = ''; error = ''
+    bootstrap = null; selected = ''; busy = false
+    detail = resources = agents = members = history = taskDetail = workflowState = rooms = roomView = pools = null
+    render()
+    try { await revoke } catch { /* Local logout remains effective if the server is unavailable. */ }
+  }
   async function act(action) {
     if (busy) return
     const captured = epoch
@@ -299,8 +310,7 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
       if (disposed || source !== conversationSource || !transcript.isConnected) return
       const native = win.FlyBotNativeConversation
       if (!native) return
-      const style = el('style', native.nativeConversationCss)
-      transcript.replaceChildren(style)
+      transcript.replaceChildren()
       const target = el('div'); transcript.append(target)
       nativeUnmount = native.mountNativeConversation(target, { source, bots,
         openBot: id => { if (tab === 'personal' && personal?.bots.some(bot => bot.id === id)) win.location.hash = `/personal/${encodeURIComponent(id)}` },
@@ -454,7 +464,7 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
         for (const room of rooms?.rooms ?? []) roomNav.append(button(room.name, () => route(selected, 'rooms', room.id)))
         sidebar.append(roomNav)
       }
-      sidebar.append(button('All Projects', () => { win.location.hash = '' }), button('Sign out', () => act(async () => { clearConversation(); await closeTerminal(); await api.call('auth-revoke'); api.setToken(''); personal = personalMemory = null; drafts.clear(); notice = ''; bootstrap = null; selected = ''; ++epoch; detail = resources = agents = members = history = taskDetail = workflowState = rooms = roomView = pools = null })))
+      sidebar.append(button('All Projects', () => { win.location.hash = '' }), button('Sign out', () => { void signOut() }))
       if (tab === 'personal') {
         const chatList = el('div', null, 'native-personal-list'); sidebar.append(chatList); mountPersonalList(chatList)
         main.append(el('h1', 'Personal space'), el('p', 'Your original Chief, Bots and internal group conversations. Project agents remain separate.'))

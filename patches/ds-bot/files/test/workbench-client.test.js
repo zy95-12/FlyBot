@@ -314,3 +314,22 @@ test('personal conversation earlier-history button sends the scoped cursor and r
   await app.refresh()
   assert.ok(![...root.querySelectorAll('button')].some(node => node.textContent === 'Load earlier messages'))
 })
+
+test('first sign out bypasses a pending action and fences its late result', async t => {
+  let release
+  const pending = new Promise(resolve => { release = resolve })
+  const { root, calls } = fixture(t, endpoint => endpoint === 'task-create' ? pending : undefined)
+  await tick()
+  const form = root.querySelector('form')
+  form.querySelector('[name=title]').value = 'Pending'
+  form.querySelector('[name=criteria]').value = 'Pending'
+  form.dispatchEvent(new root.ownerDocument.defaultView.Event('submit', { cancelable: true }))
+  await tick()
+  ;[...root.querySelectorAll('button')].find(node => node.textContent === 'Sign out').click()
+  await tick()
+  assert.ok(calls.some(row => row.endpoint === 'auth-revoke'))
+  assert.doesNotMatch(root.textContent, /Pending|Alpha/)
+  release({})
+  await tick()
+  assert.doesNotMatch(root.textContent, /Pending|Alpha/)
+})

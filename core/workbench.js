@@ -269,6 +269,28 @@
       };
       return node;
     }
+    async function signOut() {
+      ++epoch;
+      controller?.abort();
+      loading = null;
+      clearConversation();
+      const revoke = api.call("auth-revoke");
+      api.setToken("");
+      void closeTerminal();
+      personal = personalMemory = null;
+      drafts.clear();
+      notice = "";
+      error = "";
+      bootstrap = null;
+      selected = "";
+      busy = false;
+      detail = resources = agents = members = history = taskDetail = workflowState = rooms = roomView = pools = null;
+      render();
+      try {
+        await revoke;
+      } catch {
+      }
+    }
     async function act(action) {
       if (busy) return;
       const captured = epoch;
@@ -571,8 +593,7 @@ ${result.text}`;
         if (disposed || source !== conversationSource || !transcript.isConnected) return;
         const native = win.FlyBotNativeConversation;
         if (!native) return;
-        const style = el("style", native.nativeConversationCss);
-        transcript.replaceChildren(style);
+        transcript.replaceChildren();
         const target = el("div");
         transcript.append(target);
         nativeUnmount = native.mountNativeConversation(target, {
@@ -775,19 +796,9 @@ ${result.text}`;
         }
         sidebar.append(button("All Projects", () => {
           win.location.hash = "";
-        }), button("Sign out", () => act(async () => {
-          clearConversation();
-          await closeTerminal();
-          await api.call("auth-revoke");
-          api.setToken("");
-          personal = personalMemory = null;
-          drafts.clear();
-          notice = "";
-          bootstrap = null;
-          selected = "";
-          ++epoch;
-          detail = resources = agents = members = history = taskDetail = workflowState = rooms = roomView = pools = null;
-        })));
+        }), button("Sign out", () => {
+          void signOut();
+        }));
         if (tab === "personal") {
           const chatList = el("div", null, "native-personal-list");
           sidebar.append(chatList);

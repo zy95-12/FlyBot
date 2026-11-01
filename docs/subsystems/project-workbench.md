@@ -310,3 +310,7 @@ The scoped source prepends the authorized page, deduplicates by stable message I
 and retains loaded history and its oldest cursor across latest-page polling.
 Opening another Bot/part clears that cache; generation fencing and failed
 authorization discard late pages. Project conversation refresh semantics are unchanged.
+
+## Native CSS and logout isolation
+
+The workbench native stylesheet includes canonical shell, conversation and sidebar rules as a same-origin asset. Conversation mounting inserts no inline stylesheet. Sign out bypasses the action busy lock, increments the scope epoch, aborts current reads, disposes conversation roots and clears local credentials/state before awaiting remote revocation. Late action results cannot restore the former view. Local component checks do not establish deployed browser acceptance or complete native composer integration.

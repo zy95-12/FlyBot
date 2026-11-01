@@ -111,3 +111,5 @@ pinned upstream as integration inputs. This continuation reuses original persona
 sidebar tree controls, without adding global owner-shell access. The scoped slice
 is not full native shell parity or Owner visual acceptance; remaining native
 composer/tool/approval integration and browser evidence stay on the same Task.
+
+#40 CSS/logout continuation retains the existing CSP and native canonical styles through a generated same-origin asset. Immediate local logout fences pending actions while remote revocation settles. This implements an authorized frontend slice, not a new permission or a claim of full UI acceptance.

@@ -462,3 +462,15 @@ collapse/expansion and current-part selection, not merely presence of a Bot name
 Seen 1×. Returning hasMore/beforeSeq alone left personal history capped at the
 latest page. Wire the earlier-page control through the scoped source, retain
 loaded pages during polling, and fence navigation/revocation before merging replies.
+
+### 2026-11-01 — Append-only history must not become an unbounded prompt
+
+Seen 1×. Actual41-entry shared knowledge blocked Developer before SDK registration
+and Chief failed without execution evidence. Preserve source records/authors and
+publish a current manager checkpoint bound to exact prior hashes. Project only
+verified covered history to digests, retain newer facts, and reject stale references
+without hiding originals. Do not raise caps, truncate criteria or blindly retry.
+
+### 2026-11-01 — Native component styles must survive the shared CSP
+
+Seen 1×. Mounting original components with an inline style silently lost mark dimensions under style-src self. Generate shared shell/conversation/sidebar rules into the same-origin asset, keep extracted animation dependencies explicit, and assert the generated asset. Logout must invalidate pending actions before awaiting remote revocation.
