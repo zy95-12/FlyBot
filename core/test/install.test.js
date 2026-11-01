@@ -36,6 +36,7 @@ test('apply registers listeners, tools, and effects in a fixed order', (t) => {
   assert.equal(ctx.registeredTools.has('project_agent_context'), false, 'legacy mode does not expose workbench tools')
   assert.deepEqual(ctx.calls, [
     'effect ds-bot: state lock',
+    'effect ds-bot: Project effects',
     // Project scope guard stays installed even if the workbench is later disabled.
     'on session/event',
     // Reject stale Project delegations, then intercept managed schedule deliveries.

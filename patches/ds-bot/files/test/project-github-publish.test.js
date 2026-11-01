@@ -16,13 +16,19 @@ function fixture(t) {
   const candidate = git(path, 'rev-parse', 'HEAD')
   const attempt = { candidateSha: candidate, branch: 'new-attempt', taskId: 'same-task', requirement: { title: 'Repair', criteria: 'Keep one PR' }, workspaces: { developer: { path } }, publicationBinding: { number: 48, repository: 'example/demo', branch: 'existing', previousSha: previous, upstreamSha: previous, upstreamRef: 'main' } }
   const calls = []; let pushes = 0, creates = 0
-  let override = {}, postPushOverride = {}, beforePush = () => {}, upstream = previous
+  let override = {}, postPushOverride = {}, beforePush = () => {}, upstream = previous, unbound = [], loseReply = false
   const request = async (url, options = {}) => {
     calls.push({ url, method: options.method ?? 'GET' })
     if (url.endsWith('/user')) return Response.json({ login: 'automation' })
-    if (options.method === 'POST') { creates++; return Response.json({ number: 99, head: { sha: candidate }, html_url: 'https://example.invalid/pr/99' }) }
+    if (options.method === 'POST') {
+      creates++
+      const pr = { number: 99, state: 'open', head: { sha: candidate }, html_url: 'https://example.invalid/pr/99', body: JSON.parse(options.body).body }
+      unbound = [pr]
+      if (loseReply) { loseReply = false; throw Error('Lost response after PR creation') }
+      return Response.json(pr)
+    }
     if (url.includes('/git/ref/heads/')) return Response.json({ object: { type: 'commit', sha: upstream } })
-    if (url.includes('/pulls?')) return Response.json([])
+    if (url.includes('/pulls?')) return Response.json(unbound)
     return Response.json({ number: 48, state: 'open', draft: true, base: { ref: 'main', sha: 'f'.repeat(40), repo: { full_name: 'example/demo' } }, head: { ref: 'existing', repo: { full_name: 'example/demo' }, sha: git(path, '--git-dir', remote, 'rev-parse', 'existing') }, html_url: 'https://example.invalid/pr/48', ...(pushes ? postPushOverride : override) })
   }
   const run = async (command, args, options) => {
@@ -32,7 +38,7 @@ function fixture(t) {
   }
   const publisher = githubPublisher({ credential: 'gh-cli', configDir: '/fixture/explicit-gh', login: 'automation' }, { request, run })
   t.after(() => rmSync(path, { recursive: true, force: true }))
-  return { publisher, attempt, previous, candidate, remote, path, calls, counters: () => ({ pushes, creates }), override(value) { override = value }, postPushOverride(value) { postPushOverride = value }, beforePush(value) { beforePush = value }, upstream(value) { upstream = value } }
+  return { publisher, attempt, previous, candidate, remote, path, calls, counters: () => ({ pushes, creates }), override(value) { override = value }, postPushOverride(value) { postPushOverride = value }, beforePush(value) { beforePush = value }, upstream(value) { upstream = value }, loseReply() { loseReply = true }, unbound(value) { unbound = value } }
 }
 
 test('published rework advances the same PR branch and retains the old candidate without creating a PR', async t => {
@@ -80,6 +86,24 @@ test('a first publication still uses its new Attempt branch', async t => {
   const pr = await f.publisher.publish(f.attempt, { repository: 'example/demo', defaultBranch: 'main' })
   assert.equal(pr.number, 99); assert.deepEqual(f.counters(), { pushes: 1, creates: 1 })
   assert.equal(git(f.path, '--git-dir', f.remote, 'rev-parse', 'new-attempt'), f.candidate)
+})
+
+test('first-PR response loss reuses its marker/branch receipt; closed or changed PRs never create a replacement', async t => {
+  const f = fixture(t); delete f.attempt.publicationBinding
+  f.attempt.publicationEffectId = 'effect-stable'
+  f.loseReply()
+  await assert.rejects(f.publisher.publish(f.attempt, { repository: 'example/demo', defaultBranch: 'main' }), /Lost response/)
+  assert.equal(f.counters().creates, 1)
+  const recovered = await f.publisher.publish(f.attempt, { repository: 'example/demo', defaultBranch: 'main' })
+  assert.equal(recovered.number, 99)
+  assert.equal(f.counters().creates, 1)
+  assert.ok(f.calls.some(row => row.url.includes('state=all')))
+  for (const prior of [[{ state: 'closed', head: { sha: f.candidate } }], [{ state: 'open', head: { sha: 'f'.repeat(40) } }], [{ state: 'open' }, { state: 'closed' }]]) {
+    f.unbound(prior)
+    const before = f.counters()
+    await assert.rejects(f.publisher.publish(f.attempt, { repository: 'example/demo' }), /reconcile/)
+    assert.deepEqual(f.counters(), before)
+  }
 })
 
 

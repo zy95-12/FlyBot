@@ -130,3 +130,7 @@ The [development service](subsystems/project-development-service.md) routes vers
 commands, trusted host events and queries to existing Project modules. Legacy HTTP,
 agent and schedule adapters share the same business implementations and derived
 TaskView; no second executor/store or new control-plane component is introduced.
+
+The [effect/outbox layer](subsystems/project-effects.md) commits host action intents
+with existing Project state and reconciles results through the same authorized
+adapters. It does not replace role pools, SDK lifecycle or Chief adjudication.

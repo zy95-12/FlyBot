@@ -901,3 +901,7 @@ APIs in the concrete channel dispatcher, with Project rights checked downstream.
 ## Development service (S1)
 
 The authenticated channel and shared-mode authorizer register project-development. Read-only replicas validate a query envelope through the service query predicate; command envelopes remain writes. Legacy endpoint shapes stay compatible. See [service contract](project-development-service.md).
+
+## Durable effects and outbox (S2)
+
+S2 store snapshots capture effect generation/revision metadata and acknowledge it only after state.json rename, before optional journal recording. Project effects remain on the same writer/lock and recover after original delivery/resource/pool recovery; awaiting a no-op save cannot authorize external I/O. See [effect contract](project-effects.md).

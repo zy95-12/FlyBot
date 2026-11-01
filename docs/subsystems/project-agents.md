@@ -339,3 +339,7 @@ RoleContext retrieval mode retains the48k admission ceiling and all original req
 ## Development service compatibility (S1)
 
 Scoped agent run/watch actions retain their existing authorization and legacy endpoint calls, which now route to the development facade. No new agent tool authority or permission to submit raw role events is added. See [service contract](project-development-service.md).
+
+## Durable effects and outbox (S2)
+
+Personal public writes use a durable outbox when the effect host is installed. State retains immutable-body hashes/references, current human/grant provenance and verified public receipts; text remains a private0600 artifact and cookies/tokens/transient browser actors are not persisted. Background work rechecks current authority and never falls back to automation credentials. See [effect contract](project-effects.md).

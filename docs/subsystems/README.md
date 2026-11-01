@@ -58,3 +58,5 @@ Chief arbitration, inspection configuration and original schedule mapping:
 [project-chief-control](project-chief-control.md).
 
 Automatic development service and unified TaskView: [project-development-service](project-development-service.md).
+
+Persistent Project effects and GitHub receipts: [project-effects](project-effects.md).

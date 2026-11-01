@@ -123,3 +123,7 @@ scope/permissions, deterministic pagination, projection purity, phase precedence
 role/schedule ports and actual HTTP/gateway routing. Full verify includes real DSH
 deterministic runtime probes; these are not real-model or independent Review PASS.
 S2–S6 retain their own fault-injection and live acceptance obligations.
+
+## Durable effects and outbox (S2)
+
+S2 adds query effects {taskId?,limit?} and commands effect.retry {effectId}, comment.publish {issueNumber,text}. Retry requires current configuration authority and stable requestId and cannot revive cancelled/stopped work. Effect status responses omit payload/history/body references. TaskView shows current-candidate publication waits and retry actions; an older candidate cannot mask a current failure. See [effect contract](project-effects.md).
