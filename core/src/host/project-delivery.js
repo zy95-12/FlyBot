@@ -65,6 +65,22 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     }
     return binding
   }
+  async function refreshUnstartedPublication(attempt, project, claim) {
+    if (!attempt.publicationBinding) return
+    const previous = structuredClone(attempt.publicationBinding)
+    const current = await publicationOf(attempt, project)
+    if (attempt.status !== 'running' || taskOf(attempt.taskId)?.deliveryAttemptId !== attempt.id || JSON.stringify(attempt.publicationBinding) !== JSON.stringify(previous)) throw reject('PR upstream refresh snapshot is stale or unavailable')
+    if (current.upstreamSha === previous.upstreamSha && current.upstreamRef === previous.upstreamRef) return
+    const leases = Object.values(state.projectResourceLeases ?? {}).filter(row => row.attemptId === attempt.id)
+    const recorded = attempt.cancelRequested || attempt.candidateSha || Object.keys(attempt.roleSessions ?? {}).length || attempt.roleSessionHistory?.length || Object.keys(attempt.evidence ?? {}).length || Object.values(state.projectHarnessWorkers ?? {}).some(row => row.attemptId === attempt.id) || Object.values(state.bots).some(row => row.ephemeral && row.attemptId === attempt.id) || leases.some(row => row.status !== 'released' || row.worker || row.processScope || row.startedAt || row.releaseProof?.kind !== 'unbound-reservation-release')
+    if (recorded) throw reject('Cannot refresh PR upstream after recorded or unknown execution; reconcile before retry')
+    if (current.upstreamRef !== previous.upstreamRef || !/^[a-f0-9]{40}$/.test(previous.upstreamSha ?? '')) throw reject('Existing PR upstream is not a verified descendant target')
+    try { await git(settingsOf(project).path, ['merge-base', '--is-ancestor', previous.upstreamSha, current.upstreamSha]) }
+    catch { throw reject('Existing PR upstream is not a verified descendant target') }
+    ;(attempt.publicationBindingHistory ??= []).push({ kind: 'pre-execution-upstream-revalidation', previous, current: structuredClone(current), claimId: claim.id, generation: claim.generation, at: Date.now() })
+    attempt.publicationBinding = current
+    await rt.save()
+  }
   const current = taskId => Object.values(attempts()).reverse().find(attempt => attempt.taskId === taskId)
   const view = attempt => structuredClone(attempt)
   async function fail(attempt, error, status = 'failed') {
@@ -497,6 +513,7 @@ export function createProjectDelivery(rt, { publisher } = {}) {
     if (!attempt || attempt.taskId !== task.id || attempt.protocol !== 'project-handoff/v1' || attempt.status !== 'running') throw reject('Pool Attempt is unavailable')
     const role = definition.role, project = projectOf(task.projectId)
     const settings = await preflightRepository(rt, project)
+    if (role === 'developer') await refreshUnstartedPublication(attempt, project, claim)
     const policy = await repositoryRolePolicy(project.id, attempt.baseSha, role)
     const sessionId = `role-session-${randomUUID()}`
     const execution = definition.execution

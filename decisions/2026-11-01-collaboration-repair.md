@@ -84,3 +84,5 @@ without granting model authority to choose parents or bypass Test/Review. No
 runtime-policy, model/resource, control-plane or merge authority changes follow.
 
 Context repair retains the 48,000-character boundary and complete separately injected policy. Repository previews become source references only when full policy/source hashes, commit and preview prefix agree. A host-rejected admission with no registered execution can be checkpointed after proven Chief exit; bound or unknown resources cannot qualify. No runtime-policy or task-state bypass is authorized.
+
+A Chief route keeps the existing unstarted Attempt. Host preparation may refresh its stale trusted upstream only after authenticated original-PR/head/ref checks, provisioned object/descendant proof and absence of registered execution with all leases released. Old/new bindings and claim generation are audited; no manual live-state edit, new Attempt, workspace reset or relaxed publisher check is an alternative. Owner feedback that the UI still looks old remains an explicit #40 residual requiring demo comparison and real interaction evidence.

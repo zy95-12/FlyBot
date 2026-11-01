@@ -802,3 +802,49 @@ test('context failure releases an actual unbound reservation before registering 
   assert.equal(Object.values(f.rt.state.projectHarnessWorkers??{}).filter(x=>x.attemptId===a.id).length,0)
   assert.equal(a.workspaces.developer.status,'allocated')
 })
+
+test('unstarted bound delivery refreshes a verified descendant target without replacing its draft or Attempt',async t=>{
+  for(const variant of ['safe','reserved','unknown','worker','session','history','execution','candidate','cancel','native','unproven-release','released-bound','stale-state','unrelated','missing','moved-head','moved-ref']){
+    const f=await setup(t,undefined,{pool:true});f.rt.projectScheduler.wake=()=>{} // Keep deliberate lease snapshots stable during admission checks.
+    f.rt.projectPools.connect({validate:()=>({ok:true})});await f.start('target-refresh-'+variant)
+    const a=f.attempt(),task=f.rt.state.tasks[f.task.id],dev=f.rt.projectAgents.deliveryDefinitions('p1').roles.find(r=>r.role==='developer'),base=a.baseSha
+    a.seedSha=base;a.publicationBinding={number:48,repository:'example/demo',branch:'original-delivery',previousSha:base,upstreamSha:base,upstreamRef:'main'}
+    f.rt.state.projectKnowledge={p1:[{id:'oversize',text:'x'.repeat(49000)}]}
+    await assert.rejects(f.rt.projectDelivery.preparePoolRole(task,{id:'before',attemptId:a.id,generation:1},dev),/exceeds/)
+    f.rt.state.projectKnowledge={p1:[]}
+    const path=a.workspaces.developer.path;writeFileSync(join(path,'code.mjs'),'export const preservedDraft = true;\n')
+    writeFileSync(join(f.repository,'backend.mjs'),'export const backend = 2;\n');git(f.repository,['add','backend.mjs']);git(f.repository,['commit','-m','Advance trusted target'])
+    const target=git(f.repository,['rev-parse','HEAD']),old=structuredClone(a.publicationBinding)
+    if(['reserved','unknown'].includes(variant))f.rt.state.projectResourceLeases={held:{attemptId:a.id,status:variant==='reserved'?'reserved':'unreachable'}}
+    if(variant==='worker')f.rt.state.projectHarnessWorkers={old:{attemptId:a.id,status:'released'}}
+    if(variant==='session')a.roleSessions.developer={id:'external-session'}
+    if(variant==='history')a.roleSessionHistory=[{id:'past-session'}]
+    if(variant==='execution')a.evidence.execution={developer:{id:'recorded'}}
+    if(variant==='candidate')a.candidateSha=base
+    if(variant==='cancel')a.cancelRequested=true
+    if(variant==='native')f.rt.state.bots.live={ephemeral:true,attemptId:a.id}
+    if(variant==='unproven-release')f.rt.state.projectResourceLeases={held:{attemptId:a.id,status:'released'}}
+    if(variant==='released-bound')f.rt.state.projectResourceLeases={held:{attemptId:a.id,status:'released',releaseProof:{kind:'unbound-reservation-release'},worker:{kind:'sdk',handle:'missing'}}}
+    if(variant==='stale-state')f.publisher.read=async()=>{a.status='interrupted';return{sha:base,state:'open',baseRef:'main',baseSha:target}}
+    if(variant==='unrelated'){
+      const unrelated=git(f.repository,['commit-tree',git(f.repository,['rev-parse','HEAD^{tree}']),'-m','Unrelated target'])
+      f.publisher.read=async()=>({sha:base,state:'open',baseRef:'main',baseSha:unrelated})
+    }
+    if(variant==='missing')f.publisher.read=async()=>({sha:base,state:'open',baseRef:'main',baseSha:'1'.repeat(40)})
+    if(variant==='moved-head')f.publisher.read=async()=>({sha:target,state:'open',baseRef:'main',baseSha:target})
+    if(variant==='moved-ref')f.publisher.read=async()=>({sha:base,state:'open',baseRef:'other',baseSha:target})
+    const prepare=()=>f.rt.projectDelivery.preparePoolRole(task,{id:'after',attemptId:a.id,generation:2},dev)
+    if(variant==='safe'){
+      await prepare();assert.equal(a.publicationBinding.upstreamSha,target);assert.equal(a.publicationBindingHistory.length,1)
+      assert.deepEqual(a.publicationBindingHistory[0].previous,old);assert.deepEqual(a.publicationBindingHistory[0].current,a.publicationBinding)
+      assert.equal(a.publicationBindingHistory[0].claimId,'after');assert.equal(a.publicationBindingHistory[0].generation,2)
+      assert.equal(a.seedSha,base);assert.equal(a.baseSha,base);assert.equal(a.id,task.deliveryAttemptId)
+      assert.match(a.roleSessions.developer.context.text,new RegExp(target));assert.equal(Object.values(f.rt.state.projectAttempts).length,1)
+    }else{
+      await assert.rejects(prepare(),/recorded or unknown execution|descendant|not provisioned|stale or unavailable/,variant)
+      assert.deepEqual(a.publicationBinding,old);assert.equal(a.publicationBindingHistory,undefined)
+    }
+    assert.equal(readFileSync(join(path,'code.mjs'),'utf8'),'export const preservedDraft = true;\n')
+    assert.equal(git(path,['rev-parse','HEAD']),base)
+  }
+})
