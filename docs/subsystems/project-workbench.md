@@ -17,6 +17,12 @@ owned_paths:
 
 # Project workbench (fork M5)
 
+S5's metadata-only repository preflight first validates the configured execution
+trust profile and includes it in readiness cache identity. The compatibility default
+preserves trusted single-host execution; unsupported profiles refuse before new
+Attempt/workspace allocation. This does not run tests, infer or change the UI.
+See [boundary contract](project-execution-boundary.md).
+
 ## Backend dispatch recovery (R6)
 
 Scheduler wakes coalesce the complete resource reconciliation, admission, pool,

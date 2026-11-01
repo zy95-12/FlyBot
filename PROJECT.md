@@ -10,6 +10,19 @@ Current stage and priorities: [ROADMAP.md](ROADMAP.md). How decisions are made:
 
 ## Fork Project State — 2026-10-31
 
+### Trusted execution boundary — S5 / issue54, 2026-11-02
+
+The compatible profile explicitly supports trusted private execution on one
+dedicated service account, without mandatory per-Bot users/containers. A new
+read-only execution.boundary query reports current human rights/delegation, exact
+credential selection, authorized resources and honest preflight/isolation limits.
+Unknown profiles refuse repository/resource admission; watch grants never elevate
+current Project rights. No live account, credential or sandbox change is made.
+See [decision](decisions/2026-11-02-trusted-execution-service.md) and
+[boundary architecture](docs/subsystems/project-execution-boundary.md).
+Private-memory APIs, resource/lease/generation/confirmed-exit/workspace coordination,
+same-candidate tests/Review and Chief adjudication remain mandatory.
+
 ### GitHub feedback subscriptions — S4 / issue53, 2026-11-02
 
 Source/Thread/TaskSubscription now feeds the existing durable inbox through scoped

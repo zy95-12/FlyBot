@@ -22,9 +22,10 @@ const operations = Object.freeze({
   'proposal.publish': 'project-agent-proposal-apply', 'execution.input': 'project-execution-input',
   'inputs': 'project-task-inputs', 'input.publish': 'project-task-input',
   'sources': 'project-sources', 'source.subscribe': 'project-source-subscribe', 'source.disable': 'project-source-disable', 'source.poll': 'project-source-poll',
+  'execution.boundary': 'project-execution-boundary',
   'pools': 'project-task-pools', 'effect.retry': 'project-effect-retry', 'comment.publish': 'project-github-comment',
 })
-const queries = new Set(['tasks', 'task', 'task.detail', 'inputs', 'sources', 'effects', 'attempt.context', 'attempt.integration-state', 'attempt.log', 'chief.state', 'pools'])
+const queries = new Set(['tasks', 'task', 'task.detail', 'inputs', 'sources', 'execution.boundary', 'effects', 'attempt.context', 'attempt.integration-state', 'attempt.log', 'chief.state', 'pools'])
 const legacy = new Set(Object.values(operations))
 const readEndpoints = new Set([...queries].map(name => operations[name]).filter(Boolean))
 export const developmentQuery = body => record(body) && body.version === DEVELOPMENT_PROTOCOL && body.kind === 'query' && queries.has(body.name)
@@ -145,6 +146,7 @@ export function createDevelopmentService(rt) {
     return { run: await rt.projectChiefControl.request(body.projectId, 'inspection', { requestId: body.requestId, requestedBy: actor.memberId, ...(task ? { blockedTaskId: task.id } : {}) }) }
   }
   async function invoke(endpoint, body, actor) {
+    if (endpoint === 'project-execution-boundary') return rt.projectExecutionBoundary(body, actor)
     if (endpoint === 'project-sources') return rt.projectSources.query(body, actor)
     if (endpoint === 'project-source-subscribe') return rt.projectSources.subscribe(body, actor)
     if (endpoint === 'project-source-disable') return rt.projectSources.disable(body, actor)

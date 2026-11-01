@@ -151,6 +151,13 @@ selects the receiving Bot. Existing configurable logical schedules drive polling
 remote state, CI and Review are facts and cannot grant Task closure or candidate
 verification. No additional executor, listener, DAG or control-plane change.
 
+S5 makes the [trusted private execution boundary](subsystems/project-execution-boundary.md)
+explicit. Human rights, Bot contracts, Harness capability and OS isolation remain
+separate. One dedicated service account is compatible; per-Bot containers/users are
+optional. The read-only capability query cannot grant rights, and unsupported
+profiles fail existing repository/resource preflight. Private data, current
+authorization, leases/generation/exit and exact-SHA gates remain unchanged.
+
 
 Issue60 extends the same service/delivery boundary with explicit approved operator
 integration inputs. Current manager authority, released execution proof, exact

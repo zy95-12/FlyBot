@@ -5,6 +5,7 @@ import { constants } from 'node:fs'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { ownEntry } from './store.js'
+import { executionProfile } from './project-execution-profile.js'
 const exec = promisify(execFile)
 const invalid = field => Object.assign(new Error(`Repository ${field} is missing, invalid or unavailable; ask the operator to check provisioning`), { code: 'bot/repository-config', field })
 const argument = value => typeof value === 'string' && !value.includes('\0')
@@ -43,6 +44,7 @@ async function writableDirectory(path) {
 }
 // Metadata-only preflight: never run tests, install dependencies, infer or allocate a worker.
 export async function preflightRepository(rt, project) {
+  executionProfile(rt.config)
   const settings = repositorySettings(rt, project)
   let path
   try { path = await realpath(settings.path); if (!(await stat(path)).isDirectory()) throw invalid('path'); await access(path, constants.R_OK | constants.W_OK | constants.X_OK) }
@@ -68,7 +70,7 @@ const observations = new WeakMap()
 export async function repositoryReadiness(rt, project) {
   let rows = observations.get(rt)
   if (!rows) { rows = new Map(); observations.set(rt, rows) }
-  const key = JSON.stringify([project.id, project.ownerUserId, rt.config.projectRepositories?.[project.repository]])
+  const key = JSON.stringify([project.id, project.ownerUserId, rt.config.projectExecutionProfile, rt.config.projectRepositories?.[project.repository]])
   const cached = rows.get(project.id)
   if (cached?.key === key && cached.until > Date.now()) return cached.promise
   const promise = preflightRepository(rt, project).then(settings => ({ configured: true, status: 'ready', name: project.repository, model: settings.model ?? rt.config.projectModel ?? null, tests: 'not-run' }),
