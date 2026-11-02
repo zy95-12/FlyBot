@@ -271,3 +271,29 @@ test('registered document selection survives native updates and clears only afte
     assert.equal(node.querySelector('input[type=checkbox]').checked, false, 'a new conversation does not inherit selection')
   } finally { unmount?.(); dom.window.close() }
 })
+
+test('native scoped details mount original persona and read-only memory without owner actions', async () => {
+  const bundle = await readFile(join(import.meta.dirname, '../workbench-native.js'), 'utf8')
+  const dom = new JSDOM('<!doctype html><div id="root"></div>', { url: 'http://localhost/', runScripts: 'outside-only', pretendToBeVisual: true })
+  let unmount
+  const reads = []
+  const pause = () => new Promise(resolve => setTimeout(resolve, 60))
+  try {
+    dom.window.Element.prototype.getAnimations = () => []
+    dom.window.eval(bundle)
+    assert.equal(typeof dom.window.FlyBotNativeConversation.mountNativeDetails, 'function', 'native details adapter must exist')
+    const node = dom.window.document.getElementById('root')
+    unmount = dom.window.FlyBotNativeConversation.mountNativeDetails(node, { bot: { id: 'legacy-chief', name: 'Original Chief', instructions: 'Original persona' },
+      async readMemory(id) { reads.push(id); return { entries: [{ text: 'Own note', scope: 'own' }, { text: 'Hidden team note', scope: 'team' }] } } })
+    await pause()
+    assert.match(node.querySelector('.bt-drawer-body').textContent, /Original persona/)
+    node.querySelector('.bt-mem-row').click(); await pause(); await pause()
+    assert.match(node.querySelector('.bt-mem[role=dialog]').textContent, /Own note/)
+    assert.equal(node.querySelector('.bt-mem-remove'), null)
+    assert.equal(node.querySelector('.bt-mem-ask'), null)
+    assert.doesNotMatch(node.textContent, /Hidden team note|Team memory|Regenerate summary|Edit Bot/)
+    assert.equal(reads.every(id => id === 'legacy-chief'), true)
+    node.querySelector('[aria-label="Close memory"]').click(); await pause()
+    assert.equal(node.querySelector('.bt-mem'), null)
+  } finally { unmount?.(); dom.window.close() }
+})

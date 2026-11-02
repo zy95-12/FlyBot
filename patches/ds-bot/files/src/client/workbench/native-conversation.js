@@ -1,3 +1,5 @@
+import { ScopedDetailsDrawer as DetailsDrawer } from '../details-drawer.js'
+import { MemoryDialog } from '../memory-panel.js'
 import { fileSize } from '../flybot-slots.js'
 import { PendingQuestion } from '../questions.js'
 import { ApprovalCard, MemberWork, MEMBER_CSS } from '../member-status.js'
@@ -123,4 +125,26 @@ function ScopedAttachments({ files, read }) {
       href ? h('a', { href, download: value.name ?? file.name }, 'Download') : null,
       typeof value?.text === 'string' ? h('pre', null, value.text) : null)
   }), failure ? h('p', { role: 'alert' }, failure) : null)
+}
+
+
+function ScopedDetailsAdapter({ bot, readMemory }) {
+  const [memory, setMemory] = useState(false)
+  const alive = useRef(true)
+  useEffect(() => () => { alive.current = false }, [])
+  const actions = {
+    openMemory: () => setMemory(true), closeMemory: () => setMemory(false),
+    async memoryView(id) {
+      if (!alive.current || id !== bot.id) throw new Error('Details handle is retired')
+      const value = await readMemory(id)
+      if (!alive.current) throw new Error('Details handle is retired')
+      const entries = (value.entries ?? []).filter(entry => !entry.scope || entry.scope === 'own').map(entry => ({ ...entry, text: entry.text ?? entry.content ?? '', scope: 'own' }))
+      return { entries, sizes: { own: entries.reduce((n, entry) => n + entry.text.length, 0), team: 0 }, limits: { main: 100000 }, fresh: true, summarizing: false }
+    },
+  }
+  return h('div', null, h(DetailsDrawer, { scoped: true, bot, actions }), memory ? h(MemoryDialog, { bot, actions, readOnly: true }) : null)
+}
+
+export function mountNativeDetails(node, options) {
+  return mountRoot(node, options, props => h(ScopedDetailsAdapter, { ...props, key: props.bot.id }))
 }

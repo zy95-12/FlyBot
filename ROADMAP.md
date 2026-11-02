@@ -368,3 +368,6 @@ loading, with a red/green mounted regression. Broader live acceptance remains pe
 
 Task40 follow-up retains room Stop/status controls outside native-owned roots;
 mounted red/green coverage precedes fresh host and real-service acceptance.
+
+Task40 native persona/memory inspection now reuses original read-only components;
+exact-candidate host and operator acceptance remain separate gates.

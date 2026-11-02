@@ -286,7 +286,7 @@ diff --git a/src/client/details-drawer.js b/src/client/details-drawer.js
          const entry = entries.find(item => item.id === member.id)
          return h('div', { key: member.id, role: 'listitem' },
            h('div', { className: 'bt-member' },
-@@ -131,11 +131,11 @@ function GroupOverview({ room, roster, actions, usage, useWork, openSettings })
+@@ -131,15 +131,26 @@ function GroupOverview({ room, roster, actions, usage, useWork, openSettings })
                h('span', null, member.name)),
              room.admin === member.id ? h('span', { className: 'bt-chip bt-chip-admin' }, t('Admin')) : null),
            entry ? h(MemberWork, { entry, bot: member, room, roster, actions, now }) : null)
@@ -302,6 +302,22 @@ diff --git a/src/client/details-drawer.js b/src/client/details-drawer.js
    ]
  }
 
+-export function DetailsDrawer({ sessionId, startRenaming, startTab, hasStrip, roster, actions, useSessions, useSessionStatus, useActivity, useWork, useBrowserTabs, useBrowserPages }) {
++export function ScopedDetailsDrawer({ bot, actions }) {
++  return h('div', { className: 'bt-drawer-body', 'data-scoped-details': '' },
++    h('h3', null, bot.name),
++    bot.instructions ? h(About, { text: bot.instructions }) : null,
++    h(MemoryRow, { bot, actions }))
++}
++
++export function DetailsDrawer({ scoped = false, ...props }) {
++  return scoped ? h(ScopedDetailsDrawer, props) : h(FullDetailsDrawer, props)
++}
++
++function FullDetailsDrawer({ sessionId, startRenaming, startTab, hasStrip, roster, actions, useSessions, useSessionStatus, useActivity, useWork, useBrowserTabs, useBrowserPages }) {
+   const owner = roster.byId[sessionId]
+   const part = owner ? currentPart(owner) : sessionId
+   const isMainBot = isMainOf(roster, owner?.id)
 @@ -164,19 +164,27 @@ export function DetailsDrawer({ sessionId, startRenaming, startTab, hasStrip, ro
    const bot = owner
    const running = useSessionStatus(map => map.get(part)?.running === true)

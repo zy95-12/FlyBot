@@ -231,11 +231,12 @@ test('a response slower than the polling interval eventually renders without acc
 
 
 async function installNative(dom) {
+  dom.window.Element.prototype.getAnimations = () => []
   const { build } = await import('esbuild')
   const bundle = await build({ absWorkingDir: join(import.meta.dirname, '..'), entryPoints: ['src/client/workbench/native-conversation.js'], bundle: true, format: 'iife', globalName: 'FlyBotNativeConversation', platform: 'browser', outfile: 'native.js', write: false, loader: { '.woff': 'dataurl', '.woff2': 'dataurl', '.ttf': 'dataurl' } })
   // Evaluate the real browser bundle; data still enters through the scoped fixture API.
   const vm = await import('node:vm')
-  const context = vm.createContext({ window: dom.window, document: dom.window.document, navigator: dom.window.navigator, setTimeout, clearTimeout, console, TextEncoder, TextDecoder })
+  const context = vm.createContext({ window: dom.window, document: dom.window.document, navigator: dom.window.navigator, setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder, TextDecoder })
   vm.runInContext(bundle.outputFiles.find(file => file.path.endsWith('.js')).text + ';window.FlyBotNativeConversation = FlyBotNativeConversation', context)
 }
 
@@ -469,4 +470,24 @@ test('native room retains queued and running stop controls outside the conversat
   assert.equal(Boolean(stopButton()), false, 'completed reply is not presented as active')
   dom.window.location.hash = '/projects/b/board'; await tick(); await tick()
   assert.equal(Boolean(stopButton()), false)
+})
+
+test('personal native details use scoped legacy identity and retire memory on navigation', async t => {
+  const { dom, root, calls, app } = fixture(t, (endpoint, payload) => {
+    if (endpoint === 'personal-space') {
+      if (payload.operation === 'memory') return { entries: [{ text: 'Own scoped note', scope: 'own' }] }
+      return { bots: [{ id: 'legacy-chief', name: 'Original Chief', instructions: 'Original persona' }], mainBotIds: ['legacy-chief'], rooms: [] }
+    }
+  })
+  await installNative(dom)
+  dom.window.location.hash = '/personal'
+  for (let i = 0; i < 100 && !root.querySelector('.bt-mem-row'); i++) await tick()
+  assert.match(root.querySelector('[data-scoped-details]').textContent, /Original persona/)
+  root.querySelector('.bt-mem-row').click()
+  for (let i = 0; i < 40 && !root.querySelector('.bt-mem-entry'); i++) await tick()
+  assert.match(root.querySelector('.bt-mem').textContent, /Own scoped note/)
+  assert.equal(calls.filter(row => row.endpoint === 'personal-space' && row.payload.operation === 'memory').every(row => row.payload.id === 'legacy-chief'), true)
+  dom.window.location.hash = '/projects/b/board'; await tick(); await app.refresh(); await tick()
+  assert.equal(root.querySelector('.bt-mem'), null)
+  assert.doesNotMatch(root.textContent, /Own scoped note/)
 })

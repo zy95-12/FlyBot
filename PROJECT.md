@@ -676,3 +676,11 @@ native loading and retained-root refresh cannot erase them. Cancellation still
 uses the current Project/room/role endpoint and existing host authority checks.
 Reported queued status is retained; this UI fix does not infer SDK running state.
 Exact-candidate host tests, independent Review and operator acceptance remain required.
+
+Task40 native details/memory adaptation — read-only Project/personal inspection now
+mounts the original DetailsDrawer, About, MemoryRow and MemoryDialog components.
+Personal reads use only the existing own-memory endpoint and legacy Bot identity;
+public roles use only explicitly attached same-Project/role memory. Scoped adapters
+exclude team entries and owner-shell write/configuration/model actions. Navigation
+retires the roots and late memory reads. This is not live-service acceptance; fresh
+host verification, independent Review and operator screenshots remain required.

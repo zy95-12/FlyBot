@@ -648,3 +648,10 @@ asset loading as well as refresh, failed send and successful clearing.
 Seen 1×. Appending room status/actions inside a React mount container made them
 disappear when native components loaded. Keep host controls beside the island;
 assert visibility after real mount and refresh, not only in fallback markup.
+
+### 2026-11-02 — Native inspection needs scoped capabilities
+
+Seen 1×. Rendering persona/memory in custom cards did not restore the original
+inspection components. Adapt native details and memory UI with explicit read-only
+capabilities; exclude team memory and omit write/model controls rather than
+passing global owner actions. Test actual mounts and scope teardown.

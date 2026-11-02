@@ -477,3 +477,11 @@ changes to the scoped workbench draft. This transfers fallback selections at laz
 native mount, retains failed-send drafts and clears successful-send selections.
 Checkbox handlers snapshot the checked value before updating state. No owner-shell
 capability or document authorization changes accompany this UI state contract.
+
+Task40 native details/memory adaptation — read-only Project/personal inspection now
+mounts the original DetailsDrawer, About, MemoryRow and MemoryDialog components.
+Personal reads use only the existing own-memory endpoint and legacy Bot identity;
+public roles use only explicitly attached same-Project/role memory. Scoped adapters
+exclude team entries and owner-shell write/configuration/model actions. Navigation
+retires the roots and late memory reads. This is not live-service acceptance; fresh
+host verification, independent Review and operator screenshots remain required.

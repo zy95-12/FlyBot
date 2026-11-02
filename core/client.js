@@ -14051,7 +14051,7 @@ function EntryRow({ entry, remove }) {
       (0, import_react28.createElement)("span", { className: "bt-mem-entry-text" }, entry.text),
       meta ? (0, import_react28.createElement)("span", { className: "bt-mem-entry-meta" }, meta) : null
     ),
-    (0, import_react28.createElement)("button", {
+    remove ? (0, import_react28.createElement)("button", {
       type: "button",
       className: "bt-mem-remove",
       "data-confirm": confirming || void 0,
@@ -14059,10 +14059,10 @@ function EntryRow({ entry, remove }) {
       "aria-label": confirming ? t("Click again to remove") : t("Remove from memory"),
       title: confirming ? void 0 : t("Remove from memory"),
       onClick: click
-    }, confirming ? t("Remove") : (0, import_react28.createElement)(TrashIcon))
+    }, confirming ? t("Remove") : (0, import_react28.createElement)(TrashIcon)) : null
   );
 }
-function Entries({ bot, view, remove }) {
+function Entries({ bot, view, remove, readOnly = false }) {
   const groups = groupEntries(view.entries);
   const sections = [
     { scope: "own", title: t("{name}'s memory", { name: bot.name }), size: view.sizes.own },
@@ -14071,7 +14071,7 @@ function Entries({ bot, view, remove }) {
   return (0, import_react28.createElement)(
     "div",
     { className: "bt-mem-entries" },
-    sections.map((section) => (0, import_react28.createElement)(
+    sections.filter((section) => !readOnly || section.scope === "own").map((section) => (0, import_react28.createElement)(
       "section",
       { key: section.scope, className: "bt-mem-section" },
       (0, import_react28.createElement)(
@@ -14079,7 +14079,7 @@ function Entries({ bot, view, remove }) {
         { className: "bt-mem-section-head" },
         (0, import_react28.createElement)("h3", null, section.title),
         section.hint ? (0, import_react28.createElement)("span", null, section.hint) : null,
-        (0, import_react28.createElement)("span", { className: "bt-mem-size", title: t("MEMORY.md, which every conversation reads") }, t("{used} of {limit} characters", { used: section.size.toLocaleString(dateLocale()), limit: view.limits.main.toLocaleString(dateLocale()) }))
+        !readOnly ? (0, import_react28.createElement)("span", { className: "bt-mem-size", title: t("MEMORY.md, which every conversation reads") }, t("{used} of {limit} characters", { used: section.size.toLocaleString(dateLocale()), limit: view.limits.main.toLocaleString(dateLocale()) })) : null
       ),
       groups.some((group) => group.scope === section.scope) ? groups.filter((group) => group.scope === section.scope).map((group) => (0, import_react28.createElement)(
         import_react28.Fragment,
@@ -14161,9 +14161,9 @@ function useNow3(every) {
   }, [every]);
   return now;
 }
-function MemoryDialog({ bot, actions, leaving = false }) {
+function MemoryDialog({ bot, actions, leaving = false, readOnly = false }) {
   const { view, error, load, show } = useMemoryView(bot.id, actions);
-  const [page, setPage] = (0, import_react28.useState)("summary");
+  const [page, setPage] = (0, import_react28.useState)(readOnly ? "entries" : "summary");
   const [menu, setMenu] = (0, import_react28.useState)(false);
   const [menuShown, menuLeaving] = useLinger(menu, MENU_EXIT_MS2);
   const [text2, setText] = (0, import_react28.useState)("");
@@ -14246,11 +14246,11 @@ function MemoryDialog({ bot, actions, leaving = false }) {
       (0, import_react28.createElement)(
         "div",
         { className: "bt-mem-head" },
-        page === "entries" ? (0, import_react28.createElement)("button", { type: "button", className: "bt-icon-btn", "aria-label": t("Back to the summary"), onClick: backToSummary }, (0, import_react28.createElement)(ChevronLeftIcon)) : null,
+        !readOnly && page === "entries" ? (0, import_react28.createElement)("button", { type: "button", className: "bt-icon-btn", "aria-label": t("Back to the summary"), onClick: backToSummary }, (0, import_react28.createElement)(ChevronLeftIcon)) : null,
         (0, import_react28.createElement)("h2", null, page === "entries" ? t("All entries") : t("Memory summary")),
         (0, import_react28.createElement)("span", { className: "bt-mem-status" }, page === "summary" ? [bot.name, status].filter(Boolean).join(" · ") : status),
         (0, import_react28.createElement)("span", { className: "bt-mem-head-gap" }),
-        (0, import_react28.createElement)("button", { ref: dotsRef, type: "button", className: "bt-icon-btn", "aria-label": t("Memory options"), "aria-haspopup": "menu", "aria-expanded": menu, onClick: () => setMenu((value) => !value) }, (0, import_react28.createElement)(DotsIcon)),
+        !readOnly ? (0, import_react28.createElement)("button", { ref: dotsRef, type: "button", className: "bt-icon-btn", "aria-label": t("Memory options"), "aria-haspopup": "menu", "aria-expanded": menu, onClick: () => setMenu((value) => !value) }, (0, import_react28.createElement)(DotsIcon)) : null,
         (0, import_react28.createElement)("button", { type: "button", className: "bt-icon-btn", "aria-label": t("Close memory"), onClick: close }, (0, import_react28.createElement)(CloseIcon)),
         menuShown ? (0, import_react28.createElement)(
           "div",
@@ -14272,9 +14272,9 @@ function MemoryDialog({ bot, actions, leaving = false }) {
         "div",
         { className: "bt-mem-body" },
         error ? (0, import_react28.createElement)("div", { className: "bt-error", role: "alert", style: { padding: 0 } }, hostText(error)) : null,
-        view === null ? error ? null : (0, import_react28.createElement)(Skeleton) : page === "entries" ? (0, import_react28.createElement)(Entries, { bot, view, remove }) : (0, import_react28.createElement)(Summary, { bot, view, regenerate })
+        view === null ? error ? null : (0, import_react28.createElement)(Skeleton) : page === "entries" ? (0, import_react28.createElement)(Entries, { bot, view, remove: readOnly ? void 0 : remove, readOnly }) : (0, import_react28.createElement)(Summary, { bot, view, regenerate })
       ),
-      (0, import_react28.createElement)(
+      !readOnly ? (0, import_react28.createElement)(
         "div",
         { className: "bt-mem-foot" },
         answer ? (0, import_react28.createElement)(Reply, { answer, dismiss: () => setAnswer(null) }) : null,
@@ -14297,7 +14297,7 @@ function MemoryDialog({ bot, actions, leaving = false }) {
             busy ? (0, import_react28.createElement)("span", { className: "bt-mem-spin", "aria-hidden": true }) : (0, import_react28.createElement)(ArrowUpIcon)
           )
         )
-      )
+      ) : null
     )
   );
 }
@@ -19537,7 +19537,19 @@ function GroupOverview({ room: room2, roster, actions, usage, useWork, openSetti
     )
   ];
 }
-function DetailsDrawer({ sessionId, startRenaming, startTab, hasStrip, roster, actions, useSessions, useSessionStatus, useActivity, useWork, useBrowserTabs, useBrowserPages }) {
+function ScopedDetailsDrawer({ bot, actions }) {
+  return (0, import_react44.createElement)(
+    "div",
+    { className: "bt-drawer-body", "data-scoped-details": "" },
+    (0, import_react44.createElement)("h3", null, bot.name),
+    bot.instructions ? (0, import_react44.createElement)(About, { text: bot.instructions }) : null,
+    (0, import_react44.createElement)(MemoryRow, { bot, actions })
+  );
+}
+function DetailsDrawer({ scoped = false, ...props }) {
+  return scoped ? (0, import_react44.createElement)(ScopedDetailsDrawer, props) : (0, import_react44.createElement)(FullDetailsDrawer, props);
+}
+function FullDetailsDrawer({ sessionId, startRenaming, startTab, hasStrip, roster, actions, useSessions, useSessionStatus, useActivity, useWork, useBrowserTabs, useBrowserPages }) {
   const owner = roster.byId[sessionId];
   const part = owner ? currentPart(owner) : sessionId;
   const isMainBot = isMainOf(roster, owner?.id);

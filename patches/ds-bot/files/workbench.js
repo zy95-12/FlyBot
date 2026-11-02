@@ -742,6 +742,18 @@ ${result.text}`;
         }
       });
     }
+    function mountDetails(container, bot, readMemory) {
+      const source = conversationSource, captured = epoch;
+      nativeIslands.register(container, nativeKey(`details:${bot.id}`), source, (node, options) => win.FlyBotNativeConversation.mountNativeDetails(node, options), {
+        bot,
+        readMemory: async (id) => {
+          if (disposed || captured !== epoch || source !== conversationSource || id !== bot.id) throw new Error("Details handle is retired");
+          const value = await readMemory();
+          if (disposed || captured !== epoch || source !== conversationSource) throw new Error("Details handle is retired");
+          return value;
+        }
+      });
+    }
     function mountComposer(container, mentions = [], attachments = []) {
       const source = conversationSource, chat = source.chat();
       const draftKey = `${bootstrap.self.memberId}:${selected}:${tab}:${taskId}:native-composer`;
@@ -866,11 +878,14 @@ ${result.text}`;
         for (const role of agents.definitions.roles) {
           const card = box(role.role, el("small", `${role.execution?.harness ?? "flybot"} · ${role.execution?.model ?? role.model ?? "Project default"}`));
           const inspection = el("details");
-          inspection.append(el("summary", `About ${role.role}`), el("h3", "Persona"), el("p", role.instructions || "No published persona"));
-          inspection.append(el("h3", "Attached public memory"));
+          inspection.append(el("summary", `About ${role.role}`));
+          const native = el("div");
+          inspection.append(native);
+          native.append(el("h3", "Persona"), el("p", role.instructions || "No published persona"), el("h3", "Attached public memory"));
           const attached = (agents.roleMemory ?? []).filter((row) => (role.memoryRefs ?? []).includes(row.id) && row.role === role.role && row.projectId === selected);
-          for (const memory of attached) inspection.append(box(`Revision ${memory.revision}`, el("p", memory.text), el("small", `Source: ${memory.source?.reference ?? "Not recorded"}`)));
-          if (!attached.length) inspection.append(el("p", "No attached public memory"));
+          for (const memory of attached) native.append(box(`Revision ${memory.revision}`, el("p", memory.text), el("small", `Source: ${memory.source?.reference ?? "Not recorded"}`)));
+          if (!attached.length) native.append(el("p", "No attached public memory"));
+          mountDetails(native, { id: role.id ?? `${selected}:${role.role}`, name: role.name ?? role.role, instructions: role.instructions }, async () => ({ entries: attached.map((row) => ({ text: row.text, scope: "own" })) }));
           card.append(inspection);
           roster.append(card);
         }
@@ -971,13 +986,16 @@ ${result.text}`;
             }));
             const persona = el("details");
             persona.dataset.personaId = bot.id;
-            persona.append(el("summary", "Persona"), el("p", bot.instructions ?? "No persona"));
-            card.append(persona);
-            card.append(button("Own long-term memory", () => act(async () => {
+            const native = el("div");
+            native.append(el("p", bot.instructions ?? "No persona"));
+            native.append(button("Own long-term memory", () => act(async () => {
               const captured = epoch;
               const memory = await api.call("personal-space", { operation: "memory", id: bot.id });
               if (captured === epoch && !disposed) personalMemory = { botId: bot.id, ...memory };
             })));
+            persona.append(el("summary", "Persona"), native);
+            mountDetails(native, bot, () => api.call("personal-space", { operation: "memory", id: bot.id }));
+            card.append(persona);
             main.append(card);
           }
           if (personalMemory) main.append(box("Own long-term memory", ...personalMemory.entries.map((entry) => el("p", entry.text ?? entry.content ?? ""))));
