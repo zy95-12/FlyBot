@@ -90,3 +90,7 @@ public roles use only explicitly attached same-Project/role memory. Scoped adapt
 exclude team entries and owner-shell write/configuration/model actions. Navigation
 retires the roots and late memory reads. This is not live-service acceptance; fresh
 host verification, independent Review and operator screenshots remain required.
+
+Review follow-up preserves the native adapter while correcting false memory-read
+retirement during same-route polling. Account/route/source lifecycle still fences
+navigation, logout and access failure; no authorization or backend change is introduced.

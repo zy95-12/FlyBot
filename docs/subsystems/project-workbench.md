@@ -487,3 +487,11 @@ public roles use only explicitly attached same-Project/role memory. Scoped adapt
 exclude team entries and owner-shell write/configuration/model actions. Navigation
 retires the roots and late memory reads. This is not live-service acceptance; fresh
 host verification, independent Review and operator screenshots remain required.
+
+Native details memory fencing follows account/Project/route/Bot and conversation
+source identity, not the request epoch advanced by ordinary polling. A retained
+same-route island may finish its in-flight memory read after refresh; navigation,
+logout, source replacement and access failure still retire the handle and prevent
+late content from returning. A delayed-read regression reproduces the prior false
+retirement and checks these negative boundaries. New host tests/Review and operator
+acceptance remain required.

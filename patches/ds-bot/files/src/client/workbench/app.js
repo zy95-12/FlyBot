@@ -313,12 +313,13 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
     })
   }
   function mountDetails(container, bot, readMemory) {
-    const source = conversationSource, captured = epoch
-    nativeIslands.register(container, nativeKey(`details:${bot.id}`), source, (node, options) => win.FlyBotNativeConversation.mountNativeDetails(node, options), {
+    const source = conversationSource, key = nativeKey(`details:${bot.id}`)
+    const retired = () => disposed || key !== nativeKey(`details:${bot.id}`) || source !== conversationSource
+    nativeIslands.register(container, key, source, (node, options) => win.FlyBotNativeConversation.mountNativeDetails(node, options), {
       bot, readMemory: async id => {
-        if (disposed || captured !== epoch || source !== conversationSource || id !== bot.id) throw new Error('Details handle is retired')
+        if (retired() || id !== bot.id) throw new Error('Details handle is retired')
         const value = await readMemory()
-        if (disposed || captured !== epoch || source !== conversationSource) throw new Error('Details handle is retired')
+        if (retired()) throw new Error('Details handle is retired')
         return value
       },
     })

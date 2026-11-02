@@ -491,3 +491,34 @@ test('personal native details use scoped legacy identity and retire memory on na
   assert.equal(root.querySelector('.bt-mem'), null)
   assert.doesNotMatch(root.textContent, /Own scoped note/)
 })
+
+for (const outcome of ['refresh', 'navigate', 'revoke', 'logout']) test(`in-flight native memory read respects ${outcome} rather than the polling epoch`, async t => {
+  const pending = []
+  let revoked = false
+  const { dom, root, app } = fixture(t, (endpoint, payload) => {
+    if (endpoint === 'personal-space') {
+      if (revoked) throw new Error('Membership revoked')
+      if (payload.operation === 'memory') return new Promise(resolve => pending.push(resolve))
+      return { bots: [{ id: 'legacy-chief', name: 'Original Chief', instructions: 'Original persona' }], mainBotIds: ['legacy-chief'], rooms: [] }
+    }
+  })
+  await installNative(dom)
+  dom.window.location.hash = '/personal'
+  for (let i = 0; i < 100 && !root.querySelector('.bt-mem-row'); i++) await tick()
+  root.querySelector('.bt-mem-row').click()
+  for (let i = 0; i < 40 && pending.length < 2; i++) await tick()
+  assert.equal(pending.length >= 2, true, 'count and dialog reads must be in flight')
+  if (outcome === 'navigate') { dom.window.location.hash = '/projects/b/board'; await tick() }
+  if (outcome === 'revoke') revoked = true
+  if (outcome === 'logout') { [...root.querySelectorAll('button')].find(button => button.textContent === 'Sign out').click(); await tick() }
+  await app.refresh(); await tick()
+  for (const resolve of pending) resolve({ entries: [{ text: 'Slow own memory', scope: 'own' }] })
+  for (let i = 0; i < 10; i++) await tick()
+  if (outcome === 'refresh') {
+    assert.match(root.querySelector('.bt-mem')?.textContent ?? '', /Slow own memory/)
+    assert.doesNotMatch(root.textContent, /Details handle is retired/)
+  } else {
+    assert.equal(root.querySelector('.bt-mem'), null)
+    assert.doesNotMatch(root.textContent, /Slow own memory/)
+  }
+})

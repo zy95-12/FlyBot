@@ -655,3 +655,10 @@ Seen 1×. Rendering persona/memory in custom cards did not restore the original
 inspection components. Adapt native details and memory UI with explicit read-only
 capabilities; exclude team memory and omit write/model controls rather than
 passing global owner actions. Test actual mounts and scope teardown.
+
+### 2026-11-02 — Poll epochs are not component scope identities
+
+Seen 1×. Every refresh advanced a request epoch and rejected a still-authorized
+memory read in a retained native island. Fence native reads by scoped identity
+and source lifecycle; reserve request epochs for stale page loads. Test a slow
+read across polling alongside navigation, logout and access failure.

@@ -371,3 +371,6 @@ mounted red/green coverage precedes fresh host and real-service acceptance.
 
 Task40 native persona/memory inspection now reuses original read-only components;
 exact-candidate host and operator acceptance remain separate gates.
+
+Task40 Review follow-up separates polling epochs from native memory scope fences;
+slow-read refresh and retirement regressions precede fresh exact-candidate validation.
