@@ -1,3 +1,5 @@
+> 本交付分支的自动开发后端服务使用说明（启动、登录、API、验证）请先阅读 [README.md](README.md)。
+
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/images/logo-wordmark-dark.svg">

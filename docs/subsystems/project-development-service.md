@@ -7,6 +7,12 @@ owned_paths:
 
 # Automatic development application service
 
+The `delivery/development-service` branch is a consolidated source handoff from
+1811e3b8f. Its [root README](../../README.md) provides the operator-facing current
+service and isolated-source quickstart, authenticated API examples and command
+index. It preserves this existing in-process facade; no HTTP contract or runtime
+behavior changes accompany the documentation branch.
+
 S1 (#50, parent #49) introduces one application facade in the existing FlyBot
 process. It owns routing and the derived TaskView, not another Task store,
 executor, permission policy or workflow engine. Existing pools, admission,

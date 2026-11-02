@@ -10,6 +10,16 @@ Current stage and priorities: [ROADMAP.md](ROADMAP.md). How decisions are made:
 
 ## Fork Project State — 2026-10-31
 
+### Backend delivery branch — 2026-11-02
+
+`delivery/development-service` packages the complete S1–S6 backend at1811e3b8f,
+including verified-exit, approved integration and Chief/SDK recovery fixes. Its root
+README documents existing-service authentication, direct v1/legacy HTTP usage,
+explicit task publication/start, isolated source demo setup and evidence limits.
+This is a documentation/branch handoff, not another service listener, schema change,
+main merge, runtime rollout or takeover of original frontend Task40/PR48.
+No deployment credentials or operator private files are included.
+
 ### Service recovery acceptance — S6 / issue55, 2026-11-02
 
 The final stage composes the verified S5 service with the native frontend candidate
