@@ -75,3 +75,10 @@ no earlier candidate verdict, publication or deployed-service evidence is borrow
 Document-selection rework preserves existing scoped drafts during fallback-to-native
 hydration, without changing room grants or backend publication. Delayed-asset and
 retained-root regressions distinguish that lifecycle from already-mounted controls.
+
+Task40 room Stop rework: native conversation mount clears only its owned island.
+Room role status and queued/running Stop controls now live beside that island, so
+native loading and retained-root refresh cannot erase them. Cancellation still
+uses the current Project/room/role endpoint and existing host authority checks.
+Reported queued status is retained; this UI fix does not infer SDK running state.
+Exact-candidate host tests, independent Review and operator acceptance remain required.

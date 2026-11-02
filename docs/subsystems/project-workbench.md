@@ -472,3 +472,10 @@ identity as the native composer. At native mount, read the latest fallback form
 selection rather than the options captured before assets loaded. Native selection
 changes synchronize that draft; failed sends retain it and successful sends clear
 it. Existing scope retirement/logout fences still dispose roots and draft state.
+
+Task40 room Stop rework: native conversation mount clears only its owned island.
+Room role status and queued/running Stop controls now live beside that island, so
+native loading and retained-root refresh cannot erase them. Cancellation still
+uses the current Project/room/role endpoint and existing host authority checks.
+Reported queued status is retained; this UI fix does not infer SDK running state.
+Exact-candidate host tests, independent Review and operator acceptance remain required.

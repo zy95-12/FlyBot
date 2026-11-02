@@ -448,3 +448,25 @@ test('documents selected before native assets finish loading survive hydration',
   for (let i = 0; i < 40 && !root.querySelector('.bt-scoped-composer'); i++) await tick()
   assert.equal(root.querySelector('.bt-scoped-composer input[type=checkbox]')?.checked, true, 'native hydration preserves the visible selected document')
 })
+
+test('native room retains queued and running stop controls outside the conversation island', async t => {
+  let phase = 'queued'
+  const { dom, root, calls, app } = fixture(t, endpoint => {
+    if (endpoint === 'project-room-read') return { id: 'engineering', name: 'Engineering', roles: ['chief'], memberIds: [], messages: [], attachments: [], sessions: [{ role: 'chief', phase, harness: 'codex', model: 'test-model', initiatedBy: 'bob' }] }
+  })
+  await installNative(dom)
+  dom.window.location.hash = '/projects/a/rooms/engineering'
+  for (let i = 0; i < 100 && !root.querySelector('.bt-scoped-composer'); i++) await tick()
+  const stopButton = () => [...root.querySelectorAll('button')].find(button => button.textContent === 'Stop chief')
+  assert.equal(Boolean(stopButton()), true, 'queued reply remains cancellable after native mount')
+  assert.equal(stopButton().closest('[data-native-island]'), null)
+  phase = 'running'; await app.refresh(); await tick(); await tick()
+  assert.equal(Boolean(stopButton()), true, 'running reply remains cancellable after refresh')
+  stopButton().click(); await tick(); await tick()
+  const stopped = calls.find(row => row.endpoint === 'project-room-stop')
+  assert.deepEqual(stopped?.payload, { projectId: 'a', roomId: 'engineering', role: 'chief' })
+  phase = 'completed'; await app.refresh(); await tick(); await tick()
+  assert.equal(Boolean(stopButton()), false, 'completed reply is not presented as active')
+  dom.window.location.hash = '/projects/b/board'; await tick(); await tick()
+  assert.equal(Boolean(stopButton()), false)
+})

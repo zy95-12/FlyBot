@@ -623,13 +623,14 @@
         conversation.setAttribute("role", "log");
         conversation.setAttribute("aria-label", "Room conversation");
         mountConversation(conversation, []);
+        const controls = el("div", null, "room-session-controls");
         for (const session of roomView.sessions ?? []) {
-          conversation.append(el("p", `${session.role}: ${session.phase} · ${session.harness} · ${session.model ?? "Default model"}`));
-          if (["queued", "running"].includes(session.phase)) conversation.append(button(`Stop ${session.role}`, () => act(() => scoped("project-room-stop", { roomId: roomView.id, role: session.role })), busy));
+          controls.append(el("p", `${session.role}: ${session.phase} · ${session.harness} · ${session.model ?? "Default model"}`));
+          if (["queued", "running"].includes(session.phase)) controls.append(button(`Stop ${session.role}`, () => act(() => scoped("project-room-stop", { roomId: roomView.id, role: session.role })), busy));
         }
         const composer = el("div", null, "composer");
         composer.append(form(`room-message-${roomView.id}`, [["text", "Room message (@role)", "textarea"], ["attachmentIds", "Include registered documents", "checkboxes", roomView.attachments.map((row) => ({ value: row.id, label: row.name }))]], (values) => scoped("project-room-message", { roomId: roomView.id, ...values }), "Send to room"));
-        node.append(conversation, composer);
+        node.append(controls, conversation, composer);
         mountComposer(composer, (roomView.roles ?? []).map((role) => ({ id: role, name: role })), roomView.attachments);
         const attachments = box("Registered documents and artifacts", el("p", "Text documents stay in this room; raw filesystem paths and remote images are unavailable."));
         for (const row of roomView.attachments) attachments.append(button(row.name, () => act(async () => {

@@ -642,3 +642,9 @@ Seen 1×. A fallback form can accept document selections before the native bundl
 loads. Keeping the later React root mounted does not preserve that earlier state.
 Transfer selections from the scoped fallback draft at mount time; test delayed
 asset loading as well as refresh, failed send and successful clearing.
+
+### 2026-11-02 — Native islands own every child they replace
+
+Seen 1×. Appending room status/actions inside a React mount container made them
+disappear when native components loaded. Keep host controls beside the island;
+assert visibility after real mount and refresh, not only in fallback markup.

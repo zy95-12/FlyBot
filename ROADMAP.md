@@ -365,3 +365,6 @@ Actual shared-service browser/weak-network/screenshot acceptance stays outstandi
 
 Task40 follow-up fixes registered-document selection during delayed native asset
 loading, with a red/green mounted regression. Broader live acceptance remains pending.
+
+Task40 follow-up retains room Stop/status controls outside native-owned roots;
+mounted red/green coverage precedes fresh host and real-service acceptance.

@@ -227,13 +227,14 @@ export function mountWorkbench(root, api, { pollMs = 4000 } = {}) {
       node.append(el('h2', roomView.name), el('p', roomView.memberIds.length ? 'Restricted to selected Project members' : 'Shared with current Project members'))
       const conversation = el('div', null, 'conversation'); conversation.setAttribute('role', 'log'); conversation.setAttribute('aria-label', 'Room conversation')
       mountConversation(conversation, [])
+      const controls = el('div', null, 'room-session-controls')
       for (const session of roomView.sessions ?? []) {
-        conversation.append(el('p', `${session.role}: ${session.phase} · ${session.harness} · ${session.model ?? 'Default model'}`))
-        if (['queued', 'running'].includes(session.phase)) conversation.append(button(`Stop ${session.role}`, () => act(() => scoped('project-room-stop', { roomId: roomView.id, role: session.role })), busy))
+        controls.append(el('p', `${session.role}: ${session.phase} · ${session.harness} · ${session.model ?? 'Default model'}`))
+        if (['queued', 'running'].includes(session.phase)) controls.append(button(`Stop ${session.role}`, () => act(() => scoped('project-room-stop', { roomId: roomView.id, role: session.role })), busy))
       }
       const composer = el('div', null, 'composer')
       composer.append(form(`room-message-${roomView.id}`, [['text', 'Room message (@role)', 'textarea'], ['attachmentIds', 'Include registered documents', 'checkboxes', roomView.attachments.map(row => ({ value: row.id, label: row.name }))]], values => scoped('project-room-message', { roomId: roomView.id, ...values }), 'Send to room'))
-      node.append(conversation, composer)
+      node.append(controls, conversation, composer)
       mountComposer(composer, (roomView.roles ?? []).map(role => ({ id: role, name: role })), roomView.attachments)
       const attachments = box('Registered documents and artifacts', el('p', 'Text documents stay in this room; raw filesystem paths and remote images are unavailable.'))
       for (const row of roomView.attachments) attachments.append(button(row.name, () => act(async () => { const captured = epoch, id = selected; const result = await scoped('project-room-attachment', { roomId: roomView.id, attachmentId: row.id }); if (captured === epoch && selected === id) notice = `${result.name}\n${result.text}` })))
