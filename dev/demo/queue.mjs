@@ -13,7 +13,12 @@ export async function checkQueue({ api, call, saved, waitFor }) {
   const { public: chief } = await owner('project-agents', { projectId: project.id })
   const tasks = []
   for (let index = 0; index < 3; index++) tasks.push(await member('task-create', { projectId: project.id, botId: chief.botId, title: `Fix addition ${index}`, criteria: 'add(2,3) equals 5' }))
-  const first = await member('project-task-run', { taskId: tasks[0].id, requestId: 'queue-first' })
+  const service = (actor, kind, name, payload, requestId) => actor('project-development', { version: 'project-development/v1', projectId: project.id, kind, name, payload, ...(requestId ? { requestId } : {}) })
+  const published = await service(member, 'query', 'task', { taskId: tasks[0].id })
+  assert.equal(published.result.task.phase, 'published')
+  const original = await member('project-task-detail', { taskId: tasks[0].id })
+  assert.deepEqual(original.view, published.result.task)
+  const first = (await service(member, 'command', 'task.run', { taskId: tasks[0].id }, 'queue-first')).result
   assert.equal(first.attempt.status, 'running', first.attempt.failure?.message)
   const queued = await member('project-task-run', { taskId: tasks[1].id, requestId: 'queue-second' })
   assert.equal(queued.queue.status, 'waiting')
@@ -27,6 +32,7 @@ export async function checkQueue({ api, call, saved, waitFor }) {
   await owner('project-member-remove', { projectId: project.id, memberId: bob.memberId })
   assert.equal(saved().projectQueue[third.queue.id].status, 'cancelled')
   assert.equal((await call('project-resources', { projectId: project.id }, bob.sessionToken)).ok, false)
+  assert.equal((await call('project-development', { version: 'project-development/v1', kind: 'query', name: 'tasks', projectId: project.id, payload: {} }, bob.sessionToken)).ok, false)
   await waitFor(() => Object.values(saved().projectAttempts).every(row => row.status === 'failed'), 'credential gate finishes both actual delivery Attempts')
   // Workflow status is saved before its asynchronous worker release finishes.
   // Cleanup deliberately refuses workspaces while a worker can still use them.
@@ -41,5 +47,5 @@ export async function checkQueue({ api, call, saved, waitFor }) {
   assert.equal(resources.activeSlots, 0)
   assert.equal(resources.metrics.acceptedTasks, 0)
   assert.equal(resources.metrics.duration.medianMs, null)
-  return { milestone: 'M5', runtime: 'actual DSH', model: 'deterministic mock', checks: ['quota queues before worktree allocation', 'duplicate queue request idempotent', 'Workflow release drains queue', 'revoked member queued request cancelled', 'confirmed worker release before workspace cleanup', 'no invented acceptance metrics'], notRun: ['real model', 'real GitHub publication'] }
+  return { milestone: 'M5', runtime: 'actual DSH', model: 'deterministic mock', checks: ['versioned service and legacy views agree', 'service command uses original execution', 'revoked member service query denied', 'quota queues before worktree allocation', 'duplicate queue request idempotent', 'Workflow release drains queue', 'revoked member queued request cancelled', 'confirmed worker release before workspace cleanup', 'no invented acceptance metrics'], notRun: ['real model', 'real GitHub publication'] }
 }

@@ -429,3 +429,67 @@ M7.4 extends the separate Project workbench with Owner role Harness/model/resour
 ### M7.5 — 2026-10-31
 
 M7.5 Attempt details expose scoped sealed SDK execution evidence, including Harness/version/resource/backend Session. Log selection uses the current Project/Attempt/role; no arbitrary filesystem path is accepted. Existing workbench bundle is regenerated.
+
+The standalone workbench imports the original AssistantCell and marks through a
+lazy native bundle. Both client entries share observable-source.js; the standalone
+projection supplies only scoped public text and member-visible identities, without
+initializing the owner-shell registry. Personal navigation uses the bounded
+personal-space endpoint; it does not treat a Project agent as the personal Chief.
+
+The scoped workbench mounts the same AssistantCell, BotRow, RoomRow and TreeNode
+components as the native sidebar/conversation. Its personal tree derives only from
+member-visible parent IDs; current-part identity is normalized before selection.
+The lazy bundle is regenerated with the main client when these shared components change.
+
+## Shared native stylesheet
+
+Sidebar rules live in sidebar-styles.js with their motion dependency, re-exported by the original sidebar. The workbench build includes these plus original shell/conversation rules in workbench-native.css; shared CSP does not require inline style injection. Original client build still consumes the same canonical rules.
+
+Task40 scoped workbench composer adaptation is exported from composer.js and
+shares the original dictation lifecycle. It receives a captured scoped chat
+handle, visible mention list and registered room-document choices; it never
+consults the global owner roster or owner API. The workbench native entry mounts
+and unmounts it with the existing scope fences. See project-workbench.md for the
+remaining native interaction/acceptance limits.
+
+The scoped native conversation reuses PendingQuestion, exported ApprovalCard and
+MemberWork, including their original answer/error/busy behavior. ApprovalCard's new
+standing option defaults true for original consumers and is false for scoped controls.
+MEMBER_CSS is re-exported from pure member-styles.js so the same-origin workbench
+builder can include it without importing browser modules in Node. SDK runtime inputs
+reuse these components and the scoped composer through captured Project/epoch callbacks.
+
+Task40 now exports/reuses PersonMessage for scoped human Markdown and mentions.
+Attachment cards use original file-size formatting and the captured conversation read
+handle. The composer selects native files/images, retains selection across polling,
+limits bytes before upload and clears selection only after accepted sends. Selecting
+the current part restores the canonical live route instead of leaving it read-only.
+
+Task40 native mounts expose update/unmount handles. A scoped native-root registry
+reconciles their ancestor containers without detaching the roots during data refresh.
+Changed scope/source retires them; pending lazy mounts cannot attach after retirement.
+Ordinary form nodes remain freshly constructed so handler closures reference the
+correct controls. This retains real component state rather than reconstructing a
+textarea and restoring only its value after every poll.
+
+ScopedComposer accepts initial registered-document selections and reports selection
+changes to the scoped workbench draft. This transfers fallback selections at lazy
+native mount, retains failed-send drafts and clears successful-send selections.
+Checkbox handlers snapshot the checked value before updating state. No owner-shell
+capability or document authorization changes accompany this UI state contract.
+
+Task40 native details/memory adaptation — read-only Project/personal inspection now
+mounts the original DetailsDrawer, About, MemoryRow and MemoryDialog components.
+Personal reads use only the existing own-memory endpoint and legacy Bot identity;
+public roles use only explicitly attached same-Project/role memory. Scoped adapters
+exclude team entries and owner-shell write/configuration/model actions. Navigation
+retires the roots and late memory reads. This is not live-service acceptance; fresh
+host verification, independent Review and operator screenshots remain required.
+
+Native details memory fencing follows account/Project/route/Bot and conversation
+source identity, not the request epoch advanced by ordinary polling. A retained
+same-route island may finish its in-flight memory read after refresh; navigation,
+logout, source replacement and access failure still retire the handle and prevent
+late content from returning. A delayed-read regression reproduces the prior false
+retirement and checks these negative boundaries. New host tests/Review and operator
+acceptance remain required.

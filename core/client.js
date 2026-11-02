@@ -2762,7 +2762,7 @@ function awayGroups(groups, roomsById) {
   return (groups ?? []).filter((entry) => roomsById?.[entry.id]?.origin !== "face-to-face");
 }
 
-// src/client/sources.js
+// src/client/observable-source.js
 function createSource(initial) {
   let value = initial;
   const listeners2 = /* @__PURE__ */ new Set();
@@ -2782,6 +2782,8 @@ function createSource(initial) {
     }
   };
 }
+
+// src/client/sources.js
 var EMPTY_ROSTER = { revision: -1, mainBotId: null, mainBotIds: [], bots: [], rooms: [], humans: [], self: null, agents: [], exchangeTurns: {}, remoteTypedTurns: {}, remoteAwaiting: {}, questions: {}, secrets: [], capabilities: [], capabilityStatuses: {}, secretRequests: {}, models: [], defaultModel: null, modelsKey: null, prefs: {}, byId: {}, roomsById: {}, agentsById: {}, agentOf: {}, ready: false };
 var isMainOf = (roster, id) => id !== void 0 && (roster.mainBotIds ?? []).includes(id);
 function indexRoster(value) {
@@ -6181,7 +6183,7 @@ function Bubbles({ texts: texts2, roster, selfId, actions, streaming, sessionId,
     "div",
     { className: "bt-astack", "data-lead": lead ? "" : void 0, onClickCapture: onClick },
     texts2.map((text2, index) => {
-      const key = msgKey ? `${msgKey}:${index}` : void 0;
+      const key = msgKey && typeof actions.toggleReaction === "function" ? `${msgKey}:${index}` : void 0;
       const picked = key ? reactions?.[index] ?? [] : [];
       const last = index === texts2.length - 1;
       const live = streaming && last;
@@ -7581,6 +7583,40 @@ function usePaneLeft() {
   return paneLeft;
 }
 
+// src/client/member-styles.js
+var MEMBER_CSS = `
+.bt-mw-dock-stack{box-sizing:border-box;display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:var(--dsh-chat-content-width,min(960px,100%));margin:0 auto 6px;pointer-events:none}
+.bt-mw-row{pointer-events:auto;display:flex;align-items:center;gap:10px;min-width:0;max-width:calc(100% + 6px);height:32px;margin-inline-start:-6px;padding:0 12px 0 6px;border:0;border-radius:16px;background:none;color:var(--bt-ink-2);font:inherit;font-size:14px;cursor:pointer;animation:bt-mw-in .32s cubic-bezier(.23,1,.32,1) backwards;transition:background-color .16s ease-out}
+.bt-mw-row:hover{background:var(--bt-hover)}
+.bt-mw-row>.bt-mark{flex:none}
+.bt-mw-row-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bt-mw-row-time{flex:none;font-size:12px;color:var(--bt-ink-3);white-space:nowrap}
+.bt-mw-work{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.bt-mw-stop{flex:none;height:22px;padding:0 10px;border:1px solid var(--bt-line,rgba(0,0,0,.12));border-radius:11px;background:none;color:var(--bt-ink-2);font:inherit;font-size:12px;cursor:pointer}
+.bt-mw-stop:hover{background:var(--bt-hover)}
+.bt-mw-stop:disabled{opacity:.5;cursor:default}
+.bt-mw-line{gap:8px}
+.bt-mw-stack{display:inline-flex;align-items:center;flex:none;line-height:0}
+.bt-mw-stack>*+*{margin-left:-4px}
+.bt-mw-face{position:relative;display:inline-flex;flex:none;border-radius:50%}
+.bt-mw-stack .bt-mw-face{box-shadow:0 0 0 1.5px var(--bt-main,#fff)}
+.bt-mw-face[data-ask]::after{content:"";position:absolute;right:-2px;bottom:-2px;width:7px;height:7px;border-radius:50%;background:#e3a008;box-shadow:0 0 0 1.5px var(--bt-main,#fff)}
+.bt-mw-ask{color:#b7791f;flex:none;white-space:nowrap}
+body[data-ds-dark-theme] .bt-mw-ask{color:#f0b84a}
+.bt-mw-member{padding:0 6px 8px 42px;display:flex;flex-direction:column;gap:6px}
+.bt-mw-state{font-size:12px;line-height:16px;color:var(--bt-ink-2);margin-top:-4px}
+.bt-mw-card{display:flex;flex-direction:column;gap:4px;padding:10px 12px;border-radius:12px;background:var(--bt-hover);font-size:12px;line-height:17px;color:var(--bt-ink-2)}
+.bt-mw-tool{font-weight:600;color:var(--bt-ink)}
+.bt-mw-text{color:var(--bt-ink);overflow-wrap:anywhere}
+.bt-mw-reason{overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.bt-mw-code{display:block;font:11px/16px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--bt-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bt-mw-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px;margin-top:4px}
+.bt-mw-actions>button{height:28px;padding:0 12px;font-size:12px}
+.bt-mw-actions>button:disabled{opacity:.5;cursor:default}
+@keyframes bt-mw-in{from{opacity:0;transform:translateY(4px)}}
+@media (prefers-reduced-motion:reduce){.bt-mw-row{animation:none}}
+`;
+
 // src/client/member-status.js
 var import_react12 = require("react");
 var NO_WORK = { bots: {}, rooms: {}, approvals: [] };
@@ -7729,7 +7765,7 @@ var alwaysChoices = (approval, bot) => bot?.remote ? [] : [
   ["always-bot", "Always allow for this Bot"],
   ...approval.roomId ? [["always-room", "Always allow for this group"]] : []
 ];
-function ApprovalCard({ approval, bot, actions }) {
+function ApprovalCard({ approval, bot, actions, standing = true }) {
   const [busy, setBusy] = (0, import_react12.useState)(false);
   const answer = (choice) => {
     setBusy(true);
@@ -7747,7 +7783,7 @@ function ApprovalCard({ approval, bot, actions }) {
       { className: "bt-mw-actions" },
       (0, import_react12.createElement)("button", { type: "button", className: "bt-q-btn", disabled: busy, onClick: () => answer("reject") }, t("Reject")),
       (0, import_react12.createElement)("button", { type: "button", className: "bt-q-submit", disabled: busy, onClick: () => answer("allow") }, t("Allow once")),
-      ...alwaysChoices(approval, bot).map(([choice, label]) => (0, import_react12.createElement)("button", { key: choice, type: "button", className: "bt-q-btn", "data-choice": choice, disabled: busy, onClick: () => answer(choice) }, t(label)))
+      ...(standing ? alwaysChoices(approval, bot) : []).map(([choice, label]) => (0, import_react12.createElement)("button", { key: choice, type: "button", className: "bt-q-btn", "data-choice": choice, disabled: busy, onClick: () => answer(choice) }, t(label)))
     ) : (0, import_react12.createElement)(
       "div",
       { className: "bt-mw-actions" },
@@ -7787,38 +7823,6 @@ function useMemberWork(room2, useWork) {
   const now = useNow(entries2.some((entry) => entry.state !== "idle"));
   return { entries: entries2, now };
 }
-var MEMBER_CSS = `
-.bt-mw-dock-stack{box-sizing:border-box;display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:var(--dsh-chat-content-width,min(960px,100%));margin:0 auto 6px;pointer-events:none}
-.bt-mw-row{pointer-events:auto;display:flex;align-items:center;gap:10px;min-width:0;max-width:calc(100% + 6px);height:32px;margin-inline-start:-6px;padding:0 12px 0 6px;border:0;border-radius:16px;background:none;color:var(--bt-ink-2);font:inherit;font-size:14px;cursor:pointer;animation:bt-mw-in .32s cubic-bezier(.23,1,.32,1) backwards;transition:background-color .16s ease-out}
-.bt-mw-row:hover{background:var(--bt-hover)}
-.bt-mw-row>.bt-mark{flex:none}
-.bt-mw-row-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.bt-mw-row-time{flex:none;font-size:12px;color:var(--bt-ink-3);white-space:nowrap}
-.bt-mw-work{display:flex;align-items:center;justify-content:space-between;gap:8px}
-.bt-mw-stop{flex:none;height:22px;padding:0 10px;border:1px solid var(--bt-line,rgba(0,0,0,.12));border-radius:11px;background:none;color:var(--bt-ink-2);font:inherit;font-size:12px;cursor:pointer}
-.bt-mw-stop:hover{background:var(--bt-hover)}
-.bt-mw-stop:disabled{opacity:.5;cursor:default}
-.bt-mw-line{gap:8px}
-.bt-mw-stack{display:inline-flex;align-items:center;flex:none;line-height:0}
-.bt-mw-stack>*+*{margin-left:-4px}
-.bt-mw-face{position:relative;display:inline-flex;flex:none;border-radius:50%}
-.bt-mw-stack .bt-mw-face{box-shadow:0 0 0 1.5px var(--bt-main,#fff)}
-.bt-mw-face[data-ask]::after{content:"";position:absolute;right:-2px;bottom:-2px;width:7px;height:7px;border-radius:50%;background:#e3a008;box-shadow:0 0 0 1.5px var(--bt-main,#fff)}
-.bt-mw-ask{color:#b7791f;flex:none;white-space:nowrap}
-body[data-ds-dark-theme] .bt-mw-ask{color:#f0b84a}
-.bt-mw-member{padding:0 6px 8px 42px;display:flex;flex-direction:column;gap:6px}
-.bt-mw-state{font-size:12px;line-height:16px;color:var(--bt-ink-2);margin-top:-4px}
-.bt-mw-card{display:flex;flex-direction:column;gap:4px;padding:10px 12px;border-radius:12px;background:var(--bt-hover);font-size:12px;line-height:17px;color:var(--bt-ink-2)}
-.bt-mw-tool{font-weight:600;color:var(--bt-ink)}
-.bt-mw-text{color:var(--bt-ink);overflow-wrap:anywhere}
-.bt-mw-reason{overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
-.bt-mw-code{display:block;font:11px/16px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--bt-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.bt-mw-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px;margin-top:4px}
-.bt-mw-actions>button{height:28px;padding:0 12px;font-size:12px}
-.bt-mw-actions>button:disabled{opacity:.5;cursor:default}
-@keyframes bt-mw-in{from{opacity:0;transform:translateY(4px)}}
-@media (prefers-reduced-motion:reduce){.bt-mw-row{animation:none}}
-`;
 
 // src/shared/task-board.js
 var COLUMNS = ["not-started", "in-progress", "done"];
@@ -9396,6 +9400,78 @@ function ProjectsNav({ wide = true, request, onOpen } = {}) {
   );
 }
 
+// src/client/sidebar-styles.js
+var SIDEBAR_CSS = `
+.bt-side-top .bt-brand{cursor:default;padding-left:6px}
+.bt-side-top .bt-brand:hover{background:none}
+.bt-brand .bt-mark{flex:none}
+.bt-pin{flex:none;display:inline-flex;color:var(--bt-ink-3)}
+.bt-rail .bt-row{position:relative}
+.bt-rail .bt-pin{position:absolute;top:3px;left:calc(50% + 12px)}
+.bt-side .bt-read-only{margin:4px 8px 6px;padding:8px 10px;border-radius:10px;background:var(--bt-hover);font-size:12px;line-height:1.45;text-align:left}
+[class*="_footArea"]:has(.bt-foot-account){display:flex!important;flex-direction:row!important;align-items:center;gap:6px}
+[class*="_footArea"]:has(.bt-foot-account)>[class*="_footerActions"],[class*="_footArea"]:has(.bt-foot-account)>[class*="_footerActions"]>div{display:contents!important}
+.bt-foot-account{order:-1;flex:none;display:inline-flex}
+[class*="_footArea"]:has(.bt-foot-account) .bt-connect-foot{order:0;flex:1 1 auto;min-width:0;width:auto}
+[class*="_footArea"]:has(.bt-foot-account)>[class*="_settingsArea"]{order:1;flex:none}
+[class*="_footArea"]:has(.bt-foot-account)>[class*="_settingsArea"] button[class*="_trigger"] [class*="_label"]{display:none!important}
+
+/* The update cloud springs in when a newer DS Bot shows up; its arrow drops in a
+   loop while the install runs. */
+.bt-round.bt-update{position:relative;color:var(--bt-accent,#4D6BFE);animation:bt-update-in ${SPRING_SHAPE.duration}ms ${SPRING_SHAPE.easing}}
+.bt-round.bt-update svg{width:17px;height:17px}
+.bt-round.bt-update[data-phase=installed]{color:var(--bt-ink-2)}
+@keyframes bt-update-in{from{opacity:0;transform:scale(.6);filter:blur(4px)}}
+.bt-update[data-phase=installing] .bt-cloud-arrow{animation:bt-cloud-drop 1.1s cubic-bezier(.45,0,.55,1) infinite}
+@keyframes bt-cloud-drop{0%{transform:translateY(-3px);opacity:0}35%{opacity:1}70%{transform:translateY(1px);opacity:1}100%{transform:translateY(2px);opacity:0}}
+.bt-update-dot{position:absolute;top:6px;right:6px;width:7px;height:7px;border-radius:50%;background:#E5484D;box-shadow:0 0 0 1.5px var(--bt-sidebar)}
+.bt-update-pop{position:fixed;z-index:130;width:280px;padding:14px 14px 12px;border-radius:14px;background:var(--bt-main);border:.5px solid var(--bt-line-2);box-shadow:0 10px 20px -3px rgba(0,0,0,.1),0 4px 6px -4px rgba(0,0,0,.1);color:var(--bt-ink);box-sizing:border-box;transform-origin:top left;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;animation:bt-update-pop ${SPRING_SHAPE.duration}ms ${SPRING_SHAPE.easing}}
+@keyframes bt-update-pop{from{opacity:0;transform:scale(.96);filter:blur(4px)}}
+.bt-update-title{font-size:14px;line-height:20px;font-weight:600}
+.bt-update-text{margin-top:2px;font-size:12.5px;line-height:18px;color:var(--bt-ink-2)}
+.bt-update-error{margin-top:8px;font-size:12px;line-height:17px;color:#c21d2e;overflow-wrap:anywhere;max-height:90px;overflow:auto}
+.bt-update-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:12px}
+.bt-update-notes{margin-right:auto;font-size:12.5px;color:var(--bt-ink-2);text-decoration:none}
+.bt-update-notes:hover{color:var(--bt-ink);text-decoration:underline}
+.bt-update-go{height:30px;padding:0 14px;border:0;border-radius:999px;background:var(--bt-accent,#4D6BFE);color:var(--bt-accent-ink,#fff);font:inherit;font-size:13px;font-weight:500;cursor:pointer;transition:opacity .12s ease,transform .12s ease}
+.bt-update-go:hover:not(:disabled){opacity:.9}
+.bt-update-go:active:not(:disabled){transform:scale(.96)}
+.bt-update-go:disabled{opacity:.6;cursor:default}
+.bt-update-dsh:not(:first-child){margin-top:12px;padding-top:12px;border-top:.5px solid var(--bt-line-2)}
+@media (prefers-reduced-motion:reduce){.bt-round.bt-update,.bt-update-pop,.bt-update .bt-cloud-arrow{animation:none}}
+
+/* The DSH Agent row and its expanding Session list. The black whale is the
+   harness's own mark, so the row reads as "plain dsh" next to the Bot marks. */
+.bt-agent-ava{flex:none;width:36px;height:36px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:var(--bt-hover);color:var(--bt-ink)}
+.bt-agent-ava.bt-run{animation:bt-agent-pulse 1.4s ease-in-out infinite}
+@keyframes bt-agent-pulse{0%,100%{opacity:1}50%{opacity:.55}}
+.bt-agent-sub{display:grid;grid-template-rows:0fr;transition:grid-template-rows ${SPRING_SHAPE.duration}ms ${SPRING_SHAPE.easing}}
+.bt-agent-sub[data-open]{grid-template-rows:1fr}
+.bt-agent-sub-in{overflow:hidden;min-height:0;margin-left:44px}
+.bt-agent-sub-row{display:flex;align-items:center;gap:8px;width:100%;padding:5px 10px 5px 8px;border:0;border-radius:8px;background:none;color:var(--bt-ink-2);font:inherit;font-size:13px;line-height:20px;text-align:left;cursor:pointer}
+.bt-agent-sub-row:hover{background:var(--bt-hover);color:var(--bt-ink)}
+.bt-agent-sub-row[aria-current=page]{background:var(--bt-hover);color:var(--bt-ink);font-weight:500}
+.bt-agent-sub-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bt-agent-sub-time{flex:none;font-size:11px;color:var(--bt-ink-3)}
+.bt-agent-new{color:var(--bt-ink-3)}
+.bt-agent-new svg{width:14px;height:14px;flex:none}
+.bt-agent-edit{padding:3px 10px 3px 4px}
+.bt-agent-edit input{width:100%;border:0;border-radius:6px;background:var(--bt-hover);color:var(--bt-ink);font:inherit;font-size:13px;line-height:20px;padding:2px 8px;outline:none;box-shadow:inset 0 0 0 .5px var(--bt-line-2)}
+.bt-agent-sub[data-open] .bt-agent-sub-row{animation:bt-agent-row-in .24s ease both;animation-delay:calc(var(--i, 0)*30ms)}
+@keyframes bt-agent-row-in{from{opacity:0;filter:blur(4px)}to{opacity:1;filter:blur(0)}}
+@media (prefers-reduced-motion:reduce){.bt-agent-sub{transition:none}.bt-agent-sub .bt-agent-sub-row{animation:none}}
+
+.bt-row-wrap{position:relative;display:flex;align-items:center;width:100%;min-width:0}
+.bt-row-wrap>.bt-row{flex:1 1 auto;min-width:0;width:100%}
+.bt-tree-item>.bt-row-wrap{flex:1 1 auto;width:auto;min-width:0}
+/* Gear sits over the row so hover/selected fill the same full-width band as a plain row (#384). */
+.bt-row-settings{position:absolute;right:6px;top:50%;transform:translateY(-50%);z-index:1;flex:none;display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;border:0;border-radius:8px;background:transparent;color:var(--bt-ink-3);cursor:pointer;opacity:0;pointer-events:none;transition:background-color .12s ease,color .12s ease,opacity .12s ease}
+.bt-row-wrap:hover>.bt-row,.bt-row-wrap:focus-within>.bt-row{padding-right:36px}
+.bt-row-wrap:hover .bt-row-settings,.bt-row-wrap:focus-within .bt-row-settings{opacity:1;pointer-events:auto;color:var(--bt-ink-2);background:var(--bt-hover)}
+.bt-row-settings:hover{opacity:1;color:var(--bt-ink-2);background:var(--bt-hover)}
+.bt-row-settings svg{width:15px;height:15px}
+`;
+
 // src/client/sidebar.js
 var import_react17 = require("react");
 var import_react_dom4 = require("react-dom");
@@ -9793,6 +9869,40 @@ function TreeNode({ node, rowProps, markedUnread, collapsed, toggle, actions }) 
       typeof actions === "function" ? (0, import_react17.createElement)(NodeActions, { component: actions, bot }) : null
     ),
     closed ? null : children.map((child) => (0, import_react17.createElement)(TreeNode, { key: child.bot.id, node: child, rowProps, markedUnread, collapsed, toggle, actions }))
+  );
+}
+function ScopedChatList({ roster, selectedId, openSession, openDetails }) {
+  const [collapsed, setCollapsed] = (0, import_react17.useState)({});
+  const toggle = (id) => setCollapsed((value) => ({ ...value, [id]: !value[id] }));
+  const mainId = roster.mainBotId;
+  const tree = roster.bots.some((bot) => bot.parentId) ? botTree(roster.bots, mainId, (id) => roster.byId[id]?.parentId) : [];
+  const sessions = { ids: [], byId: {} };
+  const status = /* @__PURE__ */ new Map();
+  const props = {
+    roster,
+    wide: true,
+    marked: false,
+    useSessions: (select) => select(sessions),
+    useSessionStatus: (select) => select(status),
+    useSessionRetainInfo: (id, select) => select({ retainedBy: { mainView: id === (roster.byId[selectedId] ? currentPart(roster.byId[selectedId]) : selectedId) ? 1 : 0 } }),
+    useActivity: (select) => select({}),
+    actions: {
+      openSession: (id) => {
+        if (roster.byId[id] || roster.roomsById[id]) openSession(id);
+      },
+      openMenu: ({ id }) => {
+        if (roster.byId[id] || roster.roomsById[id]) openDetails?.(id);
+      },
+      openSettings: (_section, id) => {
+        if (roster.byId[id] || roster.roomsById[id]) openDetails?.(id);
+      }
+    }
+  };
+  return (0, import_react17.createElement)(
+    "div",
+    { className: "bt-list", role: "region", "aria-label": t("Bot list") },
+    tree.length ? tree.map((node) => (0, import_react17.createElement)(TreeNode, { key: node.bot.id, node, rowProps: props, markedUnread: {}, collapsed, toggle })) : roster.bots.map((bot) => (0, import_react17.createElement)(BotRow, { ...props, key: bot.id, bot, asRow: true })),
+    roster.rooms.map((room2) => (0, import_react17.createElement)(RoomRow, { ...props, key: room2.id, room: room2 }))
   );
 }
 function TeamSidebar(props) {
@@ -10204,76 +10314,6 @@ function BrandMark({ size = 24 }) {
 function BrandName() {
   return (0, import_react17.createElement)("span", { style: { fontWeight: 600, fontSize: 14 } }, t("FlyBot"));
 }
-var SIDEBAR_CSS = `
-.bt-side-top .bt-brand{cursor:default;padding-left:6px}
-.bt-side-top .bt-brand:hover{background:none}
-.bt-brand .bt-mark{flex:none}
-.bt-pin{flex:none;display:inline-flex;color:var(--bt-ink-3)}
-.bt-rail .bt-row{position:relative}
-.bt-rail .bt-pin{position:absolute;top:3px;left:calc(50% + 12px)}
-.bt-side .bt-read-only{margin:4px 8px 6px;padding:8px 10px;border-radius:10px;background:var(--bt-hover);font-size:12px;line-height:1.45;text-align:left}
-[class*="_footArea"]:has(.bt-foot-account){display:flex!important;flex-direction:row!important;align-items:center;gap:6px}
-[class*="_footArea"]:has(.bt-foot-account)>[class*="_footerActions"],[class*="_footArea"]:has(.bt-foot-account)>[class*="_footerActions"]>div{display:contents!important}
-.bt-foot-account{order:-1;flex:none;display:inline-flex}
-[class*="_footArea"]:has(.bt-foot-account) .bt-connect-foot{order:0;flex:1 1 auto;min-width:0;width:auto}
-[class*="_footArea"]:has(.bt-foot-account)>[class*="_settingsArea"]{order:1;flex:none}
-[class*="_footArea"]:has(.bt-foot-account)>[class*="_settingsArea"] button[class*="_trigger"] [class*="_label"]{display:none!important}
-
-/* The update cloud springs in when a newer DS Bot shows up; its arrow drops in a
-   loop while the install runs. */
-.bt-round.bt-update{position:relative;color:var(--bt-accent,#4D6BFE);animation:bt-update-in ${SPRING_SHAPE.duration}ms ${SPRING_SHAPE.easing}}
-.bt-round.bt-update svg{width:17px;height:17px}
-.bt-round.bt-update[data-phase=installed]{color:var(--bt-ink-2)}
-@keyframes bt-update-in{from{opacity:0;transform:scale(.6);filter:blur(4px)}}
-.bt-update[data-phase=installing] .bt-cloud-arrow{animation:bt-cloud-drop 1.1s cubic-bezier(.45,0,.55,1) infinite}
-@keyframes bt-cloud-drop{0%{transform:translateY(-3px);opacity:0}35%{opacity:1}70%{transform:translateY(1px);opacity:1}100%{transform:translateY(2px);opacity:0}}
-.bt-update-dot{position:absolute;top:6px;right:6px;width:7px;height:7px;border-radius:50%;background:#E5484D;box-shadow:0 0 0 1.5px var(--bt-sidebar)}
-.bt-update-pop{position:fixed;z-index:130;width:280px;padding:14px 14px 12px;border-radius:14px;background:var(--bt-main);border:.5px solid var(--bt-line-2);box-shadow:0 10px 20px -3px rgba(0,0,0,.1),0 4px 6px -4px rgba(0,0,0,.1);color:var(--bt-ink);box-sizing:border-box;transform-origin:top left;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;animation:bt-update-pop ${SPRING_SHAPE.duration}ms ${SPRING_SHAPE.easing}}
-@keyframes bt-update-pop{from{opacity:0;transform:scale(.96);filter:blur(4px)}}
-.bt-update-title{font-size:14px;line-height:20px;font-weight:600}
-.bt-update-text{margin-top:2px;font-size:12.5px;line-height:18px;color:var(--bt-ink-2)}
-.bt-update-error{margin-top:8px;font-size:12px;line-height:17px;color:#c21d2e;overflow-wrap:anywhere;max-height:90px;overflow:auto}
-.bt-update-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:12px}
-.bt-update-notes{margin-right:auto;font-size:12.5px;color:var(--bt-ink-2);text-decoration:none}
-.bt-update-notes:hover{color:var(--bt-ink);text-decoration:underline}
-.bt-update-go{height:30px;padding:0 14px;border:0;border-radius:999px;background:var(--bt-accent,#4D6BFE);color:var(--bt-accent-ink,#fff);font:inherit;font-size:13px;font-weight:500;cursor:pointer;transition:opacity .12s ease,transform .12s ease}
-.bt-update-go:hover:not(:disabled){opacity:.9}
-.bt-update-go:active:not(:disabled){transform:scale(.96)}
-.bt-update-go:disabled{opacity:.6;cursor:default}
-.bt-update-dsh:not(:first-child){margin-top:12px;padding-top:12px;border-top:.5px solid var(--bt-line-2)}
-@media (prefers-reduced-motion:reduce){.bt-round.bt-update,.bt-update-pop,.bt-update .bt-cloud-arrow{animation:none}}
-
-/* The DSH Agent row and its expanding Session list. The black whale is the
-   harness's own mark, so the row reads as "plain dsh" next to the Bot marks. */
-.bt-agent-ava{flex:none;width:36px;height:36px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:var(--bt-hover);color:var(--bt-ink)}
-.bt-agent-ava.bt-run{animation:bt-agent-pulse 1.4s ease-in-out infinite}
-@keyframes bt-agent-pulse{0%,100%{opacity:1}50%{opacity:.55}}
-.bt-agent-sub{display:grid;grid-template-rows:0fr;transition:grid-template-rows ${SPRING_SHAPE.duration}ms ${SPRING_SHAPE.easing}}
-.bt-agent-sub[data-open]{grid-template-rows:1fr}
-.bt-agent-sub-in{overflow:hidden;min-height:0;margin-left:44px}
-.bt-agent-sub-row{display:flex;align-items:center;gap:8px;width:100%;padding:5px 10px 5px 8px;border:0;border-radius:8px;background:none;color:var(--bt-ink-2);font:inherit;font-size:13px;line-height:20px;text-align:left;cursor:pointer}
-.bt-agent-sub-row:hover{background:var(--bt-hover);color:var(--bt-ink)}
-.bt-agent-sub-row[aria-current=page]{background:var(--bt-hover);color:var(--bt-ink);font-weight:500}
-.bt-agent-sub-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.bt-agent-sub-time{flex:none;font-size:11px;color:var(--bt-ink-3)}
-.bt-agent-new{color:var(--bt-ink-3)}
-.bt-agent-new svg{width:14px;height:14px;flex:none}
-.bt-agent-edit{padding:3px 10px 3px 4px}
-.bt-agent-edit input{width:100%;border:0;border-radius:6px;background:var(--bt-hover);color:var(--bt-ink);font:inherit;font-size:13px;line-height:20px;padding:2px 8px;outline:none;box-shadow:inset 0 0 0 .5px var(--bt-line-2)}
-.bt-agent-sub[data-open] .bt-agent-sub-row{animation:bt-agent-row-in .24s ease both;animation-delay:calc(var(--i, 0)*30ms)}
-@keyframes bt-agent-row-in{from{opacity:0;filter:blur(4px)}to{opacity:1;filter:blur(0)}}
-@media (prefers-reduced-motion:reduce){.bt-agent-sub{transition:none}.bt-agent-sub .bt-agent-sub-row{animation:none}}
-
-.bt-row-wrap{position:relative;display:flex;align-items:center;width:100%;min-width:0}
-.bt-row-wrap>.bt-row{flex:1 1 auto;min-width:0;width:100%}
-.bt-tree-item>.bt-row-wrap{flex:1 1 auto;width:auto;min-width:0}
-/* Gear sits over the row so hover/selected fill the same full-width band as a plain row (#384). */
-.bt-row-settings{position:absolute;right:6px;top:50%;transform:translateY(-50%);z-index:1;flex:none;display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;border:0;border-radius:8px;background:transparent;color:var(--bt-ink-3);cursor:pointer;opacity:0;pointer-events:none;transition:background-color .12s ease,color .12s ease,opacity .12s ease}
-.bt-row-wrap:hover>.bt-row,.bt-row-wrap:focus-within>.bt-row{padding-right:36px}
-.bt-row-wrap:hover .bt-row-settings,.bt-row-wrap:focus-within .bt-row-settings{opacity:1;pointer-events:auto;color:var(--bt-ink-2);background:var(--bt-hover)}
-.bt-row-settings:hover{opacity:1;color:var(--bt-ink-2);background:var(--bt-hover)}
-.bt-row-settings svg{width:15px;height:15px}
-`;
 
 // src/client/busy-ack-logic.js
 function busyAckText(hostAck) {
@@ -11966,6 +12006,126 @@ function ComposerPlus({ sessionId, inputActions, useRoster, actions }) {
       canReference ? (0, import_react21.createElement)("button", { type: "button", role: "menuitem", onMouseDown: keepComposerFocus, onClick: reference }, (0, import_react21.createElement)(ChatsIcon), (0, import_react21.createElement)("span", { className: "bt-menu-label" }, t("Reference a chat"))) : null,
       (0, import_react21.createElement)("button", { type: "button", role: "menuitem", onClick: schedule }, (0, import_react21.createElement)(ClockIcon), (0, import_react21.createElement)("span", { className: "bt-menu-label" }, t("Scheduled task")))
     ), document.body) : null
+  );
+}
+function ScopedComposer({ chat, mentions = [], initialText = "", attachments = [], initialImages = [], initialIncluded = [], allowImages = false, onIncluded, onImages, onDraft, onError }) {
+  const [text2, setText] = (0, import_react21.useState)(initialText);
+  const [sending, setSending] = (0, import_react21.useState)(false);
+  const pending = (0, import_react21.useRef)(false);
+  const [included, setIncluded] = (0, import_react21.useState)(initialIncluded);
+  const updateIncluded = (value) => {
+    setIncluded(value);
+    onIncluded?.(value);
+  };
+  const [images, setImages] = (0, import_react21.useState)(initialImages);
+  const alive = (0, import_react21.useRef)(true), reading = (0, import_react21.useRef)(false);
+  const [readingFiles, setReadingFiles] = (0, import_react21.useState)(false);
+  (0, import_react21.useEffect)(() => () => {
+    alive.current = false;
+  }, []);
+  const upload = async (event) => {
+    if (reading.current) return;
+    reading.current = true;
+    setReadingFiles(true);
+    const files = [...event.target.files], win = event.target.ownerDocument.defaultView;
+    event.target.value = "";
+    try {
+      if (files.length + images.length > 4 || files.some((file) => file.size > 256 * 1024) || files.reduce((size, file) => size + file.size, images.reduce((size, image) => size + image.bytes, 0)) > 512 * 1024) throw new Error("Choose up to four files, at most 256 KiB each and 512 KiB total");
+      const encoded = await Promise.all(files.map((file) => new Promise((resolve, reject) => {
+        const reader = new win.FileReader();
+        reader.onerror = () => reject(new Error("Image could not be read"));
+        reader.onload = () => resolve({ name: file.name, mediaType: file.type, bytes: file.size, data: String(reader.result).split(",")[1] });
+        reader.readAsDataURL(file);
+      })));
+      if (alive.current) {
+        const next = [...images, ...encoded];
+        setImages(next);
+        onImages?.(next);
+        setFailure("");
+      }
+    } catch (error) {
+      if (alive.current) setFailure(error.message);
+    } finally {
+      reading.current = false;
+      if (alive.current) setReadingFiles(false);
+    }
+  };
+  const [failure, setFailure] = (0, import_react21.useState)("");
+  const input = (0, import_react21.useRef)(null);
+  const current = (0, import_react21.useRef)(text2);
+  current.current = text2;
+  const update = (value) => {
+    setText(value);
+    onDraft?.(value);
+  };
+  const dictation = useDictation((value, final) => {
+    if (final) update(current.current + value);
+  });
+  const query = text2.match(/(?:^|\s)@([^\s@]*)$/)?.[1];
+  const rows = query === void 0 ? [] : mentions.filter((row) => row.name.toLowerCase().includes(query.toLowerCase())).slice(0, 8);
+  const send = async (event) => {
+    event.preventDefault();
+    if (pending.current || reading.current || !text2.trim() && !images.length) return;
+    pending.current = true;
+    setSending(true);
+    setFailure("");
+    try {
+      await chat.send(text2, images.length ? { images: images.filter((file) => ["image/png", "image/jpeg", "image/webp", "image/gif"].includes(file.mediaType)), files: images.filter((file) => !["image/png", "image/jpeg", "image/webp", "image/gif"].includes(file.mediaType)) } : included.length ? { attachmentIds: included } : void 0);
+      update("");
+      updateIncluded([]);
+      setImages([]);
+      onImages?.([]);
+    } catch (error) {
+      setFailure(error.message);
+      onError?.(error);
+    } finally {
+      pending.current = false;
+      setSending(false);
+    }
+  };
+  return (0, import_react21.createElement)(
+    "form",
+    { className: "bt-scoped-composer", onSubmit: send, "data-composer-card": "" },
+    (0, import_react21.createElement)("textarea", {
+      ref: input,
+      name: "text",
+      "aria-label": t("Message"),
+      value: text2,
+      disabled: sending,
+      onInput: (event) => update(event.target.value),
+      onKeyDown: (event) => {
+        if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) send(event);
+      }
+    }),
+    allowImages ? (0, import_react21.createElement)("label", null, (0, import_react21.createElement)(PaperclipIcon), "Add files", (0, import_react21.createElement)("input", { type: "file", multiple: true, disabled: readingFiles || sending, onChange: upload })) : null,
+    images.map((image, index) => (0, import_react21.createElement)("div", { key: index }, image.name, (0, import_react21.createElement)("button", { type: "button", onClick: () => {
+      const next = images.filter((_row, i) => i !== index);
+      setImages(next);
+      onImages?.(next);
+    } }, "Remove"))),
+    attachments.length ? (0, import_react21.createElement)("fieldset", null, (0, import_react21.createElement)("legend", null, "Include registered documents"), attachments.map((row) => (0, import_react21.createElement)(
+      "label",
+      { key: row.id },
+      (0, import_react21.createElement)("input", { type: "checkbox", checked: included.includes(row.id), onChange: (event) => updateIncluded(event.target.checked ? [...included, row.id] : included.filter((id) => id !== row.id)) }),
+      row.name
+    ))) : null,
+    rows.length ? (0, import_react21.createElement)("div", { role: "listbox", "aria-label": t("Bots") }, rows.map((row) => (0, import_react21.createElement)("button", {
+      key: row.id,
+      type: "button",
+      role: "option",
+      onClick: () => {
+        update(text2.slice(0, text2.length - query.length) + row.name + " ");
+        input.current?.focus();
+      }
+    }, row.name))) : null,
+    (0, import_react21.createElement)("button", {
+      type: "button",
+      "aria-label": dictation.listening ? t("Stop dictation") : t("Dictate"),
+      onClick: () => dictation.listening ? dictation.stop() : dictation.start()
+    }, (0, import_react21.createElement)(MicIcon)),
+    (0, import_react21.createElement)("button", { type: "submit", disabled: sending || readingFiles || !text2.trim() && !images.length }, t("Send")),
+    failure ? (0, import_react21.createElement)("p", { role: "alert" }, failure) : null,
+    dictation.note ? (0, import_react21.createElement)("p", { role: "status" }, dictation.note) : null
   );
 }
 
@@ -13891,7 +14051,7 @@ function EntryRow({ entry, remove }) {
       (0, import_react28.createElement)("span", { className: "bt-mem-entry-text" }, entry.text),
       meta ? (0, import_react28.createElement)("span", { className: "bt-mem-entry-meta" }, meta) : null
     ),
-    (0, import_react28.createElement)("button", {
+    remove ? (0, import_react28.createElement)("button", {
       type: "button",
       className: "bt-mem-remove",
       "data-confirm": confirming || void 0,
@@ -13899,10 +14059,10 @@ function EntryRow({ entry, remove }) {
       "aria-label": confirming ? t("Click again to remove") : t("Remove from memory"),
       title: confirming ? void 0 : t("Remove from memory"),
       onClick: click
-    }, confirming ? t("Remove") : (0, import_react28.createElement)(TrashIcon))
+    }, confirming ? t("Remove") : (0, import_react28.createElement)(TrashIcon)) : null
   );
 }
-function Entries({ bot, view, remove }) {
+function Entries({ bot, view, remove, readOnly = false }) {
   const groups = groupEntries(view.entries);
   const sections = [
     { scope: "own", title: t("{name}'s memory", { name: bot.name }), size: view.sizes.own },
@@ -13911,7 +14071,7 @@ function Entries({ bot, view, remove }) {
   return (0, import_react28.createElement)(
     "div",
     { className: "bt-mem-entries" },
-    sections.map((section) => (0, import_react28.createElement)(
+    sections.filter((section) => !readOnly || section.scope === "own").map((section) => (0, import_react28.createElement)(
       "section",
       { key: section.scope, className: "bt-mem-section" },
       (0, import_react28.createElement)(
@@ -13919,7 +14079,7 @@ function Entries({ bot, view, remove }) {
         { className: "bt-mem-section-head" },
         (0, import_react28.createElement)("h3", null, section.title),
         section.hint ? (0, import_react28.createElement)("span", null, section.hint) : null,
-        (0, import_react28.createElement)("span", { className: "bt-mem-size", title: t("MEMORY.md, which every conversation reads") }, t("{used} of {limit} characters", { used: section.size.toLocaleString(dateLocale()), limit: view.limits.main.toLocaleString(dateLocale()) }))
+        !readOnly ? (0, import_react28.createElement)("span", { className: "bt-mem-size", title: t("MEMORY.md, which every conversation reads") }, t("{used} of {limit} characters", { used: section.size.toLocaleString(dateLocale()), limit: view.limits.main.toLocaleString(dateLocale()) })) : null
       ),
       groups.some((group) => group.scope === section.scope) ? groups.filter((group) => group.scope === section.scope).map((group) => (0, import_react28.createElement)(
         import_react28.Fragment,
@@ -14001,9 +14161,9 @@ function useNow3(every) {
   }, [every]);
   return now;
 }
-function MemoryDialog({ bot, actions, leaving = false }) {
+function MemoryDialog({ bot, actions, leaving = false, readOnly = false }) {
   const { view, error, load, show } = useMemoryView(bot.id, actions);
-  const [page, setPage] = (0, import_react28.useState)("summary");
+  const [page, setPage] = (0, import_react28.useState)(readOnly ? "entries" : "summary");
   const [menu, setMenu] = (0, import_react28.useState)(false);
   const [menuShown, menuLeaving] = useLinger(menu, MENU_EXIT_MS2);
   const [text2, setText] = (0, import_react28.useState)("");
@@ -14086,11 +14246,11 @@ function MemoryDialog({ bot, actions, leaving = false }) {
       (0, import_react28.createElement)(
         "div",
         { className: "bt-mem-head" },
-        page === "entries" ? (0, import_react28.createElement)("button", { type: "button", className: "bt-icon-btn", "aria-label": t("Back to the summary"), onClick: backToSummary }, (0, import_react28.createElement)(ChevronLeftIcon)) : null,
+        !readOnly && page === "entries" ? (0, import_react28.createElement)("button", { type: "button", className: "bt-icon-btn", "aria-label": t("Back to the summary"), onClick: backToSummary }, (0, import_react28.createElement)(ChevronLeftIcon)) : null,
         (0, import_react28.createElement)("h2", null, page === "entries" ? t("All entries") : t("Memory summary")),
         (0, import_react28.createElement)("span", { className: "bt-mem-status" }, page === "summary" ? [bot.name, status].filter(Boolean).join(" · ") : status),
         (0, import_react28.createElement)("span", { className: "bt-mem-head-gap" }),
-        (0, import_react28.createElement)("button", { ref: dotsRef, type: "button", className: "bt-icon-btn", "aria-label": t("Memory options"), "aria-haspopup": "menu", "aria-expanded": menu, onClick: () => setMenu((value) => !value) }, (0, import_react28.createElement)(DotsIcon)),
+        !readOnly ? (0, import_react28.createElement)("button", { ref: dotsRef, type: "button", className: "bt-icon-btn", "aria-label": t("Memory options"), "aria-haspopup": "menu", "aria-expanded": menu, onClick: () => setMenu((value) => !value) }, (0, import_react28.createElement)(DotsIcon)) : null,
         (0, import_react28.createElement)("button", { type: "button", className: "bt-icon-btn", "aria-label": t("Close memory"), onClick: close }, (0, import_react28.createElement)(CloseIcon)),
         menuShown ? (0, import_react28.createElement)(
           "div",
@@ -14112,9 +14272,9 @@ function MemoryDialog({ bot, actions, leaving = false }) {
         "div",
         { className: "bt-mem-body" },
         error ? (0, import_react28.createElement)("div", { className: "bt-error", role: "alert", style: { padding: 0 } }, hostText(error)) : null,
-        view === null ? error ? null : (0, import_react28.createElement)(Skeleton) : page === "entries" ? (0, import_react28.createElement)(Entries, { bot, view, remove }) : (0, import_react28.createElement)(Summary, { bot, view, regenerate })
+        view === null ? error ? null : (0, import_react28.createElement)(Skeleton) : page === "entries" ? (0, import_react28.createElement)(Entries, { bot, view, remove: readOnly ? void 0 : remove, readOnly }) : (0, import_react28.createElement)(Summary, { bot, view, regenerate })
       ),
-      (0, import_react28.createElement)(
+      !readOnly ? (0, import_react28.createElement)(
         "div",
         { className: "bt-mem-foot" },
         answer ? (0, import_react28.createElement)(Reply, { answer, dismiss: () => setAnswer(null) }) : null,
@@ -14137,7 +14297,7 @@ function MemoryDialog({ bot, actions, leaving = false }) {
             busy ? (0, import_react28.createElement)("span", { className: "bt-mem-spin", "aria-hidden": true }) : (0, import_react28.createElement)(ArrowUpIcon)
           )
         )
-      )
+      ) : null
     )
   );
 }
@@ -19377,7 +19537,19 @@ function GroupOverview({ room: room2, roster, actions, usage, useWork, openSetti
     )
   ];
 }
-function DetailsDrawer({ sessionId, startRenaming, startTab, hasStrip, roster, actions, useSessions, useSessionStatus, useActivity, useWork, useBrowserTabs, useBrowserPages }) {
+function ScopedDetailsDrawer({ bot, actions }) {
+  return (0, import_react44.createElement)(
+    "div",
+    { className: "bt-drawer-body", "data-scoped-details": "" },
+    (0, import_react44.createElement)("h3", null, bot.name),
+    bot.instructions ? (0, import_react44.createElement)(About, { text: bot.instructions }) : null,
+    (0, import_react44.createElement)(MemoryRow, { bot, actions })
+  );
+}
+function DetailsDrawer({ scoped = false, ...props }) {
+  return scoped ? (0, import_react44.createElement)(ScopedDetailsDrawer, props) : (0, import_react44.createElement)(FullDetailsDrawer, props);
+}
+function FullDetailsDrawer({ sessionId, startRenaming, startTab, hasStrip, roster, actions, useSessions, useSessionStatus, useActivity, useWork, useBrowserTabs, useBrowserPages }) {
   const owner = roster.byId[sessionId];
   const part = owner ? currentPart(owner) : sessionId;
   const isMainBot = isMainOf(roster, owner?.id);

@@ -117,3 +117,22 @@ New Chief job requests wake the existing Project dispatcher after durable save.
 An existing source-key receipt returns without a redundant wake; this prevents
 a self-triggering arbitration loop. Scheduled inspection cadence remains original
 DSH configuration, independent of event-driven job execution.
+
+## Development service compatibility (S1)
+
+The original logical schedule handler enters the development service scheduled port after occurrence persistence and authority checks, then invokes the existing Chief implementation. Occurrence IDs, request deduplication, configurable timing and Chief adjudication are retained. See [service contract](project-development-service.md).
+
+
+## Durable Task inbox integration (S3)
+
+S3 snapshots durably bind bounded Task input batches. Unforgeable in-process receipt permits validate source/generation without consumption; failed decisions leave pending input. Closure rechecks later input and commits its receipt with acceptance; routing acknowledges only after success. The original configured periodic inspection remains unchanged. See [inputs](project-inputs.md).
+
+
+## Approved integration recovery (#60)
+
+Snapshots expose admitted operator input refs/SHAs. New manager admission bumps
+collaboration generation so an older Chief decision cannot act on unseen inputs.
+Once the host supports the pinned merge, route Developer with rework=false to
+resume the current unsealed Attempt; do not ask a role to bypass shared-ref
+restrictions or replace merge/index metadata. Ordinary autonomous handoffs and
+configured inspection timing remain unchanged.

@@ -11,6 +11,15 @@ owned_paths:
   - core/test/reach-policy.test.js
 ---
 
+S4 installs Project Sources after the original logical scheduled-task service and
+before Chief/scheduler recovery. Its Source adapter registers native configurable
+polling and feeds the existing durable Task inbox; it adds no listener, execution
+engine or hardcoded clock. See [Source contract](project-sources.md).
+
+S5 installs an execution-boundary query over the same Project services. Its default
+trust profile does not provision accounts or alter SDK sandbox configuration.
+See [boundary contract](project-execution-boundary.md).
+
 # core-host
 
 The server side of the patched `ds-bot` core (`core/`): the part of [ds-bot-core](ds-bot-core.md) that runs in DSH. Split out of that page so a change to the browser client or to the pin and patch tooling does not have to edit this one. Pin, patch format, `core/dev/` and the invariants about `ds-bot/` and `client.js` stay on [ds-bot-core](ds-bot-core.md).
@@ -894,6 +903,50 @@ See [Chief control](project-chief-control.md) for authority and restart invarian
 Repair HTTP integration: register the pool/query/GitHub/delegation/Chief/schedule
 APIs in the concrete channel dispatcher, with Project rights checked downstream.
 
+R7 Project collaboration adds explicit authenticated room and conversation-stop channel
+cases and workbench-only authorization vocabulary. The gateway never forwards raw DSH
+room/Session routes. Rooms reuse existing Project agent delegation and documented native
+llm/stream middleware; they cannot authorize Task effects. See
+[Project collaboration](project-collaboration.md) for ownership and scope boundaries.
+
+The shared workbench's `personal-space` capability projects original owned local
+Bots and authorized internal room history without opening raw owner routes.
+`workbench-personal.js` excludes Project carriers and retains original identities;
+room history retains membership-window filtering and async own-chat/memory reads
+reauthenticate before returning. Sends reuse channel `send` authorization.
+
 
 ## Project Chief memory adapter
 `memory.js` exposes botMemoryRecall/botMemoryRemember for an already host-bound own Bot. They reuse original topic validation, entry/file limits, secret scan, replace handling, serialized writes and journal. Caller-supplied scope/Bot IDs are ignored; Project adapter derives the resident public Chief. Memory index is supplied per request and topic details are retrieved on demand; files survive SDK process release and host restart. The original DSH parts/steward implementation is unchanged.
+
+Task40 personal-space controls delegate to existing native question/approval/group
+stop handlers after checking the selected owned personal Session. Stop revalidates
+after resolving the native agent. Original dismiss-question accepts an optional
+question ID fence for scoped callers. The channel's native personal stream hook uses
+current-turn checks and excludes hidden exchanges; only the authorized personal read
+returns its redacted buffer. Workbench personal tool projection never returns raw
+arguments/non-text content or a result without its visible call.
+
+The native personal stream observer is registered only when shared-workbench mode
+is explicitly enabled at installation. Legacy profiles retain their existing listener
+count and order. The shared observer still passes non-conversation purposes and
+unknown Sessions through unchanged; this does not alter secrets or usage accounting.
+
+The native attachment personal-space adapter admits uploaded bytes using public
+AttachmentStore APIs, then uses an identified native Agent message and flush. It does
+not trust browser-supplied existing references. Reads require a reference recorded in
+the selected message or membership-visible group line and recheck current access.
+No raw attachment route, filesystem path or DSH owner cookie is exposed to the browser.
+
+## Development service (S1)
+
+The authenticated channel and shared-mode authorizer register project-development. Read-only replicas validate a query envelope through the service query predicate; command envelopes remain writes. Legacy endpoint shapes stay compatible. See [service contract](project-development-service.md).
+
+## Durable effects and outbox (S2)
+
+S2 store snapshots capture effect generation/revision metadata and acknowledge it only after state.json rename, before optional journal recording. Project effects remain on the same writer/lock and recover after original delivery/resource/pool recovery; awaiting a no-op save cannot authorize external I/O. See [effect contract](project-effects.md).
+
+
+## Durable Task inbox integration (S3)
+
+S3 installs project-inputs after Effects and before callers. It shares the existing state snapshots, scopes all service input operations to current Project/Task and introduces no timer/executor. See [Task input contract](project-inputs.md).

@@ -6,6 +6,7 @@ import { randomUUID, createHash } from 'node:crypto'
 import { isAbsolute, relative, sep } from 'node:path'
 import { promisify } from 'node:util'
 import { ownEntry, setEntry } from './store.js'
+import { executionProfile } from './project-execution-profile.js'
 const exec = promisify(execFile)
 const failure = message => Object.assign(new Error(message), { code: 'bot/resource' })
 const active = lease => lease.status !== 'released'
@@ -21,6 +22,7 @@ export function createProjectResources(rt) {
   const serial = fn => { const result = tail.then(fn, fn); tail = result.then(() => {}, () => {}); return result }
   const occupied = id => Object.values(leases()).filter(row => row.resourceId === id && active(row)).length
   function setting(projectId, resourceId) {
+    executionProfile(config)
     const project = rt.readProject(projectId)
     const resource = ownEntry(resources(), resourceId)
     if (!project || !resource || !resource.allowedProjectOwnerIds?.includes(project.ownerUserId) || resource.projectIds && !resource.projectIds.includes(projectId)) throw failure('Execution resource is not authorized for this Project')

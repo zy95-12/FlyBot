@@ -3,6 +3,8 @@ import { test } from 'node:test'
 import { mkdtemp, mkdir, writeFile, readFile, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { createProjectEffects } from '../src/host/project-effects.js'
+import { install as installProjectInputs } from '../src/host/project-inputs.js'
 import { createProjectResources } from '../src/host/project-resources.js'
 import { createProjectHarness, handoffFrame } from '../src/host/project-harness.js'
 
@@ -168,4 +170,162 @@ test('conversation carriers for non-Chief roles cannot gain development shell or
     assert.equal(flags.readOnly,true)
     await harness.release(id)
   }
+})
+
+
+test('busy SDK queues feedback until a safe next turn in the same worker, thread and claim', async t => {
+  const { rt, harness, cwd } = await fixture(t)
+  const session = rt.projectDelivery.sessionFor()
+  session.poolClaimId = 'claim'
+  const task = rt.state.tasks.t
+  task.status = 'working'
+  task.collaboration = { status: 'claimed', generation: 2, botId: 'p:developer', currentHandoffId: 'h', initiatedBy: 'owner', claim: { id: 'claim', generation: 2, botId: 'p:developer', status: 'active' } }
+  rt.projects = { requireActive() {} }
+  rt.projectEffects = createProjectEffects(rt); installProjectInputs(rt)
+  rt.save = async () => {
+    const proof = rt.projectEffects.capture()
+    await writeFile(join(rt.home, 'inbox-state.json'), JSON.stringify(rt.state))
+    rt.projectEffects.saved(proof)
+  }
+  const runtime = rt.config.projectResources.r.runtimeDir
+  await writeFile(join(runtime, 'src/host/project-harness-worker.mjs'), `
+import {createInterface} from 'node:readline';import {existsSync} from 'node:fs';
+const write=v=>process.stdout.write(JSON.stringify(v)+'\\n');const batches=[];
+write({type:'ready',sdk:{codex:'0.166.0'}});
+createInterface({input:process.stdin}).on('line',line=>{const m=JSON.parse(line);
+ if(m.type==='stop'){write({type:'stopped',released:true});setTimeout(()=>process.exit(0),20);return;}
+ if(m.type==='start'){
+  const data=JSON.parse(m.prompt.match(/Inputs: ([^\\n]+)/)[1]);batches.push(data.taskInbox);
+  write({type:'sdk-event',event:{type:'thread.started',thread_id:'same-thread'}});
+  write({type:'sdk-event',event:{type:'item.completed',item:{type:'agent_message',text:'First turn is busy'}}});
+  const poll=setInterval(()=>{if(!existsSync('finish-first'))return;clearInterval(poll);write({type:'completed',sessionId:'same-thread',text:'OUTPUT handoff: '+JSON.stringify({action:'arbitrate',reason:'Prior proposal not yet applied'})});},10);
+ }
+ if(m.type==='input'){
+  batches.push(JSON.parse(m.prompt.split('New durable Task inbox: ')[1]));
+  write({type:'sdk-event',event:{type:'item.completed',item:{type:'agent_message',text:'Read queued feedback'}}});
+  const inputReceipts=batches.map(b=>({batchId:b.batchId,read:b.inputs.map(i=>i.id),handled:b.inputs.map(i=>i.id)}));
+  write({type:'completed',sessionId:'same-thread',text:'OUTPUT handoff: '+JSON.stringify({action:'arbitrate',reason:'Both feedback inputs processed; Chief must judge',inputReceipts})});
+ }
+});`)
+  await rt.projectInputs.publish({projectId:'p',taskId:'t',requestId:'first',text:'Keep original groups'}, {memberId:'owner'})
+  const initial = await rt.projectInputs.prepare('t', task.collaboration.claim)
+  const id = await harness.spawn({executionProjectId:'p',executionWorkDir:cwd,prompt:'Process the current Task'})
+  task.collaboration.claim.workerId = id
+  let resultCount = 0
+  const result = new Promise(resolve => harness.onResult(row => { resultCount++; resolve(row) }))
+  await harness.dispatch({botId:id,taskId:'t',brief:'Task criteria',inputs:{taskInbox:initial},outputs:[{name:'handoff'}]})
+  for(let n=0;n<200 && rt.state.projectHarnessWorkers[id].eventCount<3;n++) await new Promise(resolve=>setTimeout(resolve,5))
+  assert.equal(rt.state.projectHarnessWorkers[id].status,'running')
+  const second = await rt.projectInputs.publish({projectId:'p',taskId:'t',requestId:'second',text:'Retain personal Chief too'}, {memberId:'owner'})
+  assert.equal(rt.projectInputs.list({projectId:'p',taskId:'t'},{memberId:'owner'}).inputs.find(i=>i.id===second.input.id).phase,'accepted')
+  await writeFile(join(cwd,'finish-first'),'ready')
+  const output = await result
+  assert.equal(output.ok,true)
+  assert.equal(resultCount,1,'The intermediate proposal must not trigger a handoff')
+  assert.equal(Object.keys(rt.state.projectHarnessWorkers).length,1)
+  assert.equal(rt.state.projectHarnessWorkers[id].backendSessionId,'same-thread')
+  assert.equal(rt.state.projectHarnessWorkers[id].safeInputTurns,1)
+  const decision=JSON.parse(output.text.split('OUTPUT handoff: ')[1])
+  await rt.projectInputs.acknowledge('t',task.collaboration.claim,decision.inputReceipts)
+  assert.ok(rt.projectInputs.list({projectId:'p',taskId:'t'},{memberId:'owner'}).inputs.every(i=>i.phase==='handled'))
+  assert.equal(task.status,'working')
+  await harness.release(id)
+})
+
+test('safe SDK input turns are bounded and excess feedback remains for the next responsible Bot', async t => {
+  const {rt,harness,cwd}=await fixture(t),session=rt.projectDelivery.sessionFor(),task=rt.state.tasks.t
+  session.poolClaimId='bounded-claim';task.status='working'
+  task.collaboration={status:'claimed',generation:2,botId:'p:developer',initiatedBy:'owner',claim:{id:session.poolClaimId,generation:2,botId:'p:developer',status:'active'}}
+  rt.projects={requireActive(){}};rt.projectEffects=createProjectEffects(rt);installProjectInputs(rt)
+  rt.save=async()=>{rt.projectEffects.saved(rt.projectEffects.capture())}
+  await writeFile(join(rt.config.projectResources.r.runtimeDir,'src/host/project-harness-worker.mjs'),`
+import{createInterface}from'node:readline';import{existsSync,writeFileSync}from'node:fs';
+const write=v=>process.stdout.write(JSON.stringify(v)+'\\n');const batches=[];let round=0;
+write({type:'ready',sdk:{codex:'0.166.0'}});
+createInterface({input:process.stdin}).on('line',line=>{const m=JSON.parse(line);
+if(m.type==='stop'){write({type:'stopped',released:true});setTimeout(()=>process.exit(0),20);return;}
+if(!['start','input'].includes(m.type))return;
+const batch=m.type==='start'?JSON.parse(m.prompt.match(/Inputs: ([^\\n]+)/)[1]).taskInbox:JSON.parse(m.prompt.split('New durable Task inbox: ')[1]);batches.push(batch);
+write({type:'sdk-event',event:{type:'thread.started',thread_id:'bounded-thread'}});writeFileSync('ready-'+round,'ready');
+const current=round++;const timer=setInterval(()=>{if(!existsSync('allow-'+current))return;clearInterval(timer);
+const inputReceipts=batches.map(b=>({batchId:b.batchId,read:b.inputs.map(i=>i.id),handled:b.inputs.map(i=>i.id)}));
+write({type:'completed',sessionId:'bounded-thread',text:'OUTPUT handoff: '+JSON.stringify({action:'arbitrate',reason:'Process bounded batches; leave any newer inputs pending',inputReceipts})});},5);
+});`)
+  await rt.projectInputs.publish({projectId:'p',taskId:'t',requestId:'initial',text:'Initial feedback'},{memberId:'owner'})
+  const batch=await rt.projectInputs.prepare('t',task.collaboration.claim)
+  const id=await harness.spawn({executionProjectId:'p',executionWorkDir:cwd,prompt:'Process bounded Task input'})
+  task.collaboration.claim.workerId=id
+  const result=new Promise(resolve=>harness.onResult(resolve))
+  await harness.dispatch({botId:id,taskId:'t',brief:'Task',inputs:{taskInbox:batch},outputs:[{name:'handoff'}]})
+  for(let n=0;n<5;n++){
+    let ready=false
+    for(let tries=0;tries<400;tries++){try{await stat(join(cwd,'ready-'+n));ready=true;break}catch{await new Promise(resolve=>setTimeout(resolve,5))}}
+    assert.equal(ready,true,'The same worker should reach the expected safe turn')
+    await rt.projectInputs.publish({projectId:'p',taskId:'t',requestId:'busy-'+n,text:'Feedback arriving during round '+n},{memberId:'owner'})
+    await writeFile(join(cwd,'allow-'+n),'proceed')
+  }
+  const output=await result;assert.equal(output.ok,true)
+  const decision=JSON.parse(output.text.split('OUTPUT handoff: ')[1])
+  await rt.projectInputs.acknowledge('t',task.collaboration.claim,decision.inputReceipts)
+  assert.equal(rt.state.projectHarnessWorkers[id].safeInputTurns,4)
+  assert.equal(Object.keys(rt.state.projectHarnessWorkers).length,1)
+  const pending=rt.projectInputs.pending('t')
+  assert.equal(pending.length,1)
+  assert.throws(()=>rt.projectInputs.requireHandled('t'),/unhandled/)
+  assert.equal(task.status,'working')
+  await harness.release(id)
+})
+
+async function taskInputFixture(t, workerSource) {
+  const f=await fixture(t),{rt,harness}=f,session=rt.projectDelivery.sessionFor(),task=rt.state.tasks.t
+  session.poolClaimId='idle-claim';task.status='working'
+  task.collaboration={status:'claimed',generation:2,botId:'p:developer',initiatedBy:'owner',claim:{id:session.poolClaimId,generation:2,botId:'p:developer',status:'active'}}
+  rt.projects={requireActive(){}};rt.projectEffects=createProjectEffects(rt);installProjectInputs(rt);rt.projectHarness=harness
+  rt.save=async()=>{const proof=rt.projectEffects.capture();await writeFile(join(rt.home,'inbox.json'),JSON.stringify(rt.state));rt.projectEffects.saved(proof)}
+  await writeFile(join(rt.config.projectResources.r.runtimeDir,'src/host/project-harness-worker.mjs'),workerSource)
+  const id=await harness.spawn({executionProjectId:'p',executionWorkDir:f.cwd,prompt:'Process Task feedback'})
+  task.collaboration.claim.workerId=id
+  return {...f,task,id}
+}
+
+test('ordinary Task feedback resumes a safe idle message turn without opening another SDK worker', async t => {
+  const {rt,harness,task,id}=await taskInputFixture(t,`
+import{createInterface}from'node:readline';const write=v=>process.stdout.write(JSON.stringify(v)+'\\n');write({type:'ready',sdk:{codex:'0.166.0'}});
+createInterface({input:process.stdin}).on('line',line=>{const m=JSON.parse(line);if(m.type==='stop'){write({type:'stopped',released:true});setTimeout(()=>process.exit(0),20);return;}
+if(m.type==='start'){write({type:'sdk-event',event:{type:'thread.started',thread_id:'idle-thread'}});write({type:'completed',sessionId:'idle-thread',text:'Please clarify the existing Task scope'});}
+if(m.type==='input'){const b=JSON.parse(m.prompt.split('New durable Task inbox: ')[1]);write({type:'sdk-event',event:{type:'item.completed',item:{type:'agent_message',text:'Read the scoped feedback'}}});write({type:'completed',sessionId:'idle-thread',text:'OUTPUT handoff: '+JSON.stringify({action:'arbitrate',reason:'Feedback clarifies scope; ask Chief',inputReceipts:{batchId:b.batchId,read:b.inputs.map(i=>i.id),handled:b.inputs.map(i=>i.id)}})});}
+});`)
+  const completed=new Promise(resolve=>harness.onResult(resolve))
+  await harness.dispatch({botId:id,taskId:task.id,brief:'Current Task',outputs:[{name:'handoff'}]})
+  for(let n=0;n<200&&rt.state.projectHarnessWorkers[id].status!=='waiting-input';n++)await new Promise(resolve=>setTimeout(resolve,5))
+  assert.equal(rt.state.projectHarnessWorkers[id].pending.kind,'message')
+  await rt.projectInputs.publish({projectId:'p',taskId:'t',requestId:'clarification',text:'Retain the original room tools'},{memberId:'owner'})
+  await Promise.all([rt.projectEffects.drain(),harness.taskInputWake(task.id)])
+  const result=await completed;assert.equal(result.ok,true)
+  const decision=JSON.parse(result.text.split('OUTPUT handoff: ')[1])
+  await rt.projectInputs.acknowledge(task.id,task.collaboration.claim,decision.inputReceipts)
+  assert.equal(rt.state.projectHarnessWorkers[id].safeInputTurns,1)
+  assert.equal(Object.keys(rt.state.projectHarnessWorkers).length,1)
+  assert.equal(rt.state.projectHarnessWorkers[id].backendSessionId,'idle-thread')
+  assert.equal(rt.projectInputs.pending(task.id).length,0)
+  await harness.release(id)
+})
+
+test('Task feedback cannot answer an SDK permission prompt or replace its request identity', async t => {
+  const {rt,harness,task,id}=await taskInputFixture(t,`
+import{createInterface}from'node:readline';const write=v=>process.stdout.write(JSON.stringify(v)+'\\n');write({type:'ready',sdk:{codex:'0.166.0'}});
+createInterface({input:process.stdin}).on('line',line=>{const m=JSON.parse(line);if(m.type==='stop'){write({type:'stopped',released:true});setTimeout(()=>process.exit(0),20);return;}
+if(m.type==='start')write({type:'permission',id:'original-permission-id',request:{name:'Bash',input:{command:'protected action'}}});
+if(m.type==='input'||m.type==='permission')throw Error('Ordinary Task feedback must not approve a permission');
+});`)
+  await harness.dispatch({botId:id,taskId:task.id,brief:'Current Task',outputs:[{name:'handoff'}]})
+  for(let n=0;n<200&&rt.state.projectHarnessWorkers[id].pending?.kind!=='permission';n++)await new Promise(resolve=>setTimeout(resolve,5))
+  await rt.projectInputs.publish({projectId:'p',taskId:'t',requestId:'ordinary-feedback',text:'Please continue if allowed'},{memberId:'owner'})
+  await rt.projectEffects.drain()
+  assert.equal(rt.state.projectHarnessWorkers[id].status,'waiting-input')
+  assert.equal(rt.state.projectHarnessWorkers[id].pending.id,'original-permission-id')
+  assert.equal(rt.projectInputs.list({projectId:'p',taskId:'t'},{memberId:'owner'}).inputs[0].phase,'accepted')
+  assert.equal(rt.projectInputs.pending(task.id).length,1)
+  assert.deepEqual(await harness.taskInputWake(task.id),{woken:false,waitingFor:'permission'})
+  await harness.release(id)
 })

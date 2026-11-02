@@ -7,6 +7,11 @@ owned_paths:
 
 # Execution resources and leases (fork M7.2)
 
+S5 validates the compatible trusted-private execution profile at resource access,
+without changing grants, leases, explicit UIDs or SDK capabilities. A supported
+profile is not hostile-code isolation. Safe metadata is exposed through the
+[boundary query](project-execution-boundary.md); unknown profiles refuse admission.
+
 Resources are operator-provisioned runtime capabilities, independent of model credentials.
 `projectResources` maps stable IDs to local or Docker execution environments. Owner UI
 may reference these IDs; request bodies cannot supply a path, Docker target or runtime UID.

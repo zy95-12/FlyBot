@@ -1,4 +1,5 @@
 // Client channel: the team view the browser renders, and the POST /api/bot endpoints.
+import { personalRoster, requirePersonalSession, personalToolRows, personalMessageAttachments, personalUploadContent, personalQuestion, createPersonalStreams } from './workbench-personal.js'
 import { randomUUID } from 'node:crypto'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { isApprovalWaiting } from '../shared/approval-waiting.js'
@@ -28,6 +29,10 @@ export function errorCode(error) {
 
 export function install(rt) {
   const { ctx, state } = rt
+  const personalStreams = createPersonalStreams(rt)
+  // The personal projection belongs to the explicitly configured shared entry.
+  // Legacy profiles keep their existing stream pipeline and registration order.
+  if (rt.sharedProjectMode()) ctx.on('llm/stream', (options, next) => options.purpose === undefined ? personalStreams.stream(options.sessionId, next) : next())
 
   // The DSH interface language of the last browser that asked for the team.
   let uiLocale
@@ -224,7 +229,7 @@ export function install(rt) {
   // What a host that only reads the team may still answer.
   // Updates change the dsh profile, not the team, so a reading host may run them too.
   // auth-whoami is a read of the already-resolved actor; invite/redeem/revoke/remove-member write.
-  const READS = new Set(['project-task-pools', 'project-chief-state', 'project-github-read', 'auth-mode', 'workbench-state', 'project-resources', 'projects', 'project-read', 'project-board', 'project-members', 'project-task-detail', 'project-attempt-log', 'project-detail', 'state', 'models', 'efforts', 'earlier', 'room-progress', 'room-history', 'exchange', 'usage', 'schedules', 'memory-view', 'browser-wait', 'browser-result', 'diagnostics', 'diagnostics-log', 'diagnostics-clear', 'update-check', 'update-install', 'dsh-update-install', 'repo-stars', 'approval-answer', 'auth-whoami', 'workflows'])
+  const READS = new Set(['project-rooms', 'project-room-read', 'project-task-pools', 'project-chief-state', 'project-github-read', 'auth-mode', 'workbench-state', 'project-resources', 'projects', 'project-read', 'project-board', 'project-members', 'project-task-detail', 'project-attempt-log', 'project-detail', 'state', 'models', 'efforts', 'earlier', 'room-progress', 'room-history', 'exchange', 'usage', 'schedules', 'memory-view', 'browser-wait', 'browser-result', 'diagnostics', 'diagnostics-log', 'diagnostics-clear', 'update-check', 'update-install', 'dsh-update-install', 'repo-stars', 'approval-answer', 'auth-whoami', 'workflows'])
 
   // A chat reference chip names a Session whose snapshot rides to every recipient of
   // the message, so the author must be able to read what they share (#53, #106).
@@ -294,6 +299,7 @@ export function install(rt) {
       const readOnly = rt.readOnly()
       const flybotRead = endpoint.startsWith('flybot/') && rt.flybotIsRead?.(endpoint.slice('flybot/'.length)) === true
       const projectRead = endpoint === 'project-workflow' && ['state', 'templates'].includes(body.operation ?? 'state')
+        || endpoint === 'project-development' && rt.projectDevelopment.isQuery(body)
       if (readOnly !== undefined && !READS.has(endpoint) && !flybotRead && !projectRead) return fail(readOnly, 'bot/read-only')
       // Actor is resolved once from the member session token; body.actorId / payload.actorId
       // grant nothing and are ignored (#48).
@@ -305,6 +311,139 @@ export function install(rt) {
         case 'workbench-state':
         case 'project-resources':
           return ok(await rt.workbenchEndpoint(endpoint, body, actor))
+        case 'personal-space': {
+          if (!rt.sharedProjectMode() || !actor?.memberId) return fail('Sign in first', 'bot/unauthorized')
+          const operation = body.operation ?? 'list'
+          if (operation === 'list') return ok(personalRoster(rt, actor))
+          let sessionId = requirePersonalSession(rt, actor, String(body.id ?? ''))
+          if (body.partId !== undefined) {
+            const bot = rt.botOf(sessionId)
+            if (!['read', 'attachment-read'].includes(operation) || !bot || !rt.partsOf(bot.id).some(part => part.sessionId === body.partId)) return fail('Unknown personal conversation part', 'bot/forbidden')
+            sessionId = body.partId
+          }
+          if (operation === 'send' && (body.images?.length || body.files?.length)) {
+            const bot = rt.botOf(sessionId), room = rt.roomOf(sessionId), text = String(body.text ?? '').trim()
+            if ((!room && (!bot || !rt.botOwnedBy(actor, bot.id))) || unshareableReference(actor, text) !== undefined) return fail('Select an authorized current conversation', 'bot/forbidden')
+            await rt.ensureCapabilities(sessionId)
+            const agent = await rt.resolveAgent(sessionId)
+            requirePersonalSession(rt, await rt.authenticate(sessionToken), String(body.id ?? ''))
+            const content = await personalUploadContent(ctx.attachments, text, body.images ?? [], body.files ?? [])
+            const freshActor = await rt.authenticate(sessionToken)
+            if (requirePersonalSession(rt, freshActor, String(body.id ?? '')) !== sessionId) return fail('Conversation changed', 'bot/stale')
+            if (room) {
+              const label = text || content.filter(block => block.attachment).map(block => block.attachment.name ?? 'Attachment').join(', ')
+              const line = await rt.postRoomMessage(room.id, { text: label, displayName: freshActor.displayName }, freshActor)
+              line.nativeAttachments = content.filter(block => block.attachment)
+              await rt.save()
+            }
+            const message = createUserMessage({ content, source: { kind: 'user', authorId: freshActor.memberId, authorKind: 'human', authorName: freshActor.displayName } })
+            if (admission(sessionId) === 'steer') agent.steer(message)
+            else agent.followup(message)
+            await ctx.sessions.flush(agent.session)
+            return ok({ accepted: true })
+          }
+          if (operation === 'send') return handle('send', { sessionId, text: body.text }, signal, sessionToken)
+          if (operation === 'member-stop') {
+            const room = rt.roomOf(sessionId), bot = rt.botOf(String(body.botId ?? ''))
+            if (!room || !room.members.includes(bot?.id) || !rt.botOwnedBy(actor, bot.id)) return fail('This group worker is not yours', 'bot/forbidden')
+            return handle('stop-member-work', { roomId: sessionId, botId: bot.id }, signal, sessionToken)
+          }
+
+          if (rt.roomOf(sessionId) && ['answer', 'dismiss', 'approval'].includes(operation)) {
+            if (operation === 'approval') {
+              const approval = (rt.approvalsView?.() ?? []).find(row => row.id === body.approvalId && row.roomId === sessionId && rt.botOwnedBy(actor, row.botId))
+              if (!approval || !['allow', 'reject'].includes(body.choice)) return fail('Approval is not yours in this group', 'bot/forbidden')
+              return handle('approval-answer', { id: approval.id, choice: body.choice }, signal, sessionToken)
+            }
+            const question = personalQuestion(rt, sessionId, actor)
+            if (!question || question.id !== body.questionId) return fail('Question is not yours in this group', 'bot/stale')
+            return handle(operation === 'answer' ? 'answer-question' : 'dismiss-question', { sessionId, questionId: question.id, answer: body.answer }, signal, sessionToken)
+          }
+          if (['stop', 'answer', 'dismiss', 'approval'].includes(operation)) {
+            // These controls operate only on a currently owned native Bot. A
+            // group membership cannot grant control of another owner's worker.
+            const bot = rt.botOf(sessionId)
+            if (!bot || !rt.botOwnedBy(actor, bot.id)) return fail('Select your own personal Bot', 'bot/forbidden')
+            if (operation === 'stop') {
+              const agent = await rt.resolveAgent(sessionId)
+              const freshActor = await rt.authenticate(sessionToken)
+              if (requirePersonalSession(rt, freshActor, String(body.id ?? '')) !== sessionId) return fail('Conversation changed', 'bot/stale')
+              if (typeof agent.cancel !== 'function') return fail('Conversation cannot be stopped', 'bot/unavailable')
+              agent.cancel({ kind: 'hook', reason: 'Human stopped personal conversation' })
+              return ok({ stopRequested: true })
+            }
+            if (operation === 'approval') {
+              const approval = (rt.approvalsView?.() ?? []).find(row => row.id === body.approvalId && row.sessionId === sessionId && row.botId === bot.id)
+              if (!approval || !['allow', 'reject'].includes(body.choice)) return fail('Approval is not open in this conversation', 'bot/forbidden')
+              return handle('approval-answer', { id: approval.id, choice: body.choice }, signal, sessionToken)
+            }
+            const question = state.questions[sessionId]
+            if (!question || question.id !== body.questionId || question.botId && question.botId !== bot.id) return fail('Question is not open in this conversation', 'bot/stale')
+            return handle(operation === 'answer' ? 'answer-question' : 'dismiss-question', { sessionId, questionId: question.id, answer: body.answer }, signal, sessionToken)
+          }
+
+          if (operation === 'memory') {
+            const bot = rt.botOf(sessionId)
+            if (!bot) return fail('Select a personal Bot', 'bot/invalid')
+            const memory = await rt.memoryEndpoint('memory-view', { botId: bot.id })
+            requirePersonalSession(rt, await rt.authenticate(sessionToken), String(body.id ?? ''))
+            return ok({ entries: memory.entries.filter(entry => entry.scope === 'own') })
+          }
+
+          if (operation === 'attachment-read') {
+            if (!Number.isSafeInteger(body.seq) || body.seq < 0 || typeof body.attachmentId !== 'string') return fail('Unknown attachment', 'bot/invalid')
+            const room = rt.roomOf(sessionId)
+            let event
+            if (room) {
+              const line = rt.roomHistory(sessionId, actor).find(row => row.seq === body.seq)
+              if (line) event = { type: 'user/message', seq: line.seq, data: { content: line.nativeAttachments ?? [] } }
+            } else {
+              const page = await ctx.sessionController.page({ address: { kind: 'session', sessionId }, throughSeq: body.seq, beforeSeq: body.seq + 1, maxMessages: 1 }, AbortSignal.timeout(10000))
+              event = page.records.find(row => row.event.seq === body.seq)?.event
+            }
+            const hidden = state.exchangeTurns[sessionId] ?? []
+            const metadata = event && !hidden.includes(event.data?.turn) && personalMessageAttachments(event).find(row => row.id === body.attachmentId)
+            if (!metadata) return fail('Attachment is not in this visible message', 'bot/forbidden')
+            const freshActor = await rt.authenticate(sessionToken)
+            requirePersonalSession(rt, freshActor, String(body.id ?? ''))
+            if (!Number.isSafeInteger(metadata.bytes) || metadata.bytes > 512 * 1024) return fail('Attachment exceeds the shared download limit', 'bot/invalid')
+            let data
+            if (metadata.kind === 'image') data = (await ctx.sessionController.attachment({ sessionId, attachmentId: metadata.id })).data
+            else {
+              const ref = (event.data?.message?.content ?? event.data?.content).find(block => block.type === 'file' && block.attachment?.attachmentId === metadata.id).attachment
+              const chunks = []; let size = 0
+              for await (const chunk of ctx.attachments.readFileStream(ref, AbortSignal.timeout(10000))) { size += chunk.length; if (size > 512 * 1024) throw invalid('Attachment is too large'); chunks.push(chunk) }
+              data = Buffer.concat(chunks).toString('base64')
+            }
+            requirePersonalSession(rt, await rt.authenticate(sessionToken), String(body.id ?? ''))
+            if (room && !rt.roomHistory(sessionId, await rt.authenticate(sessionToken)).some(row => row.seq === body.seq && row.nativeAttachments?.some(block => block.attachment?.attachmentId === metadata.id))) return fail('Attachment is no longer visible', 'bot/forbidden')
+            return ok({ ...metadata, data })
+          }
+          if (operation !== 'read') return fail('Unknown personal operation', 'bot/invalid')
+          if (rt.roomOf(sessionId)) return ok({ messages: rt.roomHistory(sessionId, actor).filter(line => typeof line.text === 'string' && line.text).map(line => ({ id: `${sessionId}:${line.seq}`, botId: line.botId ?? line.authorId, kind: line.authorKind === 'human' ? 'human' : 'assistant', speaker: line.who, text: line.text, attachments: personalMessageAttachments({ type: 'user/message', seq: line.seq, data: { content: line.nativeAttachments ?? [] } }) })), hasMore: false, question: personalQuestion(rt, sessionId, actor),
+            approvals: (rt.approvalsView?.() ?? []).filter(row => row.roomId === sessionId && rt.botOwnedBy(actor, row.botId)).map(({ id, tool, reason, answerable }) => ({ id, tool, reason, answerable })),
+            groupWork: (rt.roomWorkView?.()[sessionId] ?? []).filter(row => rt.roomOf(sessionId).members.includes(row.botId)).map(row => ({ botId: row.botId, name: rt.botOf(row.botId)?.name, tool: row.tool, since: row.since, canStop: rt.botOwnedBy(actor, row.botId) })) })
+          const agent = await rt.resolveAgent(sessionId)
+          const page = await ctx.sessionController.page({ address: { kind: 'session', sessionId }, throughSeq: Number(agent.session.seq) - 1,
+            ...(Number.isInteger(body.beforeSeq) ? { beforeSeq: body.beforeSeq } : {}), maxMessages: 100 }, AbortSignal.timeout(10000))
+          // A removed member cannot receive an in-flight page after revocation.
+          const currentActor = await rt.authenticate(sessionToken)
+          requirePersonalSession(rt, currentActor, String(body.id ?? ''))
+          const hidden = new Set(state.exchangeTurns[sessionId] ?? [])
+          const messages = page.records.flatMap(({ event }) => {
+            if (hidden.has(event.data?.turn)) return []
+            const attachments = personalMessageAttachments(event)
+            const entry = rt.historyEntry(event, Boolean(rt.roomOf(sessionId))) ?? (event.type === 'assistant/message' && attachments.length ? { answer: true, text: '' } : undefined)
+            return entry && (entry.text || attachments.length) ? [{ attachments, seq: event.seq, id: `${sessionId}:${event.seq}`, botId: entry.answer ? rt.botOf(sessionId)?.id : null, kind: entry.answer ? 'assistant' : 'human', speaker: entry.answer ? rt.botOf(sessionId)?.name ?? 'Bot' : currentActor.displayName ?? 'You', text: entry.text }] : []
+          })
+          return ok({ messages, hasMore: page.hasMore, beforeSeq: page.records[0]?.event.seq ?? null,
+            busy: rt.live?.get(sessionId)?.turn !== undefined,
+            tools: personalToolRows(page.records, hidden, rt.redactSecrets),
+            live: body.partId ? null : personalStreams.read(sessionId),
+            question: body.partId ? null : personalQuestion(rt, sessionId, currentActor),
+            approvals: body.partId ? [] : (rt.approvalsView?.() ?? []).filter(row => row.sessionId === sessionId && row.botId === rt.botOf(sessionId)?.id)
+              .map(({ id, tool, reason, answerable }) => ({ id, tool, reason, answerable })) })
+        }
         case 'state':
           if (typeof body.locale === 'string' && /^[a-z]{2,3}(-[\w-]+)?$/i.test(body.locale)) uiLocale = body.locale
           if (body.watching !== false) watchedAt = Date.now()
@@ -485,6 +624,7 @@ export function install(rt) {
           return ok(await rt.stopMemberWork(String(body.roomId ?? ''), String(body.botId ?? '')))
         case 'dismiss-question':
           await rt.load()
+          if (body.questionId !== undefined && state.questions[body.sessionId]?.id !== body.questionId) return fail('This question is no longer open', 'bot/stale')
           if (state.questions[body.sessionId] !== undefined) {
             delete state.questions[body.sessionId]
             await rt.save()
@@ -683,6 +823,7 @@ export function install(rt) {
         case 'project-execution-input':
         case 'project-resource-environment-check':
         case 'projects':
+        case 'project-development':
         case 'project-task-pools':
         case 'project-chief-question':
         case 'project-github-read':
@@ -696,6 +837,13 @@ export function install(rt) {
         case 'project-attempt-stop':
         case 'project-credential-status':
         case 'project-github-comment':
+        case 'project-rooms':
+        case 'project-room-create':
+        case 'project-room-read':
+        case 'project-room-message':
+        case 'project-room-attachment':
+        case 'project-room-stop':
+        case 'project-agent-stop':
         case 'project-agents':
         case 'project-agent-message':
         case 'project-agent-history':

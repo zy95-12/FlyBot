@@ -17,6 +17,12 @@ owned_paths:
 
 # Project workbench (fork M5)
 
+S5's metadata-only repository preflight first validates the configured execution
+trust profile and includes it in readiness cache identity. The compatibility default
+preserves trusted single-host execution; unsupported profiles refuse before new
+Attempt/workspace allocation. This does not run tests, infer or change the UI.
+See [boundary contract](project-execution-boundary.md).
+
 ## Backend dispatch recovery (R6)
 
 Scheduler wakes coalesce the complete resource reconciliation, admission, pool,
@@ -197,3 +203,295 @@ call. This does not replace issue #40 native rich multi-Bot UI restoration.
 Actual shared-entry repair: the explicit HTTP allowlist now includes pool, query,
 GitHub read, delegation mode and Chief/schedule endpoints. Project authorization
 still executes downstream; raw schedule/state/DSH APIs remain refused.
+
+## R7 native collaboration candidate (#40)
+
+The standalone app now exposes scoped internal rooms, mention/member routing and
+registered documents, native public-text streaming, explicit conversation stop and
+readable Markdown/evidence cards. Pools and Timeline derive actual Task collaboration
+and Chief records. Refresh and action-return fences both protect Project switches.
+Original Harness UI primitives require its private module loader and cannot be imported
+into this standalone entry; the safe DOM renderer loads no remote content. The complete
+[source/API/UI inventory and verification limits](project-collaboration.md) is authoritative
+for this restoration. No raw owner Session/group/plugin API is added to the gateway.
+
+## R7 reference-layout rework
+
+The standalone shell retains Project switching and adds active-page navigation plus
+scoped room shortcuts. Public Chief and private companion use a transcript/composer
+layout. Role/persona/Skills/memory and Chief inspection editors move to the explicit
+`settings` route; server configure checks are unchanged. The public chat retains
+read-only configured Harness/model summaries, while Task details retain actual frozen
+execution evidence. Neither configuration nor an idle chat implies an active worker.
+
+The board groups Tasks into expandable Open, In progress, Needs attention and Completed
+sections. Counts and execution/next-step summaries use actual Task/resource records;
+reference-demo PR/Issue numbers and sample metrics are never imported. Failed Tasks
+remain actionable instead of being grouped as successful completion. Fold state is local
+to Project and survives polling. No raw owner APIs or new credentials are introduced.
+
+## Slow-network and public role inspection continuation
+
+Same-route refreshes share one in-flight promise; route changes abort and fence old responses. The board requests summary Project/resource projections, while full audit, workers and leases remain on detail/resource endpoints and in storage. Members, Workflow and pools are fetched only by consuming screens. The Project shell renders before these reads complete. Gateway responses negotiate gzip above 1 KiB while retaining no-store, CSP and credential stripping; unversioned assets remain uncached to avoid stale deployments. Public role cards show only explicitly attached same-role/Project published memory, its revision/source and persona; private notes are never rendered there. Settings keep the existing configure gate.
+
+The native personal-space entry is still missing. Personal Chief/Bot/group compatibility must preserve existing IDs, relationships, history and owner/grant guards through bounded adapters; Project rooms are not a replacement. This continuation does not claim that acceptance criterion complete.
+
+### Native conversation component slice (#40)
+
+Chief/private Project chats and Project rooms mount the original `cells.js::Bubbles` and
+`mark.js::BotMark/PersonMark` through React, with original conversation styles.
+The fixed `/workbench-native.js` and `.css` assets load only on conversation entry;
+board loading does not import the native dependency graph. The gateway serves only
+these named assets, never arbitrary paths. Each render disposes its previous React
+root; delayed asset callbacks verify the transcript is still connected. Roster input
+contains only the current API-visible agent identity. No raw Session API, global
+roster, owner credential or synthetic Harness provider is supplied.
+
+`native-source.js` is the live Project/room-bound observable source consumed by
+all three conversation surfaces. Polls reuse that source and issue one authenticated
+history read per refresh, not a duplicate component-side request. Route changes,
+logout, failed authorization and disposal clear it and fence delayed asset mounts.
+Room transcripts and each active role's public streaming text use original Bubbles;
+room controls, attachments and runtime metadata remain scoped workbench controls.
+This does not implement Harness sessions/uiConversation/slots adapters, personal
+Chief/Bot/group entry, native composer or tool/approval cells. Human text retains
+a plain-text fallback because pinned primitives lacks the capability required by
+original UserMessageCell. No substitute Harness provider is invented.
+
+The native standalone build pins React 18.2 and published primitives 0.2.1-rc.2
+plus their browser dependency graph as development dependencies in the canonical
+package/lock. Provisioned symlinks alone are not a reproducible CI dependency
+contract. Both generated native assets are included in the package file allowlist.
+
+The existing createSource primitive lives in observable-source.js and remains exported
+by sources.js. The workbench imports that small module directly so initial board
+loading does not pull in the original character roster/assets.
+
+### Native personal continuation — 2026-11-01
+
+The lazy conversation bundle now mounts the original `cells.js::AssistantCell`
+(with its `Bubbles`/Markdown renderer and message toolbar) and `mark.js` identities.
+Its observable comes from the same `createSource` implementation as the native
+client, extracted into `observable-source.js` to avoid global roster side effects.
+Only published text blocks enter this projection; private reasoning is not mapped
+into native turn data. UserMessageCell retains its pinned-primitives version guard.
+
+`personal-space` is the only new gateway capability. It lists original owned,
+non-Project local Bots and visible internal groups, preserving IDs and relationships.
+Read pages use the original `historyEntry` interpretation and exclude hidden
+exchange turns. Group reads use `roomHistory` and its membership windows rather
+than raw group Session pages. Own memory reads strip team entries. Native send
+re-enters the existing channel authorization, reference checks and `send` behavior.
+Paging and memory reads reauthenticate before returning; the client clears its
+observable on route/logout/revocation and fences late responses. The endpoint does
+not expose arbitrary Session, filesystem, owner APIs, credentials or connector calls.
+
+This remains a bounded native-component integration, not installation of the entire
+Harness browser shell. Full sessions/uiConversation/slots services, native composer,
+sidebar/tree and tool/approval cells are not yet mounted in this entry. Existing
+Project controls remain available; original personal group creation/settings and
+live tool/approval interactions still need continuation. Browser screenshots and
+actual deployed three-account acceptance are required separately and are not
+inferred from JSDOM/component checks.
+
+The native bundle uses ASCII escapes and whitespace minification. Imported parser
+libraries intentionally contain replacement-character literals/comments; emitting
+those bytes would trip the repository corruption scanner. Escaping preserves
+runtime code points and minification removes those comments while reducing the
+lazy asset size. The renderer regression executes the committed served bundle.
+
+The native bundle disables template literals during generation so whitespace inside
+CSS/string literals is escaped without changing runtime string values. ASCII
+encoding remains required for dependency replacement-character literals.
+
+Recovery continuation retains the pinned PR target alongside the published seed.
+The personal list now also mounts `sidebar.js::TreeNode` and the existing
+`botTree` cycle/orphan handling over the authorized roster's original parent IDs.
+Collapse state stays inside that mounted list; no global tree registry or foreign
+Bot lookup is used. The component test reproduces the missing tree on the recovered
+draft and checks selection, collapse and expansion on the served bundle.
+
+Personal conversation pages expose an explicit “Load earlier messages” control.
+The scoped source prepends the authorized page, deduplicates by stable message ID,
+and retains loaded history and its oldest cursor across latest-page polling.
+Opening another Bot/part clears that cache; generation fencing and failed
+authorization discard late pages. Project conversation refresh semantics are unchanged.
+
+## Native CSS and logout isolation
+
+The workbench native stylesheet includes canonical shell, conversation and sidebar rules as a same-origin asset. Conversation mounting inserts no inline stylesheet. Sign out bypasses the action busy lock, increments the scope epoch, aborts current reads, disposes conversation roots and clears local credentials/state before awaiting remote revocation. Late action results cannot restore the former view. Local component checks do not establish deployed browser acceptance or complete native composer integration.
+
+The popup layering regression reads `sidebar-styles.js`, the canonical extracted rules, and checks that the native sidebar re-exports them. Extraction must preserve the existing dialog/panel stacking assertions; the test is not a deployed visual acceptance claim.
+
+
+Task #40 rework: the inherited candidate failed the fragment validator because
+`40.fixed.md` contained multiple paragraphs. Keep one entry per fragment. The
+native conversation script now uses production React configuration and full
+minification, guarded by a 4.6 MB script budget (previous asset: 5.37 MB). This
+is a bounded reduction, not completed weak-network acceptance: embedded math
+fonts/CSS and the full native composer, tools, approval, stop/continue and
+personal/group interaction integration still require work. Operator deployment,
+three-account browser checks and actual screenshots remain pending.
+
+### Same-origin native math fonts
+
+The native build emits hashed KaTeX font files under `workbench-fonts/` using
+esbuild file loaders. CSS references those same-origin assets, so only fonts
+actually needed by rendered math are fetched; no font bytes inflate initial CSS.
+The package includes this directory. Gateway reads accept only KaTeX filenames
+with build hashes and font extensions, never arbitrary paths or query strings.
+The existing self-only CSP remains unchanged. Generated binary assets are compared
+as bytes in build checks and mirrored by the canonical patch generator. Local
+render checks are separate from loopback host tests and deployed weak-network acceptance.
+
+Task40 continuation shares an explicit native asset loader between sidebar and
+conversation mounts. Readiness requires both same-origin JavaScript and CSS load;
+stylesheet errors never mount unstyled controls. Every asynchronous mount retains
+the existing conversation identity/epoch fence. The scoped composer is exported
+from the original `composer.js` and reuses its dictation lifecycle; the native
+conversation bundle mounts it with a captured authorized chat handle, supplied
+visible mention identities and draft callbacks. Personal and Project drafts use
+separate route keys; disposal retires sends and tears down microphone listeners.
+This is a scoped composer adaptation, not the entire DSH shell composer: original
+attachment, tool/approval and personal running-state projections remain outstanding.
+
+The room composer uses the same native mount with existing registered-document
+choices; only document IDs reach project-room-message. Private/personal sends
+reject room-document options, and retired captured handles cannot send. Mention
+choices for a personal group are limited to its supplied member roster. Live tool
+labels reuse original `cells.js` workText and only the scoped live tool name;
+arguments, private reasoning and raw SDK logs are not exposed. Tool-result cards,
+blocking approvals and personal live/stop controls still need implementation.
+
+### Task40 native interaction continuation
+
+Personal-space now projects only the current owned Bot's question and one-shot
+approval cards, with captured-scope stop/continue controls. Original PendingQuestion,
+ApprovalCard and MemberWork components render the controls; original standing grants
+remain available in the owner UI but are not introduced through this adapter. An
+approval ID must belong to the selected Session/Bot. Historical parts cannot mutate
+current execution, stale question dismissal fails, and asynchronous stop resolution
+revalidates current identity before requesting cancellation. A stop request is not
+proof that an external process exited.
+
+Personal group work uses roomWorkView and the original MemberWork component; only
+the viewer's own seated Bot may be stopped through this adapter. Room history retains
+its existing membership-window filtering. The adapter does not stream unapproved
+member replies. Current personal own-chat streaming uses documented llm/stream hooks,
+excludes hidden exchange turns and drops buffers on completion. SDK permission and
+message-input controls reuse the original approval card/scoped composer while still
+calling project-execution-input with its actual worker ID/generation/request ID and
+current Project rights. No raw DSH endpoint is exposed by the gateway.
+
+Authorized personal tool pages expose bounded, redacted text results and tool names,
+rendered through the original workText/AssistantCell components. Arguments, images,
+reasoning, hidden exchanges and orphan result events are excluded. Real deployed
+three-account/browser/weak-network screenshots remain operator acceptance; local
+component and HTTP fixtures do not establish that acceptance.
+
+Answerable personal group questions and owned member approvals use the same native
+cards. Public question fields exclude origin/replyTo routing authority. The original
+host selects the answer destination from its saved question; body IDs cannot retarget
+another question or worker. Tool rows retain loaded history within the bound Session;
+a call without a visible result is labelled started, not inferred to be still running.
+
+### Current part and native attachments
+
+The personal part picker routes the current Session to `/personal/:bot` and normalizes
+an explicit current-Session deep link to that live route. Only older parts receive
+personalPart, so returning from history restores composer, streaming and controls.
+Human messages now use original PersonMessage/Bubbles rather than plain paragraphs.
+Scoped message actions omit reactions when no reaction capability was supplied; the
+original owner shell still supplies that capability unchanged.
+
+Native personal/group file sends accept browser bytes through personal-space and
+reuse public AttachmentStore admission plus identified Agent followup/steer and
+Session flush APIs. No DSH code or private API is used. Source uploads are bounded
+to four files, 256 KiB per file and 512 KiB total, within the shared gateway's 1 MiB
+request ceiling; original native image validation remains mandatory. Current human
+access is rechecked after capability resolution and attachment admission before any
+message is published. Invalid batches are prevalidated before file registration.
+Registration revoked before publication may retain an unreferenced immutable object,
+following the native store's retention-neutral contract, but publishes no message.
+
+History preserves attachment-only messages and exposes sanitized reference metadata,
+not host paths. Image reads use the public Session attachment API; file reads use
+AttachmentStore's verified stream. Each read proves a matching reference in the
+selected event, or in a group line visible through native membership-window filtering,
+and revalidates after awaits. Historical parts may read their own recorded attachments
+but cannot send. Downloads are bounded to 512 KiB. Only verified raster images are
+previewed; generic files download as octet-stream. Late reads/file-selection callbacks
+cannot repopulate a retired view, and upload drafts are keyed by human and conversation.
+
+### Native refresh lifecycle
+
+Same-route data refreshes retain native conversation, composer, sidebar and runtime
+input roots in place. Native mount handles expose update alongside unmount, allowing
+fresh scoped props without resetting React state, microphone/file-selection lifetimes,
+text selection or browser focus. The DOM reconciler preserves only native roots and
+their event-free ancestor containers; ordinary forms are replaced with their own event
+closures. No focused native ancestor is detached to build the next page.
+
+Retention requires the same account/Project/route/part key and conversation-source
+identity. Navigation, logout, access failure, changed worker generation/request and
+source replacement retire the relevant roots and pending asset-load callbacks. Source
+and host authorization fences still apply to every operation. Mounted-workbench tests
+cover personal, public, private and room refreshes, retained sends, cursor/focus state,
+Project changes and revocation. DOM identity assertions report booleans so a failure
+cannot recursively print a React/DOM graph and exhaust verification memory.
+
+## Development service compatibility (S1)
+
+S1 adds project-development to the restricted gateway and authenticated HTTP dispatcher. Existing UI assets remain unchanged. The old taskExecution DTO and additive taskViews derive from the service TaskView; stored native Bot existence no longer counts as active execution. Read-only hosts permit only validated query operations, not arbitrary command envelopes. See [service contract](project-development-service.md).
+
+The Task40/S1 integration retains existing scoped UI routes while legacy development
+operations enter the shared application facade. Compact resource summaries and full
+views both pass current native activity to the S1-derived status mapper. Stored Bot
+existence remains insufficient evidence of running work. Frontend retained-root,
+attachment, history and authorization contracts continue unchanged; S1's additive
+TaskView does not expose private conversation state through the compact board.
+
+## Durable effects and outbox (S2)
+
+The existing coalesced admission dispatcher drains due committed effects instead of directly scanning all role pools. Batches are bounded, resource/role capacities remain authoritative, and waits defer without sleeping a model. TaskView exposes exact-candidate publication recovery and scoped failed effect references; UI assets remain unchanged. See [effect contract](project-effects.md).
+
+### Task40 S5 composition — 2026-11-02
+
+Compose retained frontend `36147e74` with admitted S5 `17977a1f`. Preserve
+S5 effects, inbox, sources and execution-boundary registration in core/index.js,
+plus its backend authority and memory contracts. Retain scoped native personal,
+room, stream and asset adapters; public Chief memory remains excluded from room
+carriers. Installation expectations include both effects startup and the native
+stream observer. Fresh host verification and independent Review are required;
+operator deployment, three-account and weak-network acceptance remain pending.
+
+### Registered-document hydration drafts
+
+Room document selections use the same account/Project/conversation-bound draft
+identity as the native composer. At native mount, read the latest fallback form
+selection rather than the options captured before assets loaded. Native selection
+changes synchronize that draft; failed sends retain it and successful sends clear
+it. Existing scope retirement/logout fences still dispose roots and draft state.
+
+Task40 room Stop rework: native conversation mount clears only its owned island.
+Room role status and queued/running Stop controls now live beside that island, so
+native loading and retained-root refresh cannot erase them. Cancellation still
+uses the current Project/room/role endpoint and existing host authority checks.
+Reported queued status is retained; this UI fix does not infer SDK running state.
+Exact-candidate host tests, independent Review and operator acceptance remain required.
+
+Task40 native details/memory adaptation — read-only Project/personal inspection now
+mounts the original DetailsDrawer, About, MemoryRow and MemoryDialog components.
+Personal reads use only the existing own-memory endpoint and legacy Bot identity;
+public roles use only explicitly attached same-Project/role memory. Scoped adapters
+exclude team entries and owner-shell write/configuration/model actions. Navigation
+retires the roots and late memory reads. This is not live-service acceptance; fresh
+host verification, independent Review and operator screenshots remain required.
+
+Native details memory fencing follows account/Project/route/Bot and conversation
+source identity, not the request epoch advanced by ordinary polling. A retained
+same-route island may finish its in-flight memory read after refresh; navigation,
+logout, source replacement and access failure still retire the handle and prevent
+late content from returning. A delayed-read regression reproduces the prior false
+retirement and checks these negative boundaries. New host tests/Review and operator
+acceptance remain required.

@@ -169,3 +169,66 @@ export function ComposerPlus({ sessionId, inputActions, useRoster, actions }) {
     canReference ? h('button', { type: 'button', role: 'menuitem', onMouseDown: keepComposerFocus, onClick: reference }, h(ChatsIcon), h('span', { className: 'bt-menu-label' }, t('Reference a chat'))) : null,
     h('button', { type: 'button', role: 'menuitem', onClick: schedule }, h(ClockIcon), h('span', { className: 'bt-menu-label' }, t('Scheduled task')))), document.body) : null)
 }
+
+// The shared entry supplies a captured, authorized chat handle rather than the
+// owner shell's global actions. Keep dictation and mention routing shared.
+export function ScopedComposer({ chat, mentions = [], initialText = '', attachments = [], initialImages = [], initialIncluded = [], allowImages = false, onIncluded, onImages, onDraft, onError }) {
+  const [text, setText] = useState(initialText)
+  const [sending, setSending] = useState(false)
+  const pending = useRef(false)
+  const [included, setIncluded] = useState(initialIncluded)
+  const updateIncluded = value => { setIncluded(value); onIncluded?.(value) }
+  const [images, setImages] = useState(initialImages)
+  const alive = useRef(true), reading = useRef(false)
+  const [readingFiles, setReadingFiles] = useState(false)
+  useEffect(() => () => { alive.current = false }, [])
+  const upload = async event => {
+    if (reading.current) return
+    reading.current = true; setReadingFiles(true)
+    const files = [...event.target.files], win = event.target.ownerDocument.defaultView
+    event.target.value = ''
+    try {
+      if (files.length + images.length > 4 || files.some(file => file.size > 256 * 1024) || files.reduce((size, file) => size + file.size, images.reduce((size, image) => size + image.bytes, 0)) > 512 * 1024) throw new Error('Choose up to four files, at most 256 KiB each and 512 KiB total')
+      const encoded = await Promise.all(files.map(file => new Promise((resolve, reject) => {
+        const reader = new win.FileReader()
+        reader.onerror = () => reject(new Error('Image could not be read'))
+        reader.onload = () => resolve({ name: file.name, mediaType: file.type, bytes: file.size, data: String(reader.result).split(',')[1] })
+        reader.readAsDataURL(file)
+      })))
+      if (alive.current) { const next = [...images, ...encoded]; setImages(next); onImages?.(next); setFailure('') }
+    } catch (error) { if (alive.current) setFailure(error.message) }
+    finally { reading.current = false; if (alive.current) setReadingFiles(false) }
+  }
+  const [failure, setFailure] = useState('')
+  const input = useRef(null)
+  const current = useRef(text); current.current = text
+  const update = value => { setText(value); onDraft?.(value) }
+  const dictation = useDictation((value, final) => { if (final) update(current.current + value) })
+  const query = text.match(/(?:^|\s)@([^\s@]*)$/)?.[1]
+  const rows = query === undefined ? [] : mentions.filter(row => row.name.toLowerCase().includes(query.toLowerCase())).slice(0, 8)
+  const send = async event => {
+    event.preventDefault()
+    if (pending.current || reading.current || !text.trim() && !images.length) return
+    pending.current = true
+    setSending(true); setFailure('')
+    try { await chat.send(text, images.length ? { images: images.filter(file => ['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(file.mediaType)), files: images.filter(file => !['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(file.mediaType)) } : included.length ? { attachmentIds: included } : undefined); update(''); updateIncluded([]); setImages([]); onImages?.([]) } catch (error) { setFailure(error.message); onError?.(error) }
+    finally { pending.current = false; setSending(false) }
+  }
+  return h('form', { className: 'bt-scoped-composer', onSubmit: send, 'data-composer-card': '' },
+    h('textarea', { ref: input, name: 'text', 'aria-label': t('Message'), value: text, disabled: sending,
+      onInput: event => update(event.target.value), onKeyDown: event => {
+        if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) send(event)
+      } }),
+    allowImages ? h('label', null, h(PaperclipIcon), 'Add files', h('input', { type: 'file', multiple: true, disabled: readingFiles || sending, onChange: upload })) : null,
+    images.map((image, index) => h('div', { key: index }, image.name, h('button', { type: 'button', onClick: () => { const next = images.filter((_row, i) => i !== index); setImages(next); onImages?.(next) } }, 'Remove'))),
+    attachments.length ? h('fieldset', null, h('legend', null, 'Include registered documents'), attachments.map(row => h('label', { key: row.id },
+      h('input', { type: 'checkbox', checked: included.includes(row.id), onChange: event => updateIncluded(event.target.checked ? [...included, row.id] : included.filter(id => id !== row.id)) }), row.name))) : null,
+    rows.length ? h('div', { role: 'listbox', 'aria-label': t('Bots') }, rows.map(row => h('button', {
+      key: row.id, type: 'button', role: 'option', onClick: () => { update(text.slice(0, text.length - query.length) + row.name + ' '); input.current?.focus() },
+    }, row.name))) : null,
+    h('button', { type: 'button', 'aria-label': dictation.listening ? t('Stop dictation') : t('Dictate'),
+      onClick: () => dictation.listening ? dictation.stop() : dictation.start() }, h(MicIcon)),
+    h('button', { type: 'submit', disabled: sending || readingFiles || !text.trim() && !images.length }, t('Send')),
+    failure ? h('p', { role: 'alert' }, failure) : null,
+    dictation.note ? h('p', { role: 'status' }, dictation.note) : null)
+}

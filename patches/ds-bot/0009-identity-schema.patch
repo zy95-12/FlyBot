@@ -10,7 +10,7 @@ diff --git a/test/roster.test.js b/test/roster.test.js
 -import { apply } from '../index.js'
 +import { createRuntime, provideFlyBot } from '../index.js'
  import { fakeContext } from './fake-ctx.js'
- 
+
 -// Enough of the dsh services for the roster to make Sessions; kickoff messages are dropped.
 +// Enough of the dsh services for the roster to make Sessions; every delivered message is kept.
  function start(team, { models = [], reasoning = {}, archiveError } = {}) {
@@ -35,7 +35,7 @@ diff --git a/test/roster.test.js b/test/roster.test.js
 -  return { call, stop, home, sent, selected, ctx, archived, warnings }
 +  return { call, stop, home, sent, selected, ctx, archived, warnings, rt }
  }
- 
+
  const settle = () => new Promise(resolve => setTimeout(resolve, 20))
 -// A greeting goes out after the team is saved, which can take longer than one settle() on a
 +// A model is applied after the team is saved, which can take longer than one settle() on a
@@ -45,7 +45,7 @@ diff --git a/test/roster.test.js b/test/roster.test.js
 @@ -77,46 +77,68 @@ const until = async (check) => {
    }
  }
- 
+
 -test('the first Main Bot waits for the user to pick a model, then greets', async (t) => {
 +test('the first Main Bot waits for the user to pick a model, and nothing opens a turn', async (t) => {
    const { call, stop, sent, selected } = start(undefined, { models: ['deepseek-v4-flash', 'deepseek-v4-pro'] })
@@ -60,7 +60,7 @@ diff --git a/test/roster.test.js b/test/roster.test.js
    assert.equal(selected.length, 0)
    assert.deepEqual(team.models.map(model => model.ref), ['deepseek/deepseek-v4-flash', 'deepseek/deepseek-v4-pro'])
    assert.equal(team.defaultModel, 'deepseek/deepseek-v4-flash')
- 
+
    assert.equal((await call('update-bot', { id: main.id, model: 'deepseek/deepseek-v4-pro' })).ok, true)
 -  await until(() => sent.length > 0)
 +  await until(() => selected.length > 0)
@@ -75,7 +75,7 @@ diff --git a/test/roster.test.js b/test/roster.test.js
 -  assert.equal(sent[0].message.source.role, 'kickoff')
 +  // The pick applies the model; the user's own message is what starts a turn (#645).
 +  assert.equal(sent.length, 0)
- 
+
 -  // A later model change does not greet again.
 +  // A later model change stays silent too.
    await call('update-bot', { id: main.id, model: 'deepseek/deepseek-v4-flash' })
@@ -83,7 +83,7 @@ diff --git a/test/roster.test.js b/test/roster.test.js
 -  assert.equal(sent.length, 1)
 +  assert.equal(sent.length, 0)
  })
- 
+
 -test('other Bots start on the default model and greet at once', async (t) => {
 +test('other Bots start on the default model and are sent nothing', async (t) => {
    const { call, stop, sent } = start(undefined, { models: ['deepseek-v4-flash'] })
@@ -122,12 +122,12 @@ diff --git a/test/roster.test.js b/test/roster.test.js
 +  const typed = (await call('create-bot', { name: 'Typist' })).value
 +  assert.equal(typed.model, 'deepseek/deepseek-v4-flash')
  })
- 
+
  test('a new name must be one "@" can call; a name saved before the rule still saves', async (t) => {
 @@ -129,85 +129,36 @@ test('a new name must be one "@" can call; a name saved before the rule still sa
    assert.equal((await call('update-bot', { id: writer.id, name: '新 Writer' })).ok, true)
  })
- 
+
 -// The kickoff arrives as a user message, so it must not name a question tool the Bot's
 -// instructions can rule out, and it gives way to those instructions.
 -for (const kind of ['main', 'copy', 'made by a Main Bot', 'made by the user']) {
@@ -194,7 +194,7 @@ diff --git a/test/roster.test.js b/test/roster.test.js
 +  await settle()
 +  assert.deepEqual(sent, [])
  })
- 
+
 -test('a group the user makes without a first message opens with its admin asking what it is for', async (t) => {
 -  const { call, stop, sent, ctx, home } = start(undefined, { models: ['deepseek-v4-flash'] })
 +test('a group the user makes starts no turn of its own', async (t) => {
@@ -231,12 +231,12 @@ diff --git a/test/roster.test.js b/test/roster.test.js
 -  assert.deepEqual(saved.log, [])
 +  assert.equal(saved.log?.length ?? 0, 0)
  })
- 
+
  test('a Bot takes a thinking level its model serves, applied with the model', async (t) => {
 @@ -247,6 +247,16 @@ test('the state reports a changed model list without a new revision', async (t)
    assert.equal((await call('state', { since: first.revision, models: 'stale' })).value.unchanged, undefined)
  })
- 
+
 +test('#419: plugin tool names ride every state answer, an unchanged one too (a plugin reload makes no revision)', async (t) => {
 +  const { call, stop } = start()
 +  t.after(stop)
@@ -253,7 +253,7 @@ diff --git a/test/roster.test.js b/test/roster.test.js
 @@ -399,29 +399,26 @@ test('an archive failure on delete is warned instead of passing silently', async
    assert.equal(warnings.filter(text => text.includes('not archived')).length, 1)
  })
- 
+
 -test('a hidden Bot made Main Bot shows again, and a replaced Chief drops its held greeting', async (t) => {
 +test('a hidden Bot made Main Bot shows again, and a replaced Chief is sent nothing', async (t) => {
    const { call, stop, sent } = start(undefined, { models: ['deepseek-v4-flash'] })
@@ -275,7 +275,7 @@ diff --git a/test/roster.test.js b/test/roster.test.js
 -  assert.equal(toChief(), greeted)
 +  assert.equal(sent.length, before)
  })
- 
+
  const takeover = (home, team) => {
    writeFileSync(join(home, 'state.lock'), JSON.stringify({ pid: process.ppid, host: hostname(), token: 'new-owner' }))
    if (team !== undefined) writeFileSync(join(home, 'state.json'), JSON.stringify(team))
@@ -286,7 +286,7 @@ diff --git a/test/roster.test.js b/test/roster.test.js
    t.after(stop)
 @@ -463,7 +463,7 @@ test('a delete whose save fails still stops the Sessions, and the next save writ
  })
- 
+
  test('a rolled-back Bot does not come back with a save queued before the rollback', async (t) => {
 -  const { call, stop, home } = start({ version: 1, mainBotIds: ['chief'], bots: { chief: { id: 'chief', name: 'Chief' } } })
 +  const { call, stop, home, rt } = start({ version: 1, mainBotIds: ['chief'], bots: { chief: { id: 'chief', name: 'Chief' } } })

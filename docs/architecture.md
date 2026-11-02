@@ -123,3 +123,44 @@ M7.5 adds [resource workspaces](subsystems/project-resource-workspaces.md): boun
 Repair R6: [Chief control](subsystems/project-chief-control.md) composes existing
 Task pools, Runs, Harnesses and original DSH schedules. Logical schedule mappings
 retain durable Project/Chief targets; completion decisions remain host validated.
+
+## Fork automatic development application service
+
+The [development service](subsystems/project-development-service.md) routes versioned
+commands, trusted host events and queries to existing Project modules. Legacy HTTP,
+agent and schedule adapters share the same business implementations and derived
+TaskView; no second executor/store or new control-plane component is introduced.
+
+The [effect/outbox layer](subsystems/project-effects.md) commits host action intents
+with existing Project state and reconciles results through the same authorized
+adapters. It does not replace role pools, SDK lifecycle or Chief adjudication.
+
+
+S3 adds [durable Task inputs](subsystems/project-inputs.md) to the existing service,
+store, Effect engine and per-Bot pools. Receipt evidence separates persistence,
+adapter delivery, SDK observation and declared reading/validated handling. Busy SDK
+feedback waits for the same worker/thread's safe turn; Chief closure commits its
+input receipt with acceptance. No additional workflow, frontend, clock or platform
+service is introduced.
+
+S4 adds [GitHub Source/Thread subscriptions](subsystems/project-sources.md) at that
+same boundary. The scoped GitHub broker observes immutable revisions; event routes,
+S3 inputs, Effects and polling cursors commit together after all asynchronous
+authority checks. Subscriptions identify Tasks, whose current responsibility
+selects the receiving Bot. Existing configurable logical schedules drive polling;
+remote state, CI and Review are facts and cannot grant Task closure or candidate
+verification. No additional executor, listener, DAG or control-plane change.
+
+S5 makes the [trusted private execution boundary](subsystems/project-execution-boundary.md)
+explicit. Human rights, Bot contracts, Harness capability and OS isolation remain
+separate. One dedicated service account is compatible; per-Bot containers/users are
+optional. The read-only capability query cannot grant rights, and unsupported
+profiles fail existing repository/resource preflight. Private data, current
+authorization, leases/generation/exit and exact-SHA gates remain unchanged.
+
+
+Issue60 extends the same service/delivery boundary with explicit approved operator
+integration inputs. Current manager authority, released execution proof, exact
+workspace/generation snapshot and Effect-backed admission fence which parents the
+host may retain. Sealing preserves the resolved staged tree and trusted ancestry;
+it does not grant SDK shared-ref access, replace a PR or substitute for verification.

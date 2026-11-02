@@ -144,6 +144,11 @@ lease generation and carrier evidence. Event timestamps support heartbeat
 inspection. Credential redaction uses token boundaries so Task UUIDs survive.
 Current worker-controller lookup supports conservative resource reconciliation.
 
+R7 conversation carriers may represent a room's Developer/Tester/Reviewer as well as
+Chief. They reuse the existing no-tools, read-only conversation adapter and live human
+delegation. SDK worker metadata records the actual selected model and room binding;
+scoped resource projections omit other members' restricted-room workers. Host-parsed
+SDK replies share the native transcript read model; partial SDK JSON is not displayed.
 Local Codex developers receive host-derived writable roots for their registered
 Git worktree directory and common object store, so staging new canonical files
 works without access to shared refs/config. Reviewer/Tester/Chief get no extra
@@ -178,10 +183,28 @@ are provisioned by the host, rather than asking a read-only Reviewer to install 
 
 
 ## Task-role SDK continuation and scoped context
-`project-task-sessions.js` owns stable Project/Task/role logical IDs and binding checks; state.projectTaskSessions persists backend bindings through ordinary store snapshots. Worker records retain logicalSessionId, bindingKey, continuedFrom or rotationReason. Same binding resumes a thread only after prior worker stop-ack/process-exit and matching released lease. Binding includes Harness/resource/principal/cwd/profile locations/baseURL/model/persona. A changed binding starts a new backend thread under the same logical Session; no cwd or principal migration. Worker/claim/generation/log identities remain distinct. Mandatory current candidate/criteria/context are supplied on every turn; a complete unchanged policy already in the resumed thread is referenced by verified digest instead of duplicated.
+`project-task-sessions.js` owns stable Project/Task/role logical IDs and binding checks; state.projectTaskSessions persists backend bindings through ordinary store snapshots. Worker records retain logicalSessionId, bindingKey, continuedFrom or rotationReason. Same binding resumes a thread only after prior worker stop-ack/process-exit or an exact host-confirmed prior systemd invocation exit, with a matching released lease. Binding includes Harness/resource/principal/cwd/profile locations/baseURL/model/persona. A changed binding starts a new backend thread under the same logical Session; no cwd or principal migration. Worker/claim/generation/log identities remain distinct. Mandatory current candidate/criteria/context are supplied on every turn; a complete unchanged policy already in the resumed thread is referenced by verified digest instead of duplicated.
 
 Codex exec/SDK retains its own automatic history compaction, with no custom compact threshold or second DSH engine. Native DSH retains original parts/steward behavior. Native per-execution carriers retain Task logical identity and source archives; this does not claim persistent native-carrier reuse across Attempts.
 
 Public SDK Chief can return bounded contextRequests/memoryRequests; host revalidates current delegation and scope, returns bounded results, and continues the same worker/thread before final judgement. At most4 retrieval continuations; original execution deadline remains. Final memoryUpdates go through original own-Bot memory; read-only handoffs cannot write. Full archive files remain private host artifacts; command-enabled SDK roles receive a copy in their own scratch directory, cleaned after confirmed exit.
 
 Conversation carriers for room Developer/Reviewer identities remain noTools/read-only just like Chief; a role label never turns an ordinary conversation into a development execution. Their optional role identity is retained in backend binding checks. Only the resident public Chief may use durable-memory exchange; room agents cannot target its write seam. Regression reproduces the old non-Chief carrier tool flag before the fix.
+
+
+### Prior service invocation compatibility (#57)
+
+`confirmedWorkerExit` is shared by logical Session and workspace reuse. Normal SDK
+stop acknowledgement requires its current execution generation. Supervisor proof
+requires the exact released lease to match worker Project, Attempt, role, resource,
+handle and generation, plus a control-group process scope whose invocation matches
+both worker and lease proofs. This consumes host-produced reconciliation evidence,
+not role claims or an absent PID. Missing, mismatched and unknown exit proof stays
+blocked. Original thread/cwd/profile and current Task-role authorization checks remain.
+
+
+## Durable Task inbox integration (S3)
+
+S3 observes actual SDK output separately from explicit read declarations. A completed SDK turn can receive at most4 bounded additional inbox turns in the same worker/thread/claim before its handoff is applied; original timeout and evidence budgets remain. No ordinary feedback interrupts a worker, answers a permission or creates a second Dev. Native dispatch/read guarantees remain explicitly distinct; real Codex receipt fixtures do not establish native/Claude acceptance. See [inputs](project-inputs.md).
+
+S3 also wakes a current SDK message-wait at its safe idle boundary, revalidating the original Task principal, claim and lease before send. Permission waits remain untouched. Durable batches prepared but not written remain eligible for later delivery; remaining counts exclude earlier actually injected batches. SDK dispatch records its own adapter-write receipt; native dispatch records only its own adapter acceptance.

@@ -298,10 +298,19 @@ delegation. Coordination jobs cannot authorize themselves or create arbitrary Ta
 Chief coordination retains explicitly published shared Project knowledge alongside
 its role memory; private human notes/history remain excluded.
 
+R7 #40 extends existing delegated conversations to independent room/role carriers.
+Room execution snapshots current public role definitions, Skills and published memory;
+restricted room history never enters the public Chief or a human's private agent.
+Conversation-only delegation rejects Task/run effects for native and SDK roles.
+Native text streams are bounded, process-local and tied to the exact live delegation;
+reasoning is excluded. Scoped stop fences callbacks before awaiting owned worker exit.
+See [collaboration contract](project-collaboration.md).
 Repository previews may reference the separately injected complete policy only after
 verifying the policy hash, source commit, full source hash and preview prefix.
 Unverified previews remain inline under the unchanged 48,000-character limit;
 knowledge, memory and complete policy rules are preserved.
+
+Board-only `project-agents {view: summary}` returns the current public Chief identity after the same membership checks; it neither creates a private carrier nor returns private notes/proposals or role-policy bodies. Full settings/conversation responses retain their existing ownership scope.
 
 
 ## Explicit knowledge checkpoints (R6 context recovery)
@@ -335,3 +344,11 @@ actual execution recovery are separate acceptance evidence.
 Chief memory index/head comes from the original resident Bot's own MEMORY.md/topic files. Scoped project_agent_context accepts memoryRequests and memoryUpdates (topic, text, replace) only for the active public Chief; SDK uses the same host contextExchange. Normal platform/delegation and Project membership checks still run. No requested Bot ID, team scope, another Project or private agent can retarget the store; private/read-only conversations cannot publish shared memory. Source references name the actual Chief request and journal preserves replaced facts. SDK instructions request short durable public facts rather than execution logs, repository rules or credentials.
 
 RoleContext retrieval mode retains the48k admission ceiling and all original requirements/persona. Recent public knowledge is inline within8k; older/large rows and oversized attached memory remain in a content-hashed immutable archive. Exact source IDs/hashes stay in evidence. Chief reads paginated index/source pages through contextRequests; command-enabled roles read only needed archive entries. Each page is6000characters, maximum4 per request. Unknown kinds/IDs, negative offsets and changed archives fail closed. This is source retrieval before execution, separate from model-history compaction. Legacy explicit checkpoint records remain valid and retained.
+
+## Development service compatibility (S1)
+
+Scoped agent run/watch actions retain their existing authorization and legacy endpoint calls, which now route to the development facade. No new agent tool authority or permission to submit raw role events is added. See [service contract](project-development-service.md).
+
+## Durable effects and outbox (S2)
+
+Personal public writes use a durable outbox when the effect host is installed. State retains immutable-body hashes/references, current human/grant provenance and verified public receipts; text remains a private0600 artifact and cookies/tokens/transient browser actors are not persisted. Background work rechecks current authority and never falls back to automation credentials. See [effect contract](project-effects.md).

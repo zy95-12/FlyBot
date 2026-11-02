@@ -214,7 +214,18 @@ function GroupOverview({ room, roster, actions, usage, useWork, openSettings }) 
   ]
 }
 
-export function DetailsDrawer({ sessionId, startRenaming, startTab, hasStrip, roster, actions, useSessions, useSessionStatus, useActivity, useWork, useBrowserTabs, useBrowserPages }) {
+export function ScopedDetailsDrawer({ bot, actions }) {
+  return h('div', { className: 'bt-drawer-body', 'data-scoped-details': '' },
+    h('h3', null, bot.name),
+    bot.instructions ? h(About, { text: bot.instructions }) : null,
+    h(MemoryRow, { bot, actions }))
+}
+
+export function DetailsDrawer({ scoped = false, ...props }) {
+  return scoped ? h(ScopedDetailsDrawer, props) : h(FullDetailsDrawer, props)
+}
+
+function FullDetailsDrawer({ sessionId, startRenaming, startTab, hasStrip, roster, actions, useSessions, useSessionStatus, useActivity, useWork, useBrowserTabs, useBrowserPages }) {
   const owner = roster.byId[sessionId]
   const part = owner ? currentPart(owner) : sessionId
   const isMainBot = isMainOf(roster, owner?.id)

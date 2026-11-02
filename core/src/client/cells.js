@@ -37,7 +37,7 @@ export function Bubbles({ texts, roster, selfId, actions, streaming, sessionId, 
   const reactions = useUi ? useUi(state => (msgKey ? state.reactions?.[msgKey] ?? null : null)) : null
   return h('div', { className: 'bt-astack', 'data-lead': lead ? '' : undefined, onClickCapture: onClick },
     texts.map((text, index) => {
-      const key = msgKey ? `${msgKey}:${index}` : undefined
+      const key = msgKey && typeof actions.toggleReaction === 'function' ? `${msgKey}:${index}` : undefined
       const picked = key ? reactions?.[index] ?? [] : []
       const last = index === texts.length - 1
       const live = streaming && last
@@ -257,7 +257,7 @@ function HeldReply({ held, roster, sessionId, actions, closing, children }) {
 // A friend's line that Bot Social attests the friend typed themselves, or another person's own
 // line in a face-to-face room: the person's name and a person mark, not the Bot's (the host marks
 // the turn, remote-chat.js / turns.js, or posts it as a person line, hooks.js postHuman).
-function PersonMessage({ name, texts, roster, selfId, actions, sessionId, msgKey, useUi }) {
+export function PersonMessage({ name, texts, roster, selfId, actions, sessionId, msgKey, useUi }) {
   const lead = h('span', { className: 'bt-lead', title: name }, h(PersonMark, { name }))
   return h('div', { className: 'bt-group-msg bt-person-msg', 'data-person': name },
     h('span', { className: 'bt-group-name' }, name),

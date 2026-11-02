@@ -36,6 +36,9 @@ test('apply registers listeners, tools, and effects in a fixed order', (t) => {
   assert.equal(ctx.registeredTools.has('project_agent_context'), false, 'legacy mode does not expose workbench tools')
   assert.deepEqual(ctx.calls, [
     'effect ds-bot: state lock',
+    'effect ds-bot: Project effects',
+    // Project streaming is observed before the session/delegation guards.
+    'on llm/stream',
     // Project scope guard stays installed even if the workbench is later disabled.
     'on session/event',
     // Reject stale Project delegations, then intercept managed schedule deliveries.
@@ -226,4 +229,17 @@ test('config.browser turns Bot browsers off even in the Desktop profile', (t) =>
   const { ctx, stop } = start(TEAM, { config: { browser: false }, services: { profileContext: { name: 'desktop' } } })
   t.after(stop)
   assert.ok(!ctx.calls.includes('tool read_browser'))
+})
+
+test('personal stream observation is installed only for the explicit shared workbench', async t => {
+  const legacy = start()
+  const shared = start(undefined, { config: { projectWorkbench: true } })
+  t.after(legacy.stop)
+  t.after(shared.stop)
+  const baseline = legacy.ctx.listeners.get('llm/stream')
+  const scoped = shared.ctx.listeners.get('llm/stream')
+  assert.equal(scoped.length, baseline.length + 1, 'legacy profiles must not acquire the personal projection listener')
+  const next = (async function* () {})()
+  assert.equal(scoped.at(-1)({ sessionId: 'unknown', purpose: 'compaction' }, () => next), next, 'unrelated model purposes pass through unchanged')
+  assert.equal(scoped.at(-1)({ sessionId: 'unknown' }, () => next), next, 'unknown Sessions are not observed')
 })

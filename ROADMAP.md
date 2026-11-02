@@ -2,8 +2,39 @@
 
 ## Active fork roadmap — 2026-10-31
 
-Current execution order (Owner, 2026-11-01): repair and verify backend directly in
-the foreground session, then resume the existing #40 Task/PR48 through FlyBot.
+S5/#54 adds the trusted-private compatibility profile and execution-boundary query,
+without per-Bot OS infrastructure or live identity/sandbox migration. Current-role,
+safe/watch, private-data and concurrency regression suites guard existing rights.
+Exact-head full checks and dedicated-account metadata probes are separate from
+S6/#55 integrated GitHub/SDK/recovery/UI acceptance, which remains required.
+
+S4/#53 implements scoped GitHub feedback→existing Task inputs with persistent
+revisions, bounded source sweeps and native schedule configuration. Full exact-head
+verification, compatible checkpoint rollout and actual GitHub→Bot handoff evidence
+must precede delivery claims. S5/#54 trust/capability boundary and S6/#55 integrated
+fault/recovery acceptance follow. S1–S3/#60 are deployed; original frontend Task40/
+PR48 now advances its new sealed candidate through native Tester/Reviewer roles.
+
+Immediate #60 foreground repair completes approved extra-merge host sealing before
+S2/S3 batch rollout and current frontend Attempt resumption. Keep the existing
+index/MERGE_HEAD, shared-ref restriction, Task/PR and independent candidate gates.
+The first batch is deployed; live source admission found a historical-Chief
+scope regression. PR62 includes its real-state reproduction and focused guard
+repair before resuming the original frontend Attempt. No full frontend acceptance yet.
+
+Service #49 implementation order: S1/#50 (PR56, deployed), S2/#51 (PR58, verified,
+awaiting compatible batch rollout), S3/#52 (PR61,4374 checks and real Codex receipt/pool acceptance verified), then source subscriptions/#53, trusted execution boundary/#54 and
+integrated fault/recovery acceptance/#55. #57/PR59 compatibility repair is deployed;
+original Chief resumed actual frontend Dev without changing Task40/PR48 ownership.
+Each stage keeps memory, architecture and regression evidence with its own PR.
+
+Immediate compatibility repair #57 removes the verified prior-invocation workspace
+and Session resumption blocker before continuing service #51–#55. Preserve the
+current frontend Task/Attempt/PR and unknown-exit protections.
+
+Current execution order (Owner update, 2026-11-01): keep the existing frontend
+#40 Task/PR48 autonomous while implementing backend #49–#55 directly in the
+foreground session, in separate issue worktrees and with staged verified rollout.
 Do not use FlyBot to assign backend repairs. R6 recovery covers serialized wake
 bursts, immediate persisted handoff/Chief events, original-requester queue recovery
 and receiving-workspace preparation before inference and host testing. Remaining
@@ -45,6 +76,19 @@ The 30–43 person-day estimate is provisional pending interfaces/frontend desig
 
 User explicitly authorized sequential implementation and a separate PR for every issue,
 including long-term memory, architecture and tests. Merge/deployment is separate.
+
+## Automatic development service sequence
+
+[#49](https://github.com/zy95-12/FlyBot/issues/49) tracks S1 #50 service/TaskView →
+S2 #51 durable Effects/outbox → S3 #52 input/role receipts → S4 #53 external
+Task subscriptions. S5 #54 trusted deployment/authority follows S1 and applies
+throughout; S6 #55 integrated recovery acceptance follows all five. One PR per
+implementation issue; no extra tracking-only PR. S1 PR56 has a deployed initial facade (673c741b); long-history follow-up
+b9cceb02 passed full4333 verification, deployed at a released checkpoint and
+passed three-account scoped HTTP/pagination checks, preserving original UI bytes.
+S2/#51 effect/outbox code and fault regressions are implemented; full verification
+and source-bound rollout follow before S3 inputs/read receipts.
+Independent repository review is not claimed. Original #34–#41 residuals remain.
 
 ## Historical upstream roadmap
 
@@ -165,6 +209,20 @@ return on one Task. Dogfood exposed HTTP registration, release/reconcile race an
 failed-admission status defects; fixes remain in R6 PR #47 with regressions. R7
 completion and all remaining #41 acceptance are still pending.
 
+R7 #40 candidate restores Project-scoped internal role rooms, mention/member routing,
+registered text artifacts, native public streaming and readable pool/Timeline views.
+See [inventory and limits](docs/subsystems/project-collaboration.md) and the
+[implementation decision](decisions/2026-11-01-r7-native-collaboration.md).
+The deterministic service/DOM checks do not satisfy criterion 7. Chromium/backend is
+blocked by this worker's loopback-listen policy; operator deployed three-role acceptance
+and Chief overall judgement remain pending. No Task is closed by this checkpoint.
+
+R7 rework preserves the existing candidate and failed Attempt. The reported core
+registration failure and browser fixture authentication mismatch have local red/green
+evidence; full host verification and actual deployed three-role acceptance remain gates.
+
+
+R7 rework adds socket-free complete workbench bootstrap/agent initialization checks and repairs the release-fragment format found in the current full verification log. This does not establish Chromium or deployed-service acceptance; Tester must run the configured host gate and the operator must rerun browser clicks.
 R6 actual persistent 30-minute wake and restart-preserved cadence passed on source
 59635b2. Shared issue #40 code delivery is still exercising SDK Git permissions
 and handoff preparation; final role-chain/browser acceptance remains incomplete.
@@ -200,9 +258,44 @@ The same-Attempt target-refresh host repair needs exact-head verification and in
 
 P0 now includes the reproduced M6 fixture/contract mismatch: complete actual safe-mode approval in browser and preserve negative authorization/duplicate checks, then assess current-head CI. Target refresh166 is integrated/deployed independently; UI remains unaccepted and P1 efficiency work remains queued until its real path is executed.
 
+R7 visual rework follows the owner's demo-first priority: conversation-focused shell,
+separate Settings, and expandable Task reading hierarchy on original Task40/PR48.
+No new backend authorization or framework optimization is bundled. New-candidate
+host tests, independent Review and desktop/narrow-screen visual/live acceptance
+remain required; the inherited candidate's evidence is not reused as a new PASS.
+
 Chief inspection may explicitly select one existing Task in its authorized Project. The host validates Project configuration authority and Task ownership before using the existing scoped snapshot mechanism. Other-Project/missing Tasks are rejected; unscoped inspection is unchanged. This reduces unrelated facts without dropping policy/knowledge or raising context limits.
 
 Owner basic-CI policy is implemented on the existing PR47 local branch: default pinned install/lint/build/canonical/core and plugin unit checks; heavy browser/runtime/package checks explicit extended dispatch. Independent Review and actual UI acceptance remain. Publish only at a safe upstream-binding checkpoint; this local change does not claim live workflow activation.
+
+R7 continuation implements non-overlapping polling, page-specific reads and summary projections, public Bot inspection and the Settings locator repair. Native personal-space compatibility, current-source browser throttling and actual deployed visual acceptance remain outstanding on #40/PR48; no completion or acceptance is claimed.
+
+
+R7 returned-candidate repair: workflow contract tests now match the authorized basic/extended split and executable result gate. This repairs the two observed host failures at 653ebc2; it does not complete native personal-space compatibility or actual UI acceptance.
+
+#40 native conversation slice: original Bubbles/identity marks are mounted in Project
+Chief/private chats; sessions/uiConversation/slots, personal-space/native-group
+compatibility and versioned desktop/narrow visual acceptance remain outstanding.
+
+
+R7 native conversation continuation: connect scoped observable history to Chief/private/room rendering and concurrent role streams. Personal space and sessions/uiConversation/slots integration remain the next required implementation slice; no overall completion or visual acceptance is recorded.
+
+R7 native continuation: preserved original personal Chief/Bot/group entry now has
+bounded identity/history/send/own-memory adapters and original AssistantCell reuse.
+Full native shell sessions/slots/composer and tool/approval integration, screenshots
+and deployed acceptance remain outstanding; component tests do not close #40.
+
+R7 Attempt8a: bounded diagnostics now reproduce and clear all five whitespace
+findings through source generators; 36 focused regressions pass. This is partial
+unsealed implementation progress, not full native compatibility or UI acceptance.
+
+#40 continuation recovers the preserved draft and pinned upstream together; adds
+native personal tree controls. Full native composer/tool/approval parity and actual
+candidate screenshots/service acceptance remain explicit remaining work.
+
+R7 returned-candidate follow-up adds scoped personal-history pagination with
+refresh retention and late-page privacy regressions. Same Task/PR lineage remains;
+this local repair does not establish deployed UI acceptance.
 
 Current frontend recovery blocker: shared operational history exceeded role context
 admission. R6 adds explicit manager-published knowledge checkpoints preserving all
@@ -210,10 +303,74 @@ source records; test and deploy the current projection, publish an authorized co
 checkpoint, then restore the same086 Attempt through scoped Chief judgement. Original
 PR48/native styles/composer/legacy interactions remain accepted frontend work.
 
+#40 continuation integrates pinned backend b3a1a6ed without discarding native UI changes. Same-origin native CSS and immediate logout isolation are the current verification slice. Native composer/tool/approval/stop integration and real three-account/weak-network screenshots remain required before Chief completion.
+
 R6 follow-up from real UI64 return: supply exact-source failed-test diagnostics
 to the next role so a hash-only Chief return does not require manual log hunting.
 Keep independent full logs, redaction, same-Task/SHA checks and bounded excerpts.
 
+#40 continuation integrates pinned backend 45b499bf without discarding the candidate CSS/logout slice. Popup layering verification follows the extracted canonical stylesheet. Native composer/tool/approval parity and actual three-account/weak-network screenshots remain open; host verification and independent review are still required.
+
+
+Task #40 rework: the inherited candidate failed the fragment validator because
+`40.fixed.md` contained multiple paragraphs. Keep one entry per fragment. The
+native conversation script now uses production React configuration and full
+minification, guarded by a 4.6 MB script budget (previous asset: 5.37 MB). This
+is a bounded reduction, not completed weak-network acceptance: embedded math
+fonts/CSS and the full native composer, tools, approval, stop/continue and
+personal/group interaction integration still require work. Operator deployment,
+three-account browser checks and actual screenshots remain pending.
+
+Task40 font-loading repair reduces initial native CSS to 217104 bytes and preserves
+self-only CSP. It does not complete rich native interaction or real three-account
+acceptance. Continue composer, tool/approval, stop/continue and weak-network validation
+after independent host checks of this candidate.
+
 
 ### Resident Chief and Task-role context — 2026-11-01
 Implemented Task-role logical identity, binding-checked SDK resume across rework, retained cwd ownership/cleanup and current candidate inputs. Added original-store Chief topic-memory read/write/replace and same-thread scoped retrieval rounds, plus immutable context archives instead of re-sending unbounded history. Native DSH keeps its original parts/steward/compaction; SDK uses its own runtime compaction. Verification must include real resource-user/runtime continuation and Chief memory before claiming live delivery. Current native workflow carriers remain per execution; their logical Task identity and retrievable facts are retained, not falsely described as SDK backend threads.
+
+Task40 continues with synchronized native CSS/JS loading and a scoped composer
+exported from the original composer module, sharing dictation cleanup and captured
+chat sends. Focused regression evidence is separate from complete UI acceptance;
+rich tool/approval, personal running state and deployed browser acceptance remain open.
+
+Task40 native interaction continuation implements personal questions/one-shot approval,
+stop/continue, own-chat streaming, bounded tool output and original group member-work
+controls. SDK execution input reuses original approval/composer components. Proceed to
+exact-candidate host tests and independent Review; only operator evidence can satisfy
+actual deployed three-account/weak-network and visual acceptance.
+
+Task40 host-return repair preserves legacy listener registration while retaining the
+explicit shared native stream observer. Reproduced all four reported failures and
+added a fail-without-fix mode-boundary regression. Continue through host tests/Review
+and operator acceptance on the same Task/PR48.
+
+Task40 review-return continuation repairs live-part navigation and replaces plain human
+paragraphs with original person bubbles. Native file/image sends and scoped historical
+attachment reads are implemented through public DSH APIs with explicit shared-entry
+byte limits. Proceed through host verification/independent Review; operator deployed
+three-account, weak-network and screenshot evidence remains separately required.
+
+Task40 refresh repair retains scoped native roots and updates props instead of
+unmounting on each poll. Bounded mounted-workbench regressions cover focus, selection,
+drafts, sends and teardown for personal/public/private/room views. Continue through
+new candidate verification and Review without borrowing earlier candidate evidence.
+
+Task40/PR48 integrates preserved frontend 0e72dc60 with operator backend b920cae8,
+including S1 and verified workspace/Session exit proofs. Compact board status
+uses the same live-activity evidence as the full S1 view. Integrated focused tests
+pass; exact sealed candidate host verification and independent Review come next.
+Actual shared-service browser/weak-network/screenshot acceptance stays outstanding.
+
+Task40 follow-up fixes registered-document selection during delayed native asset
+loading, with a red/green mounted regression. Broader live acceptance remains pending.
+
+Task40 follow-up retains room Stop/status controls outside native-owned roots;
+mounted red/green coverage precedes fresh host and real-service acceptance.
+
+Task40 native persona/memory inspection now reuses original read-only components;
+exact-candidate host and operator acceptance remain separate gates.
+
+Task40 Review follow-up separates polling epochs from native memory scope fences;
+slow-read refresh and retirement regressions precede fresh exact-candidate validation.
